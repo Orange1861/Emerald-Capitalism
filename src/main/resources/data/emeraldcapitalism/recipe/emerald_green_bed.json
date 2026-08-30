@@ -4,7 +4,7 @@
   "group": "bed",
   "key": {
     "#": {
-      "item": "minecraft:green_wool"
+      "item": "emeraldcapitalism:emerald_green_wool"
     },
     "X": {
       "tag": "minecraft:planks"
