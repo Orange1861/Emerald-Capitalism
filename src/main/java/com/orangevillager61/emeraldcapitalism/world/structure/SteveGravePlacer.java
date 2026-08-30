@@ -13,6 +13,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /** Places the persisted Steve grave template once all affected chunks are ready. */
@@ -59,9 +60,7 @@ public final class SteveGravePlacer {
             return PlacementAttempt.notReady();
         }
 
-        int surfaceY = level.getHeight(
-                Heightmap.Types.WORLD_SURFACE, target.getX(), target.getZ()) - 1;
-        BlockPos origin = new BlockPos(target.getX(), surfaceY - 1, target.getZ());
+        BlockPos origin = structureOrigin(level, target);
         BoundingBox placedBox = template.getBoundingBox(settings, origin);
         if (origin.getY() < level.getMinBuildHeight()
                 || placedBox.maxY() >= level.getMaxBuildHeight()
@@ -99,6 +98,15 @@ public final class SteveGravePlacer {
 
     public static BoundingBox footprint(StructureTemplate template, BlockPos origin) {
         return template.getBoundingBox(placementSettings(), origin);
+    }
+
+    /** Uses the same terrain-dependent origin level for placement and book coordinates. */
+    public static BlockPos structureOrigin(ServerLevel level, BlockPos target) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(target, "target");
+        int surfaceY = level.getHeight(
+                Heightmap.Types.WORLD_SURFACE, target.getX(), target.getZ()) - 1;
+        return new BlockPos(target.getX(), surfaceY - 1, target.getZ());
     }
 
     private static StructurePlaceSettings placementSettings() {

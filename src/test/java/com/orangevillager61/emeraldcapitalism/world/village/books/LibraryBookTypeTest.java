@@ -12,7 +12,7 @@ class LibraryBookTypeTest {
 
     @Test
     void graveLocationTypeReplacesItsCoordinateToken() {
-        assertEquals(List.of("The grave is at [20000, ~, -30000]."),
+        assertEquals(List.of("The grave is at [20000, 80, -30000]."),
                 LibraryBookType.STEVE_GRAVE_LOCATION.resolvePages(
                         List.of("The grave is at {{steve_grave_coordinates}}."),
                         Optional.of(new BlockPos(20_000, 80, -30_000))));

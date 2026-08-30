@@ -42,6 +42,11 @@ import java.util.function.Predicate;
 
 /** Places and populates the guaranteed lumbermill building for a village. */
 public final class VillageLumbermillStructurePlacer {
+    private static final ResourceLocation PLAINS_LUMBERMILL_VARIANT_ONE =
+            template("village/plains/houses/lumbermill_plains_1");
+    private static final ResourceLocation PLAINS_LUMBERMILL_VARIANT_TWO =
+            template("village/plains/houses/lumbermill_plains_2");
+    private static final int PLAINS_VARIANT_TWO_CHANCE_PERCENT = 33;
     private static final Map<String, List<ResourceLocation>> LUMBERMILL_TEMPLATES =
             lumbermillTemplates();
     private static final int[] DISTANCES_FROM_BELL = {18, 26, 34, 42, 50, 58};
@@ -67,13 +72,11 @@ public final class VillageLumbermillStructurePlacer {
 
     private static Map<String, List<ResourceLocation>> lumbermillTemplates() {
         ResourceLocation desert = template("village/desert/houses/lumbermill_desert_1");
-        ResourceLocation plainsOne = template("village/plains/houses/lumbermill_plains_1");
-        ResourceLocation plainsTwo = template("village/plains/houses/lumbermill_plains_2");
         ResourceLocation savanna = template("village/savanna/houses/lumbermill_savanna_1");
         ResourceLocation taiga = template("village/taiga/houses/lumbermill_taiga_1");
         return Map.of(
                 "DESERT", List.of(desert),
-                "PLAINS", List.of(plainsOne, plainsTwo),
+                "PLAINS", List.of(PLAINS_LUMBERMILL_VARIANT_ONE, PLAINS_LUMBERMILL_VARIANT_TWO),
                 "SAVANNA", List.of(savanna),
                 "TAIGA", List.of(taiga),
                 // Snowy villages use the taiga template until a snowy-specific
@@ -92,7 +95,7 @@ public final class VillageLumbermillStructurePlacer {
                                   VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
                                   ChunkLoadBudget loadBudget,
                                   Predicate<BoundingBox> reservedCollision) {
-        List<ResourceLocation> templateLocations = LUMBERMILL_TEMPLATES.get(biomeType);
+        List<ResourceLocation> templateLocations = templateLocationsFor(level, bellPos, biomeType);
         if (templateLocations == null) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] No lumbermill template is configured for biome {}", biomeType);
@@ -174,6 +177,28 @@ public final class VillageLumbermillStructurePlacer {
                 site.rotation(), site.footprint(), bellPos);
         return new PlannedLumbermill(site.loaded().template(), origin, site.rotation(),
                 site.footprint(), site.loaded().location(), entrance.pathStart(), entrance.direction());
+    }
+
+    /**
+     * Selects one plains lumbermill variant from a stable world-generation roll.
+     * The bell position distinguishes villages while the world seed keeps the
+     * result stable across reloads and repeated generation attempts.
+     */
+    private static List<ResourceLocation> templateLocationsFor(ServerLevel level, BlockPos bellPos,
+                                                                String biomeType) {
+        List<ResourceLocation> configured = LUMBERMILL_TEMPLATES.get(biomeType);
+        if (!"PLAINS".equals(biomeType) || configured == null) {
+            return configured;
+        }
+
+        return List.of(isPlainsVariantTwoSelected(level.getSeed(), bellPos)
+                ? PLAINS_LUMBERMILL_VARIANT_TWO
+                : PLAINS_LUMBERMILL_VARIANT_ONE);
+    }
+
+    static boolean isPlainsVariantTwoSelected(long worldSeed, BlockPos bellPos) {
+        return RandomSource.create(worldSeed ^ bellPos.asLong())
+                .nextInt(100) < PLAINS_VARIANT_TWO_CHANCE_PERCENT;
     }
 
     /**

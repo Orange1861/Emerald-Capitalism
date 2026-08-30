@@ -78,7 +78,9 @@ public final class LibraryBookGameTests {
         }
 
         BlockPos target = new BlockPos(20_000, 0, -30_000);
-        SteveGraveSavedData.get(helper.getLevel()).setTarget(target);
+        SteveGraveSavedData graveData = SteveGraveSavedData.get(helper.getLevel());
+        graveData.setTarget(target);
+        graveData.markPlaced(new BlockPos(20_000, 80, -30_000));
         var stack = definition.createItemStack();
         if (!definition.refreshWorldData(stack, helper.getLevel())) {
             helper.fail("Steve grave location book did not refresh its world data");
@@ -88,7 +90,7 @@ public final class LibraryBookGameTests {
                 .get(DataComponents.WRITTEN_BOOK_CONTENT);
         if (content == null || content.pages().isEmpty()
                 || !content.pages().getFirst().get(false).getString()
-                .contains("[20000, ~, -30000]")) {
+                .contains("[20000, 80, -30000]")) {
             helper.fail("Steve grave location book did not resolve the persisted coordinates");
             return;
         }

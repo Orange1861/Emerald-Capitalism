@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village.books;
 
 import com.orangevillager61.emeraldcapitalism.world.structure.SteveGraveSavedData;
+import com.orangevillager61.emeraldcapitalism.world.structure.SteveGravePlacer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -43,8 +44,18 @@ public record LibraryBookDefinition(
     /** Builds a book with world-data tokens resolved from the server's overworld. */
     public ItemStack createItemStack(ServerLevel level) {
         Objects.requireNonNull(level, "level");
+        if (type == LibraryBookType.STATIC) {
+            return createItemStack();
+        }
+
         ServerLevel overworld = level.getServer().overworld();
-        return createItemStack(Optional.ofNullable(SteveGraveSavedData.get(overworld).target()));
+        SteveGraveSavedData graveData = SteveGraveSavedData.get(overworld);
+        BlockPos coordinates = graveData.isPlaced()
+                ? graveData.placedOrigin()
+                : Optional.ofNullable(graveData.target())
+                .map(target -> SteveGravePlacer.structureOrigin(overworld, target))
+                .orElse(null);
+        return createItemStack(Optional.ofNullable(coordinates));
     }
 
     /** Refreshes a previously materialized dynamic book before it is opened. */

@@ -48,7 +48,7 @@ public enum LibraryBookType {
         }
 
         String coordinates = steveGraveTarget
-                .map(target -> "[" + target.getX() + ", ~, " + target.getZ() + "]")
+                .map(target -> "[" + target.getX() + ", " + target.getY() + ", " + target.getZ() + "]")
                 .orElse("[coordinates unavailable]");
         return pageTemplates.stream()
                 .map(page -> page.replace(STEVE_GRAVE_COORDINATES_TOKEN, coordinates))
