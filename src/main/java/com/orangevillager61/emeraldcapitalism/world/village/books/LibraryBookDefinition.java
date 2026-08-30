@@ -47,6 +47,27 @@ public record LibraryBookDefinition(
         return createItemStack(Optional.ofNullable(SteveGraveSavedData.get(overworld).target()));
     }
 
+    /** Refreshes a previously materialized dynamic book before it is opened. */
+    public boolean refreshWorldData(ItemStack stack, ServerLevel level) {
+        Objects.requireNonNull(stack, "stack");
+        Objects.requireNonNull(level, "level");
+        if (type == LibraryBookType.STATIC || !stack.is(Items.WRITTEN_BOOK)) {
+            return false;
+        }
+
+        CustomData metadata = stack.get(DataComponents.CUSTOM_DATA);
+        if (metadata == null || !id.equals(metadata.copyTag().getString("book_id"))) {
+            return false;
+        }
+
+        WrittenBookContent content = createItemStack(level).get(DataComponents.WRITTEN_BOOK_CONTENT);
+        if (content == null) {
+            throw new IllegalStateException("Dynamic authored book did not produce written content");
+        }
+        stack.set(DataComponents.WRITTEN_BOOK_CONTENT, content);
+        return true;
+    }
+
     private ItemStack createItemStack(Optional<BlockPos> steveGraveTarget) {
         List<String> resolvedPages = type.resolvePages(pages, steveGraveTarget);
         List<Filterable<Component>> writtenPages = resolvedPages.stream()

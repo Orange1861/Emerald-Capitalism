@@ -79,7 +79,12 @@ public final class LibraryBookGameTests {
 
         BlockPos target = new BlockPos(20_000, 0, -30_000);
         SteveGraveSavedData.get(helper.getLevel()).setTarget(target);
-        WrittenBookContent content = definition.createItemStack(helper.getLevel())
+        var stack = definition.createItemStack();
+        if (!definition.refreshWorldData(stack, helper.getLevel())) {
+            helper.fail("Steve grave location book did not refresh its world data");
+            return;
+        }
+        WrittenBookContent content = stack
                 .get(DataComponents.WRITTEN_BOOK_CONTENT);
         if (content == null || content.pages().isEmpty()
                 || !content.pages().getFirst().get(false).getString()

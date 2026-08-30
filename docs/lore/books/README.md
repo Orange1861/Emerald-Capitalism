@@ -37,7 +37,8 @@ number, and title.
 `Type` defaults to `Static`. The `Steve Grave Location` type replaces
 `{{steve_grave_coordinates}}` in page text with the generated grave's X/Z
 coordinates when the book is placed in a village library. If the grave cannot
-be resolved, it uses `[coordinates unavailable]`.
+be resolved yet, it uses `[coordinates unavailable]` until the book is opened
+again after the grave target becomes available.
 
 Run the converter from the repository root:
 
