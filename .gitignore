@@ -1,0 +1,41 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea
+
+# gradle
+build
+.gradle
+
+# other
+eclipse
+run
+runs
+run-data
+
+# python tooling
+__pycache__/
+*.py[cod]
+
+repo
+
+# Keep custom Gradle build logic under version control. The generic `build`
+# rule also matches its Java/Groovy package name.
+!buildSrc/src/
+!buildSrc/src/main/
+!buildSrc/src/main/groovy/
+!buildSrc/src/main/groovy/com/
+!buildSrc/src/main/groovy/com/orangevillager61/
+!buildSrc/src/main/groovy/com/orangevillager61/emeraldcapitalism/
+!buildSrc/src/main/groovy/com/orangevillager61/emeraldcapitalism/build/
+!buildSrc/src/main/groovy/com/orangevillager61/emeraldcapitalism/build/MixinAuditTask.groovy

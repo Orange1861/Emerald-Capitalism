@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.spruce.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/spruce"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:spruce_trapdoor",
+    "count": 1
+  }
+}

@@ -1,0 +1,678 @@
+{
+  "format": 1,
+  "source": {
+    "workbook": "emerald_capitalism_language_system.xlsx",
+    "sheets": [
+      "Substrate",
+      "Substrate Names",
+      "Names and Professions"
+    ],
+    "substitute_for": "Substrate Names is a verification oracle, not a shipped list."
+  },
+  "elements": {
+    "first": [
+      "bem",
+      "den",
+      "gis",
+      "hel",
+      "hun",
+      "ken",
+      "kir",
+      "muk",
+      "nu",
+      "ol",
+      "pen",
+      "sen",
+      "tem",
+      "wor",
+      "lom",
+      "rus",
+      "ril",
+      "sos",
+      "ler",
+      "wid"
+    ],
+    "second": [
+      "mun",
+      "tul",
+      "kem",
+      "nek",
+      "bir",
+      "su",
+      "din",
+      "luk",
+      "pi",
+      "tor",
+      "rol",
+      "pum",
+      "nim",
+      "pol",
+      "mig",
+      "sib",
+      "gor",
+      "weg",
+      "hin",
+      "nur"
+    ],
+    "second_frequency": {
+      "common": [
+        "mun",
+        "tul",
+        "kem",
+        "nek",
+        "bir",
+        "su",
+        "din",
+        "luk",
+        "pi",
+        "tor",
+        "rol",
+        "pum",
+        "nim",
+        "pol",
+        "mig",
+        "sib"
+      ],
+      "rare": [
+        "gor",
+        "weg",
+        "hin",
+        "nur"
+      ],
+      "rare_weight": 0.05
+    }
+  },
+  "pools": {
+    "plains": {
+      "first": [
+        "bem",
+        "den",
+        "gis",
+        "hel",
+        "hun",
+        "ken",
+        "kir",
+        "muk",
+        "nu",
+        "ol",
+        "pen",
+        "sen",
+        "tem",
+        "wor",
+        "lom",
+        "rus",
+        "ril",
+        "sos",
+        "ler",
+        "wid"
+      ],
+      "second": [
+        "mun",
+        "tul",
+        "kem",
+        "nek",
+        "bir",
+        "su",
+        "din",
+        "luk",
+        "pi",
+        "tor",
+        "rol",
+        "pum",
+        "nim",
+        "pol",
+        "mig",
+        "sib",
+        "gor",
+        "weg",
+        "hin",
+        "nur"
+      ]
+    },
+    "savanna": {
+      "first": [
+        "bem",
+        "den",
+        "hel",
+        "ken",
+        "kir",
+        "muk",
+        "pen",
+        "sen",
+        "tem",
+        "wor",
+        "lom",
+        "sos",
+        "rus",
+        "gis",
+        "nu",
+        "ol",
+        "ler"
+      ],
+      "second": [
+        "mun",
+        "tul",
+        "kem",
+        "bir",
+        "su",
+        "din",
+        "luk",
+        "tor",
+        "rol",
+        "pol",
+        "gor",
+        "weg",
+        "nek",
+        "pi",
+        "nim",
+        "hin",
+        "mig"
+      ]
+    },
+    "desert": {
+      "first": [
+        "bem",
+        "den",
+        "hel",
+        "ken",
+        "kir",
+        "muk",
+        "pen",
+        "sen",
+        "tem",
+        "wor",
+        "lom",
+        "sos",
+        "rus"
+      ],
+      "second": [
+        "mun",
+        "tul",
+        "kem",
+        "bir",
+        "su",
+        "din",
+        "luk",
+        "tor",
+        "rol",
+        "pol",
+        "gor",
+        "weg",
+        "nek"
+      ]
+    },
+    "taiga": {
+      "first": [
+        "gis",
+        "hun",
+        "ken",
+        "kir",
+        "muk",
+        "nu",
+        "sen",
+        "ril",
+        "rus",
+        "wid"
+      ],
+      "second": [
+        "tul",
+        "nek",
+        "din",
+        "luk",
+        "pi",
+        "tor",
+        "pum",
+        "nim",
+        "nur",
+        "sib"
+      ]
+    },
+    "snowy": {
+      "first": [
+        "gis",
+        "hun",
+        "ken",
+        "kir",
+        "muk",
+        "sen",
+        "ril",
+        "rus",
+        "nu"
+      ],
+      "second": [
+        "tul",
+        "nek",
+        "din",
+        "pi",
+        "tor",
+        "pum",
+        "nim",
+        "nur",
+        "luk"
+      ]
+    }
+  },
+  "junction": {
+    "stop_segments": "bdgkpt",
+    "vowels": "aeiou",
+    "stop_deletes_before_consonant": true,
+    "identical_consonants_geminate": true,
+    "gemination_wins_over_stop_deletion": true
+  },
+  "biome_rules": {
+    "plains": {
+      "operation": "none"
+    },
+    "savanna": {
+      "operation": "simplify_geminates"
+    },
+    "desert": {
+      "operation": "replace",
+      "from": "e",
+      "to": "i"
+    },
+    "taiga": {
+      "operation": "replace",
+      "from": "o",
+      "to": "u"
+    },
+    "snowy": {
+      "operation": "delete_final_stops",
+      "segments": "bdgkpt"
+    }
+  },
+  "drift_assignment": {
+    "model": "independent_low_frequency_value_noise",
+    "threshold": 0.78,
+    "feature_sizes": [
+      4096,
+      5120,
+      3072,
+      6144,
+      2048,
+      4096,
+      3072,
+      5120,
+      4096,
+      4096,
+      2048,
+      3072
+    ],
+    "min_rules": 1,
+    "max_rules": 2,
+    "inverse_groups": [
+      [
+        "D9",
+        "D10"
+      ]
+    ],
+    "rule_order": "ascending_rule_index",
+    "shared_across_biomes": true
+  },
+  "drift_rules": [
+    {
+      "id": "D1",
+      "name": "Final nasal drops",
+      "description": "Word-final m or n deletes. Kirnim > Kirni",
+      "operation": "drop_final_nasal"
+    },
+    {
+      "id": "D2",
+      "name": "s lenites to h",
+      "description": "Single medial s only. A geminate blocks it. Gistul > Gihtul",
+      "operation": "lenite_medial_s_to_h"
+    },
+    {
+      "id": "D3",
+      "name": "i lowers to e",
+      "description": "Every i. Kirnim > Kernem",
+      "operation": "lower_i_to_e"
+    },
+    {
+      "id": "D4",
+      "name": "u lowers to o",
+      "description": "Every u. Muknek > Moknek",
+      "operation": "lower_u_to_o"
+    },
+    {
+      "id": "D5",
+      "name": "Geminates simplify",
+      "description": "Any doubled consonant. Lommun > Lomun",
+      "operation": "simplify_geminates"
+    },
+    {
+      "id": "D6",
+      "name": "Final liquid drops",
+      "description": "Word-final l or r deletes. Gistul > Gistu",
+      "operation": "drop_final_liquid"
+    },
+    {
+      "id": "D7",
+      "name": "Final stop to nasal",
+      "description": "k and g to ng, t and d to n, p and b to m. Muknek > Mukneng",
+      "operation": "change_final_stop_to_nasal"
+    },
+    {
+      "id": "D8",
+      "name": "k lenites to h",
+      "description": "Single medial k only. Muknek > Muhnek",
+      "operation": "lenite_medial_k_to_h"
+    },
+    {
+      "id": "D9",
+      "name": "Initial stop voices",
+      "description": "p to b, t to d, k to g. Penkem > Benkem",
+      "operation": "voice_initial_stop"
+    },
+    {
+      "id": "D10",
+      "name": "Initial stop devoices",
+      "description": "b to p, d to t, g to k. Gistul > Kistul",
+      "operation": "devoice_initial_stop"
+    },
+    {
+      "id": "D11",
+      "name": "t lenites to s",
+      "description": "Single medial t only. Widtor > Widsor",
+      "operation": "lenite_medial_t_to_s"
+    },
+    {
+      "id": "D12",
+      "name": "m lenites to w",
+      "description": "Single medial m only. Tempum > Tewpum",
+      "operation": "lenite_medial_m_to_w"
+    }
+  ],
+  "age_suffixes": {
+    "child": "ek",
+    "adult": "in",
+    "elder": "ur"
+  },
+  "nitwit_suffix": "ek",
+  "origin_particle": {
+    "prefix": "Se",
+    "enabled": true,
+    "note": "Rendered from the persisted origin village once its name is determined."
+  },
+  "mayor_origin_particle": {
+    "prefix": "Bi-",
+    "enabled": true,
+    "note": "Mayor-only prefix for the persisted origin village; do not also render the generic origin particle."
+  },
+  "special_first_names": {
+    "names": [
+      "Kinniken"
+    ],
+    "selection_chance": 0.0001,
+    "note": "Manual exceptions replace only slot 1; age, profession, and origin remain derived."
+  },
+  "professions": {
+    "armorer": {
+      "label": "Armorer",
+      "root": "armi",
+      "bynames": {
+        "plains": "armini"
+      },
+      "regional_roots": {
+        "plains": "armi"
+      },
+      "note": ""
+    },
+    "butcher": {
+      "label": "Butcher",
+      "root": "smooka",
+      "bynames": {
+        "plains": "smookani",
+        "savanna": "smoogani"
+      },
+      "regional_roots": {
+        "plains": "smooka",
+        "savanna": "smooga"
+      },
+      "note": "was smoka"
+    },
+    "cartographer": {
+      "label": "Cartographer",
+      "root": "mopi",
+      "bynames": {
+        "plains": "mopini",
+        "savanna": "mobini",
+        "taiga": "mupini"
+      },
+      "regional_roots": {
+        "plains": "mopi",
+        "savanna": "mobi",
+        "taiga": "mupi"
+      },
+      "note": "was mapi"
+    },
+    "cleric": {
+      "label": "Cleric",
+      "root": "but",
+      "bynames": {
+        "plains": "buti",
+        "snowy": "buni"
+      },
+      "regional_roots": {
+        "plains": "but",
+        "snowy": "bu"
+      },
+      "note": "was boti"
+    },
+    "farmer": {
+      "label": "Farmer",
+      "root": "komp",
+      "bynames": {
+        "plains": "kompi",
+        "taiga": "kumpi",
+        "snowy": "komi"
+      },
+      "regional_roots": {
+        "plains": "komp",
+        "taiga": "kump",
+        "snowy": "kom"
+      },
+      "note": "was homfa"
+    },
+    "fisherman": {
+      "label": "Fisherman",
+      "root": "roda",
+      "bynames": {
+        "plains": "rodani",
+        "taiga": "rudani"
+      },
+      "regional_roots": {
+        "plains": "roda",
+        "taiga": "ruda"
+      },
+      "note": ""
+    },
+    "fletcher": {
+      "label": "Fletcher",
+      "root": "flech",
+      "bynames": {
+        "plains": "flechi",
+        "desert": "flichi",
+        "snowy": "fleni"
+      },
+      "regional_roots": {
+        "plains": "flech",
+        "desert": "flich",
+        "snowy": "fle"
+      },
+      "note": "was letch"
+    },
+    "leatherworker": {
+      "label": "Leatherworker",
+      "root": "kold",
+      "bynames": {
+        "plains": "koldi",
+        "taiga": "kuldi",
+        "snowy": "koli"
+      },
+      "regional_roots": {
+        "plains": "kold",
+        "taiga": "kuld",
+        "snowy": "kol"
+      },
+      "note": "was kalda"
+    },
+    "librarian": {
+      "label": "Librarian",
+      "root": "lekt",
+      "bynames": {
+        "plains": "lekti",
+        "desert": "likti"
+      },
+      "regional_roots": {
+        "plains": "lekt",
+        "desert": "likt"
+      },
+      "note": ""
+    },
+    "mason": {
+      "label": "Mason",
+      "root": "meiso",
+      "bynames": {
+        "plains": "meisoni",
+        "taiga": "meisuni"
+      },
+      "regional_roots": {
+        "plains": "meiso",
+        "taiga": "meisu"
+      },
+      "note": "was maso"
+    },
+    "shepherd": {
+      "label": "Shepherd",
+      "root": "wlo",
+      "bynames": {
+        "plains": "wloni",
+        "taiga": "wluni"
+      },
+      "regional_roots": {
+        "plains": "wlo",
+        "taiga": "wlu"
+      },
+      "note": "was wlu"
+    },
+    "toolsmith": {
+      "label": "Toolsmith",
+      "root": "pika",
+      "bynames": {
+        "plains": "pikani",
+        "savanna": "pigani"
+      },
+      "regional_roots": {
+        "plains": "pika",
+        "savanna": "piga"
+      },
+      "note": ""
+    },
+    "weaponsmith": {
+      "label": "Weaponsmith",
+      "root": "wepa",
+      "bynames": {
+        "plains": "wepani",
+        "desert": "wipani",
+        "savanna": "webani"
+      },
+      "regional_roots": {
+        "plains": "wepa",
+        "desert": "wipa",
+        "savanna": "weba"
+      },
+      "note": ""
+    },
+    "wanderingtrader": {
+      "label": "Wandering Trader",
+      "root": "wantreid",
+      "bynames": {
+        "plains": "wantreidi",
+        "snowy": "wantreini"
+      },
+      "regional_roots": {
+        "plains": "wantreid",
+        "snowy": "wantrei"
+      },
+      "note": ""
+    },
+    "banker": {
+      "label": "Banker (mod)",
+      "root": "inda",
+      "bynames": {
+        "plains": "indani"
+      },
+      "regional_roots": {
+        "plains": "inda"
+      },
+      "note": "was enda"
+    },
+    "emeraldsmith": {
+      "label": "Emerald Smith (mod)",
+      "root": "emsmet",
+      "bynames": {
+        "plains": "emsmeti",
+        "desert": "imsmiti",
+        "snowy": "emsmeni"
+      },
+      "regional_roots": {
+        "plains": "emsmet",
+        "desert": "imsmit",
+        "snowy": "emsme"
+      },
+      "note": ""
+    },
+    "merchant": {
+      "label": "Merchant (mod)",
+      "root": "treid",
+      "bynames": {
+        "plains": "treidi",
+        "snowy": "treini"
+      },
+      "regional_roots": {
+        "plains": "treid",
+        "snowy": "trei"
+      },
+      "note": ""
+    },
+    "lumberjack": {
+      "label": "Lumberjack (mod)",
+      "root": "wokot",
+      "bynames": {
+        "plains": "wokoti",
+        "savanna": "wogoti",
+        "taiga": "wukuti",
+        "snowy": "wokoni"
+      },
+      "regional_roots": {
+        "plains": "wokot",
+        "savanna": "wogot",
+        "taiga": "wukut",
+        "snowy": "woko"
+      },
+      "note": ""
+    },
+    "mayor": {
+      "label": "Mayor (mod)",
+      "root": null,
+      "bynames": {},
+      "regional_roots": {},
+      "note": "NO BYNAME. muknek is a defective noun: no affixes, and never the -i agent suffix. Stratum 1 relic. Do not 'fix' this."
+    },
+    "nitwit": {
+      "label": "Nitwit",
+      "root": null,
+      "bynames": {},
+      "regional_roots": {},
+      "note": "No byname. Keeps -ek, the CHILD suffix, for life. DELIBERATE: the village never regards a nitwit as having grown up. Do not 'fix' this to -in."
+    },
+    "unemployed": {
+      "label": "Unemployed",
+      "root": null,
+      "bynames": {},
+      "regional_roots": {},
+      "note": "No byname at all."
+    }
+  }
+}

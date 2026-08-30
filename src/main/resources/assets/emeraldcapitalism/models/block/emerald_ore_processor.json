@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "top": "emeraldcapitalism:block/emerald_ore_processor_top",
+    "front": "emeraldcapitalism:block/emerald_ore_processor_front",
+    "side": "emeraldcapitalism:block/emerald_ore_processor_side"
+  }
+}

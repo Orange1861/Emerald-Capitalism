@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.bamboo.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/bamboo"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:bamboo_trapdoor",
+    "count": 1
+  }
+}

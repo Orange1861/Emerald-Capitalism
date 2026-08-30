@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.spruce.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/spruce"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:spruce_fence_gate",
+    "count": 1
+  }
+}

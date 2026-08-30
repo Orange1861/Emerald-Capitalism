@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.jungle.buttons",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/jungle"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:jungle_button",
+    "count": 1
+  }
+}

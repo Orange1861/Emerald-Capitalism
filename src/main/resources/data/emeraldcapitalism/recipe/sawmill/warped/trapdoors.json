@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/warped"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:warped_trapdoor",
+    "count": 1
+  }
+}

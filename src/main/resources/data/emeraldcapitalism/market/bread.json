@@ -1,0 +1,15 @@
+{
+  "id": "bread",
+  "baseRate": 6.0,
+  "dailyConsumptionRate": 3.0,
+  "dailyConsumptionScalesWithPopulation": true,
+  "metric": "DAYS",
+  "lowMult": 9.0,
+  "highMult": 13.0,
+  "kScarcity": 0.13,
+  "floorRate": 1.8,
+  "kGlut": 0.10,
+  "ceilingRate": 36.0,
+  "bidAskSpread": 0.10,
+  "minimumTradeSize": 1
+}

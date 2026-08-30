@@ -1,0 +1,3932 @@
+{
+  "roots": [
+    {
+      "root": "ai",
+      "section": "body_and_person",
+      "meaning": "eye, sight, what is seen",
+      "origin": "Eye of Ender",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 21
+    },
+    {
+      "root": "boona",
+      "section": "body_and_person",
+      "meaning": "dead, remains, what is left of a body",
+      "origin": "Bone",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 22
+    },
+    {
+      "root": "hita",
+      "section": "body_and_person",
+      "meaning": "head, the self, a single person",
+      "origin": "Mob Head",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 23,
+      "dialects": {
+        "savanna": "hida"
+      }
+    },
+    {
+      "root": "aira",
+      "section": "protection_strength_communal_defense",
+      "meaning": "worked strength, forged endurance, hard defense",
+      "origin": "Iron Ingot / Iron Block / Iron Golem",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 27
+    },
+    {
+      "root": "ding",
+      "section": "protection_strength_communal_defense",
+      "meaning": "watcher, warder, active vigilance",
+      "origin": "Village bell alarm / Iron Golem patrol",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 28,
+      "dialects": {
+        "snowy": "di"
+      }
+    },
+    {
+      "root": "durabil",
+      "section": "protection_strength_communal_defense",
+      "meaning": "lasting defense, unbroken endurance",
+      "origin": "Durability / Unbreaking / iron gear",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 29,
+      "dialects": {
+        "snowy": "durabi"
+      }
+    },
+    {
+      "root": "gord",
+      "section": "protection_strength_communal_defense",
+      "meaning": "enclosed safety, protected interior, held settlement",
+      "origin": "Village houses / fenced plots / bell core",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 30,
+      "dialects": {
+        "taiga": "gurd",
+        "snowy": "gor"
+      }
+    },
+    {
+      "root": "kool",
+      "section": "protection_strength_communal_defense",
+      "meaning": "guardian presence, standing protector",
+      "origin": "Iron Golem",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 31,
+      "dialects": {
+        "snowy": "koo"
+      }
+    },
+    {
+      "root": "tootema",
+      "section": "protection_strength_communal_defense",
+      "meaning": "death-ward, last-life protection, life held back from loss",
+      "origin": "Totem of Undying",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 32,
+      "dialects": {
+        "desert": "tootima",
+        "savanna": "toodema"
+      }
+    },
+    {
+      "root": "anva",
+      "section": "labor_making_transformation",
+      "meaning": "weight-work, hammered order, forceful making",
+      "origin": "Anvil / repair / rename",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 36
+    },
+    {
+      "root": "ban",
+      "section": "labor_making_transformation",
+      "meaning": "patterned joining, repeat-formed structure",
+      "origin": "Loom / banner patterns / wool work",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 37,
+      "dialects": {
+        "snowy": "ba"
+      }
+    },
+    {
+      "root": "furna",
+      "section": "labor_making_transformation",
+      "meaning": "heat-change, processed matter, smelted use",
+      "origin": "Furnace / Blast Furnace / Smoker",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 38
+    },
+    {
+      "root": "graind",
+      "section": "labor_making_transformation",
+      "meaning": "refinement by abrasion, correction, reduced-to-better form",
+      "origin": "Grindstone / disenchant / repair",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 39,
+      "dialects": {
+        "snowy": "grain"
+      }
+    },
+    {
+      "root": "hraf",
+      "section": "labor_making_transformation",
+      "meaning": "shaping into use, made-fit form",
+      "origin": "Crafting Table / recipe book / crafting grid",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 40,
+      "dialects": {
+        "snowy": "hra"
+      }
+    },
+    {
+      "root": "smet",
+      "section": "labor_making_transformation",
+      "meaning": "worked metal, struck making, smith-skill",
+      "origin": "Smithing Table / Toolsmith / Weaponsmith / Armorer",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 41,
+      "dialects": {
+        "desert": "smit",
+        "snowy": "sme"
+      }
+    },
+    {
+      "root": "unch",
+      "section": "labor_making_transformation",
+      "meaning": "to break, do something by hand",
+      "origin": "Punch",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 42,
+      "dialects": {
+        "snowy": "un"
+      }
+    },
+    {
+      "root": "armi",
+      "section": "buildings_workstations_village_function",
+      "meaning": "armor-work, hardened protection, outfitting",
+      "origin": "Armorer / Blast Furnace / armor",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 46
+    },
+    {
+      "root": "bar",
+      "section": "buildings_workstations_village_function",
+      "meaning": "stored goods, catch-stock, sealed trade supply",
+      "origin": "Barrel / Fisherman / village storage",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 47,
+      "dialects": {
+        "snowy": "ba"
+      }
+    },
+    {
+      "root": "but",
+      "section": "buildings_workstations_village_function",
+      "meaning": "bottle-rite, cure-work, mixed draught",
+      "origin": "Brewing Stand / Bottles / Cleric",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 48,
+      "dialects": {
+        "snowy": "bu"
+      }
+    },
+    {
+      "root": "komp",
+      "section": "buildings_workstations_village_function",
+      "meaning": "rot-to-growth cycle, compost-fed fertility, turned waste",
+      "origin": "Composter / Farmer",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 49,
+      "dialects": {
+        "taiga": "kump",
+        "snowy": "kom"
+      }
+    },
+    {
+      "root": "ingo",
+      "section": "buildings_workstations_village_function",
+      "meaning": "hot ingot-shaping, smith-work, forged village utility",
+      "origin": "Smithing Table / ingots / smith professions",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 50,
+      "dialects": {
+        "taiga": "ingu"
+      }
+    },
+    {
+      "root": "kold",
+      "section": "buildings_workstations_village_function",
+      "meaning": "soaked working, hide-treatment, tanning",
+      "origin": "Cauldron / Leatherworker",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 51,
+      "dialects": {
+        "taiga": "kuld",
+        "snowy": "kol"
+      }
+    },
+    {
+      "root": "lekt",
+      "section": "buildings_workstations_village_function",
+      "meaning": "stored book-lore, public reading, learned center",
+      "origin": "Lectern / Bookshelf / Librarian",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 52,
+      "dialects": {
+        "desert": "likt"
+      }
+    },
+    {
+      "root": "flech",
+      "section": "buildings_workstations_village_function",
+      "meaning": "ranged craft, feather-work, prepared distance",
+      "origin": "Fletching Table / Fletcher / arrows",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 53,
+      "dialects": {
+        "desert": "flich",
+        "snowy": "fle"
+      }
+    },
+    {
+      "root": "mopi",
+      "section": "buildings_workstations_village_function",
+      "meaning": "mapped direction, charted reach, known routes",
+      "origin": "Cartography Table / Map / Cartographer",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 54,
+      "dialects": {
+        "savanna": "mobi",
+        "taiga": "mupi"
+      }
+    },
+    {
+      "root": "meiso",
+      "section": "buildings_workstations_village_function",
+      "meaning": "cut stone, shaped block, durable civic build",
+      "origin": "Stonecutter / Mason",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 55,
+      "dialects": {
+        "taiga": "meisu"
+      }
+    },
+    {
+      "root": "pika",
+      "section": "buildings_workstations_village_function",
+      "meaning": "practical tool-work, fitted utility, carried labor",
+      "origin": "Toolsmith / pickaxe / axe / shovel",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 56,
+      "dialects": {
+        "savanna": "piga"
+      }
+    },
+    {
+      "root": "roda",
+      "section": "buildings_workstations_village_function",
+      "meaning": "line-catch, patient taking, angling",
+      "origin": "Fishing Rod / Fisherman",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 57,
+      "dialects": {
+        "taiga": "ruda"
+      }
+    },
+    {
+      "root": "smooka",
+      "section": "buildings_workstations_village_function",
+      "meaning": "meat-work, rendered animal, butchery",
+      "origin": "Smoker / Butcher",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 58,
+      "dialects": {
+        "savanna": "smooga"
+      }
+    },
+    {
+      "root": "wepa",
+      "section": "buildings_workstations_village_function",
+      "meaning": "weapon-work, hostile preparation, village offense",
+      "origin": "Weaponsmith / grindstone / blades",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 59,
+      "dialects": {
+        "desert": "wipa",
+        "savanna": "weba"
+      }
+    },
+    {
+      "root": "wlo",
+      "section": "buildings_workstations_village_function",
+      "meaning": "woven stock, cloth-work, domestic finish. Was owl, which is an English word: S9 fired at site 0 and the site is now recorded as 1.",
+      "origin": "Loom / Wool / Shepherd",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 60,
+      "dialects": {
+        "taiga": "wlu"
+      }
+    },
+    {
+      "root": "sharp",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "cutting edge, precise work, shaped by sharpness",
+      "origin": "Sharpness / sword edge / axe edge",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 64,
+      "dialects": {
+        "snowy": "shar"
+      }
+    },
+    {
+      "root": "baind",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "bound force, attached law, linked effect",
+      "origin": "Binding / Curse / attachment logic",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 65,
+      "dialects": {
+        "snowy": "bain"
+      }
+    },
+    {
+      "root": "bleiz",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "living light, mobile volatility",
+      "origin": "Blaze",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 66,
+      "dialects": {
+        "snowy": "blei"
+      }
+    },
+    {
+      "root": "dia",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "master craft, durable high-skill work, perfected toolmaking",
+      "origin": "Diamond tools / Diamond armor",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 67
+    },
+    {
+      "root": "fort",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "favored yield, luck-touched gain, fortunate increase",
+      "origin": "Fortune",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 68,
+      "dialects": {
+        "taiga": "furt",
+        "snowy": "for"
+      }
+    },
+    {
+      "root": "laf",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "volatile within known bounds, fuel, energy",
+      "origin": "Lava",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 69,
+      "dialects": {
+        "snowy": "la"
+      }
+    },
+    {
+      "root": "lek",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "fine control, refined touch, delicate skill, extract without change, regurgitate without change",
+      "origin": "Silk Touch",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 70,
+      "dialects": {
+        "desert": "lik",
+        "snowy": "le"
+      }
+    },
+    {
+      "root": "luuma",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "revealed understanding, lit knowledge, visible truth",
+      "origin": "Glowstone / Glow Ink Sac / enchanting glint",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 71
+    },
+    {
+      "root": "mend",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "repair, restoration, rightful continuation",
+      "origin": "Mending",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 72,
+      "dialects": {
+        "desert": "mind",
+        "snowy": "men"
+      }
+    },
+    {
+      "root": "orang",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "keeper of knowledge (person), to protect knowledge",
+      "origin": "Orange Villager (Writers)",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 73,
+      "dialects": {
+        "taiga": "urang"
+      }
+    },
+    {
+      "root": "bein",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "specialized danger, harmless except to intended target",
+      "origin": "Bane of Athropods",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 74,
+      "dialects": {
+        "snowy": "bei"
+      }
+    },
+    {
+      "root": "bok",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "holder of knowledge, physical manifestation of knowledge, wisdom",
+      "origin": "Book",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 75,
+      "dialects": {
+        "taiga": "buk",
+        "snowy": "bo"
+      }
+    },
+    {
+      "root": "ruuna",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "marked knowledge, written power, encoded craft",
+      "origin": "Enchanting Table glyphs / enchanted books",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 76
+    },
+    {
+      "root": "kor",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "cleansing, removing blight, corrected damage",
+      "origin": "Smite / undead cleansing / curing the corrupted",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 77,
+      "dialects": {
+        "taiga": "kur",
+        "snowy": "ko"
+      }
+    },
+    {
+      "root": "boot",
+      "section": "coast_fishing_water_travel",
+      "meaning": "water-travel, movable shore-link, carried crossing",
+      "origin": "Boat / Chest Boat",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 81,
+      "dialects": {
+        "snowy": "boo"
+      }
+    },
+    {
+      "root": "hut",
+      "section": "coast_fishing_water_travel",
+      "meaning": "fish-catch, routine water-food, common shore take",
+      "origin": "Cod / fishing",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 82,
+      "dialects": {
+        "snowy": "hu"
+      }
+    },
+    {
+      "root": "kil",
+      "section": "coast_fishing_water_travel",
+      "meaning": "kelp growth, tidal shallows, rich wet edge",
+      "origin": "Kelp",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 83,
+      "dialects": {
+        "snowy": "ki"
+      }
+    },
+    {
+      "root": "rof",
+      "section": "coast_fishing_water_travel",
+      "meaning": "raft-borne crossing, river drift, waterborne travel",
+      "origin": "Bamboo Raft / Boat",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 84,
+      "dialects": {
+        "taiga": "ruf",
+        "snowy": "ro"
+      }
+    },
+    {
+      "root": "salma",
+      "section": "coast_fishing_water_travel",
+      "meaning": "moving-water catch, river-sea food run",
+      "origin": "Salmon",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 85
+    },
+    {
+      "root": "traid",
+      "section": "coast_fishing_water_travel",
+      "meaning": "thrown sea-weapon, dangerous coast-water, drowned pressure",
+      "origin": "Trident / Drowned",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 86,
+      "dialects": {
+        "snowy": "trai"
+      }
+    },
+    {
+      "root": "buumb",
+      "section": "biome_material_identity",
+      "meaning": "dense fast growth, clustered tropical material",
+      "origin": "Bamboo",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 90,
+      "dialects": {
+        "snowy": "buum"
+      }
+    },
+    {
+      "root": "per",
+      "section": "biome_material_identity",
+      "meaning": "pale wood, light forest build, open cool land",
+      "origin": "Birch",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 91,
+      "dialects": {
+        "snowy": "pe"
+      }
+    },
+    {
+      "root": "hah",
+      "section": "biome_material_identity",
+      "meaning": "thorned dry survival, guarded desert edge",
+      "origin": "Cactus",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 92,
+      "dialects": {
+        "snowy": "ha"
+      }
+    },
+    {
+      "root": "eiha",
+      "section": "biome_material_identity",
+      "meaning": "warm broad-canopy wood, dry settlement timber",
+      "origin": "Acacia",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 93
+    },
+    {
+      "root": "mang",
+      "section": "biome_material_identity",
+      "meaning": "rooted wet wood, tidal growth, waterbound settlement",
+      "origin": "Mangrove",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 94,
+      "dialects": {
+        "snowy": "ma"
+      }
+    },
+    {
+      "root": "ooka",
+      "section": "biome_material_identity",
+      "meaning": "ordinary settled wood, common village timber",
+      "origin": "Oak / Oak Log / Oak Planks",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 95,
+      "dialects": {
+        "savanna": "ooga"
+      }
+    },
+    {
+      "root": "ookareg",
+      "section": "biome_material_identity",
+      "meaning": "ordinary settled wood, common village build, temperate habitation",
+      "origin": "Oak",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 96,
+      "dialects": {
+        "desert": "ookarig",
+        "savanna": "oogareg",
+        "snowy": "ookare"
+      }
+    },
+    {
+      "root": "paki",
+      "section": "biome_material_identity",
+      "meaning": "hard frozen path, bright cold edge, slick winter ground",
+      "origin": "Ice / Packed Ice / Blue Ice",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 97,
+      "dialects": {
+        "savanna": "pagi"
+      }
+    },
+    {
+      "root": "snoo",
+      "section": "biome_material_identity",
+      "meaning": "snowbound cover, muted cold settlement",
+      "origin": "Snow / Snow Block",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 98
+    },
+    {
+      "root": "sfruuh",
+      "section": "biome_material_identity",
+      "meaning": "cold shelter-wood, dense conifer settlement identity",
+      "origin": "Spruce",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 99,
+      "dialects": {
+        "snowy": "sfruu"
+      }
+    },
+    {
+      "root": "therah",
+      "section": "biome_material_identity",
+      "meaning": "baked layered earth, red dry build-ground, fired land",
+      "origin": "Terracotta",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 100,
+      "dialects": {
+        "desert": "thirah",
+        "snowy": "thera"
+      }
+    },
+    {
+      "root": "glod",
+      "section": "biome_material_identity",
+      "meaning": "clearing in woodland, open ground among trees",
+      "origin": "Grove / Cherry Grove / sparse woodland",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 101,
+      "dialects": {
+        "taiga": "glud",
+        "snowy": "glo"
+      }
+    },
+    {
+      "root": "sont",
+      "section": "biome_material_identity",
+      "meaning": "loose dry ground, shifting surface, unfixed earth",
+      "origin": "Sand / Red Sand / Desert / beaches",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 102,
+      "dialects": {
+        "taiga": "sunt",
+        "snowy": "son"
+      }
+    },
+    {
+      "root": "beil",
+      "section": "growth_food_worked_land",
+      "meaning": "stored harvest, gathered crop, food-mass",
+      "origin": "Hay Bale / wheat storage / composter input",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 106,
+      "dialects": {
+        "snowy": "bei"
+      }
+    },
+    {
+      "root": "bluum",
+      "section": "growth_food_worked_land",
+      "meaning": "thriving growth, visible flourishing, crop-success",
+      "origin": "Bone Meal / flowers / bee pollination",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 107,
+      "dialects": {
+        "snowy": "bluu"
+      }
+    },
+    {
+      "root": "kloow",
+      "section": "growth_food_worked_land",
+      "meaning": "physical light, bright, safe from routine dangers",
+      "origin": "Glowstone",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 108,
+      "dialects": {
+        "snowy": "kloo"
+      }
+    },
+    {
+      "root": "hoo",
+      "section": "growth_food_worked_land",
+      "meaning": "hoed field, farmer-tended soil, crop-ready earth",
+      "origin": "Hoe / Farmland / Farmer",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 109
+    },
+    {
+      "root": "sap",
+      "section": "growth_food_worked_land",
+      "meaning": "baby tree, sapling",
+      "origin": "Sapling (ling)",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 110,
+      "dialects": {
+        "snowy": "sa"
+      }
+    },
+    {
+      "root": "looma",
+      "section": "growth_food_worked_land",
+      "meaning": "hydrated field, rich crop-ground, watered earth",
+      "origin": "Hydrated Farmland / crop rows / water-fed fields",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 111
+    },
+    {
+      "root": "ruut",
+      "section": "growth_food_worked_land",
+      "meaning": "rooted growth, grounded life, fixed nourishment",
+      "origin": "Rooted Dirt / Hanging Roots / mangrove roots",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 112,
+      "dialects": {
+        "snowy": "ruu"
+      }
+    },
+    {
+      "root": "wiht",
+      "section": "growth_food_worked_land",
+      "meaning": "grain growth, staple food, settled nourishment",
+      "origin": "Wheat / Seeds / Bread",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 113,
+      "dialects": {
+        "snowy": "wih"
+      }
+    },
+    {
+      "root": "wot",
+      "section": "growth_food_worked_land",
+      "meaning": "wood. Logs",
+      "origin": "Wood",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 114,
+      "dialects": {
+        "taiga": "wut",
+        "snowy": "wo"
+      }
+    },
+    {
+      "root": "pit",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "rest-place, slept-in space, inhabited pause",
+      "origin": "Bed / sleep cycle / village rest",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 118,
+      "dialects": {
+        "snowy": "pi"
+      }
+    },
+    {
+      "root": "bila",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "marked communal center, bell-heart, known meeting point",
+      "origin": "Bell",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 119
+    },
+    {
+      "root": "hola",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "shelter-place, inward refuge, safe habitation",
+      "origin": "Bed / spawnpoint / house shelter at night",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 120,
+      "dialects": {
+        "taiga": "hula"
+      }
+    },
+    {
+      "root": "krup",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "tended living ground, worked settlement earth",
+      "origin": "Crop fields / farmer work / village farmland",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 121,
+      "dialects": {
+        "snowy": "kru"
+      }
+    },
+    {
+      "root": "resp",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "to do again, implied to need to do something again",
+      "origin": "(re) spawn",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 122,
+      "dialects": {
+        "desert": "risp",
+        "snowy": "res"
+      }
+    },
+    {
+      "root": "sfun",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "to come into being, to be created (without a clear origin)",
+      "origin": "spawn",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 123,
+      "dialects": {
+        "snowy": "sfu"
+      }
+    },
+    {
+      "root": "vila",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "kin-group, shared peoplehood, close settlement bond",
+      "origin": "Villager breeding / gossip / food sharing",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 124
+    },
+    {
+      "root": "bid",
+      "section": "layout_density_village_scale",
+      "meaning": "bed-rich population anchor, housed village mass",
+      "origin": "Beds / villager housing",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 128,
+      "dialects": {
+        "snowy": "bi"
+      }
+    },
+    {
+      "root": "fin",
+      "section": "layout_density_village_scale",
+      "meaning": "bounded plots, fenced order, enclosed yards",
+      "origin": "Fence / Fence Gate / animal pens",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 129,
+      "dialects": {
+        "snowy": "fi"
+      }
+    },
+    {
+      "root": "chonk",
+      "section": "layout_density_village_scale",
+      "meaning": "occupied spread, multi-plot span, settlement footprint",
+      "origin": "Chunk / village footprint",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 130,
+      "dialects": {
+        "taiga": "chunk",
+        "snowy": "chon"
+      }
+    },
+    {
+      "root": "nood",
+      "section": "layout_density_village_scale",
+      "meaning": "central node, return-point, converged village core",
+      "origin": "Bell / POI convergence / path center",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 131,
+      "dialects": {
+        "snowy": "noo"
+      }
+    },
+    {
+      "root": "pot",
+      "section": "layout_density_village_scale",
+      "meaning": "road-linked layout, connected interior circulation",
+      "origin": "Path Block / village paths",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 132,
+      "dialects": {
+        "taiga": "put",
+        "snowy": "po"
+      }
+    },
+    {
+      "root": "poi",
+      "section": "layout_density_village_scale",
+      "meaning": "point-cluster, POI-dense center, settlement focus",
+      "origin": "Point of Interest system",
+      "enabled": false,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:forced"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 133
+    },
+    {
+      "root": "bluk",
+      "section": "bank_exchange_institutional",
+      "meaning": "massed wealth, stored bulk value",
+      "origin": "Emerald Block",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 137,
+      "dialects": {
+        "snowy": "blu"
+      }
+    },
+    {
+      "root": "boon",
+      "section": "bank_exchange_institutional",
+      "meaning": "forced increase, yield on a holding",
+      "origin": "Bone Meal",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 138,
+      "dialects": {
+        "snowy": "boo"
+      }
+    },
+    {
+      "root": "bond",
+      "section": "bank_exchange_institutional",
+      "meaning": "bundled lot, mixed holding, small assortment",
+      "origin": "Bundle",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 139,
+      "dialects": {
+        "taiga": "bund",
+        "snowy": "bon"
+      }
+    },
+    {
+      "root": "chist",
+      "section": "bank_exchange_institutional",
+      "meaning": "sealed store, held goods, private keeping",
+      "origin": "Chest",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 140,
+      "dialects": {
+        "snowy": "chis"
+      }
+    },
+    {
+      "root": "dem",
+      "section": "bank_exchange_institutional",
+      "meaning": "pull on supply, wanting-pressure, price-raising hunger",
+      "origin": "Demand mechanic",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 141,
+      "dialects": {
+        "desert": "dim",
+        "snowy": "de"
+      }
+    },
+    {
+      "root": "inda",
+      "section": "bank_exchange_institutional",
+      "meaning": "remote store, wealth held elsewhere, an account",
+      "origin": "Ender Chest",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 142
+    },
+    {
+      "root": "freim",
+      "section": "bank_exchange_institutional",
+      "meaning": "displayed offer, shown price, public listing",
+      "origin": "Item Frame",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 143,
+      "dialects": {
+        "snowy": "frei"
+      }
+    },
+    {
+      "root": "frais",
+      "section": "bank_exchange_institutional",
+      "meaning": "asked count, current rate of exchange",
+      "origin": "Price / specialPrice",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 144,
+      "dialects": {
+        "snowy": "frai"
+      }
+    },
+    {
+      "root": "hera",
+      "section": "bank_exchange_institutional",
+      "meaning": "earned favor, granted discount, owed gratitude",
+      "origin": "Hero of the Village",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 145,
+      "dialects": {
+        "desert": "hira"
+      }
+    },
+    {
+      "root": "hopa",
+      "section": "bank_exchange_institutional",
+      "meaning": "flow of goods, transfer, siphoning",
+      "origin": "Hopper",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 146,
+      "dialects": {
+        "savanna": "hoba",
+        "taiga": "hupa"
+      }
+    },
+    {
+      "root": "kompara",
+      "section": "bank_exchange_institutional",
+      "meaning": "measured signal, comparison of amounts, threshold",
+      "origin": "Comparator",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 147,
+      "dialects": {
+        "taiga": "kumpara"
+      }
+    },
+    {
+      "root": "kosa",
+      "section": "bank_exchange_institutional",
+      "meaning": "passed word, reputation, standing to be dealt with",
+      "origin": "Gossip system",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 148,
+      "dialects": {
+        "taiga": "kusa"
+      }
+    },
+    {
+      "root": "lev",
+      "section": "bank_exchange_institutional",
+      "meaning": "earned rank, unlocked standing, tier of dealing",
+      "origin": "Villager XP levels",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 149,
+      "dialects": {
+        "desert": "liv",
+        "snowy": "le"
+      }
+    },
+    {
+      "root": "looda",
+      "section": "bank_exchange_institutional",
+      "meaning": "fixed reference, anchor of value, the standard",
+      "origin": "Lodestone",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 150
+    },
+    {
+      "root": "luka",
+      "section": "bank_exchange_institutional",
+      "meaning": "closed trade, exhausted offer, refusal to deal",
+      "origin": "Trade lock",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 151,
+      "dialects": {
+        "savanna": "luga"
+      }
+    },
+    {
+      "root": "nith",
+      "section": "bank_exchange_institutional",
+      "meaning": "one who does not deal, outside exchange, unbanked",
+      "origin": "Nitwit",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 152,
+      "dialects": {
+        "snowy": "ni"
+      }
+    },
+    {
+      "root": "oomen",
+      "section": "bank_exchange_institutional",
+      "meaning": "coming ruin, foreseen collapse, bad sign",
+      "origin": "Bad Omen",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 153,
+      "dialects": {
+        "desert": "oomin",
+        "snowy": "oome"
+      }
+    },
+    {
+      "root": "ora",
+      "section": "bank_exchange_institutional",
+      "meaning": "raw wealth in ground, unworked value",
+      "origin": "Emerald Ore",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 154,
+      "dialects": {
+        "taiga": "ura"
+      }
+    },
+    {
+      "root": "shulk",
+      "section": "bank_exchange_institutional",
+      "meaning": "portable holding, wealth that travels",
+      "origin": "Shulker Box",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 155,
+      "dialects": {
+        "snowy": "shul"
+      }
+    },
+    {
+      "root": "skraib",
+      "section": "bank_exchange_institutional",
+      "meaning": "written record, ledger, binding account",
+      "origin": "Book and Quill",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 156,
+      "dialects": {
+        "snowy": "skrai"
+      }
+    },
+    {
+      "root": "stuka",
+      "section": "bank_exchange_institutional",
+      "meaning": "replenishment, restock cycle, renewed supply",
+      "origin": "Villager restock",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 157,
+      "dialects": {
+        "savanna": "stuga"
+      }
+    },
+    {
+      "root": "thok",
+      "section": "bank_exchange_institutional",
+      "meaning": "named claim, ownership mark, assigned title",
+      "origin": "Name Tag",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 158,
+      "dialects": {
+        "taiga": "thuk",
+        "snowy": "tho"
+      }
+    },
+    {
+      "root": "volt",
+      "section": "bank_exchange_institutional",
+      "meaning": "sealed chamber, wealth put beyond reach, a vault",
+      "origin": "Vault (Trial Chamber) / bank vault",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 159,
+      "dialects": {
+        "taiga": "vult",
+        "snowy": "vol"
+      }
+    },
+    {
+      "root": "brej",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "crossing-through water, route break",
+      "origin": "River crossing / village bridge / path over water",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 163,
+      "dialects": {
+        "desert": "brij",
+        "snowy": "bre"
+      }
+    },
+    {
+      "root": "dur",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "route, way, traversed passage, door, opening",
+      "origin": "Door",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 164,
+      "dialects": {
+        "snowy": "du"
+      }
+    },
+    {
+      "root": "duuna",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "shifting rise, sandy swell, wind-built ground",
+      "origin": "Desert sand ridges / beach sand / dry hills",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 165
+    },
+    {
+      "root": "jageda",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "sharp high face, broken mountain edge, exposed stone wall",
+      "origin": "Jagged Peaks / stony cliff faces",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 166,
+      "dialects": {
+        "desert": "jagida"
+      }
+    },
+    {
+      "root": "sthoon",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "hard land, stone-ground, firm earth",
+      "origin": "Stone / Cobblestone / mountain ground",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 167,
+      "dialects": {
+        "snowy": "sthoo"
+      }
+    },
+    {
+      "root": "mira",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "still water, shore-edge, quiet coast",
+      "origin": "Ocean / beach / riverbank / lake edge",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 168
+    },
+    {
+      "root": "mus",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "soft overgrowth, wet green cover, old damp surface",
+      "origin": "Moss Block / Moss Carpet / lush caves",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 169,
+      "dialects": {
+        "snowy": "mu"
+      }
+    },
+    {
+      "root": "reina",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "running water, current path, moving channel",
+      "origin": "River current / stream flow / boat travel",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 170
+    },
+    {
+      "root": "rihch",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "far stretch, long reach, extended shoreline or river-run",
+      "origin": "River reach / shoreline stretch / ocean run",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 171,
+      "dialects": {
+        "snowy": "rih"
+      }
+    },
+    {
+      "root": "rihd",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "reedbank, soft water margin, plant-thick edge",
+      "origin": "Sugar Cane / riverbank reeds / swamp edge",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 172,
+      "dialects": {
+        "snowy": "rih"
+      }
+    },
+    {
+      "root": "rem",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "outer edge, brink, border lip",
+      "origin": "Biome edge / coast edge / cliff lip",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 173,
+      "dialects": {
+        "desert": "rim",
+        "snowy": "re"
+      }
+    },
+    {
+      "root": "swomp",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "wet lowland, marsh ground, soaked basin",
+      "origin": "Swamp / Mangrove Swamp / mud",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 174,
+      "dialects": {
+        "taiga": "swump",
+        "snowy": "swom"
+      }
+    },
+    {
+      "root": "soola",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "sun-open dryland, exposed warm ground",
+      "origin": "Savanna / Desert / Sunflower Plains",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 175
+    },
+    {
+      "root": "teir",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "rise, lookout height, lifted ground",
+      "origin": "Windswept Hills / Stony Peaks / high ground",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 176,
+      "dialects": {
+        "snowy": "tei"
+      }
+    },
+    {
+      "root": "thur",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "high rocky summit, bare stone top, the highest ground",
+      "origin": "Jagged Peaks / Frozen Peaks / Stony Peaks",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 177,
+      "dialects": {
+        "snowy": "thu"
+      }
+    },
+    {
+      "root": "hrok",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "exposed rock, broken outcrop, stone standing clear of soil",
+      "origin": "Windswept Gravelly Hills / Stony Peaks / exposed stone",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 178,
+      "dialects": {
+        "taiga": "hruk",
+        "snowy": "hro"
+      }
+    },
+    {
+      "root": "klef",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "sheer face, sudden drop, ground that ends",
+      "origin": "Cliff faces / Windswept Hills / coastal drops",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 179,
+      "dialects": {
+        "desert": "klif",
+        "snowy": "kle"
+      }
+    },
+    {
+      "root": "rava",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "long open gash in the ground, deep cut, split earth",
+      "origin": "Ravine / surface crevasse",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 180,
+      "dialects": {
+        "savanna": "rawa"
+      }
+    },
+    {
+      "root": "reft",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "narrow break, crevasse, ground pulled apart",
+      "origin": "Crevasse / cave opening / cracked terrain",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 181,
+      "dialects": {
+        "desert": "rift",
+        "snowy": "ref"
+      }
+    },
+    {
+      "root": "mes",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "flat-topped height, layered dry plateau, banded standing land",
+      "origin": "Badlands / Eroded Badlands / plateau spires",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 182,
+      "dialects": {
+        "desert": "mis",
+        "snowy": "me"
+      }
+    },
+    {
+      "root": "fos",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "gap through heights, the way between, low crossing point",
+      "origin": "Mountain pass / gap between peaks",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 183,
+      "dialects": {
+        "taiga": "fus",
+        "snowy": "fo"
+      }
+    },
+    {
+      "root": "furd",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "shallow crossing, waded water, walkable river",
+      "origin": "Shallow river crossing / stream shallows",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 184,
+      "dialects": {
+        "snowy": "fur"
+      }
+    },
+    {
+      "root": "flon",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "open flat land, unbroken ground, land without rise",
+      "origin": "Plains / Sunflower Plains / Meadow",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 185,
+      "dialects": {
+        "taiga": "flun",
+        "snowy": "flo"
+      }
+    },
+    {
+      "root": "krist",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "long high ridge, running spine of land, connected height",
+      "origin": "Windswept Hills ridgelines / mountain ridges",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 186,
+      "dialects": {
+        "snowy": "kris"
+      }
+    },
+    {
+      "root": "isla",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "land ringed by water, cut-off ground",
+      "origin": "Islands / Mushroom Fields / ocean islets",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 187
+    },
+    {
+      "root": "tif",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "deep open water, water past the shallows",
+      "origin": "Deep Ocean / Deep Frozen Ocean / ocean floor",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 188,
+      "dialects": {
+        "snowy": "ti"
+      }
+    },
+    {
+      "root": "sfreng",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "water rising from the ground, source, fresh outflow",
+      "origin": "Water springs / aquifers / cave water sources",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 189,
+      "dialects": {
+        "desert": "sfring",
+        "snowy": "sfre"
+      }
+    },
+    {
+      "root": "wost",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "barren open ground, unworked land, land that gives nothing",
+      "origin": "Badlands / Desert / Wooded Badlands",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 190,
+      "dialects": {
+        "taiga": "wust",
+        "snowy": "wos"
+      }
+    },
+    {
+      "root": "hof",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "headland, land reaching into water, jutting point",
+      "origin": "Coastal headlands / peninsulas / beach points",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 191,
+      "dialects": {
+        "taiga": "huf",
+        "snowy": "ho"
+      }
+    },
+    {
+      "root": "bur",
+      "section": "memory_age_inheritance",
+      "meaning": "to bury, to put underground, to place beyond reach",
+      "origin": "Burial / covered ground / hidden loot",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 195,
+      "dialects": {
+        "snowy": "bu"
+      }
+    },
+    {
+      "root": "mona",
+      "section": "memory_age_inheritance",
+      "meaning": "sea-old monumentality, watched stone, surviving sacred mass",
+      "origin": "Ocean Monument / prismarine mass / guardians",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 196,
+      "dialects": {
+        "taiga": "muna"
+      }
+    },
+    {
+      "root": "netha",
+      "section": "memory_age_inheritance",
+      "meaning": "nether, hell, danger",
+      "origin": "Nether",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 197,
+      "dialects": {
+        "desert": "nitha"
+      }
+    },
+    {
+      "root": "ruporta",
+      "section": "memory_age_inheritance",
+      "meaning": "broken threshold, corrupted gateway, scorched remnant-passage. Was rupo, recorded as ru + po; po is not a root. The head is porta and rule C1 never clips a head.",
+      "origin": "Ruined Portal / Crying Obsidian / netherrack spread",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 198,
+      "dialects": {
+        "savanna": "ruborta",
+        "taiga": "rupurta"
+      }
+    },
+    {
+      "root": "shof",
+      "section": "memory_age_inheritance",
+      "meaning": "abandoned workings, hollow labor-remnant, tunneled past",
+      "origin": "Mineshaft",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 199,
+      "dialects": {
+        "taiga": "shuf",
+        "snowy": "sho"
+      }
+    },
+    {
+      "root": "shord",
+      "section": "memory_age_inheritance",
+      "meaning": "shard-record, broken story, patterned fragment-memory",
+      "origin": "Trail Ruins / Pottery Sherds / suspicious gravel",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 200,
+      "dialects": {
+        "taiga": "shurd",
+        "snowy": "shor"
+      }
+    },
+    {
+      "root": "stronold",
+      "section": "memory_age_inheritance",
+      "meaning": "hidden inner road, ringed strong core, preserved route-memory",
+      "origin": "Stronghold / End Portal Room",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 201,
+      "dialects": {
+        "taiga": "strunuld",
+        "snowy": "stronol"
+      }
+    },
+    {
+      "root": "skulk",
+      "section": "memory_age_inheritance",
+      "meaning": "buried deep-city memory, forbidden old order, silence beneath stone; deep-set hollow, sunless drop, sinister under-place; darkened ruin, deadened place, collapse-mark",
+      "origin": "Ancient City / Deep Dark / sculk; Deep Dark / ravine depth / shadowed low ground; Sculk / nighttime monster spawns / darkness",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 202,
+      "dialects": {
+        "snowy": "skul"
+      }
+    },
+    {
+      "root": "kort",
+      "section": "connection_transit",
+      "meaning": "carried route-memory, mapped movement, rolling contact",
+      "origin": "Minecart / Cartography Table",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 206,
+      "dialects": {
+        "taiga": "kurt"
+      }
+    },
+    {
+      "root": "keit",
+      "section": "connection_transit",
+      "meaning": "threshold passage, entered route, controlled access",
+      "origin": "Fence Gate / gateway logic",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 207,
+      "dialects": {
+        "snowy": "kei"
+      }
+    },
+    {
+      "root": "potshof",
+      "section": "connection_transit",
+      "meaning": "tunneled route, extractive path, underland connection",
+      "origin": "Pat + Shaf",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 208,
+      "dialects": {
+        "taiga": "putshuf",
+        "snowy": "potsho"
+      }
+    },
+    {
+      "root": "portala",
+      "section": "connection_transit",
+      "meaning": "realm-link threshold, dangerous transit, world-bridge",
+      "origin": "Nether Portal / End Portal",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 209,
+      "dialects": {
+        "taiga": "purtala"
+      }
+    },
+    {
+      "root": "reil",
+      "section": "connection_transit",
+      "meaning": "worked transit line, carried connection, metal route",
+      "origin": "Rail / Minecart",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 210,
+      "dialects": {
+        "snowy": "rei"
+      }
+    },
+    {
+      "root": "kov",
+      "section": "sheltered_enclosed_terrain",
+      "meaning": "covered over, roofed, hidden beneath something",
+      "origin": "Covered ground / roofed structures",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 214,
+      "dialects": {
+        "taiga": "kuv",
+        "snowy": "ko"
+      }
+    },
+    {
+      "root": "kovolt",
+      "section": "sheltered_enclosed_terrain",
+      "meaning": "buried or tucked ground, covered low place, hidden under earth",
+      "origin": "Covered Vault (Vault is late)",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 215,
+      "dialects": {
+        "savanna": "kowolt",
+        "taiga": "kuvult",
+        "snowy": "kovol"
+      }
+    },
+    {
+      "root": "keiv",
+      "section": "sheltered_enclosed_terrain",
+      "meaning": "sheltered below, hollow refuge, under-edge settlement",
+      "origin": "Cave / overhang / hollow terrain",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 216,
+      "dialects": {
+        "snowy": "kei"
+      }
+    },
+    {
+      "root": "laa",
+      "section": "sheltered_enclosed_terrain",
+      "meaning": "low spread between rises, basin-like openness",
+      "origin": "Valley-like low ground / river hollow",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 217,
+      "dialects": {
+        "savanna": "la"
+      }
+    },
+    {
+      "root": "losh",
+      "section": "sheltered_enclosed_terrain",
+      "meaning": "enclosed fertile shelter, overgrown hidden place",
+      "origin": "Lush Cave / mossy enclosed growth",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 218,
+      "dialects": {
+        "taiga": "lush",
+        "snowy": "lo"
+      }
+    },
+    {
+      "root": "teil",
+      "section": "time",
+      "meaning": "day, the light-period, safe hours",
+      "origin": "Daylight Detector",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 222,
+      "dialects": {
+        "snowy": "tei"
+      }
+    },
+    {
+      "root": "nait",
+      "section": "time",
+      "meaning": "night, the danger-period",
+      "origin": "Night mob spawning",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 223,
+      "dialects": {
+        "snowy": "nai"
+      }
+    },
+    {
+      "root": "dred",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "dread, oppressive threat, looming danger",
+      "origin": "Warden darkness / nighttime danger / raid fear",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 227,
+      "dialects": {
+        "desert": "drid",
+        "snowy": "dre"
+      }
+    },
+    {
+      "root": "dround",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "drowned threat, pulled-under danger, water-haunt",
+      "origin": "Drowned",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 228,
+      "dialects": {
+        "taiga": "druund",
+        "snowy": "droun"
+      }
+    },
+    {
+      "root": "hont",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "gnawing pressure, hunger-threat, predator-nearness",
+      "origin": "Zombie pursuit / hunger pressure / hostile chasing",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 229,
+      "dialects": {
+        "taiga": "hunt",
+        "snowy": "hon"
+      }
+    },
+    {
+      "root": "pil",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "barbarian, raider, robbing",
+      "origin": "Pillager",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 230,
+      "dialects": {
+        "snowy": "pi"
+      }
+    },
+    {
+      "root": "sairviv",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "to live, to survive",
+      "origin": "Survive",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 231,
+      "dialects": {
+        "snowy": "sairvi"
+      }
+    },
+    {
+      "root": "tremora",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "the shaking, terror, unreasoning fear",
+      "origin": "Warden sonic boom",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 232,
+      "dialects": {
+        "desert": "trimora",
+        "taiga": "tremura"
+      }
+    },
+    {
+      "root": "usk",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "withered shell, emptied life, dead remnant",
+      "origin": "Husk",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 233,
+      "dialects": {
+        "snowy": "us"
+      }
+    },
+    {
+      "root": "ruin",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "scarred place, blighted condition, damage-memory",
+      "origin": "Ruined Portal / raid damage / scorched remains",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 234,
+      "dialects": {
+        "snowy": "rui"
+      }
+    },
+    {
+      "root": "warden",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "intense danger, powerful, unstoppable threat",
+      "origin": "Warden",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 235,
+      "dialects": {
+        "desert": "wardin",
+        "snowy": "warde"
+      }
+    },
+    {
+      "root": "zombi",
+      "section": "danger_decay_hostile_pressure",
+      "meaning": "devouring threat, hostile hunger, consuming danger",
+      "origin": "Zombie",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 236,
+      "dialects": {
+        "taiga": "zumbi"
+      }
+    },
+    {
+      "root": "emra",
+      "section": "prosperity_exchange",
+      "meaning": "valued wealth, lawful prosperity, exchange-worth",
+      "origin": "Emerald",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 240,
+      "dialects": {
+        "desert": "imra"
+      }
+    },
+    {
+      "root": "gihrn",
+      "section": "prosperity_exchange",
+      "meaning": "green flourishing, visible prosperity, living abundance",
+      "origin": "Emerald / green",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 241,
+      "dialects": {
+        "snowy": "gihr"
+      }
+    },
+    {
+      "root": "numb",
+      "section": "prosperity_exchange",
+      "meaning": "recognized value, accepted worth, portable exchange",
+      "origin": "Emerald pricing / stack trades / merchant value",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 242,
+      "dialects": {
+        "snowy": "num"
+      }
+    },
+    {
+      "root": "pluh",
+      "section": "prosperity_exchange",
+      "meaning": "unit of measurement, basic structure",
+      "origin": "Block",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 243,
+      "dialects": {
+        "snowy": "plu"
+      }
+    },
+    {
+      "root": "dihl",
+      "section": "prosperity_exchange",
+      "meaning": "measured trade, counted exchange, fair dealing",
+      "origin": "Villager trading menu / trade offers / emerald exchange",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 244,
+      "dialects": {
+        "snowy": "dih"
+      }
+    },
+    {
+      "root": "treid",
+      "section": "prosperity_exchange",
+      "meaning": "trade-route, bargaining contact, movement of value",
+      "origin": "Wandering Trader / village paths / trade movement",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 245,
+      "dialects": {
+        "snowy": "trei"
+      }
+    },
+    {
+      "root": "flae",
+      "section": "the_builders",
+      "meaning": "the ones who played, the vanished makers",
+      "origin": "Player",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 249,
+      "dialects": {
+        "desert": "flai"
+      }
+    },
+    {
+      "root": "pult",
+      "section": "the_builders",
+      "meaning": "builder, the extinct dominant species",
+      "origin": "Builder",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 250,
+      "dialects": {
+        "snowy": "pul"
+      }
+    },
+    {
+      "root": "fola",
+      "section": "quantity_sufficiency",
+      "meaning": "full, at capacity, holding all it can",
+      "origin": "Full stack / full inventory",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 254,
+      "dialects": {
+        "taiga": "fula"
+      }
+    },
+    {
+      "root": "emf",
+      "section": "quantity_sufficiency",
+      "meaning": "empty, drained, holding nothing",
+      "origin": "Empty Bucket / empty inventory slot",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 255,
+      "dialects": {
+        "desert": "imf",
+        "snowy": "em"
+      }
+    },
+    {
+      "root": "haunth",
+      "section": "quantity_sufficiency",
+      "meaning": "counted amount, a tallied quantity",
+      "origin": "Item count display",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 256,
+      "dialects": {
+        "snowy": "haun"
+      }
+    },
+    {
+      "root": "geo",
+      "section": "nearby_structures_adjacency",
+      "meaning": "hidden crystal chamber, buried brilliance, sealed inner rarity",
+      "origin": "Amethyst Geode",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 260,
+      "dialects": {
+        "desert": "gio",
+        "taiga": "geu"
+      }
+    },
+    {
+      "root": "iglu",
+      "section": "nearby_structures_adjacency",
+      "meaning": "hidden cold refuge, cure-place, isolated shelter",
+      "origin": "Igloo / basement / villager cure",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 261
+    },
+    {
+      "root": "mansi",
+      "section": "nearby_structures_adjacency",
+      "meaning": "deep-wood seat, rare inland authority, forest hold",
+      "origin": "Woodland Mansion",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 262
+    },
+    {
+      "root": "poost",
+      "section": "nearby_structures_adjacency",
+      "meaning": "watch-perch, frontier post, a place set apart from a village. Re-sourced from Outpost to Post, the element villagers would have taken from a sign.",
+      "origin": "Pillager Outpost",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 263,
+      "dialects": {
+        "snowy": "poos"
+      }
+    },
+    {
+      "root": "pilpoost",
+      "section": "nearby_structures_adjacency",
+      "meaning": "raider watch-perch, hostile frontier tower, looming raid-post",
+      "origin": "Pillager Outpost",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 264,
+      "dialects": {
+        "snowy": "pilpoos"
+      }
+    },
+    {
+      "root": "pir",
+      "section": "nearby_structures_adjacency",
+      "meaning": "buried desert work, hot old chamber, ritual stone remnant",
+      "origin": "Desert Pyramid",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 265,
+      "dialects": {
+        "snowy": "pi"
+      }
+    },
+    {
+      "root": "trial",
+      "section": "nearby_structures_adjacency",
+      "meaning": "summoned trial, keyed chamber, repeating challenge",
+      "origin": "Trial Chamber / Trial Spawner / Vault",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 266,
+      "dialects": {
+        "snowy": "tria"
+      }
+    },
+    {
+      "root": "shipwrek",
+      "section": "nearby_structures_adjacency",
+      "meaning": "broken coast memory, shattered cargo, lost shore remnant",
+      "origin": "Shipwreck",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 267,
+      "dialects": {
+        "desert": "shipwrik",
+        "snowy": "shipwre"
+      }
+    },
+    {
+      "root": "klara",
+      "section": "mental_capacity",
+      "meaning": "clear-minded, one who follows a chain of reasoning",
+      "origin": "Glass / clarity",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 271
+    },
+    {
+      "root": "reg",
+      "section": "concepts",
+      "meaning": "generic, normal, regular",
+      "origin": "Regular",
+      "enabled": true,
+      "weightHint": 0.75,
+      "tags": [
+        "stratum:4",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 275,
+      "dialects": {
+        "desert": "rig",
+        "snowy": "re"
+      }
+    },
+    {
+      "root": "sain",
+      "section": "speech_and_understanding",
+      "meaning": "sign, meaning, what a thing shows",
+      "origin": "Sign / Hanging Sign",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2a",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 279,
+      "dialects": {
+        "snowy": "sai"
+      }
+    },
+    {
+      "root": "bonka",
+      "section": "bank_exchange_institutional",
+      "meaning": "held store of value, deposited wealth",
+      "origin": "Village Bank",
+      "enabled": false,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 284,
+      "dialects": {
+        "taiga": "bunka"
+      }
+    },
+    {
+      "root": "pros",
+      "section": "labor_making_transformation",
+      "meaning": "processing, conversion of one form to another",
+      "origin": "Emerald Processor",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 285,
+      "dialects": {
+        "taiga": "prus",
+        "snowy": "pro"
+      }
+    },
+    {
+      "root": "skona",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "sweep, survey, taking account of what is present",
+      "origin": "Scan and rescan",
+      "enabled": false,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 286,
+      "dialects": {
+        "taiga": "skuna"
+      }
+    },
+    {
+      "root": "reska",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "repeated sweep, checking again",
+      "origin": "Scan and rescan",
+      "enabled": false,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 287,
+      "dialects": {
+        "desert": "riska"
+      }
+    },
+    {
+      "root": "auka",
+      "section": "bank_exchange_institutional",
+      "meaning": "an account, a reckoning held in someone's name",
+      "origin": "Accounts",
+      "enabled": false,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 288,
+      "dialects": {
+        "savanna": "auga"
+      }
+    },
+    {
+      "root": "leikat",
+      "section": "terrain_route_coast_natural_placement",
+      "meaning": "a placed site, a fixed location",
+      "origin": "Golem Construction Location",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 289,
+      "dialects": {
+        "savanna": "leigat",
+        "snowy": "leika"
+      }
+    },
+    {
+      "root": "die",
+      "section": "labor_making_transformation",
+      "meaning": "dye, applied colour",
+      "origin": "Emerald Green Dye",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 290,
+      "dialects": {
+        "desert": "dii"
+      }
+    },
+    {
+      "root": "stan",
+      "section": "buildings_workstations_village_function",
+      "meaning": "stained glass, coloured pane",
+      "origin": "Stained Glass",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 291,
+      "dialects": {
+        "snowy": "sta"
+      }
+    },
+    {
+      "root": "oova",
+      "section": "knowledge_enchantment_ritual_skill",
+      "meaning": "overview, the whole seen at once",
+      "origin": "Overview screen",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 292,
+      "dialects": {
+        "savanna": "oowa"
+      }
+    },
+    {
+      "root": "invent",
+      "section": "quantity_sufficiency",
+      "meaning": "held goods, what is carried",
+      "origin": "Inventory",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 293,
+      "dialects": {
+        "desert": "invint",
+        "snowy": "inven"
+      }
+    },
+    {
+      "root": "kapas",
+      "section": "quantity_sufficiency",
+      "meaning": "how much a thing can hold",
+      "origin": "Capacity",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 294,
+      "dialects": {
+        "savanna": "kabas",
+        "snowy": "kapa"
+      }
+    },
+    {
+      "root": "enk",
+      "section": "biome_material_identity",
+      "meaning": "black, and the ink it comes from",
+      "origin": "Ink Sac / black dye",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 295,
+      "dialects": {
+        "desert": "ink",
+        "snowy": "en"
+      }
+    },
+    {
+      "root": "kook",
+      "section": "biome_material_identity",
+      "meaning": "brown, and the cocoa it comes from",
+      "origin": "Cocoa Beans / brown dye",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 296,
+      "dialects": {
+        "snowy": "koo"
+      }
+    },
+    {
+      "root": "lapa",
+      "section": "biome_material_identity",
+      "meaning": "blue, and the lapis it comes from",
+      "origin": "Lapis Lazuli / blue dye",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 297,
+      "dialects": {
+        "savanna": "laba"
+      }
+    },
+    {
+      "root": "popa",
+      "section": "biome_material_identity",
+      "meaning": "red, and the poppy it comes from",
+      "origin": "Poppy / red dye",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 298,
+      "dialects": {
+        "savanna": "poba",
+        "taiga": "pupa"
+      }
+    },
+    {
+      "root": "dandel",
+      "section": "biome_material_identity",
+      "meaning": "yellow, and the dandelion it comes from",
+      "origin": "Dandelion / yellow dye",
+      "enabled": true,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:2b",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 299,
+      "dialects": {
+        "desert": "dandil",
+        "snowy": "dande"
+      }
+    },
+    {
+      "root": "pek",
+      "section": "biome_material_identity",
+      "meaning": "lime, and the sea pickle it comes from",
+      "origin": "Sea Pickle / lime dye",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 300,
+      "dialects": {
+        "desert": "pik",
+        "snowy": "pe"
+      }
+    },
+    {
+      "root": "lail",
+      "section": "biome_material_identity",
+      "meaning": "magenta, and the lilac it comes from",
+      "origin": "Lilac / magenta dye",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 301,
+      "dialects": {
+        "snowy": "lai"
+      }
+    },
+    {
+      "root": "peo",
+      "section": "biome_material_identity",
+      "meaning": "pink, and the peony it comes from",
+      "origin": "Peony / pink dye",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 302,
+      "dialects": {
+        "desert": "pio",
+        "taiga": "peu"
+      }
+    },
+    {
+      "root": "oran",
+      "section": "biome_material_identity",
+      "meaning": "orange, the colour",
+      "origin": "orange dye",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 303,
+      "dialects": {
+        "taiga": "uran"
+      }
+    },
+    {
+      "root": "emhah",
+      "section": "biome_material_identity",
+      "meaning": "emerald green, the colour of emeralds",
+      "origin": "Emerald Green",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 306,
+      "dialects": {
+        "desert": "imhah",
+        "snowy": "emha"
+      }
+    },
+    {
+      "root": "emchist",
+      "section": "bank_exchange_institutional",
+      "meaning": "emerald chest",
+      "origin": "Emerald Chest",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 307,
+      "dialects": {
+        "desert": "imchist",
+        "snowy": "emchis"
+      }
+    },
+    {
+      "root": "emkool",
+      "section": "protection_strength_communal_defense",
+      "meaning": "emerald golem",
+      "origin": "Emerald Golem",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 308,
+      "dialects": {
+        "desert": "imkool",
+        "snowy": "emkoo"
+      }
+    },
+    {
+      "root": "empros",
+      "section": "labor_making_transformation",
+      "meaning": "emerald processor",
+      "origin": "Emerald Processor",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 309,
+      "dialects": {
+        "desert": "impros",
+        "taiga": "emprus",
+        "snowy": "empro"
+      }
+    },
+    {
+      "root": "emdur",
+      "section": "connection_transit",
+      "meaning": "emerald door",
+      "origin": "Emerald Door",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 310,
+      "dialects": {
+        "desert": "imdur",
+        "snowy": "emdu"
+      }
+    },
+    {
+      "root": "temdur",
+      "section": "connection_transit",
+      "meaning": "three-block emerald door",
+      "origin": "Tall Emerald Door",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 311,
+      "dialects": {
+        "desert": "timdur",
+        "snowy": "temdu"
+      }
+    },
+    {
+      "root": "emsmet",
+      "section": "labor_making_transformation",
+      "meaning": "emerald smith; as a title emsmeti",
+      "origin": "Emerald Smith",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 312,
+      "dialects": {
+        "desert": "imsmit",
+        "snowy": "emsme"
+      }
+    },
+    {
+      "root": "viskraib",
+      "section": "bank_exchange_institutional",
+      "meaning": "village ledger",
+      "origin": "Village Ledger",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 313,
+      "dialects": {
+        "snowy": "viskrai"
+      }
+    },
+    {
+      "root": "vilbonka",
+      "section": "bank_exchange_institutional",
+      "meaning": "village bank",
+      "origin": "Village Bank",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 314,
+      "dialects": {
+        "taiga": "vilbunka"
+      }
+    },
+    {
+      "root": "emhahdie",
+      "section": "labor_making_transformation",
+      "meaning": "emerald green dye",
+      "origin": "Emerald Green Dye",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 315,
+      "dialects": {
+        "desert": "imhahdii"
+      }
+    },
+    {
+      "root": "emhahstan",
+      "section": "buildings_workstations_village_function",
+      "meaning": "emerald green stained glass",
+      "origin": "Emerald Green Stained Glass",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 316,
+      "dialects": {
+        "desert": "imhahstan",
+        "snowy": "emhahsta"
+      }
+    },
+    {
+      "root": "emhahbid",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "emerald green bed",
+      "origin": "Emerald Green Bed",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 317,
+      "dialects": {
+        "desert": "imhahbid",
+        "snowy": "emhahbi"
+      }
+    },
+    {
+      "root": "koola",
+      "section": "protection_strength_communal_defense",
+      "meaning": "golem construction location",
+      "origin": "Golem Construction Location",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 318
+    },
+    {
+      "root": "enboon",
+      "section": "biome_material_identity",
+      "meaning": "grey",
+      "origin": "grey dye",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 319,
+      "dialects": {
+        "desert": "inboon",
+        "snowy": "enboo"
+      }
+    },
+    {
+      "root": "hahlapa",
+      "section": "biome_material_identity",
+      "meaning": "cyan",
+      "origin": "cyan dye",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 320,
+      "dialects": {
+        "savanna": "hahlaba"
+      }
+    },
+    {
+      "root": "polapa",
+      "section": "biome_material_identity",
+      "meaning": "purple",
+      "origin": "purple dye",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 321,
+      "dialects": {
+        "savanna": "polaba",
+        "taiga": "pulapa"
+      }
+    },
+    {
+      "root": "muknek",
+      "section": "settlement_dwelling_social_order",
+      "meaning": "mayor, an inherited title with no authority",
+      "origin": "pre-contact office",
+      "enabled": false,
+      "weightHint": 1.25,
+      "tags": [
+        "stratum:1",
+        "type:substrate"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 322,
+      "dialects": {
+        "desert": "muknik",
+        "snowy": "mukne"
+      }
+    },
+    {
+      "root": "wand",
+      "section": "profession_vocabulary_added_for_the_mod_professions",
+      "meaning": "wandering, moving without a fixed seat, travelling trade",
+      "origin": "Wandering Trader",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 386,
+      "dialects": {
+        "snowy": "wan"
+      }
+    },
+    {
+      "root": "kot",
+      "section": "profession_vocabulary_added_for_the_mod_professions",
+      "meaning": "cutting, felling, separation by blade",
+      "origin": "Axe / log chopping / Lumberjack",
+      "enabled": true,
+      "weightHint": 1.0,
+      "tags": [
+        "stratum:3",
+        "type:borrowed"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 387,
+      "dialects": {
+        "taiga": "kut",
+        "snowy": "ko"
+      }
+    },
+    {
+      "root": "wantreid",
+      "section": "profession_vocabulary_added_for_the_mod_professions",
+      "meaning": "wandering trader, trade that comes to the village",
+      "origin": "Wandering Trader",
+      "enabled": false,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 388,
+      "dialects": {
+        "snowy": "wantrei"
+      }
+    },
+    {
+      "root": "wokot",
+      "section": "profession_vocabulary_added_for_the_mod_professions",
+      "meaning": "wood-cutting, felling work, timber labour",
+      "origin": "Lumberjack / Wood Cutter (mod)",
+      "enabled": true,
+      "weightHint": 0.5,
+      "tags": [
+        "stratum:5",
+        "type:compound"
+      ],
+      "sourceSheet": "Concept Roots",
+      "sourceRow": 389,
+      "dialects": {
+        "savanna": "wogot",
+        "taiga": "wukut",
+        "snowy": "woko"
+      }
+    }
+  ]
+}

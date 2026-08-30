@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.oak.buttons",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/oak"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:oak_button",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.signs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/warped"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:warped_sign",
+    "count": 2
+  }
+}

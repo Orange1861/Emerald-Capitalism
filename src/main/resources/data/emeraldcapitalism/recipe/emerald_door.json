@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "E",
+    "E",
+    "B"
+  ],
+  "key": {
+    "E": { "item": "minecraft:emerald" },
+    "B": { "item": "minecraft:emerald_block" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:emerald_door",
+    "count": 3
+  }
+}

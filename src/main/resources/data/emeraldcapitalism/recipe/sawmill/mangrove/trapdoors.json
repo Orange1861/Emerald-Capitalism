@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.mangrove.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/mangrove"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:mangrove_trapdoor",
+    "count": 1
+  }
+}

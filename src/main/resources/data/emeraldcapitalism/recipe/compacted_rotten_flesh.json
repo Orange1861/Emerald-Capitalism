@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "RRR",
+    "RRR",
+    "RRR"
+  ],
+  "key": {
+    "R": { "item": "minecraft:rotten_flesh" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:compacted_rotten_flesh",
+    "count": 1
+  }
+}

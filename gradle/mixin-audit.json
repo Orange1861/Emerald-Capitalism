@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "mixinConfig": "src/main/resources/emeraldcapitalism.mixins.json",
+  "units": [
+    {
+      "id": "spawn-egg-parenting",
+      "mixins": ["SpawnEggItemMixin"],
+      "tests": [
+        "villagerspawninggametests.villageroffspringreceivesnamesandexactparentonce"
+      ]
+    },
+    {
+      "id": "villager-inventory-size",
+      "mixins": ["VillagerInventoryMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerinventoryhaseighteenslots",
+        "mixinauditinvariantgametests.wanderingtraderkeepsvanillainventorysize"
+      ]
+    },
+    {
+      "id": "villager-name-refresh",
+      "mixins": ["VillagerNameRefreshMixin"],
+      "tests": [
+        "villagernamerefreshgametests.professionmutationrefreshesderivedname",
+        "villagernamerefreshgametests.villagerenamerefreshesonlythroughoriginindex",
+        "villagernamerefreshgametests.ageboundaryrefreshesderivedname"
+      ]
+    },
+    {
+      "id": "villager-pickup-policy",
+      "mixins": ["VillagerPickupPolicyMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",
+        "emeraldskrimishergametests.villagersandskrimishersusethesameholdablepool"
+      ]
+    },
+    {
+      "id": "villager-breeding-eligibility",
+      "mixins": ["VillagerBreedingEligibilityMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerbreedingusescustomhungerthreshold"
+      ]
+    },
+    {
+      "id": "villager-pickup-accounting",
+      "mixins": ["VillagerPickupAccountingMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerpickupcreditsinsertedemeralds"
+      ]
+    },
+    {
+      "id": "villager-drop-accounting",
+      "mixins": ["VillagerDropAccountingMixin"],
+      "tests": [
+        "villagertradeaccountinggametests.villageremeralddropdebitsbalanceonce"
+      ]
+    },
+    {
+      "id": "villager-reputation",
+      "mixins": ["VillagerReputationMixin"],
+      "tests": [
+        "villagerreputationdamagegametests.playerdamageusesoriginalamountbeforereputation",
+        "villagerreputationdamagegametests.nonplayerandenvironmentaldamagedonotarmplayerpath",
+        "villagerreputationdamagegametests.canceleddamagedoesnotleakintolatergossip",
+        "villagerreputationdamagegametests.ineffectivedamagepreservesexistingreputationpolicy",
+        "villagerreputationdamagegametests.disabledconfigpreservesvanillareputation"
+      ]
+    },
+    {
+      "id": "villager-breeding",
+      "mixins": ["VillagerMakeLoveMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerbirthusescustomcooldownandbookkeeping"
+      ]
+    },
+    {
+      "id": "villager-goal-packages",
+      "mixins": ["VillagerGoalPackagesMixin"],
+      "tests": [
+        "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
+        "villagergoalbehaviorgametests.starvingvillagerbegsandreceivesfood",
+        "villagergoalbehaviorgametests.fencegatebehavioropensandclosesthepathgate",
+        "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat"
+      ]
+    },
+    {
+      "id": "path-node-openables",
+      "mixins": ["WalkNodeOpenablesMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerpathtreatsfencegateasdoor"
+      ]
+    },
+    {
+      "id": "path-node-ladders",
+      "mixins": ["WalkNodeLadderMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerpathincludesverticalladdernodes"
+      ]
+    },
+    {
+      "id": "villager-ladder-movement",
+      "mixins": ["VillagerClimbMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.villagerclimbsinstalledladderpath"
+      ]
+    },
+    {
+      "id": "iron-golem-melee-reach",
+      "mixins": ["MobMeleeReachMixin"],
+      "tests": [
+        "emeraldgolemgametests.irongolemreachestargetsaboveitshead"
+      ]
+    },
+    {
+      "id": "zombie-door-breaking",
+      "mixins": ["ZombieDoorBreakingMixin"],
+      "tests": [
+        "zombiedoorbreakinggametests.doorbreakingusesconfigureddifficultyrule"
+      ]
+    },
+    {
+      "id": "zombie-villager-conversion",
+      "mixins": ["ZombieVillagerConversionMixin"],
+      "tests": [
+        "mixinauditinvariantgametests.easydifficultyconvertskilledvillager",
+        "mixinauditinvariantgametests.villagerconversionhonorsconfigandpeacefulboundary"
+      ]
+    }
+  ]
+}

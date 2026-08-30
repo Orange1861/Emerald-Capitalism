@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.acacia.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/acacia"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:acacia_fence_gate",
+    "count": 1
+  }
+}

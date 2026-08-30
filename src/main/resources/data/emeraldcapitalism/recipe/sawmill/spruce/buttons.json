@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.spruce.buttons",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/spruce"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:spruce_button",
+    "count": 1
+  }
+}

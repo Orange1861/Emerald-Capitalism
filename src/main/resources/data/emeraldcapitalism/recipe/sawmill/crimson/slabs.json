@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.slabs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/crimson"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:crimson_slab",
+    "count": 2
+  }
+}

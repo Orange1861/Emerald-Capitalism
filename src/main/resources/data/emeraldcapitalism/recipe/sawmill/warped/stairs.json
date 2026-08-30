@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.stairs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/warped"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:warped_stairs",
+    "count": 1
+  }
+}

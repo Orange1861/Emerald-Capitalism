@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "GGG",
+    "GDG",
+    "GGG"
+  ],
+  "key": {
+    "G": { "item": "minecraft:glass" },
+    "D": { "item": "emeraldcapitalism:emerald_green_dye" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:emerald_green_stained_glass",
+    "count": 8
+  }
+}

@@ -1,0 +1,46 @@
+Make the bars slightly shorter in bank trades
+Reduce defensive null/empty checks
+Make ecap repo
+Rename to ecap in files
+Lower the grave by one block
+Fix issues in imcomplete mod issues
+Make textures for:
+E Skrim
+Venetian base
+Emerald Smith
+Banker
+Mayor
+Lumberjack
+Sawmill
+Item texture for doors
+Zombie repellant
+
+non-bank villagers can be banks
+Sometimes banks can place onto existing houses
+Emerald golems do not wander
+Emerald golems drop iron
+
+Write atleast:
+Admin codex (uncommon)
+20 common books about mod features
+5 uncommon books
+5 rare books
+2 legendary
+Bank codex
+
+Make bank block spit out the bank/mayor danger book
+Add any villager replaces mayor
+
+Lumberjack AI review needed
+Make village hold one chunk extra in every direction
+UI review for all screens in game
+Config review
+Test player/bank control mechanics
+Add 5+ achievements
+
+Build for 1.21.1, test to see if works
+Create branches for 1.21.4, 1.21.11, 26.1
+Stonecutter?
+
+Write description by hand
+Take pics

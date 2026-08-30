@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/crimson"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:crimson_trapdoor",
+    "count": 1
+  }
+}

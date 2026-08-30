@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.oak.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/oak"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:oak_fence_gate",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.cherry.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/cherry"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:cherry_fence_gate",
+    "count": 1
+  }
+}

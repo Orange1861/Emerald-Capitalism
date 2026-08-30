@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "emeraldcapitalism:block/village_manager" },
+    "facing=east": { "model": "emeraldcapitalism:block/village_manager", "y": 90 },
+    "facing=south": { "model": "emeraldcapitalism:block/village_manager", "y": 180 },
+    "facing=west": { "model": "emeraldcapitalism:block/village_manager", "y": 270 }
+  }
+}

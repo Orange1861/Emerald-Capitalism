@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.cherry.stairs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/cherry"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:cherry_stairs",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.acacia.buttons",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/acacia"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:acacia_button",
+    "count": 1
+  }
+}

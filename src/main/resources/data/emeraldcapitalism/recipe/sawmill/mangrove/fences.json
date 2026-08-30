@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.mangrove.fences",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/mangrove"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:mangrove_fence",
+    "count": 2
+  }
+}

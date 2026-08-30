@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "prices": [
+    {
+      "id": "bread_emerald",
+      "input": {
+        "item": "minecraft:bread",
+        "count": 6
+      },
+      "output": {
+        "item": "minecraft:emerald",
+        "count": 1
+      },
+      "reversible": true
+    },
+    {
+      "id": "pumpkin_emerald",
+      "input": {
+        "item": "minecraft:pumpkin",
+        "count": 6
+      },
+      "output": {
+        "item": "minecraft:emerald",
+        "count": 1
+      },
+      "reversible": true
+    },
+    {
+      "id": "emerald_ore_to_emeralds",
+      "input": {
+        "item": "minecraft:emerald_ore",
+        "count": 1
+      },
+      "output": {
+        "item": "minecraft:emerald",
+        "count": 4
+      },
+      "reversible": false
+    }
+  ]
+}

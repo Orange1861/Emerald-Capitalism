@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/wood/crimson"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_crimson_hyphae",
+    "count": 1
+  }
+}

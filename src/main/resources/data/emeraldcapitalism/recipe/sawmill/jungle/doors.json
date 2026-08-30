@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.jungle.doors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/jungle"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:jungle_door",
+    "count": 2
+  }
+}

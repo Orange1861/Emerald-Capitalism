@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "type": "single",
+      "resource": "emeraldcapitalism:entity/chest/emerald_chest"
+    },
+    {
+      "type": "single",
+      "resource": "emeraldcapitalism:entity/chest/emerald_chest_left"
+    },
+    {
+      "type": "single",
+      "resource": "emeraldcapitalism:entity/chest/emerald_chest_right"
+    }
+  ]
+}

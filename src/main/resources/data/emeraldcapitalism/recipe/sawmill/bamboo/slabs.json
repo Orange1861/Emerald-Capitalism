@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.bamboo.slabs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/bamboo"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:bamboo_slab",
+    "count": 2
+  }
+}

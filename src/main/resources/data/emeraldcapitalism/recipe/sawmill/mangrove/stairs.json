@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.mangrove.stairs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/mangrove"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:mangrove_stairs",
+    "count": 1
+  }
+}

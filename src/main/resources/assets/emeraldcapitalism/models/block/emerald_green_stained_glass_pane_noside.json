@@ -1,0 +1,8 @@
+{
+  "render_type": "translucent",
+  "parent": "minecraft:block/template_glass_pane_noside",
+  "textures": {
+    "pane": "emeraldcapitalism:block/emerald_green_stained_glass",
+    "edge": "emeraldcapitalism:block/emerald_green_stained_glass_pane_top"
+  }
+}

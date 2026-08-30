@@ -1,0 +1,88 @@
+plugins {
+    id 'java-library'
+}
+
+group = rootProject.mod_group_id
+version = rootProject.mod_version
+
+repositories {
+    mavenCentral()
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+dependencies {
+    api 'com.google.code.gson:gson:2.10.1'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+
+sourceSets {
+    test {
+        // The canonical naming resources remain owned by the mod resource tree.
+        resources.srcDir rootProject.file('src/main/resources')
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+def forbiddenCoreReferences = [
+    'net.minecraft',
+    'net.neoforged',
+    'com.mojang'
+]
+def coreMainSources = sourceSets.main.allSource.matching { include '**/*.java' }
+def coreMainClassesDirectory = layout.buildDirectory.dir('classes/java/main')
+
+tasks.register('verifyCorePurity') {
+    group = 'verification'
+    description = 'Checks that core has no Minecraft, NeoForge, or Mojang references.'
+    dependsOn tasks.named('classes')
+    inputs.files(coreMainSources)
+    inputs.dir(coreMainClassesDirectory)
+
+    doLast {
+        def violations = []
+        coreMainSources.files.each { sourceFile ->
+            String source = sourceFile.getText('UTF-8')
+            forbiddenCoreReferences.each { reference ->
+                if (source.contains(reference)) {
+                    violations << "source ${sourceFile}: ${reference}"
+                }
+            }
+        }
+
+        File outputDirectory = coreMainClassesDirectory.get().asFile
+        if (outputDirectory.isDirectory()) {
+            outputDirectory.eachFileRecurse { classFile ->
+                if (!classFile.name.endsWith('.class')) {
+                    return
+                }
+                String classBytes = new String(classFile.bytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+                forbiddenCoreReferences.each { reference ->
+                    String binaryReference = reference.replace('.', '/')
+                    if (classBytes.contains(reference) || classBytes.contains(binaryReference)) {
+                        violations << "bytecode ${classFile}: ${reference}"
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            throw new GradleException(
+                    'Core purity check failed. Remove platform references from core:\n' +
+                            violations.join('\n'))
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('verifyCorePurity')
+}

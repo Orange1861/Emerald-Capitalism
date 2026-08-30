@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.slabs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/warped"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:warped_slab",
+    "count": 2
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "EEE",
+    "EOE",
+    "EBE"
+  ],
+  "key": {
+    "E": { "item": "minecraft:emerald" },
+    "O": { "item": "minecraft:observer" },
+    "B": { "item": "minecraft:bell" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:village_manager",
+    "count": 1
+  }
+}

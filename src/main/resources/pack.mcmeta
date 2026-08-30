@@ -1,0 +1,6 @@
+{
+  "pack": { "pack_format": 34, "description": "Emerald Capitalism" },
+  "language": {
+    "vil_vil": { "name": "Villagerspeak", "region": "Village", "bidirectional": false }
+  }
+}

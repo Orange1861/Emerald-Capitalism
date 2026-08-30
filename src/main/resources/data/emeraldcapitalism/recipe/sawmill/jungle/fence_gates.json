@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.jungle.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/jungle"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:jungle_fence_gate",
+    "count": 1
+  }
+}

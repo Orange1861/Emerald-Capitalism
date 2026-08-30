@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.mangrove.doors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/mangrove"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:mangrove_door",
+    "count": 2
+  }
+}

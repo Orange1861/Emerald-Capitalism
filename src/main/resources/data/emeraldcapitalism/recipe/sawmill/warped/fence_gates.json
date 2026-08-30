@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/warped"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:warped_fence_gate",
+    "count": 1
+  }
+}

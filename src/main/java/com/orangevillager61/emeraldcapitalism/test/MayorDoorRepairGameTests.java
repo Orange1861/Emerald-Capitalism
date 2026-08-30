@@ -1,0 +1,92 @@
+package com.orangevillager61.emeraldcapitalism.test;
+
+import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
+import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
+import com.orangevillager61.emeraldcapitalism.block.BankBlock;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MayorDoorRepairGoal;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
+
+@GameTestHolder("emeraldcapitalism")
+@PrefixGameTestTemplate(false)
+public final class MayorDoorRepairGameTests {
+
+    private MayorDoorRepairGameTests() {
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void mayorConvertsBankPlanksIntoMissingDoor(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
+        BlockPos doorPos = helper.absolutePos(new BlockPos(2, 1, 0));
+        for (int x = -1; x <= 4; x++) {
+            helper.setBlock(new BlockPos(x, 0, 0), Blocks.STONE.defaultBlockState());
+        }
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(chestPos);
+        if (bank == null || chest == null) {
+            helper.fail("bank repair fixture did not create its block entities");
+            return;
+        }
+
+        UUID villageId = UUID.randomUUID();
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        VillageRecord village = registry.getOrCreateVillage(villageId, bankPos,
+                new AABB(bankPos.getX() - 6, bankPos.getY() - 3, bankPos.getZ() - 6,
+                        bankPos.getX() + 6, bankPos.getY() + 3, bankPos.getZ() + 6));
+        village.addDoor(doorPos);
+        village.markDoorMissing(doorPos);
+        registry.registerBankPosition(villageId, bankPos);
+        bank.setVillageId(villageId);
+        chest.setItem(0, new ItemStack(Items.OAK_PLANKS, 6));
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+        level.setDayTime(1_000L);
+
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        MayorDoorRepairGoal goal = new MayorDoorRepairGoal(mayor);
+        helper.assertTrue(goal.canUse(), "Mayor did not select the morning door-repair task");
+        BlockPos bankApproach = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);
+        mayor.setPos(bankApproach.getX() + 0.5D, bankApproach.getY(), bankApproach.getZ() + 0.5D);
+        goal.start();
+        goal.tick();
+        helper.assertValueEqual(bank.getTotalPlankCount(), 0,
+                "Mayor did not withdraw six planks at the bank");
+        mayor.setPos(doorPos.getX() + 0.5D, doorPos.getY(), doorPos.getZ() + 0.5D);
+        for (int tick = 0; tick < 5; tick++) {
+            goal.tick();
+        }
+        goal.stop();
+
+        helper.assertTrue(VillageRecord.isDoorBase(level.getBlockState(doorPos))
+                        && level.getBlockState(doorPos.above()).is(Blocks.OAK_DOOR),
+                "Mayor did not place the repaired oak door: lower=" + level.getBlockState(doorPos)
+                        + ", upper=" + level.getBlockState(doorPos.above())
+                        + ", doors=" + mayor.getInventory().countItem(Items.OAK_DOOR));
+        helper.assertTrue(village.getMissingDoorRegistry().isEmpty(),
+                "repaired door remained in the missing-door registry");
+        helper.assertValueEqual(bank.getTotalPlankCount(), 0,
+                "bank did not provide exactly six plank-equivalents for the repair");
+        helper.succeed();
+    }
+}

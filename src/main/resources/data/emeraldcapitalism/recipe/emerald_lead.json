@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "minecraft:emerald" },
+    { "item": "minecraft:lead" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "emeraldcapitalism:emerald_lead"
+  }
+}

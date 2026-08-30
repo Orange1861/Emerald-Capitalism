@@ -1,0 +1,15 @@
+{
+  "id": "emeraldcapitalism:abandoned_vault_map",
+  "baseRate": 0.0078125,
+  "dailyConsumptionRate": 1.0,
+  "dailyConsumptionScalesWithPopulation": false,
+  "lowMult": 1.0,
+  "highMult": 1.0,
+  "floorRate": 0.0078125,
+  "ceilingRate": 0.0078125,
+  "bidAskSpread": 0.0,
+  "minimumTradeSize": 1,
+  "demandSource": "population",
+  "metric": "DAYS",
+  "fixedEmeraldCost": 128
+}

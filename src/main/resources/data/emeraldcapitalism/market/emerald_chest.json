@@ -1,0 +1,14 @@
+{
+  "id": "emeraldcapitalism:emerald_chest",
+  "baseRate": 0.125,
+  "dailyConsumptionRate": 1.0,
+  "dailyConsumptionScalesWithPopulation": false,
+  "lowMult": 1.0,
+  "highMult": 1.0,
+  "floorRate": 0.125,
+  "ceilingRate": 0.125,
+  "bidAskSpread": 0.0,
+  "minimumTradeSize": 1,
+  "fixedEmeraldOutput": 6,
+  "fixedEmeraldCost": 9
+}

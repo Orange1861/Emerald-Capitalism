@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CSC",
+    "CWC",
+    "CSC"
+  ],
+  "key": {
+    "C": { "item": "emeraldcapitalism:compacted_rotten_flesh" },
+    "W": { "tag": "minecraft:wool" },
+    "S": { "item": "minecraft:stick" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:rotten_flesh_cover",
+    "count": 1
+  }
+}

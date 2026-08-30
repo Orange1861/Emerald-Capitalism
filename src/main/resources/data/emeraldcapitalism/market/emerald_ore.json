@@ -1,0 +1,13 @@
+{
+  "id": "emerald_ore",
+  "fixedEmeraldOutput": 4,
+  "baseRate": 0.25,
+  "dailyConsumptionRate": 1.0,
+  "dailyConsumptionScalesWithPopulation": false,
+  "lowMult": 1.0,
+  "highMult": 1.0,
+  "floorRate": 0.25,
+  "ceilingRate": 0.25,
+  "bidAskSpread": 0.0,
+  "minimumTradeSize": 1
+}

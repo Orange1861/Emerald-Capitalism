@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.mangrove.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/logs/mangrove"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_mangrove_log",
+    "count": 1
+  }
+}

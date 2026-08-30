@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.acacia.stairs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/acacia"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:acacia_stairs",
+    "count": 1
+  }
+}

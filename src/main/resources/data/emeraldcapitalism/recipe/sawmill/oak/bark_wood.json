@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.oak.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/wood/oak"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_oak_wood",
+    "count": 1
+  }
+}

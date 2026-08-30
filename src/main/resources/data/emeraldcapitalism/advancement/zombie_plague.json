@@ -1,0 +1,27 @@
+{
+  "display": {
+    "icon": {
+      "id": "emeraldcapitalism:zombie_face"
+    },
+    "title": {
+      "translate": "advancements.emeraldcapitalism.zombie_plague.title"
+    },
+    "description": {
+      "translate": "advancements.emeraldcapitalism.zombie_plague.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "infected_with_zombie_plague": {
+      "trigger": "minecraft:effects_changed",
+      "conditions": {
+        "effects": {
+          "emeraldcapitalism:zombie_virus": {}
+        }
+      }
+    }
+  }
+}

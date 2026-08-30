@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.bamboo.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/bamboo"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:bamboo_fence_gate",
+    "count": 1
+  }
+}

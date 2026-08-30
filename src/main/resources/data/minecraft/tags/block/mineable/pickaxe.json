@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "emeraldcapitalism:emerald_chest",
+    "emeraldcapitalism:emerald_ore_processor",
+    "emeraldcapitalism:golem_construction_location",
+    "emeraldcapitalism:emerald_door",
+    "emeraldcapitalism:emerald_door_top",
+    "emeraldcapitalism:regular_emerald_door"
+  ]
+}

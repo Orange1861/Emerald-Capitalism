@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.spruce.signs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/spruce"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:spruce_sign",
+    "count": 2
+  }
+}

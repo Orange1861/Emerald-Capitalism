@@ -1,0 +1,218 @@
+{
+  "itemGroup.emeraldcapitalism": "Emerald Capitalism",
+  "block.emeraldcapitalism.emerald_chest": "Emerald Chest",
+  "container.emeraldcapitalism.emerald_chest": "Emerald Chest",
+  "container.emeraldcapitalism.emerald_chest_double": "Large Emerald Chest",
+
+  "entity.emeraldcapitalism.emerald_golem": "Emerald Golem",
+  "item.emeraldcapitalism.emerald_golem_spawn_egg": "Emerald Golem Spawn Egg",
+  "entity.emeraldcapitalism.emerald_skrimisher": "Emerald Skrimisher",
+  "item.emeraldcapitalism.emerald_skrimisher_spawn_egg": "Emerald Skrimisher Spawn Egg",
+  "item.emeraldcapitalism.emerald_lead": "Emerald Lead",
+  "item.emeraldcapitalism.abandoned_vault_map": "Abandoned Vault Map",
+  "item.emeraldcapitalism.second_abandoned_vault_map": "Second Abandoned Vault Map",
+  "item.emeraldcapitalism.village_map": "Village Map",
+  "item.emeraldcapitalism.compacted_rotten_flesh": "Compacted Rotten Flesh",
+  "item.emeraldcapitalism.rotten_flesh_cover": "Rotten Flesh Cover",
+  "item.emeraldcapitalism.village_map.not_found": "No village could be found within the map's search range.",
+
+  "emeraldcapitalism.configuration.title": "Emerald Capitalism Configs",
+  "emeraldcapitalism.configuration.section.emeraldcapitalism.common.toml": "Emerald Capitalism Configs",
+  "emeraldcapitalism.configuration.section.emeraldcapitalism.common.toml.title": "Emerald Capitalism Configs",
+
+  "emeraldcapitalism.configuration.villagersCanStarveToDeath": "Villagers Can Starve to Death",
+  "emeraldcapitalism.configuration.villagersCanStarveToDeath.tooltip": "If true, villagers can starve to death. If false, they stop taking starvation damage at 2 HP.",
+
+  "emeraldcapitalism.configuration.enableVillagerNames": "Enable Villager Names",
+  "emeraldcapitalism.configuration.enableVillagerNames.tooltip": "If true, villagers receive server-authoritative names from the village substrate system.",
+
+  "emeraldcapitalism.configuration.proportionalVillagerReputation": "Proportional Villager Reputation",
+  "emeraldcapitalism.configuration.proportionalVillagerReputation.tooltip": "If true, villager reputation loss from player damage is proportional to damage dealt (5 points per HP, 10 per heart).",
+
+  "emeraldcapitalism.configuration.ai": "AI",
+  "emeraldcapitalism.configuration.ai.tooltip": "All AI behavior settings.",
+  "emeraldcapitalism.configuration.ai.villagerAI": "Villager AI",
+  "emeraldcapitalism.configuration.ai.villagerAI.tooltip": "Settings for villager AI behaviors.",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableFarmlandRepair": "Enable Farmland Repair",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableFarmlandRepair.tooltip": "If true, farmer villagers will pathfind to trampled or broken farmland and retill it.",
+
+  "emeraldcapitalism.configuration.ai.villagerAI.enableFenceGateInteraction": "Enable Fence Gate Interaction",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableFenceGateInteraction.tooltip": "If true, villagers can open and close fence gates during pathfinding.",
+
+  "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick": "Enable Villager Stats Shift-Click",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick.tooltip": "If true, shift-right-clicking a villager opens the villager statistics screen.",
+
+  "emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance": "Enable Boat Avoidance",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance.tooltip": "If true, villagers will avoid nearby boats and try to keep a few blocks away.",
+
+  "emeraldcapitalism.configuration.ai.villagerAI.enableLadderTraversal": "Enable Ladder Traversal",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableLadderTraversal.tooltip": "If true, villagers can pathfind through and climb ladders and other climbable blocks.",
+  "emeraldcapitalism.configuration.ai.villagerAI.movementSpeedMultiplier": "Movement Speed Multiplier",
+  "emeraldcapitalism.configuration.ai.villagerAI.movementSpeedMultiplier.tooltip": "Global villager movement-speed multiplier. 1.0 is vanilla speed.",
+
+  "emeraldcapitalism.configuration.ai.golemAI": "Golem AI",
+  "emeraldcapitalism.configuration.ai.golemAI.tooltip": "Settings for golem AI behaviors.",
+  "emeraldcapitalism.configuration.ai.golemAI.ironGolemVerticalReachAboveHead": "Iron Golem Vertical Reach",
+  "emeraldcapitalism.configuration.ai.golemAI.ironGolemVerticalReachAboveHead.tooltip": "Additional melee reach above an iron golem's head, in blocks. Range: 1–16; default: 5.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldBlockAggro": "Emerald Block Golem Aggro",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldBlockAggro.tooltip": "If true, breaking an emerald block near a non-player-spawned iron golem or emerald golem will cause those golems to become hostile.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush": "Emerald Golem Ambush",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.tooltip": "Settings for the delayed emerald-golem ambush on initial world spawn, with optional respawn behavior.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.enabled": "Enable Emerald Golem Ambush",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.enabled.tooltip": "If true, an emerald golem ambushes the player on their initial world spawn.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.onRespawn": "Ambush on Every Respawn",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.onRespawn.tooltip": "If true, an emerald golem ambushes the player after every death respawn. Default: false.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.spawnDistance": "Ambush Spawn Distance",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.spawnDistance.tooltip": "Horizontal distance in blocks from the player where an ambush golem tries to spawn. Default: 16.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.health": "Ambush Golem Health",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.health.tooltip": "Health in HP for an ambush emerald golem. Default: 2.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.minAttackDelaySeconds": "Minimum Ambush Attack Delay",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.minAttackDelaySeconds.tooltip": "Minimum delay before attacking, in seconds. Default: 3.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.maxAttackDelaySeconds": "Maximum Ambush Attack Delay",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.maxAttackDelaySeconds.tooltip": "Maximum delay before attacking, in seconds. Default: 5.",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.dropsVillageMap": "Ambush Golem Drops Village Map",
+  "emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush.dropsVillageMap.tooltip": "If true, an ambush emerald golem drops one Village Map when it dies.",
+
+  "emeraldcapitalism.configuration.ai.zombieAI": "Zombie AI",
+  "emeraldcapitalism.configuration.ai.zombieAI.tooltip": "Settings for zombie AI behaviors.",
+  "emeraldcapitalism.configuration.ai.zombieAI.enableZombieVillagerSunAvoidance": "Enable Zombie Villager Sun Avoidance",
+  "emeraldcapitalism.configuration.ai.zombieAI.enableZombieVillagerSunAvoidance.tooltip": "If true, zombie villagers avoid pathfinding into sunlight when they have no head protection.",
+  "emeraldcapitalism.configuration.ai.zombieAI.alwaysConvertVillagersToZombieVillagers": "Always Convert Villagers to Zombie Villagers",
+  "emeraldcapitalism.configuration.ai.zombieAI.alwaysConvertVillagersToZombieVillagers.tooltip": "If true, zombies convert villagers on Easy, Normal, and Hard difficulty every time. If false, vanilla conversion chances apply.",
+  "emeraldcapitalism.configuration.ai.zombieAI.zombiesCanBreakDoorsOnAnyDifficulty": "Zombies Can Break Doors on Any Difficulty",
+  "emeraldcapitalism.configuration.ai.zombieAI.zombiesCanBreakDoorsOnAnyDifficulty.tooltip": "If true, zombies with the door-breaking ability can break wooden doors on any difficulty. If false, they can only break doors on Hard.",
+  "emeraldcapitalism.configuration.ai.zombieAI.zombieDoorBreakingChancePercent": "Zombie Door-Breaking Chance",
+  "emeraldcapitalism.configuration.ai.zombieAI.zombieDoorBreakingChancePercent.tooltip": "Percentage of newly spawned zombies that receive the door-breaking ability. Range: 0–100%; default: 50%.",
+  "emeraldcapitalism.configuration.illness.zombieVirus.phaseOneDurationSeconds": "Zombie Plague Greening Phase Duration",
+  "emeraldcapitalism.configuration.illness.zombieVirus.hitTimeReductionSeconds": "Zombie Plague Hit Time Reduction",
+  "emeraldcapitalism.configuration.illness.zombieVirus.rottenFleshInfectionChancePercent": "Rotten Flesh Zombie Plague Chance",
+  "emeraldcapitalism.configuration.illness.zombieVirus.rottenFleshInfectionChancePercent.tooltip": "Chance of contracting Zombie Plague when consuming rotten flesh. Range: 0–100%; default: 2%.",
+  "effect.emeraldcapitalism.zombie_virus": "Zombie Plague",
+  "effect.emeraldcapitalism.zombie_smell": "Zombie Smell",
+  "item.minecraft.potion.effect.zombie_virus_phase_one": "Zombie Plague (Greening Phase)",
+  "item.minecraft.potion.effect.zombie_virus_phase_two": "Zombie Plague (Turning Phase)",
+  "item.minecraft.splash_potion.effect.zombie_virus_phase_one": "Zombie Plague (Greening Phase)",
+  "item.minecraft.splash_potion.effect.zombie_virus_phase_two": "Zombie Plague (Turning Phase)",
+
+  "emeraldcapitalism.configuration.redactNonOpPoiDetails": "Redact Non-Operator POI Details",
+  "emeraldcapitalism.configuration.redactNonOpPoiDetails.tooltip": "If true, coordinate data is removed from overlays for non-operators.",
+
+  "emeraldcapitalism.configuration.advanced": "Advanced",
+  "emeraldcapitalism.configuration.advanced.tooltip": "Advanced registry, formula, and village-generation settings.",
+  "emeraldcapitalism.configuration.advanced.villageRegistry": "Village Registry",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.tooltip": "Settings for village registry scanning.",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.commandPermissionLevel": "Village Command Permission Level",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.commandPermissionLevel.tooltip": "Permission level required to use /ecap village commands (0=everyone, 2=operator, 4=server owner).",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.maxVillageNameLength": "Max Village Name Length",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.maxVillageNameLength.tooltip": "Maximum number of characters allowed in a village name.",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.governorCandidateOpinionThreshold": "Governor Candidate Opinion Threshold",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.governorCandidateOpinionThreshold.tooltip": "Minimum village opinion required to become a Governor-Candidate.",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.governorHostileOpinionThreshold": "Hostile Opinion Threshold",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.governorHostileOpinionThreshold.tooltip": "Village opinion at or below this value is Hostile.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.enableWorldgenVillageRootNaming": "Enable Worldgen Village Root Naming",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.enableWorldgenVillageRootNaming.tooltip": "If true, villages detected during world generation use canonical root-based naming.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.scanIntervalTicks": "Village Scan Interval (Ticks)",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.scanIntervalTicks.tooltip": "Interval in ticks between village scan cycles (default 1800 = 90 seconds).",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.villagerBudgetPerTick": "Villager Budget Per Tick",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.villagerBudgetPerTick.tooltip": "Maximum number of villagers to process per tick during a scan cycle.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.fullScanBlockBudgetPerTick": "Full Scan Block Budget Per Tick",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.fullScanBlockBudgetPerTick.tooltip": "Maximum loaded block positions inspected per tick by a full village scan. Higher values finish scans sooner but use more server tick time.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadPoolSize": "Initial Scan Chunk-Load Pool Size",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadPoolSize.tooltip": "Maximum chunks that adaptive initial village scans may load asynchronously at once per level. Set to 0 to disable temporary loading.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadCapPerVillage": "Initial Scan Chunk-Load Batch Size",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadCapPerVillage.tooltip": "Maximum unloaded chunks requested per progressive initial-scan batch. Progress is preserved between batches.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold": "Departure Grace Threshold",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold.tooltip": "Number of consecutive scans a villager must be absent before removal.",
+
+  "emeraldcapitalism.configuration.advanced.villageRegistry.manualFullScanPlayerCooldownTicks": "Manual Full Scan Player Cooldown (Ticks)",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.manualFullScanPlayerCooldownTicks.tooltip": "Per-player cooldown for manual full-scan requests.",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.manualExpandBoundsPlayerCooldownTicks": "Manual Expand-Bounds Player Cooldown (Ticks)",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.manualExpandBoundsPlayerCooldownTicks.tooltip": "Per-player cooldown for expand-bounds requests.",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.manualScanPerVillageCooldownTicks": "Manual Per-Village Scan Cooldown (Ticks)",
+  "emeraldcapitalism.configuration.advanced.villageRegistry.manualScanPerVillageCooldownTicks.tooltip": "Per-village cooldown for heavy manual scans.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms": "Outskirt Farms",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.tooltip": "Settings for outskirt farm placement around villages.",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.enabled": "Enable Outskirt Farms",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.enabled.tooltip": "Enable outskirt farm placement around detected villages.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.baseFarmCount": "Base Farm Count",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.baseFarmCount.tooltip": "Base number of farms to place per village.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.perChunkBonus": "Per Chunk Bonus",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.perChunkBonus.tooltip": "Additional farms per chunk covered by the village bounding box.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.maxCount": "Max Farm Count",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.maxCount.tooltip": "Maximum number of outskirt farms to place per village.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.pathsEnabled": "Enable Farm Paths",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.pathsEnabled.tooltip": "Enable dirt path generation connecting outskirt farms to the village.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.waterContainmentEnabled": "Enable Water Containment",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.waterContainmentEnabled.tooltip": "Enable village-wide flowing-water containment around farmland.",
+
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.blockBlacklist": "Block Blacklist",
+  "emeraldcapitalism.configuration.advanced.outskirtFarms.blockBlacklist.tooltip": "Blocks that indicate non-natural terrain. Farm placement is skipped if these blocks are found.",
+
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula": "Emerald Golem Formula",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.tooltip": "Adjusts the numeric values in the fixed emerald-golem population formula.",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.formulaScale": "Formula Scale",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.formulaScale.tooltip": "Multiplier for sqrt(emerald reserve). Default: 0.24.",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.reserveOffset": "Reserve Offset",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.reserveOffset.tooltip": "Value subtracted from sqrt(emerald reserve). Default: 6.0.",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.baseGolems": "Base Golems",
+  "emeraldcapitalism.configuration.advanced.emeraldGolemFormula.baseGolems.tooltip": "Value added after scaling and before rounding. Default: 1.0.",
+
+  "emeraldcapitalism.configuration.books": "Books",
+  "emeraldcapitalism.configuration.books.tooltip": "Settings for authored books.",
+  "emeraldcapitalism.configuration.books.enableBooksInCreativeTab": "Enable Books in Creative Tab",
+  "emeraldcapitalism.configuration.books.enableBooksInCreativeTab.tooltip": "Adds all authored books to the Emerald Capitalism creative tab. Warning: The mod author recommends exploring the world to find the books.",
+
+  "key.categories.emeraldcapitalism": "Emerald Capitalism",
+  "key.emeraldcapitalism.toggle_poi_overlay": "Village POI Screen",
+
+  "screen.emeraldcapitalism.village_poi": "Village POI Overview",
+
+  "block.emeraldcapitalism.village_manager": "Village Ledger",
+  "screen.emeraldcapitalism.village_manager": "Village Ledger",
+
+  "block.emeraldcapitalism.emerald_ore_processor": "Emerald Processor",
+  "item.emeraldcapitalism.emerald_green_dye": "Emerald Green Dye",
+  "block.emeraldcapitalism.emerald_green_stained_glass": "Emerald Green Stained Glass",
+  "item.emeraldcapitalism.emerald_green_stained_glass": "Emerald Green Stained Glass",
+  "block.emeraldcapitalism.emerald_green_stained_glass_pane": "Emerald Green Stained Glass Pane",
+  "block.emeraldcapitalism.emerald_green_bed": "Emerald Green Bed",
+  "item.emeraldcapitalism.emerald_green_bed": "Emerald Green Bed",
+  "block.emeraldcapitalism.emerald_door": "Tall Emerald Door",
+  "item.emeraldcapitalism.emerald_door": "Tall Emerald Door",
+  "block.emeraldcapitalism.regular_emerald_door": "Emerald Door",
+  "item.emeraldcapitalism.regular_emerald_door": "Emerald Door",
+
+  "block.emeraldcapitalism.bank": "Village Bank",
+  "screen.emeraldcapitalism.bank": "Village Bank",
+  "block.emeraldcapitalism.sawmill": "Sawmill",
+  "item.emeraldcapitalism.sawmill": "Sawmill",
+  "container.emeraldcapitalism.sawmill": "Sawmill",
+  "block.emeraldcapitalism.golem_construction_location": "Golem Construction Location",
+  "item.emeraldcapitalism.golem_construction_location": "Golem Construction Location",
+
+  "item.emeraldcapitalism.zombie_face": "Zombie Face",
+  "advancements.emeraldcapitalism.zombie_plague.title": "You might have caught something!",
+  "advancements.emeraldcapitalism.zombie_plague.description": "Become infected with Zombie Plague for the first time.",
+  "advancements.emeraldcapitalism.turned_into_zombie.title": "Too late to see a doctor",
+  "advancements.emeraldcapitalism.turned_into_zombie.description": "Die from Zombie Plague and rise as a zombie.",
+  "death.attack.zombie_plague": "%1$s became a zombie",
+
+  "entity.minecraft.villager.emeraldcapitalism.mayor": "Mayor",
+  "entity.minecraft.villager.emeraldcapitalism.banker": "Banker",
+  "entity.minecraft.villager.emeraldcapitalism.emeraldsmith": "Emeraldsmith",
+  "entity.minecraft.villager.emeraldcapitalism.lumberjack": "Lumberjack"
+}

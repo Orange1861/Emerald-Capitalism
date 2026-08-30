@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "EEE",
+    "EFE",
+    "EEE"
+  ],
+  "key": {
+    "E": { "item": "minecraft:emerald" },
+    "F": { "item": "minecraft:furnace" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:emerald_ore_processor",
+    "count": 1
+  }
+}

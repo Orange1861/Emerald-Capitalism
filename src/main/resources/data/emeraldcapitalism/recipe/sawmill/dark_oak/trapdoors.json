@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.dark_oak.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/dark_oak"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:dark_oak_trapdoor",
+    "count": 1
+  }
+}

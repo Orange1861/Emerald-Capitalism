@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/wood/warped"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_warped_hyphae",
+    "count": 1
+  }
+}

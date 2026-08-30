@@ -1,0 +1,182 @@
+#If true, villagers can starve to death. If false, they stop taking starvation damage at 2 HP.
+villagersCanStarveToDeath = true
+#If true, villagers receive server-authoritative names from the village substrate system.
+enableVillagerNames = true
+#If true, villager reputation loss from player damage is proportional to damage dealt (5 points per HP, 10 per heart).
+#In vanilla, hitting a villager always costs 25 reputation regardless of damage.
+#With this enabled: weak hits lose less reputation, strong hits lose more.
+#Example: 1 heart of damage = 10 reputation loss (vs 25 in vanilla)
+#Example: 2.5 hearts of damage = 25 reputation loss (same as vanilla)
+proportionalVillagerReputation = true
+#Setting this to true removes coordinate data from overlays for non-operators.
+redactNonOpPoiDetails = true
+
+[ai.villagerAI]
+	#If true, farmer villagers will pathfind to trampled or broken farmland and retill it.
+	enableFarmlandRepair = true
+	#If true, villagers can open and close fence gates during pathfinding.
+	enableFenceGateInteraction = true
+	#If true, shift-right-clicking a villager opens the villager statistics screen.
+	enableVillagerStatsShiftClick = true
+	#If true, villagers will avoid nearby boats and try to keep a few blocks away.
+	enableBoatAvoidance = true
+	#If true, villagers can pathfind through and climb ladders and other climbable blocks.
+	#They will ascend and descend ladders as part of their normal navigation.
+	#A ladder occupancy system prevents multiple villagers from climbing the same ladder simultaneously.
+	enableLadderTraversal = true
+	#Global villager movement-speed multiplier.
+	#1.0 is vanilla speed; 2.0 is twice vanilla speed.
+	#Default: 1.15 (15% faster).
+	# Default: 1.15
+	# Range: 0.1 ~ 10.0
+	movementSpeedMultiplier = 1.15
+
+[ai.golemAI]
+	#Additional vertical melee reach for iron golems above their heads, in blocks.
+	#Allowed range: 1 to 16 blocks. Default: 5 blocks.
+	# Default: 5
+	# Range: 1 ~ 16
+	ironGolemVerticalReachAboveHead = 5
+	#If true, breaking an emerald block near a non-player-spawned iron golem or emerald golem
+	#will cause those golems to become hostile toward the player.
+	#Search radius: 16 blocks.
+	emeraldBlockAggro = true
+
+[ai.zombieAI]
+	#If true, zombie villagers avoid pathfinding into sunlight when they have no head protection.
+	enableZombieVillagerSunAvoidance = true
+
+[illness.zombieVirus]
+	#How long Zombie Plague remains in phase one before phase two begins.
+	#Unit: seconds. Default: 600 seconds (10 minutes).
+	# Default: 600
+	# Range: 1 ~ 86400
+	phaseOneDurationSeconds = 600
+	#How much time a later Zombie hit removes from phase one of Zombie Plague.
+	#Unit: seconds. Default: 20 seconds.
+	# Default: 20
+	# Range: 1 ~ 3600
+	hitTimeReductionSeconds = 20
+
+[advanced.villageRegistry]
+	#Permission level required to use /ecap village commands (0=everyone, 2=operator, 4=server owner).
+	# Default: 2
+	# Range: 0 ~ 4
+	commandPermissionLevel = 2
+	#Maximum number of characters allowed in a village name.
+	# Default: 64
+	# Range: 1 ~ 64
+	maxVillageNameLength = 64
+	#Village opinion must be above this positive threshold to become a governor candidate.
+	# Default: 99
+	# Range: 1 ~ 100000
+	governorCandidateOpinionThreshold = 99
+	#Village opinion at or below this negative threshold makes a player hostile to the village.
+	# Default: -100
+	# Range: -100000 ~ -1
+	governorHostileOpinionThreshold = -100
+	#If true, villages detected during worldgen use canonical root-based naming.
+	#If false, villages use legacy numbered names (Village 1, Village 2, ...).
+	enableWorldgenVillageRootNaming = true
+	#Interval between village scan cycles.
+	#Unit: ticks (20 ticks = 1 second).
+	#Default: 1800 ticks (90 seconds).
+	# Default: 1800
+	# Range: 20 ~ 72000
+	scanIntervalTicks = 1800
+	#Maximum number of villagers to process per tick during a scan cycle.
+	# Default: 8
+	# Range: 1 ~ 64
+	villagerBudgetPerTick = 8
+	#Maximum number of loaded block positions inspected per tick by a full village scan.
+	#Higher values finish manual scans sooner but use more server tick time.
+	# Default: 16384
+	# Range: 1024 ~ 65536
+	fullScanBlockBudgetPerTick = 16384
+	#Maximum number of chunks that adaptive initial village scans may load asynchronously at once per level.
+	#Set to 0 to wait for unloaded chunks to become available instead of publishing a partial initial scan.
+	# Default: 3
+	# Range: 0 ~ 8
+	initialScanChunkLoadPoolSize = 3
+	#Maximum unloaded chunks that one adaptive initial village scan may request per progressive batch.
+	#A new batch begins after the prior batch is scanned; scan progress is preserved.
+	# Default: 3
+	# Range: 0 ~ 16
+	initialScanChunkLoadCapPerVillage = 3
+	#Number of consecutive scans a villager must be absent before removal.
+	# Default: 3
+	# Range: 1 ~ 20
+	departureGraceThreshold = 3
+	#Per-player cooldown for manual full-scan requests.
+	#Unit: ticks (20 ticks = 1 second).
+	#Default: 300 ticks (15 seconds).
+	# Default: 300
+	# Range: 20 ~ 36000
+	manualFullScanPlayerCooldownTicks = 300
+	#Per-player cooldown for expand-bounds requests.
+	#Unit: ticks (20 ticks = 1 second).
+	#Default: 1800 ticks (90 seconds).
+	# Default: 1800
+	# Range: 20 ~ 36000
+	manualExpandBoundsPlayerCooldownTicks = 1800
+	#Per-village cooldown for heavy manual scans to prevent alternating-player abuse.
+	#Unit: ticks (20 ticks = 1 second).
+	#Default: 200 ticks (10 seconds).
+	# Default: 200
+	# Range: 20 ~ 36000
+	manualScanPerVillageCooldownTicks = 200
+
+[advanced.outskirtFarms]
+	#Enable outskirt farm placement around detected villages.
+	#When enabled, farms are placed along village paths and in empty
+	#gaps within the village bounding box, connected by dirt paths.
+	enabled = true
+	#Base number of farms to place per village.
+	#The total target is: base + (perChunkBonus * chunks in village BB).
+	#Fewer may be placed if terrain is unsuitable.
+	# Default: 3
+	# Range: 0 ~ 12
+	baseFarmCount = 3
+	#Additional farms per chunk covered by the village bounding box.
+	#Larger villages get more farms proportionally.
+	#The total target is: baseFarmCount + (this * chunks in village BB).
+	# Default: 1
+	# Range: 0 ~ 4
+	perChunkBonus = 1
+	#Maximum number of outskirt farms to place per village.
+	#Caps the dynamic count (base + perChunk * chunks).
+	# Default: 8
+	# Range: 1 ~ 32
+	maxCount = 8
+	#Enable dirt path generation connecting outskirt farms to the village.
+	#Paths use biome-appropriate materials.
+	pathsEnabled = true
+	#Enable village-wide flowing-water containment around farmland.
+	#When enabled, farmland-adjacent water escape routes in detected villages
+	#and placed outskirt farms are plugged with dirt.
+	#Disable to fully turn off the dirt-plugging behavior.
+	waterContainmentEnabled = true
+	#Blocks that indicate non-natural terrain (e.g. another structure).
+	#If any of these blocks are found in a candidate farm footprint,
+	#placement is skipped. Acts as a fallback for detecting structures
+	#not registered in Minecraft's structure system.
+	#Set to an empty list to disable this check.
+	#Format: "minecraft:cobblestone", "minecraft:oak_planks", etc.
+	blockBlacklist = ["minecraft:cobblestone", "minecraft:mossy_cobblestone", "minecraft:stone_bricks", "minecraft:mossy_stone_bricks", "minecraft:cracked_stone_bricks", "minecraft:oak_planks", "minecraft:spruce_planks", "minecraft:birch_planks", "minecraft:jungle_planks", "minecraft:acacia_planks", "minecraft:dark_oak_planks", "minecraft:mangrove_planks", "minecraft:cherry_planks", "minecraft:bamboo_planks", "minecraft:crimson_planks", "minecraft:warped_planks", "minecraft:bricks", "minecraft:cut_sandstone", "minecraft:smooth_sandstone", "minecraft:chiseled_sandstone", "minecraft:terracotta", "minecraft:white_terracotta", "minecraft:orange_terracotta", "minecraft:light_gray_terracotta", "minecraft:stripped_oak_log", "minecraft:stripped_spruce_log", "minecraft:stripped_birch_log", "minecraft:stripped_jungle_log", "minecraft:stripped_acacia_log", "minecraft:stripped_dark_oak_log", "minecraft:glass", "minecraft:glass_pane", "minecraft:white_stained_glass", "minecraft:orange_stained_glass", "minecraft:magenta_stained_glass", "minecraft:light_blue_stained_glass", "minecraft:yellow_stained_glass", "minecraft:lime_stained_glass", "minecraft:pink_stained_glass", "minecraft:gray_stained_glass", "minecraft:light_gray_stained_glass", "minecraft:cyan_stained_glass", "minecraft:purple_stained_glass", "minecraft:blue_stained_glass", "minecraft:brown_stained_glass", "minecraft:green_stained_glass", "minecraft:red_stained_glass", "minecraft:black_stained_glass", "minecraft:white_stained_glass_pane", "minecraft:orange_stained_glass_pane", "minecraft:magenta_stained_glass_pane", "minecraft:light_blue_stained_glass_pane", "minecraft:yellow_stained_glass_pane", "minecraft:lime_stained_glass_pane", "minecraft:pink_stained_glass_pane", "minecraft:gray_stained_glass_pane", "minecraft:light_gray_stained_glass_pane", "minecraft:cyan_stained_glass_pane", "minecraft:purple_stained_glass_pane", "minecraft:blue_stained_glass_pane", "minecraft:brown_stained_glass_pane", "minecraft:green_stained_glass_pane", "minecraft:red_stained_glass_pane", "minecraft:black_stained_glass_pane", "minecraft:oak_door", "minecraft:spruce_door", "minecraft:birch_door", "minecraft:jungle_door", "minecraft:acacia_door", "minecraft:dark_oak_door", "minecraft:mangrove_door", "minecraft:cherry_door", "minecraft:bamboo_door", "minecraft:crimson_door", "minecraft:warped_door", "minecraft:iron_door", "minecraft:copper_door", "minecraft:exposed_copper_door", "minecraft:weathered_copper_door", "minecraft:oxidized_copper_door", "minecraft:waxed_copper_door", "minecraft:waxed_exposed_copper_door", "minecraft:waxed_weathered_copper_door", "minecraft:waxed_oxidized_copper_door", "minecraft:bookshelf", "minecraft:iron_bars"]
+
+[advanced.emeraldGolemFormula]
+	#Scaling factor applied to the square-root emerald reserve.
+	#Default: 0.24.
+	# Default: 0.24
+	# Range: 0.0 ~ 100.0
+	formulaScale = 0.24
+	#Reserve offset subtracted from the square-root emerald reserve.
+	#Default: 6.0.
+	# Default: 6.0
+	# Range: 0.0 ~ 1000000.0
+	reserveOffset = 6.0
+	#Baseline added to the scaled reserve value before rounding.
+	#Default: 1.0.
+	# Default: 1.0
+	# Range: 0.0 ~ 1000000.0
+	baseGolems = 1.0

@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.birch.fences",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/birch"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:birch_fence",
+    "count": 2
+  }
+}

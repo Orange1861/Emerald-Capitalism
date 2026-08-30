@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.signs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/crimson"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:crimson_sign",
+    "count": 2
+  }
+}

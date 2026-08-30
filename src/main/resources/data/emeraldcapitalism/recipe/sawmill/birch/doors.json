@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.birch.doors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/birch"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:birch_door",
+    "count": 2
+  }
+}

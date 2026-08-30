@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.bamboo.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/logs/bamboo"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_bamboo_block",
+    "count": 1
+  }
+}

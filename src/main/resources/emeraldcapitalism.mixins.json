@@ -1,0 +1,30 @@
+{
+  "required": true,
+  "package": "com.orangevillager61.emeraldcapitalism.mixin",
+  "plugin": "com.orangevillager61.emeraldcapitalism.mixin.MixinAuditPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "SpawnEggItemMixin",
+    "VillagerInventoryMixin",
+    "VillagerNameRefreshMixin",
+    "VillagerPickupPolicyMixin",
+    "VillagerBreedingEligibilityMixin",
+    "VillagerPickupAccountingMixin",
+    "VillagerDropAccountingMixin",
+    "VillagerReputationMixin",
+    "VillagerMakeLoveMixin",
+    "VillagerGoalPackagesMixin",
+    "VillagerClimbMixin",
+    "WalkNodeOpenablesMixin",
+    "WalkNodeLadderMixin",
+    "MobMeleeReachMixin",
+    "ZombieDoorBreakingMixin",
+    "ZombieVillagerConversionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

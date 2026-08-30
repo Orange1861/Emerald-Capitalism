@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.buttons",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/crimson"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:crimson_button",
+    "count": 1
+  }
+}

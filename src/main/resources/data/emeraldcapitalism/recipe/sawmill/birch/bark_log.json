@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.birch.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/logs/birch"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_birch_log",
+    "count": 1
+  }
+}

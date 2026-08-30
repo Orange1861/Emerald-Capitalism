@@ -1,0 +1,8 @@
+{
+  "render_type": "translucent",
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "emeraldcapitalism:block/emerald_green_stained_glass",
+    "particle": "emeraldcapitalism:block/emerald_green_stained_glass"
+  }
+}

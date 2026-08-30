@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.birch.pressure_plates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/birch"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:birch_pressure_plate",
+    "count": 2
+  }
+}

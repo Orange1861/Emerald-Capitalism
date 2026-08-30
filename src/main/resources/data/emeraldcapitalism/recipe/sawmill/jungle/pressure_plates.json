@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.jungle.pressure_plates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/jungle"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:jungle_pressure_plate",
+    "count": 2
+  }
+}

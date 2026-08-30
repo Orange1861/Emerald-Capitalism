@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "EEE",
+    "ECE",
+    "EEE"
+  ],
+  "key": {
+    "E": { "item": "minecraft:emerald" },
+    "C": { "item": "minecraft:chest" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:emerald_chest",
+    "count": 1
+  }
+}

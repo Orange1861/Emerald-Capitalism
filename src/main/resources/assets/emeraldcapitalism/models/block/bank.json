@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/lectern",
+  "textures": {
+    "top": "emeraldcapitalism:block/villager_manager_top"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PPP",
+    "PDP",
+    "PPP"
+  ],
+  "key": {
+    "P": { "item": "minecraft:glass_pane" },
+    "D": { "item": "emeraldcapitalism:emerald_green_dye" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:emerald_green_stained_glass_pane",
+    "count": 8
+  }
+}

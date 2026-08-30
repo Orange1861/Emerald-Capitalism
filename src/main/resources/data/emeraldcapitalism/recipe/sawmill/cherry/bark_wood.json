@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.cherry.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/wood/cherry"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_cherry_wood",
+    "count": 1
+  }
+}

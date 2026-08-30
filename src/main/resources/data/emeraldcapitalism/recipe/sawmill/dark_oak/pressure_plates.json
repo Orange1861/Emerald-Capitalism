@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.dark_oak.pressure_plates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/dark_oak"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:dark_oak_pressure_plate",
+    "count": 2
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.birch.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/birch"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:birch_trapdoor",
+    "count": 1
+  }
+}

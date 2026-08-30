@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "emeraldcapitalism:block/bank",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "emeraldcapitalism:block/bank"
+    },
+    "facing=south": {
+      "model": "emeraldcapitalism:block/bank",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "emeraldcapitalism:block/bank",
+      "y": 270
+    }
+  }
+}

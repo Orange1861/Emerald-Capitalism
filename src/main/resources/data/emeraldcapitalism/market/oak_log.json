@@ -1,0 +1,15 @@
+{
+  "id": "oak_log",
+  "baseRate": 16.0,
+  "dailyConsumptionRate": 1.0,
+  "dailyConsumptionScalesWithPopulation": false,
+  "demandSource": "BANK_PLANK_TARGET",
+  "metric": "TARGET_RATIO",
+  "lowMult": 1.0,
+  "highMult": 1.33,
+  "floorRate": 1.0,
+  "ceilingRate": 128.0,
+  "hardStopMult": 3.0,
+  "bidAskSpread": 0.10,
+  "minimumTradeSize": 1
+}

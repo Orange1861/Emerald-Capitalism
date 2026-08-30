@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.acacia.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/acacia"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:acacia_trapdoor",
+    "count": 1
+  }
+}

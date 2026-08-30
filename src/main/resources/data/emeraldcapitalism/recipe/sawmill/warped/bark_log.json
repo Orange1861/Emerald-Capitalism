@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.warped.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/logs/warped"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_warped_stem",
+    "count": 1
+  }
+}

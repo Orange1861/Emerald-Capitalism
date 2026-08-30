@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.acacia.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/wood/acacia"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_acacia_wood",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "emeraldcapitalism:block/villager_manager_bottom",
+    "up": "emeraldcapitalism:block/villager_manager_top",
+    "north": "emeraldcapitalism:block/villager_manager_front",
+    "south": "emeraldcapitalism:block/villager_manager_back",
+    "west": "emeraldcapitalism:block/villager_manager_side",
+    "east": "emeraldcapitalism:block/villager_manager_side",
+    "particle": "emeraldcapitalism:block/villager_manager_front"
+  }
+}

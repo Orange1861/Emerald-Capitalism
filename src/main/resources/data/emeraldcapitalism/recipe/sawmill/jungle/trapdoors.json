@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.jungle.trapdoors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/jungle"
+  },
+  "count": 2,
+  "result": {
+    "id": "minecraft:jungle_trapdoor",
+    "count": 1
+  }
+}

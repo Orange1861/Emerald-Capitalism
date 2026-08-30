@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.birch.slabs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/birch"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:birch_slab",
+    "count": 2
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "processors": [
+    {
+      "processor_type": "emeraldcapitalism:bank_vault_ruins"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.fence_gates",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/crimson"
+  },
+  "count": 4,
+  "result": {
+    "id": "minecraft:crimson_fence_gate",
+    "count": 1
+  }
+}

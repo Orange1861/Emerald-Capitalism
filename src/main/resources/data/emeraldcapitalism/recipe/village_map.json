@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "minecraft:map" },
+    { "item": "minecraft:emerald" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "emeraldcapitalism:village_map"
+  }
+}

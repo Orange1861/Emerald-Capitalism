@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.crimson.bark",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/logs/crimson"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:stripped_crimson_stem",
+    "count": 1
+  }
+}

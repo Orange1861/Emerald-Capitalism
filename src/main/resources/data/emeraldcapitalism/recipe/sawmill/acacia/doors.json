@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.acacia.doors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/acacia"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:acacia_door",
+    "count": 2
+  }
+}

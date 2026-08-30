@@ -1,0 +1,7 @@
+[30Aug2026 16:24:33.777] [Test worker/ERROR] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Could not decode bank account data: List is too long: 65537, expected range [0-65536]
+[30Aug2026 16:24:33.831] [Test worker/ERROR] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Could not decode bank reputation data: Bank reputation exceeds 65536 persisted players
+[30Aug2026 16:24:34.026] [Test worker/WARN] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Skipping corrupt nested village record: No key bounding_box in MapLike[{name:"missing required identity"}]; No key bell_position in MapLike[{name:"missing required identity"}]; No key village_id in MapLike[{name:"missing required identity"}]
+[30Aug2026 16:24:34.027] [Test worker/WARN] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Skipping corrupt nested village record: AABB coordinates must be finite
+[30Aug2026 16:24:34.027] [Test worker/ERROR] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Could not decode village registry data: Not a list
+[30Aug2026 16:24:34.029] [Test worker/WARN] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Skipping corrupt villager POI record: No key villager_uuid in MapLike[{}]
+[30Aug2026 16:24:34.082] [Test worker/ERROR] [com.orangevillager61.emeraldcapitalism.EmeraldCapitalism/]: [ECAP] Could not decode village farm data: List is too long: 65537, expected range [0-65536]

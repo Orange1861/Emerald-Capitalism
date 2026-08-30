@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.oak.slabs",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/oak"
+  },
+  "count": 1,
+  "result": {
+    "id": "minecraft:oak_slab",
+    "count": 2
+  }
+}

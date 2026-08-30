@@ -1,0 +1,12 @@
+{
+  "type": "emeraldcapitalism:sawmill",
+  "group": "sawmill.bamboo.doors",
+  "ingredient": {
+    "tag": "emeraldcapitalism:sawmill/planks/bamboo"
+  },
+  "count": 3,
+  "result": {
+    "id": "minecraft:bamboo_door",
+    "count": 2
+  }
+}
