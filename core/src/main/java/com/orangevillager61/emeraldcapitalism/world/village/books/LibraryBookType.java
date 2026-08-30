@@ -1,7 +1,5 @@
 package com.orangevillager61.emeraldcapitalism.world.village.books;
 
-import net.minecraft.core.BlockPos;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -40,7 +38,7 @@ public enum LibraryBookType {
     }
 
     /** Replaces supported game-data tokens before a generated book is stored. */
-    public List<String> resolvePages(List<String> pageTemplates, Optional<BlockPos> steveGraveTarget) {
+    public List<String> resolvePages(List<String> pageTemplates, Optional<Coordinates> steveGraveTarget) {
         Objects.requireNonNull(pageTemplates, "pageTemplates");
         Objects.requireNonNull(steveGraveTarget, "steveGraveTarget");
         if (this == STATIC) {
@@ -48,10 +46,14 @@ public enum LibraryBookType {
         }
 
         String coordinates = steveGraveTarget
-                .map(target -> "[" + target.getX() + ", " + target.getY() + ", " + target.getZ() + "]")
+                .map(target -> "[" + target.x() + ", " + target.y() + ", " + target.z() + "]")
                 .orElse("[coordinates unavailable]");
         return pageTemplates.stream()
                 .map(page -> page.replace(STEVE_GRAVE_COORDINATES_TOKEN, coordinates))
                 .toList();
+    }
+
+    /** Platform-free coordinates supplied by the platform adapter. */
+    public record Coordinates(int x, int y, int z) {
     }
 }

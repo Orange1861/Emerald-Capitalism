@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttac
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
+import com.orangevillager61.emeraldcapitalism.villager.HungerPolicy;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -25,17 +26,7 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public class VillagerHungerEvents {
 
-    private static final int TICKS_PER_HUNGER_DECREASE = 1600;
-    private static final int TICKS_PER_STARVATION_DAMAGE = 3200;
-    private static final int TICKS_PER_HEAL = 80;
-    private static final int UPDATE_INTERVAL = 20;
-    private static final int EATING_DURATION_TICKS = 32;
-    private static final int EATING_EFFECT_INTERVAL = 4;
     private static final int EATING_PARTICLE_COUNT = 2;
-
-    private static final int HUNGER_THRESHOLD_TO_EAT_WOUNDED = 18;
-    private static final int HUNGER_THRESHOLD_TO_EAT_HEALTHY = 15;
-    private static final int HUNGER_THRESHOLD_TO_HEAL = 18;
 
     @SubscribeEvent
     public static void onEntityTick(EntityTickEvent.Post event) {
@@ -53,7 +44,7 @@ public class VillagerHungerEvents {
             boolean hasBreedTarget = villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET);
 
             // Use the normal stagger for bed wakeups while an eating animation is active.
-            if ((villager.tickCount + villager.getId()) % UPDATE_INTERVAL == 0
+            if ((villager.tickCount + villager.getId()) % HungerPolicy.UPDATE_INTERVAL == 0
                     && villager.isSleeping()) {
                 villager.stopSleeping();
             }
@@ -73,14 +64,14 @@ public class VillagerHungerEvents {
         }
 
         // Stagger non-eating updates by entity ID to distribute per-tick work.
-        if ((villager.tickCount + villager.getId()) % UPDATE_INTERVAL != 0) {
+        if ((villager.tickCount + villager.getId()) % HungerPolicy.UPDATE_INTERVAL != 0) {
             return;
         }
 
         boolean hasBreedTarget = villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET);
         boolean isWounded = villager.getHealth() < villager.getMaxHealth();
-        int hungerThreshold = isWounded ? HUNGER_THRESHOLD_TO_EAT_WOUNDED : HUNGER_THRESHOLD_TO_EAT_HEALTHY;
-        boolean hungryEnoughToEat = !hasBreedTarget && stats.getHungerLevel() < hungerThreshold;
+        boolean hungryEnoughToEat = HungerPolicy.shouldEat(
+                stats.getHungerLevel(), isWounded, hasBreedTarget);
 
         // Wake hungry villagers so the next AI tick can route them to food.
         if (villager.isSleeping() && hungryEnoughToEat) {
@@ -91,10 +82,10 @@ public class VillagerHungerEvents {
             tryStartEating(villager, stats);
         }
 
-        if (isWounded && stats.getHungerLevel() >= HUNGER_THRESHOLD_TO_HEAL) {
-            int healTicks = stats.getTicksSinceLastHeal() + UPDATE_INTERVAL;
+        if (HungerPolicy.shouldHeal(stats.getHungerLevel(), isWounded)) {
+            int healTicks = stats.getTicksSinceLastHeal() + HungerPolicy.UPDATE_INTERVAL;
             
-            if (healTicks >= TICKS_PER_HEAL) {
+            if (healTicks >= HungerPolicy.TICKS_PER_HEAL) {
                 villager.heal(1.0F);
                 stats.decreaseHunger(1); // Healing consumes hunger
                 stats.setTicksSinceLastHeal(0);
@@ -106,9 +97,9 @@ public class VillagerHungerEvents {
         }
 
         int currentTicks = stats.getTicksSinceLastHungerDecrease();
-        currentTicks += UPDATE_INTERVAL;
+        currentTicks += HungerPolicy.UPDATE_INTERVAL;
 
-        if (currentTicks >= TICKS_PER_HUNGER_DECREASE) {
+        if (currentTicks >= HungerPolicy.TICKS_PER_HUNGER_DECREASE) {
             stats.decreaseHunger(1);
             stats.setTicksSinceLastHungerDecrease(0);
         } else {
@@ -118,9 +109,10 @@ public class VillagerHungerEvents {
         if (stats.isStarving()) {
             boolean canTakeDamage = Config.villagersCanStarveToDeath || villager.getHealth() > 2.0F;
             if (canTakeDamage) {
-                int starvationTicks = stats.getTicksSinceLastStarvationDamage() + UPDATE_INTERVAL;
+                int starvationTicks = stats.getTicksSinceLastStarvationDamage()
+                        + HungerPolicy.UPDATE_INTERVAL;
                 
-                if (starvationTicks >= TICKS_PER_STARVATION_DAMAGE) {
+                if (starvationTicks >= HungerPolicy.TICKS_PER_STARVATION_DAMAGE) {
                     villager.hurt(villager.damageSources().starve(), 1.0F);
                     stats.setTicksSinceLastStarvationDamage(0);
                 } else {
@@ -142,7 +134,8 @@ public class VillagerHungerEvents {
             FoodProperties cachedFood = cachedStack.get(DataComponents.FOOD);
             if (cachedFood != null && !cachedStack.isEmpty()
                     && !VillagerFoodSelection.isLastChoice(cachedStack)) {
-                stats.startEating(cachedStack, cachedSlot, cachedFood.nutrition(), EATING_DURATION_TICKS);
+                stats.startEating(cachedStack, cachedSlot, cachedFood.nutrition(),
+                        HungerPolicy.EATING_DURATION_TICKS);
                 return;
             }
             stats.setCachedFoodSlot(-1);
@@ -152,7 +145,8 @@ public class VillagerHungerEvents {
         if (foodSlot >= 0) {
             ItemStack stack = inventory.getItem(foodSlot);
             FoodProperties foodProperties = stack.get(DataComponents.FOOD);
-            stats.startEating(stack, foodSlot, foodProperties.nutrition(), EATING_DURATION_TICKS);
+            stats.startEating(stack, foodSlot, foodProperties.nutrition(),
+                    HungerPolicy.EATING_DURATION_TICKS);
             stats.setCachedFoodSlot(foodSlot);
         }
     }
@@ -163,7 +157,7 @@ public class VillagerHungerEvents {
         int ticksRemaining = stats.getEatingTicksRemaining();
         ItemStack eatingItem = stats.getEatingItem();
 
-        if (ticksRemaining % EATING_EFFECT_INTERVAL == 0 && !eatingItem.isEmpty()) {
+        if (ticksRemaining % HungerPolicy.EATING_EFFECT_INTERVAL == 0 && !eatingItem.isEmpty()) {
             playEatingSound(villager);
             spawnEatingParticles(serverLevel, villager, eatingItem);
         }

@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.event.SteveGraveEvents;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookStackFactory;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -231,7 +232,7 @@ public final class VillageLibraryStructurePlacer {
             return;
         }
         for (int slot = 0; slot < books.size(); slot++) {
-            shelf.setItem(slot, books.get(slot).createItemStack(level));
+            shelf.setItem(slot, LibraryBookStackFactory.createItemStack(books.get(slot), level));
         }
         shelf.setChanged();
         level.sendBlockUpdated(shelfPosition, shelfState, shelfState, 3);

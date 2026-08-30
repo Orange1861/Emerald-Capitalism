@@ -1,6 +1,5 @@
 package com.orangevillager61.emeraldcapitalism.world.village.books;
 
-import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -15,7 +14,7 @@ class LibraryBookTypeTest {
         assertEquals(List.of("The grave is at [20000, 80, -30000]."),
                 LibraryBookType.STEVE_GRAVE_LOCATION.resolvePages(
                         List.of("The grave is at {{steve_grave_coordinates}}."),
-                        Optional.of(new BlockPos(20_000, 80, -30_000))));
+                        Optional.of(new LibraryBookType.Coordinates(20_000, 80, -30_000))));
     }
 
     @Test

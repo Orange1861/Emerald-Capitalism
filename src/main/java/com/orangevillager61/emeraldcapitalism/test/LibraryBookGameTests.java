@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookStackFactory;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRarity;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookType;
 import com.orangevillager61.emeraldcapitalism.world.structure.SteveGraveSavedData;
@@ -34,7 +35,7 @@ public final class LibraryBookGameTests {
             return;
         }
 
-        var stack = definition.createItemStack();
+        var stack = LibraryBookStackFactory.createItemStack(definition);
         if (!stack.is(Items.WRITTEN_BOOK)) {
             helper.fail("Authored book did not create a vanilla written-book item");
             return;
@@ -81,8 +82,8 @@ public final class LibraryBookGameTests {
         SteveGraveSavedData graveData = SteveGraveSavedData.get(helper.getLevel());
         graveData.setTarget(target);
         graveData.markPlaced(new BlockPos(20_000, 80, -30_000));
-        var stack = definition.createItemStack();
-        if (!definition.refreshWorldData(stack, helper.getLevel())) {
+        var stack = LibraryBookStackFactory.createItemStack(definition);
+        if (!LibraryBookStackFactory.refreshWorldData(definition, stack, helper.getLevel())) {
             helper.fail("Steve grave location book did not refresh its world data");
             return;
         }

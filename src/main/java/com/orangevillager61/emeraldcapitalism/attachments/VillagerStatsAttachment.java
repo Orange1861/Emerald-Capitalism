@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
+import com.orangevillager61.emeraldcapitalism.villager.HungerState;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
@@ -108,12 +109,8 @@ public class VillagerStatsAttachment {
                     .forGetter(VillagerStatsAttachment::getEmeraldBalance)
     ).apply(instance, VillagerStatsAttachment::new));
 
-    // Hunger system
-    private int hungerLevel = 20; // Max 20 (like player food)
-    private long lastAteTime = 0;
-    private int ticksSinceLastHungerDecrease = 0;
-    private int ticksSinceLastHeal = 0;
-    private int ticksSinceLastStarvationDamage = 0;
+    // Platform-free hunger state is kept separate from the attachment codec and item cache.
+    private final HungerState hungerState = new HungerState();
 
     // Beg-for-food behavior tracking
     private long lastBegTime = 0;
@@ -121,13 +118,9 @@ public class VillagerStatsAttachment {
     private UUID begDonorUUID = null;
 
     // Eating animation state (transient, not saved to NBT)
-    private boolean isEating = false;
     // Keep the clean state lazy so codec-only consumers do not initialize item
     // registries; the public getter still exposes the existing EMPTY sentinel.
     private ItemStack eatingItem = null;
-    private int eatingTicksRemaining = 0;
-    private int eatingSlot = -1;
-    private int eatingNutrition = 0;
     private int cachedFoodSlot = -1;
 
     // Cached inventory item counts (transient, not saved to NBT; -1 = stale)
@@ -192,11 +185,11 @@ public class VillagerStatsAttachment {
             List<UUID> childrenUUIDs,
             List<UUID> grandparentUUIDs,
             int emeraldBalance) {
-        setHungerLevel(hungerLevel);
-        this.lastAteTime = lastAteTime;
-        this.ticksSinceLastHungerDecrease = ticksSinceLastHungerDecrease;
-        this.ticksSinceLastHeal = ticksSinceLastHeal;
-        this.ticksSinceLastStarvationDamage = ticksSinceLastStarvationDamage;
+        hungerState.setHungerLevel(hungerLevel);
+        hungerState.setLastAteTime(lastAteTime);
+        hungerState.setTicksSinceLastHungerDecrease(ticksSinceLastHungerDecrease);
+        hungerState.setTicksSinceLastHeal(ticksSinceLastHeal);
+        hungerState.setTicksSinceLastStarvationDamage(ticksSinceLastStarvationDamage);
         this.lastBegTime = lastBegTime;
         this.begTime = begTime;
         this.begDonorUUID = begDonorUUID.orElse(null);
@@ -219,59 +212,59 @@ public class VillagerStatsAttachment {
 
     // Getters and setters
     public int getHungerLevel() {
-        return hungerLevel;
+        return hungerState.hungerLevel();
     }
 
     public void setHungerLevel(int hungerLevel) {
-        this.hungerLevel = Math.max(0, Math.min(20, hungerLevel));
+        hungerState.setHungerLevel(hungerLevel);
     }
 
     public void decreaseHunger(int amount) {
-        setHungerLevel(hungerLevel - amount);
+        hungerState.decreaseHunger(amount);
     }
 
     public void increaseHunger(int amount) {
-        setHungerLevel(hungerLevel + amount);
+        hungerState.increaseHunger(amount);
     }
 
     public boolean isHungry() {
-        return hungerLevel < 10;
+        return hungerState.isHungry();
     }
 
     public boolean isStarving() {
-        return hungerLevel <= 0;
+        return hungerState.isStarving();
     }
 
     public long getLastAteTime() {
-        return lastAteTime;
+        return hungerState.lastAteTime();
     }
 
     public void setLastAteTime(long time) {
-        this.lastAteTime = time;
+        hungerState.setLastAteTime(time);
     }
 
     public int getTicksSinceLastHungerDecrease() {
-        return ticksSinceLastHungerDecrease;
+        return hungerState.ticksSinceLastHungerDecrease();
     }
 
     public void setTicksSinceLastHungerDecrease(int ticks) {
-        this.ticksSinceLastHungerDecrease = ticks;
+        hungerState.setTicksSinceLastHungerDecrease(ticks);
     }
 
     public int getTicksSinceLastHeal() {
-        return ticksSinceLastHeal;
+        return hungerState.ticksSinceLastHeal();
     }
 
     public void setTicksSinceLastHeal(int ticks) {
-        this.ticksSinceLastHeal = ticks;
+        hungerState.setTicksSinceLastHeal(ticks);
     }
 
     public int getTicksSinceLastStarvationDamage() {
-        return ticksSinceLastStarvationDamage;
+        return hungerState.ticksSinceLastStarvationDamage();
     }
 
     public void setTicksSinceLastStarvationDamage(int ticks) {
-        this.ticksSinceLastStarvationDamage = ticks;
+        hungerState.setTicksSinceLastStarvationDamage(ticks);
     }
 
     public long getLastBegTime() {
@@ -348,7 +341,7 @@ public class VillagerStatsAttachment {
      * Checks if the villager is currently eating.
      */
     public boolean isEating() {
-        return isEating;
+        return hungerState.isEating();
     }
 
     /**
@@ -362,18 +355,14 @@ public class VillagerStatsAttachment {
      * Gets the remaining ticks until eating is complete.
      */
     public int getEatingTicksRemaining() {
-        return eatingTicksRemaining;
+        return hungerState.eatingTicksRemaining();
     }
 
     /**
      * Decrements eating ticks and returns true if eating is complete.
      */
     public boolean tickEating() {
-        if (!isEating) {
-            return false;
-        }
-        eatingTicksRemaining--;
-        return eatingTicksRemaining <= 0;
+        return hungerState.tickEating();
     }
 
     /**
@@ -385,11 +374,8 @@ public class VillagerStatsAttachment {
      * @param durationTicks how long eating takes (default 32 for players)
      */
     public void startEating(ItemStack item, int slot, int nutrition, int durationTicks) {
-        this.isEating = true;
+        hungerState.startEating(slot, nutrition, durationTicks);
         this.eatingItem = item.copy();
-        this.eatingSlot = slot;
-        this.eatingNutrition = nutrition;
-        this.eatingTicksRemaining = durationTicks;
     }
 
     /**
@@ -399,8 +385,8 @@ public class VillagerStatsAttachment {
      * @return the nutrition value to add to hunger
      */
     public int finishEating() {
-        int nutrition = this.eatingNutrition;
-        resetEating();
+        int nutrition = hungerState.finishEating();
+        this.eatingItem = null;
         return nutrition;
     }
 
@@ -408,18 +394,15 @@ public class VillagerStatsAttachment {
      * Cancels eating without applying nutrition.
      */
     public void resetEating() {
-        this.isEating = false;
+        hungerState.resetEating();
         this.eatingItem = null;
-        this.eatingSlot = -1;
-        this.eatingNutrition = 0;
-        this.eatingTicksRemaining = 0;
     }
 
     /**
      * Gets the inventory slot of the food being eaten.
      */
     public int getEatingSlot() {
-        return eatingSlot;
+        return hungerState.eatingSlot();
     }
 
     /**

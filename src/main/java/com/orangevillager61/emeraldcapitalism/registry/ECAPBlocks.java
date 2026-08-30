@@ -122,6 +122,11 @@ public final class ECAPBlocks {
                     .sound(SoundType.GLASS)
     );
 
+    public static final DeferredBlock<Block> EMERALD_GREEN_WOOL = BLOCKS.registerSimpleBlock(
+            "emerald_green_wool",
+            BlockBehaviour.Properties.ofFullCopy(Blocks.GREEN_WOOL)
+    );
+
     public static final DeferredBlock<EmeraldGreenBedBlock> EMERALD_GREEN_BED = BLOCKS.registerBlock(
             "emerald_green_bed",
             EmeraldGreenBedBlock::new,

@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.registry;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookStackFactory;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -37,6 +38,7 @@ public final class ECAPCreativeModTabs {
                         output.accept(ECAPItems.EMERALD_GREEN_DYE.get());
                         output.accept(ECAPItems.EMERALD_GREEN_STAINED_GLASS.get());
                         output.accept(ECAPItems.EMERALD_GREEN_STAINED_GLASS_PANE.get());
+                        output.accept(ECAPItems.EMERALD_GREEN_WOOL.get());
                         output.accept(ECAPItems.EMERALD_GREEN_BED.get());
                         output.accept(ECAPItems.BANK.get());
                         output.accept(ECAPItems.SAWMILL.get());
@@ -50,7 +52,8 @@ public final class ECAPCreativeModTabs {
                         output.accept(ECAPItems.COMPACTED_ROTTEN_FLESH.get());
                         output.accept(ECAPItems.ROTTEN_FLESH_COVER.get());
                         if (Config.enableBooksInCreativeTab) {
-                            LibraryBookRegistry.entries().forEach(book -> output.accept(book.createItemStack()));
+                            LibraryBookRegistry.entries().forEach(book ->
+                                    output.accept(LibraryBookStackFactory.createItemStack(book)));
                         }
                         output.accept(PotionContents.createItemStack(
                                 Items.POTION, ECAPPotions.ZOMBIE_VIRUS_PHASE_ONE));

@@ -1,7 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village.books;
 
-import com.orangevillager61.emeraldcapitalism.world.structure.SteveGraveSavedData;
 import com.orangevillager61.emeraldcapitalism.world.structure.SteveGravePlacer;
+import com.orangevillager61.emeraldcapitalism.world.structure.SteveGraveSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -17,35 +17,22 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Immutable, resource-backed authored-book content. */
-public record LibraryBookDefinition(
-        String id,
-        String title,
-        String author,
-        LibraryBookRarity rarity,
-        LibraryBookType type,
-        List<String> pages
-) {
-    public LibraryBookDefinition {
-        Objects.requireNonNull(id, "id");
-        Objects.requireNonNull(title, "title");
-        Objects.requireNonNull(author, "author");
-        Objects.requireNonNull(rarity, "rarity");
-        Objects.requireNonNull(type, "type");
-        Objects.requireNonNull(pages, "pages");
-        pages = List.copyOf(pages);
+/** Minecraft adapter that materializes core authored-book definitions as item stacks. */
+public final class LibraryBookStackFactory {
+
+    private LibraryBookStackFactory() {
     }
 
-    /** Builds the actual vanilla written-book stack that can live in a shelf. */
-    public ItemStack createItemStack() {
-        return createItemStack(Optional.empty());
+    public static ItemStack createItemStack(LibraryBookDefinition definition) {
+        Objects.requireNonNull(definition, "definition");
+        return createItemStack(definition, Optional.empty());
     }
 
-    /** Builds a book with world-data tokens resolved from the server's overworld. */
-    public ItemStack createItemStack(ServerLevel level) {
+    public static ItemStack createItemStack(LibraryBookDefinition definition, ServerLevel level) {
+        Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(level, "level");
-        if (type == LibraryBookType.STATIC) {
-            return createItemStack();
+        if (definition.type() == LibraryBookType.STATIC) {
+            return createItemStack(definition);
         }
 
         ServerLevel overworld = level.getServer().overworld();
@@ -55,23 +42,26 @@ public record LibraryBookDefinition(
                 : Optional.ofNullable(graveData.target())
                 .map(target -> SteveGravePlacer.structureOrigin(overworld, target))
                 .orElse(null);
-        return createItemStack(Optional.ofNullable(coordinates));
+        return createItemStack(definition, Optional.ofNullable(coordinates));
     }
 
     /** Refreshes a previously materialized dynamic book before it is opened. */
-    public boolean refreshWorldData(ItemStack stack, ServerLevel level) {
+    public static boolean refreshWorldData(
+            LibraryBookDefinition definition, ItemStack stack, ServerLevel level) {
+        Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(stack, "stack");
         Objects.requireNonNull(level, "level");
-        if (type == LibraryBookType.STATIC || !stack.is(Items.WRITTEN_BOOK)) {
+        if (definition.type() == LibraryBookType.STATIC || !stack.is(Items.WRITTEN_BOOK)) {
             return false;
         }
 
         CustomData metadata = stack.get(DataComponents.CUSTOM_DATA);
-        if (metadata == null || !id.equals(metadata.copyTag().getString("book_id"))) {
+        if (metadata == null || !definition.id().equals(metadata.copyTag().getString("book_id"))) {
             return false;
         }
 
-        WrittenBookContent content = createItemStack(level).get(DataComponents.WRITTEN_BOOK_CONTENT);
+        WrittenBookContent content = createItemStack(definition, level)
+                .get(DataComponents.WRITTEN_BOOK_CONTENT);
         if (content == null) {
             throw new IllegalStateException("Dynamic authored book did not produce written content");
         }
@@ -79,20 +69,26 @@ public record LibraryBookDefinition(
         return true;
     }
 
-    private ItemStack createItemStack(Optional<BlockPos> steveGraveTarget) {
-        List<String> resolvedPages = type.resolvePages(pages, steveGraveTarget);
+    private static ItemStack createItemStack(
+            LibraryBookDefinition definition, Optional<BlockPos> steveGraveTarget) {
+        LibraryBookType.Coordinates coordinates = steveGraveTarget
+                .map(target -> new LibraryBookType.Coordinates(
+                        target.getX(), target.getY(), target.getZ()))
+                .orElse(null);
+        List<String> resolvedPages = definition.type().resolvePages(
+                definition.pages(), Optional.ofNullable(coordinates));
         List<Filterable<Component>> writtenPages = resolvedPages.stream()
                 .map(page -> Filterable.<Component>passThrough(Component.literal(page)))
                 .toList();
         WrittenBookContent content = new WrittenBookContent(
-                Filterable.passThrough(title), author, 0, writtenPages, true);
+                Filterable.passThrough(definition.title()), definition.author(), 0, writtenPages, true);
         ItemStack stack = new ItemStack(Items.WRITTEN_BOOK);
         stack.set(DataComponents.WRITTEN_BOOK_CONTENT, content);
 
         // Preserve the source identity and rarity for placement and server-side rules.
         CompoundTag metadata = new CompoundTag();
-        metadata.putString("book_id", id);
-        metadata.putString("book_rarity", rarity.id());
+        metadata.putString("book_id", definition.id());
+        metadata.putString("book_rarity", definition.rarity().id());
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(metadata));
         return stack;
     }

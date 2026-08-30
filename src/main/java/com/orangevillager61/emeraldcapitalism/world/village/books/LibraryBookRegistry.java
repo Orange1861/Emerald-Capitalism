@@ -14,12 +14,10 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /** Resource-reloadable registry for authored book definitions. */
 public final class LibraryBookRegistry {
@@ -28,7 +26,6 @@ public final class LibraryBookRegistry {
     private static final int MAX_AUTHOR_LENGTH = 128;
     private static final int MAX_PAGE_COUNT = 100;
     private static final int MAX_PAGE_LENGTH = 8192;
-    private static final int BOOKS_PER_LIBRARY_SHELF = 6;
     private static volatile Map<String, LibraryBookDefinition> entries = Map.of();
 
     private LibraryBookRegistry() {
@@ -101,10 +98,7 @@ public final class LibraryBookRegistry {
     }
 
     public static List<LibraryBookDefinition> entries(LibraryBookRarity rarity) {
-        return entries.values().stream()
-                .filter(book -> book.rarity() == rarity)
-                .sorted(Comparator.comparing(LibraryBookDefinition::id))
-                .toList();
+        return LibraryBookCatalog.entries(entries.values(), rarity);
     }
 
     public static Optional<LibraryBookDefinition> get(String id) {
@@ -117,44 +111,7 @@ public final class LibraryBookRegistry {
      * definitions are available for deterministic owners, never this pool.
      */
     public static List<LibraryBookDefinition> selectLibraryBooks(RandomSource random) {
-        List<LibraryBookDefinition> selected = new ArrayList<>();
-        Set<String> selectedIds = new HashSet<>();
-        while (selected.size() < BOOKS_PER_LIBRARY_SHELF) {
-            List<LibraryBookRarity> availableRarities = new ArrayList<>();
-            int totalWeight = 0;
-            for (LibraryBookRarity rarity : LibraryBookRarity.values()) {
-                if (!rarity.isRandomLibraryPool() || rarity.libraryPoolWeight() <= 0) {
-                    continue;
-                }
-                boolean available = entries.values().stream().anyMatch(book ->
-                        book.rarity() == rarity && !selectedIds.contains(book.id()));
-                if (available) {
-                    availableRarities.add(rarity);
-                    totalWeight += rarity.libraryPoolWeight();
-                }
-            }
-            if (totalWeight == 0) {
-                break;
-            }
-
-            int roll = random.nextInt(totalWeight);
-            LibraryBookRarity chosenRarity = availableRarities.getLast();
-            for (LibraryBookRarity rarity : availableRarities) {
-                if (roll < rarity.libraryPoolWeight()) {
-                    chosenRarity = rarity;
-                    break;
-                }
-                roll -= rarity.libraryPoolWeight();
-            }
-
-            List<LibraryBookDefinition> candidates = entries(chosenRarity).stream()
-                    .filter(book -> !selectedIds.contains(book.id()))
-                    .toList();
-            LibraryBookDefinition chosen = candidates.get(random.nextInt(candidates.size()));
-            selected.add(chosen);
-            selectedIds.add(chosen.id());
-        }
-        return List.copyOf(selected);
+        return LibraryBookCatalog.selectLibraryBooks(entries.values(), random::nextInt);
     }
 
     private static String requiredString(com.google.gson.JsonObject object, String key, int maximum) {

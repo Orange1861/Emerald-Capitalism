@@ -76,6 +76,11 @@ public final class ECAPItems {
             ECAPBlocks.EMERALD_GREEN_STAINED_GLASS
     );
 
+    public static final DeferredItem<BlockItem> EMERALD_GREEN_WOOL = ITEMS.registerSimpleBlockItem(
+            "emerald_green_wool",
+            ECAPBlocks.EMERALD_GREEN_WOOL
+    );
+
     public static final DeferredItem<BlockItem> EMERALD_GREEN_BED = ITEMS.registerSimpleBlockItem(
             "emerald_green_bed",
             ECAPBlocks.EMERALD_GREEN_BED

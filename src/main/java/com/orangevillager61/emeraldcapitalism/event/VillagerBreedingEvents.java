@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.util.VillagerFamilyUtils;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameManager;
+import com.orangevillager61.emeraldcapitalism.villager.HungerPolicy;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
@@ -44,9 +45,6 @@ public class VillagerBreedingEvents {
 
     /** Hunger charged to each parent after a successful birth. */
     private static final int BREEDING_HUNGER_COST = 10;
-
-    /** Hunger assigned to newborns. */
-    private static final int MAX_HUNGER = 20;
 
     /** Handles successful baby-entity spawn events for villager births. */
     @SubscribeEvent
@@ -132,7 +130,7 @@ public class VillagerBreedingEvents {
             childStats.addGrandparent(parent2Stats.getParent2UUID());
         }
 
-        childStats.setHungerLevel(MAX_HUNGER);
+        childStats.setHungerLevel(HungerPolicy.MAX_HUNGER);
 
         transferBestFoodToChild(parent1, childVillager);
         transferBestFoodToChild(parent2, childVillager);

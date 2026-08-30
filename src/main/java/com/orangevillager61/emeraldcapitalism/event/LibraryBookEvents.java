@@ -1,8 +1,9 @@
 package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
-import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookStackFactory;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
@@ -46,6 +47,6 @@ public final class LibraryBookEvents {
         }
 
         SteveGraveEvents.ensureTargetResolved(level);
-        definition.refreshWorldData(stack, level);
+        LibraryBookStackFactory.refreshWorldData(definition, stack, level);
     }
 }

@@ -85,6 +85,7 @@ public final class RegistrationGameTests {
         assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.REGULAR_EMERALD_DOOR.get(), "regular_emerald_door");
         assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.EMERALD_GREEN_STAINED_GLASS_PANE.get(), "emerald_green_stained_glass_pane");
         assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.EMERALD_GREEN_STAINED_GLASS.get(), "emerald_green_stained_glass");
+        assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.EMERALD_GREEN_WOOL.get(), "emerald_green_wool");
         assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.EMERALD_GREEN_BED.get(), "emerald_green_bed");
         assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.GOLEM_CONSTRUCTION_LOCATION.get(), "golem_construction_location");
         assertId(helper, BuiltInRegistries.BLOCK, ECAPBlocks.SAWMILL.get(), "sawmill");
@@ -96,6 +97,7 @@ public final class RegistrationGameTests {
         assertId(helper, BuiltInRegistries.ITEM, ECAPItems.EMERALD_GREEN_DYE.get(), "emerald_green_dye");
         assertId(helper, BuiltInRegistries.ITEM, ECAPItems.EMERALD_GREEN_STAINED_GLASS_PANE.get(), "emerald_green_stained_glass_pane");
         assertId(helper, BuiltInRegistries.ITEM, ECAPItems.EMERALD_GREEN_STAINED_GLASS.get(), "emerald_green_stained_glass");
+        assertId(helper, BuiltInRegistries.ITEM, ECAPItems.EMERALD_GREEN_WOOL.get(), "emerald_green_wool");
         assertId(helper, BuiltInRegistries.ITEM, ECAPItems.EMERALD_GREEN_BED.get(), "emerald_green_bed");
         assertId(helper, BuiltInRegistries.ITEM, ECAPItems.BANK.get(), "bank");
         assertId(helper, BuiltInRegistries.ITEM, ECAPItems.GOLEM_CONSTRUCTION_LOCATION.get(), "golem_construction_location");
@@ -146,6 +148,7 @@ public final class RegistrationGameTests {
         assertBlockItem(helper, ECAPItems.EMERALD_ORE_PROCESSOR.get(), ECAPBlocks.EMERALD_ORE_PROCESSOR.get());
         assertBlockItem(helper, ECAPItems.EMERALD_GREEN_STAINED_GLASS_PANE.get(), ECAPBlocks.EMERALD_GREEN_STAINED_GLASS_PANE.get());
         assertBlockItem(helper, ECAPItems.EMERALD_GREEN_STAINED_GLASS.get(), ECAPBlocks.EMERALD_GREEN_STAINED_GLASS.get());
+        assertBlockItem(helper, ECAPItems.EMERALD_GREEN_WOOL.get(), ECAPBlocks.EMERALD_GREEN_WOOL.get());
         assertBlockItem(helper, ECAPItems.EMERALD_GREEN_BED.get(), ECAPBlocks.EMERALD_GREEN_BED.get());
         assertBlockItem(helper, ECAPItems.BANK.get(), ECAPBlocks.BANK.get());
         assertBlockItem(helper, ECAPItems.SAWMILL.get(), ECAPBlocks.SAWMILL.get());

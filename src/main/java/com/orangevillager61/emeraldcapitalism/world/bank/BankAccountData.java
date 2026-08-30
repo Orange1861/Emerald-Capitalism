@@ -14,11 +14,8 @@ import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -49,29 +46,30 @@ public class BankAccountData extends SavedData {
                     .optionalFieldOf("accounts", List.of())
                     .forGetter(BankAccountData::accountEntries),
             Codec.INT.optionalFieldOf("next_bank_number", 1)
-                    .forGetter(data -> data.nextBankNumber)
+            .forGetter(data -> data.ledger.nextBankNumber())
     ).apply(instance, BankAccountData::fromCodec));
 
-    /** Maps villager UUID → emerald balance. */
-    private final Map<UUID, Integer> balances = new HashMap<>();
+    private final BankLedger ledger;
 
-    /** Counter used to generate unique bank names; incremented each time a name is generated. */
-    private int nextBankNumber = 1;
+    public BankAccountData() {
+        this(new BankLedger());
+    }
 
-    public BankAccountData() {}
+    private BankAccountData(BankLedger ledger) {
+        this.ledger = ledger;
+    }
 
     private static BankAccountData fromCodec(List<AccountEntry> accounts, int nextBankNumber) {
-        BankAccountData data = new BankAccountData();
+        Map<UUID, Integer> balances = new java.util.HashMap<>();
         for (AccountEntry account : accounts) {
-            data.balances.put(account.uuid(), account.balance());
+            balances.put(account.uuid(), account.balance());
         }
-        data.nextBankNumber = Math.max(1, nextBankNumber);
-        return data;
+        return new BankAccountData(new BankLedger(balances, nextBankNumber));
     }
 
     private List<AccountEntry> accountEntries() {
-        List<AccountEntry> entries = new ArrayList<>(balances.size());
-        for (Map.Entry<UUID, Integer> entry : balances.entrySet()) {
+        List<AccountEntry> entries = new ArrayList<>(ledger.balances().size());
+        for (Map.Entry<UUID, Integer> entry : ledger.balances().entrySet()) {
             entries.add(new AccountEntry(entry.getKey(), entry.getValue()));
         }
         return entries;
@@ -101,25 +99,21 @@ public class BankAccountData extends SavedData {
      * Does nothing if the account already exists.
      */
     public void openAccount(UUID uuid) {
-        Objects.requireNonNull(uuid, "uuid");
-        if (!balances.containsKey(uuid)) {
-            balances.put(uuid, 0);
+        if (ledger.openAccount(uuid)) {
             setDirty();
         }
     }
 
     /** Returns {@code true} if an account exists for {@code uuid}. */
     public boolean hasAccount(UUID uuid) {
-        Objects.requireNonNull(uuid, "uuid");
-        return balances.containsKey(uuid);
+        return ledger.hasAccount(uuid);
     }
 
     /**
      * Returns the current balance for {@code uuid}, or 0 if no account exists.
      */
     public int getBalance(UUID uuid) {
-        Objects.requireNonNull(uuid, "uuid");
-        return balances.getOrDefault(uuid, 0);
+        return ledger.getBalance(uuid);
     }
 
     /**
@@ -131,8 +125,7 @@ public class BankAccountData extends SavedData {
      * @param amount positive number of emeralds to add
      */
     public void deposit(UUID uuid, int amount) {
-        requireAccountMutation(uuid, amount);
-        balances.merge(uuid, amount, Integer::sum);
+        ledger.deposit(uuid, amount);
         setDirty();
     }
 
@@ -145,24 +138,13 @@ public class BankAccountData extends SavedData {
      * @param amount positive number of emeralds to subtract
      */
     public void withdraw(UUID uuid, int amount) {
-        requireAccountMutation(uuid, amount);
-        balances.merge(uuid, -amount, Integer::sum);
+        ledger.withdraw(uuid, amount);
         setDirty();
-    }
-
-    private void requireAccountMutation(UUID uuid, int amount) {
-        Objects.requireNonNull(uuid, "uuid");
-        if (amount <= 0) {
-            throw new IllegalArgumentException("Bank account mutation amount must be positive");
-        }
-        if (!balances.containsKey(uuid)) {
-            throw new IllegalStateException("Bank account does not exist for " + uuid);
-        }
     }
 
     /** Returns an unmodifiable view of all balances, keyed by villager UUID. */
     public Map<UUID, Integer> getBalances() {
-        return Collections.unmodifiableMap(balances);
+        return ledger.balances();
     }
 
     // Bank name generation
@@ -172,8 +154,7 @@ public class BankAccountData extends SavedData {
      * The counter is persisted so names remain unique across server restarts.
      */
     public String generateBankName() {
-        String name = "Bank " + nextBankNumber;
-        nextBankNumber++;
+        String name = ledger.generateBankName();
         setDirty();
         return name;
     }

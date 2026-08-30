@@ -18,8 +18,6 @@ import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -85,24 +83,29 @@ public class BankReputationData extends SavedData {
                     .forGetter(BankReputationData::reputationEntries)
     ).apply(instance, BankReputationData::fromCodec));
 
-    private final Map<UUID, Integer> reputations = new HashMap<>();
+    private final ReputationLedger ledger;
 
     public BankReputationData() {
+        this(new ReputationLedger());
+    }
+
+    private BankReputationData(ReputationLedger ledger) {
+        this.ledger = ledger;
     }
 
     private static BankReputationData fromCodec(List<ReputationEntry> entries) {
-        BankReputationData data = new BankReputationData();
+        Map<UUID, Integer> reputations = new java.util.HashMap<>();
         for (ReputationEntry entry : entries) {
             if (entry.reputation() != 0) {
-                data.reputations.put(entry.playerId(), entry.reputation());
+                reputations.put(entry.playerId(), entry.reputation());
             }
         }
-        return data;
+        return new BankReputationData(new ReputationLedger(reputations));
     }
 
     private List<ReputationEntry> reputationEntries() {
-        List<ReputationEntry> entries = new ArrayList<>(reputations.size());
-        for (Map.Entry<UUID, Integer> entry : reputations.entrySet()) {
+        List<ReputationEntry> entries = new ArrayList<>(ledger.reputations().size());
+        for (Map.Entry<UUID, Integer> entry : ledger.reputations().entrySet()) {
             entries.add(new ReputationEntry(entry.getKey(), entry.getValue()));
         }
         return entries;
@@ -122,7 +125,7 @@ public class BankReputationData extends SavedData {
     }
 
     public int getReputation(UUID playerId) {
-        return reputations.getOrDefault(playerId, 0);
+        return ledger.get(playerId);
     }
 
     /**
@@ -130,22 +133,15 @@ public class BankReputationData extends SavedData {
      * saturated so malformed or repeated gameplay events cannot wrap the score.
      */
     public int adjustReputation(UUID playerId, int delta) {
-        if (delta == 0) {
-            return getReputation(playerId);
+        int updated = ledger.adjust(playerId, delta);
+        if (delta != 0) {
+            setDirty();
         }
-        long updated = (long) getReputation(playerId) + delta;
-        int clamped = (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, updated));
-        if (clamped == 0) {
-            reputations.remove(playerId);
-        } else {
-            reputations.put(playerId, clamped);
-        }
-        setDirty();
-        return clamped;
+        return updated;
     }
 
     public Map<UUID, Integer> getReputations() {
-        return Collections.unmodifiableMap(reputations);
+        return ledger.reputations();
     }
 
     @Override
