@@ -21,12 +21,14 @@ public final class AbandonedVaultLocateCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("locate")
-                .then(Commands.literal("abandoned_vault")
-                        .requires(source -> source.hasPermission(2))
-                        .executes(context -> locate(context.getSource(), false)))
-                .then(Commands.literal("second_abandoned_vault")
-                        .requires(source -> source.hasPermission(2))
-                        .executes(context -> locate(context.getSource(), true))));
+                .then(Commands.literal("ecap")
+                        .then(Commands.literal("structures")
+                                .then(Commands.literal("abandoned_vault")
+                                        .requires(source -> source.hasPermission(2))
+                                        .executes(context -> locate(context.getSource(), false)))
+                                .then(Commands.literal("second_abandoned_vault")
+                                        .requires(source -> source.hasPermission(2))
+                                        .executes(context -> locate(context.getSource(), true))))));
 
         dispatcher.register(Commands.literal("ecap")
                 .then(Commands.literal("locate")

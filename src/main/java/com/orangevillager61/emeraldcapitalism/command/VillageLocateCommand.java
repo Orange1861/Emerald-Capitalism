@@ -33,17 +33,15 @@ public final class VillageLocateCommand {
     private VillageLocateCommand() {
     }
 
-    /**
-     * Registers {@code /locate village} alongside vanilla's existing
-     * {@code /locate structure}, {@code /locate biome}, and {@code /locate poi}
-     * commands.
-     */
+    /** Registers the village search under the mod's locate command namespace. */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
                 Commands.literal("locate")
-                        .then(Commands.literal("village")
-                                .requires(source -> source.hasPermission(2))
-                                .executes(ctx -> locateVillage(ctx.getSource())))
+                        .then(Commands.literal("ecap")
+                                .then(Commands.literal("structures")
+                                        .then(Commands.literal("village")
+                                                .requires(source -> source.hasPermission(2))
+                                                .executes(ctx -> locateVillage(ctx.getSource())))))
         );
     }
 

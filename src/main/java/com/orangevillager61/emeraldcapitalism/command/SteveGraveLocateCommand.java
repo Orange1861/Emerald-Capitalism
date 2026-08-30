@@ -20,9 +20,11 @@ public final class SteveGraveLocateCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("locate")
-                .then(Commands.literal("the_grave")
-                        .requires(source -> source.hasPermission(2))
-                        .executes(context -> locate(context.getSource()))));
+                .then(Commands.literal("ecap")
+                        .then(Commands.literal("structures")
+                                .then(Commands.literal("the_grave")
+                                        .requires(source -> source.hasPermission(2))
+                                        .executes(context -> locate(context.getSource()))))));
 
         dispatcher.register(Commands.literal("ecap")
                 .then(Commands.literal("locate")
