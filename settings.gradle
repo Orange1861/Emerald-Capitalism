@@ -1,11 +1,24 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        maven { url = 'https://maven.kikugie.dev/releases' }
+        maven { url = 'https://maven.neoforged.net/releases/' }
     }
 }
 
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    id 'dev.kikugie.stonecutter' version '0.8+'
+}
+
+stonecutter.create(rootProject) {
+    // Java 21, Parchment mappings still required.
+    versions('1.21.1', '1.21.4', '1.21.11')
+        .buildscript('build-legacy.gradle')
+
+    // Java 25, no Parchment. 26.1 here covers 26.1/26.1.1/26.1.2 as one target.
+    versions('26.1', '26.2')
+        .buildscript('build-calendar.gradle')
 }
 
 include(':core')
