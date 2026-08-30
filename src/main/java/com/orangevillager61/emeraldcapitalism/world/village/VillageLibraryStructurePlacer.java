@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.event.SteveGraveEvents;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
@@ -191,6 +192,7 @@ public final class VillageLibraryStructurePlacer {
 
     /** Replaces one vanilla shelf with a persistent chiseled shelf of real books. */
     private static void installAuthoredBooks(ServerLevel level, PlannedLibrary plan) {
+        SteveGraveEvents.ensureTargetResolved(level);
         RandomSource random = RandomSource.create(level.getSeed() ^ plan.origin().asLong());
         List<LibraryBookDefinition> books = LibraryBookRegistry.selectLibraryBooks(random);
         if (books.isEmpty()) {
@@ -229,7 +231,7 @@ public final class VillageLibraryStructurePlacer {
             return;
         }
         for (int slot = 0; slot < books.size(); slot++) {
-            shelf.setItem(slot, books.get(slot).createItemStack());
+            shelf.setItem(slot, books.get(slot).createItemStack(level));
         }
         shelf.setChanged();
         level.sendBlockUpdated(shelfPosition, shelfState, shelfState, 3);

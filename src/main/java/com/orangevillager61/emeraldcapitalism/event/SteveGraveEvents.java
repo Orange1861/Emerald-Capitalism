@@ -14,6 +14,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.bus.api.SubscribeEvent;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /** Server lifecycle for the single deterministic Steve grave. */
@@ -47,9 +48,7 @@ public final class SteveGraveEvents {
         ServerLevel level = event.getServer().overworld();
         SteveGraveSavedData data = SteveGraveSavedData.get(level);
 
-        if (data.placementState() == SteveGraveSavedData.PlacementState.UNRESOLVED) {
-            resolveTarget(level, data);
-        }
+        ensureTargetResolved(level);
 
         if (data.placementState() == SteveGraveSavedData.PlacementState.TARGET_FOUND
                 && data.target() != null) {
@@ -62,6 +61,16 @@ public final class SteveGraveEvents {
         if (MAX_PLACEMENTS_PER_TICK > 0 && placementQueued && queuedLevel != null) {
             placementQueued = false;
             tryPlace(queuedLevel);
+        }
+    }
+
+    /** Resolves the persisted target before a generated book needs its coordinates. */
+    public static void ensureTargetResolved(ServerLevel level) {
+        Objects.requireNonNull(level, "level");
+        ServerLevel overworld = level.getServer().overworld();
+        SteveGraveSavedData data = SteveGraveSavedData.get(overworld);
+        if (data.placementState() == SteveGraveSavedData.PlacementState.UNRESOLVED) {
+            resolveTarget(overworld, data);
         }
     }
 

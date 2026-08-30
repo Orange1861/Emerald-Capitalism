@@ -61,7 +61,7 @@ public final class SteveGravePlacer {
 
         int surfaceY = level.getHeight(
                 Heightmap.Types.WORLD_SURFACE, target.getX(), target.getZ()) - 1;
-        BlockPos origin = new BlockPos(target.getX(), surfaceY, target.getZ());
+        BlockPos origin = new BlockPos(target.getX(), surfaceY - 1, target.getZ());
         BoundingBox placedBox = template.getBoundingBox(settings, origin);
         if (origin.getY() < level.getMinBuildHeight()
                 || placedBox.maxY() >= level.getMaxBuildHeight()

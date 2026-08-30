@@ -47,6 +47,24 @@ class ConvertBooksTest(unittest.TestCase):
             "common",
         )
         self.assertEqual(("First paragraph", "Second paragraph"), definition.pages)
+        self.assertEqual("static", definition.type)
+
+    def test_game_data_type_is_normalized(self) -> None:
+        definition = parse_book(
+            [
+                "Title: A Grave Message",
+                "Author: Sairviv",
+                "Rarity: Legendary",
+                "Type: Steve Grave Location",
+                "The answer is at {{steve_grave_coordinates}}.",
+            ],
+            "legendary",
+        )
+        self.assertEqual("steve_grave_location", definition.type)
+        self.assertEqual(
+            "steve_grave_location",
+            definition.as_json()["type"],
+        )
 
     def test_new_title_starts_a_new_book(self) -> None:
         definitions = parse_books(

@@ -56,6 +56,10 @@ public final class LibraryBookRegistry {
                 LibraryBookRarity rarity = LibraryBookRarity.fromId(
                                 requiredString(object, "rarity", 64))
                         .orElseThrow(() -> new IllegalArgumentException("unsupported rarity"));
+                String typeId = object.has("type")
+                        ? requiredString(object, "type", 64) : LibraryBookType.STATIC.id();
+                LibraryBookType type = LibraryBookType.fromId(typeId)
+                        .orElseThrow(() -> new IllegalArgumentException("unsupported book type"));
                 JsonArray pageArray = object.getAsJsonArray("pages");
                 if (pageArray == null || pageArray.isEmpty() || pageArray.size() > MAX_PAGE_COUNT) {
                     throw new IllegalArgumentException("pages must contain 1-" + MAX_PAGE_COUNT + " entries");
@@ -76,7 +80,7 @@ public final class LibraryBookRegistry {
 
                 String id = location.toString();
                 LibraryBookDefinition definition = new LibraryBookDefinition(
-                        id, title, author, rarity, pages);
+                        id, title, author, rarity, type, pages);
                 if (loaded.put(id, definition) != null) {
                     throw new IllegalArgumentException("duplicate book id " + id);
                 }

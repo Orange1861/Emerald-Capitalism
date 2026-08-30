@@ -1,0 +1,9 @@
+{
+  "title": "A Message From Sairviv",
+  "author": "Sairviv",
+  "rarity": "legendary",
+  "type": "steve_grave_location",
+  "pages": [
+    "The answer to many of your questions is at {{steve_grave_coordinates}}."
+  ]
+}

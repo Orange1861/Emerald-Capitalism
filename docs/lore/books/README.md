@@ -20,6 +20,7 @@ right of the field name until the paragraph break:
 Title: The Village Ledger
 Author: The First Clerk
 Rarity: Common
+Type: Static
 
 Page 1: The first page of the book.
 Page 2: The second page of the book.
@@ -32,6 +33,11 @@ after the metadata becomes one page in order. In a multi-book file, every new
 `Title` field ends the current book and starts the next one. Books generated
 from a multi-book source receive filenames containing the source name, book
 number, and title.
+
+`Type` defaults to `Static`. The `Steve Grave Location` type replaces
+`{{steve_grave_coordinates}}` in page text with the generated grave's X/Z
+coordinates when the book is placed in a village library. If the grave cannot
+be resolved, it uses `[coordinates unavailable]`.
 
 Run the converter from the repository root:
 

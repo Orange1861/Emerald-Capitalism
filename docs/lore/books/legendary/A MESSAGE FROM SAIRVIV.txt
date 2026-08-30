@@ -1,0 +1,6 @@
+Title: A Message From Sairviv
+Author: Sairviv
+Rarity: Legendary
+Type: Steve Grave Location
+
+Page 1: The answer to many of your questions is at {{steve_grave_coordinates}}.

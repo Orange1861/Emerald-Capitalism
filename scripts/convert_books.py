@@ -9,6 +9,7 @@ The metadata format is one field per paragraph::
     Title: A Short Book
     Author: Village Council
     Rarity: Common
+    Type: Static
 
     Page 1: The first page.
     Page 2: The second page.
@@ -71,6 +72,14 @@ RARITY_POOL_WEIGHTS = {
     "legendary": 1,
 }
 
+TYPE_ALIASES = {
+    "static": "static",
+    "steve grave location": "steve_grave_location",
+    "steve_grave_location": "steve_grave_location",
+}
+
+ALLOWED_TYPES = frozenset(TYPE_ALIASES.values())
+
 # WrittenBookContent's 1.21.1 codec caps titles at 32 characters.
 MAX_TITLE_LENGTH = 32
 MAX_AUTHOR_LENGTH = 128
@@ -78,7 +87,7 @@ MAX_PAGE_COUNT = 100
 MAX_PAGE_LENGTH = 8192
 
 FIELD_PATTERN = re.compile(
-    r"^\s*(Title|Author|Rarity|Pages)\s*(?::|[-–—])?\s*(.*?)\s*$",
+    r"^\s*(Title|Author|Rarity|Type|Pages)\s*(?::|[-–—])?\s*(.*?)\s*$",
     re.IGNORECASE,
 )
 PAGE_PATTERN = re.compile(
@@ -96,15 +105,19 @@ class BookDefinition:
     title: str
     author: str
     rarity: str
+    type: str
     pages: tuple[str, ...]
 
     def as_json(self) -> dict[str, object]:
-        return {
+        payload = {
             "title": self.title,
             "author": self.author,
             "rarity": self.rarity,
-            "pages": list(self.pages),
         }
+        if self.type != "static":
+            payload["type"] = self.type
+        payload["pages"] = list(self.pages)
+        return payload
 
 
 def normalize_rarity(value: str) -> str:
@@ -117,6 +130,19 @@ def normalize_rarity(value: str) -> str:
         supported = ", ".join(sorted(ALLOWED_RARITIES))
         raise BookParseError(
             f"unsupported rarity {value!r}; expected one of {supported}"
+        ) from exc
+
+
+def normalize_type(value: str) -> str:
+    """Return the canonical authored-book type id."""
+
+    key = re.sub(r"\s+", " ", value.strip().lower().replace("-", " "))
+    try:
+        return TYPE_ALIASES[key]
+    except KeyError as exc:
+        supported = ", ".join(sorted(ALLOWED_TYPES))
+        raise BookParseError(
+            f"unsupported type {value!r}; expected one of {supported}"
         ) from exc
 
 
@@ -312,7 +338,8 @@ def parse_book(paragraphs: list[str], folder_rarity: str) -> BookDefinition:
             )
         rarity = parsed_rarity
 
-    return BookDefinition(title, author, rarity, _parse_pages(page_paragraphs))
+    book_type = normalize_type(fields.get("type", "static"))
+    return BookDefinition(title, author, rarity, book_type, _parse_pages(page_paragraphs))
 
 
 def parse_books(paragraphs: Iterable[str], folder_rarity: str) -> list[BookDefinition]:
