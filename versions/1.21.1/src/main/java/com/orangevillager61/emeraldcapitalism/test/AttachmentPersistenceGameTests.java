@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttac
 import com.orangevillager61.emeraldcapitalism.attachments.LumberjackProductionAttachment;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -43,7 +44,11 @@ public final class AttachmentPersistenceGameTests {
         originalStats.setNamingVillageId(namingVillage);
         originalStats.addChild(child);
         originalStats.setEmeraldBalance(-3);
-        original.getData(productionType).setCharcoalQuota(3.5D);
+        LumberjackProductionAttachment originalProduction = original.getData(productionType);
+        originalProduction.setCharcoalQuota(3.5D);
+        GlobalPos pendingFurnace = GlobalPos.of(helper.getLevel().dimension(),
+                helper.absolutePos(new BlockPos(2, 1, 1)));
+        originalProduction.setPendingCharcoalFurnace(pendingFurnace);
 
         CompoundTag saved = original.saveWithoutId(new CompoundTag());
         Villager restored = EntityType.VILLAGER.create(helper.getLevel());
@@ -69,8 +74,11 @@ public final class AttachmentPersistenceGameTests {
                 "child UUID did not survive entity save/load");
         helper.assertValueEqual(restoredStats.getEmeraldBalance(), -3,
                 "emerald balance did not survive entity save/load");
-        helper.assertValueEqual(restored.getData(productionType).getCharcoalQuota(), 3.5D,
+        LumberjackProductionAttachment restoredProduction = restored.getData(productionType);
+        helper.assertValueEqual(restoredProduction.getCharcoalQuota(), 3.5D,
                 "lumberjack charcoal quota did not survive entity save/load");
+        helper.assertValueEqual(restoredProduction.getPendingCharcoalFurnace().orElseThrow(), pendingFurnace,
+                "lumberjack in-flight furnace did not survive entity save/load");
         helper.succeed();
     }
 

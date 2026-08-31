@@ -6,9 +6,13 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPPoiTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
+import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.gossip.GossipType;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.Villager;
@@ -24,6 +28,10 @@ import java.util.UUID;
 
 /** Server-side transition rules for village Mayor and Governor roles. */
 public final class VillageGovernance {
+
+    private static final ResourceLocation CONGRATS_GOVERNOR_ADVANCEMENT =
+            ModIds.id("congrats_governor");
+    private static final String CONGRATS_GOVERNOR_CRITERION = "became_governor";
 
     private VillageGovernance() {
     }
@@ -209,8 +217,24 @@ public final class VillageGovernance {
             }
             // Vanilla gossip keeps the normal decay/transfer behavior; this target's weight and cap make this +100 reputation.
             mayor.getGossips().add(candidateId, GossipType.MAJOR_POSITIVE, 100);
+            if (bank != null && bank.isControlledBy(candidateId)) {
+                awardGovernorAdvancement(level, candidateId);
+            }
             return true;
         }
         return false;
+    }
+
+    private static void awardGovernorAdvancement(ServerLevel level, UUID playerId) {
+        ServerPlayer player = level.getServer().getPlayerList().getPlayer(playerId);
+        if (player == null) {
+            return;
+        }
+
+        AdvancementHolder advancement = level.getServer().getAdvancements()
+                .get(CONGRATS_GOVERNOR_ADVANCEMENT);
+        if (advancement != null) {
+            player.getAdvancements().award(advancement, CONGRATS_GOVERNOR_CRITERION);
+        }
     }
 }

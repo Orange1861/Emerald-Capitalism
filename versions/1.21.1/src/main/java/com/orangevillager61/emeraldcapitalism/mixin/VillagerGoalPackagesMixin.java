@@ -55,7 +55,8 @@ public class VillagerGoalPackagesMixin {
     @Redirect(
             method = "getCorePackage",
             at = @At(value = "NEW",
-                    target = "Lnet/minecraft/world/entity/ai/behavior/GoToPotentialJobSite;")
+                    target = "Lnet/minecraft/world/entity/ai/behavior/GoToPotentialJobSite;"),
+            require = 1
     )
     private static GoToPotentialJobSite useBankAwarePotentialJobSite(float speedModifier) {
         return new BankAwarePotentialJobSiteBehavior(speedModifier);
@@ -65,7 +66,8 @@ public class VillagerGoalPackagesMixin {
     @Redirect(
             method = "getCorePackage",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/world/entity/ai/behavior/AssignProfessionFromJobSite;create()Lnet/minecraft/world/entity/ai/behavior/BehaviorControl;")
+                    target = "Lnet/minecraft/world/entity/ai/behavior/AssignProfessionFromJobSite;create()Lnet/minecraft/world/entity/ai/behavior/BehaviorControl;"),
+            require = 1
     )
     private static BehaviorControl<Villager> useBankAwareProfessionAssignment() {
         return new BankAwareAssignProfessionFromJobSite();

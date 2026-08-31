@@ -17,6 +17,7 @@ import com.orangevillager61.emeraldcapitalism.behavior.VillagerGoalPackageIntegr
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -161,8 +162,7 @@ public final class VillagerGoalBehaviorGameTests {
                 0.0F, 0.0F);
         helper.assertTrue(assignProfession.tryStart(level, villager, gameTime + 3L),
                 "bank candidate could not be assigned from the banker work side");
-        helper.assertValueEqual(villager.getVillagerData().getProfession(),
-                com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions.BANKER.get(),
+        helper.assertValueEqual(villager.getVillagerData().getProfession(), ECAPVillagerProfessions.BANKER.get(),
                 "bank candidate did not receive the banker profession");
         helper.succeed();
     }

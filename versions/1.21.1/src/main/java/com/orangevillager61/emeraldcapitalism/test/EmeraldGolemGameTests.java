@@ -494,13 +494,23 @@ public final class EmeraldGolemGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_3x3x3")
-    public static void onlyEmeraldGolemsTargetTheMayorDuringAnElection(GameTestHelper helper) {
+    @GameTest(template = "empty_20x3x20")
+    public static void unownedBankGolemTargetsMayorDuringAnElection(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos center = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
+            helper.fail("Could not create the bank for the mayor-target test");
+            return;
+        }
+
+        BlockPos center = helper.absolutePos(new BlockPos(5, 1, 5));
         VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
                 UUID.randomUUID(), center, new net.minecraft.world.phys.AABB(center).inflate(8.0D));
-        var mayor = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.VILLAGER, 1, 1, 1);
+        UUID villageId = village.getVillageId();
+        bank.setVillageId(villageId);
+        VillageRegistryData.get(level).registerBankPosition(villageId, bankPos);
+        var mayor = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.VILLAGER, 5, 1, 5);
         mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
         UUID candidateId = UUID.randomUUID();
         helper.assertTrue(village.becomeGovernorCandidate(
@@ -515,6 +525,8 @@ public final class EmeraldGolemGameTests {
             return;
         }
 
+        emeraldGolem.setBankEmployeePos(bankPos);
+        VaultGolemGoals.markAsVaultGuard(emeraldGolem);
         emeraldGolem.moveTo(center.offset(0, 0, 2), 0.0F, 0.0F);
         skrimisher.moveTo(center.offset(2, 0, 0), 0.0F, 0.0F);
         ironGolem.moveTo(center.offset(-2, 0, 0), 0.0F, 0.0F);
@@ -525,15 +537,17 @@ public final class EmeraldGolemGameTests {
         HostileVillageMayorTargetGoal emeraldGoal = findMayorGoal(emeraldGolem);
         HostileVillageMayorTargetGoal skrimisherGoal = findMayorGoal(skrimisher);
         helper.assertTrue(emeraldGoal != null,
-                "emerald golems must register a mayor target goal");
+                "bank golems must register a mayor target goal");
         helper.assertTrue(skrimisherGoal != null,
-                "skrimshers must inherit the mayor target goal");
+                "emerald skirmishers must retain the mayor target goal");
         helper.assertValueEqual(countMayorGoals(ironGolem), 0,
                 "ordinary iron golems must not register the mayor target goal");
 
         if (emeraldGoal == null || skrimisherGoal == null) {
             return;
         }
+        helper.assertTrue(bank.isBankIndependent(),
+                "the mayor-target test must start with an unowned bank");
         boolean foundMayor = false;
         for (int attempt = 0; attempt < 40 && !foundMayor; attempt++) {
             foundMayor = emeraldGoal.canUse();
@@ -542,7 +556,13 @@ public final class EmeraldGolemGameTests {
                 "an emerald golem did not find the mayor while a candidate was registered");
         emeraldGoal.start();
         helper.assertTrue(emeraldGolem.getTarget() == mayor,
-                "emerald golem did not target the village mayor during an election");
+                "bank golem did not target the village mayor during an election");
+
+        bank.setController(candidateId);
+        helper.assertFalse(emeraldGoal.canContinueToUse(),
+                "bank golem continued targeting the mayor after the bank was claimed");
+        helper.assertFalse(skrimisherGoal.canUse(),
+                "an unassigned emerald skirmisher targeted the mayor");
 
         village.clearGovernorCandidate();
         emeraldGoal.stop();

@@ -161,6 +161,70 @@ public final class LumberjackGameTests {
         helper.assertValueEqual(lumberjack.getData(
                         EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 0.5D,
                 "stopping an in-flight furnace job must not restore or duplicate its quota");
+
+        for (int tick = 0; tick < 220; tick++) {
+            tickFurnace(helper, furnacePos);
+        }
+        LumberjackGoal resumedGoal = new LumberjackGoal(lumberjack);
+        helper.assertTrue(resumedGoal.canUse(),
+                "the lumberjack did not resume its tracked furnace conversion after interruption");
+        resumedGoal.start();
+        resumedGoal.tick();
+        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 1,
+                "the resumed lumberjack did not collect the completed charcoal");
+        helper.assertTrue(((FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos))
+                        .getItem(2).isEmpty(),
+                "the completed charcoal remained in the furnace after resumption");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void lumberjackRetriesCharcoalCollectionAfterInventoryFills(GameTestHelper helper) {
+        Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        lumberjack.setVillagerData(lumberjack.getVillagerData()
+                .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING));
+        BlockPos furnacePos = installNearbyFurnace(helper);
+        installSmallTree(helper);
+
+        LumberjackGoal goal = new LumberjackGoal(lumberjack);
+        harvestTreeThroughInputInsertion(helper, goal);
+        goal.stop();
+
+        for (int slot = 0; slot < lumberjack.getInventory().getContainerSize(); slot++) {
+            if (lumberjack.getInventory().getItem(slot).isEmpty()) {
+                lumberjack.getInventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+            }
+        }
+        for (int tick = 0; tick < 220; tick++) {
+            tickFurnace(helper, furnacePos);
+        }
+
+        LumberjackGoal blockedGoal = new LumberjackGoal(lumberjack);
+        helper.assertTrue(blockedGoal.canUse(),
+                "the lumberjack did not resume a completed conversion with a full inventory");
+        blockedGoal.start();
+        blockedGoal.tick();
+        blockedGoal.stop();
+        FurnaceBlockEntity furnace = (FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos);
+        helper.assertTrue(furnace != null && furnace.getItem(2).is(Items.CHARCOAL),
+                "the full-inventory failure did not preserve the furnace result for retry");
+
+        for (int slot = 0; slot < lumberjack.getInventory().getContainerSize(); slot++) {
+            if (lumberjack.getInventory().getItem(slot).is(Items.DIRT)) {
+                lumberjack.getInventory().setItem(slot, ItemStack.EMPTY);
+                break;
+            }
+        }
+        LumberjackGoal retryGoal = new LumberjackGoal(lumberjack);
+        helper.assertTrue(retryGoal.canUse(),
+                "the lumberjack did not retry tracked charcoal after inventory space returned");
+        retryGoal.start();
+        retryGoal.tick();
+        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 1,
+                "the lumberjack did not collect charcoal after the inventory retry");
+        helper.assertTrue(furnace.getItem(2).isEmpty(),
+                "the charcoal result remained in the furnace after the inventory retry");
         helper.succeed();
     }
 

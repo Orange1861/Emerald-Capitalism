@@ -100,6 +100,18 @@ public final class LumberjackGoal extends Goal {
             return false;
         }
 
+        if (hasTrackedCharcoalProduction()) {
+            if (resumeTrackedCharcoalProduction(level)) {
+                return true;
+            }
+            // A tracked furnace in another dimension remains pending until the
+            // villager returns. A missing or externally invalid furnace clears
+            // its marker and may fall through to ordinary work below.
+            if (hasTrackedCharcoalProduction()) {
+                return false;
+            }
+        }
+
         if (hasPendingCharcoalProduction()) {
             FurnaceBlockEntity furnace = findNearestUsableFurnaceCached(level);
             if (furnace != null) {
@@ -322,7 +334,7 @@ public final class LumberjackGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                && lumberjackCuttingEnabled(level)
+                && (lumberjackCuttingEnabled(level) || hasTrackedCharcoalProduction())
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
     }
 
@@ -699,7 +711,11 @@ public final class LumberjackGoal extends Goal {
             return;
         }
 
+        if (!level.hasChunkAt(productionFurnace)) {
+            return;
+        }
         if (!(level.getBlockEntity(productionFurnace) instanceof FurnaceBlockEntity furnace)) {
+            clearTrackedCharcoalProduction();
             finishCharcoalProduction();
             failed = true;
             return;
@@ -727,6 +743,12 @@ public final class LumberjackGoal extends Goal {
         holdPositionWhileWorking();
 
         if (furnaceInputInserted) {
+            if (furnace.getItem(FURNACE_INPUT_SLOT).isEmpty()
+                    && furnace.getItem(FURNACE_RESULT_SLOT).isEmpty()) {
+                clearTrackedCharcoalProduction();
+                finishCharcoalProduction();
+                return;
+            }
             collectCharcoalFromFurnace(furnace);
             return;
         }
@@ -791,6 +813,7 @@ public final class LumberjackGoal extends Goal {
                 EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION);
         production.setCharcoalQuota(CharcoalProductionPolicy.afterConversions(
                 production.getCharcoalQuota(), 1));
+        production.setPendingCharcoalFurnace(GlobalPos.of(level.dimension(), productionFurnace));
         furnaceInputInserted = true;
     }
 
@@ -800,6 +823,7 @@ public final class LumberjackGoal extends Goal {
             return;
         }
         if (!result.is(Items.CHARCOAL)) {
+            clearTrackedCharcoalProduction();
             finishCharcoalProduction();
             failed = true;
             return;
@@ -819,10 +843,63 @@ public final class LumberjackGoal extends Goal {
             return;
         }
 
+        clearTrackedCharcoalProduction();
         furnaceInputInserted = false;
         if (!hasPendingCharcoalProduction()) {
             finishCharcoalProduction();
         }
+    }
+
+    private boolean hasTrackedCharcoalProduction() {
+        return villager.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                .getPendingCharcoalFurnace().isPresent();
+    }
+
+    private boolean resumeTrackedCharcoalProduction(ServerLevel level) {
+        LumberjackProductionAttachment production = villager.getData(
+                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION);
+        GlobalPos trackedFurnace = production.getPendingCharcoalFurnace().orElse(null);
+        if (trackedFurnace == null) {
+            return false;
+        }
+        if (!trackedFurnace.dimension().equals(level.dimension())) {
+            return false;
+        }
+
+        BlockPos furnacePos = trackedFurnace.pos();
+        if (!level.hasChunkAt(furnacePos)) {
+            return false;
+        }
+        if (!(level.getBlockEntity(furnacePos) instanceof FurnaceBlockEntity furnace)) {
+            clearTrackedCharcoalProduction();
+            return false;
+        }
+
+        ItemStack input = furnace.getItem(FURNACE_INPUT_SLOT);
+        ItemStack result = furnace.getItem(FURNACE_RESULT_SLOT);
+        if (!result.isEmpty() && !result.is(Items.CHARCOAL)) {
+            clearTrackedCharcoalProduction();
+            return false;
+        }
+        if (!input.isEmpty() && !input.is(ItemTags.LOGS)) {
+            clearTrackedCharcoalProduction();
+            return false;
+        }
+        if (input.isEmpty() && result.isEmpty()) {
+            clearTrackedCharcoalProduction();
+            return false;
+        }
+
+        productionFurnace = furnacePos.immutable();
+        furnaceInputInserted = true;
+        navigationTarget = null;
+        failed = false;
+        return true;
+    }
+
+    private void clearTrackedCharcoalProduction() {
+        villager.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                .setPendingCharcoalFurnace(null);
     }
 
     private void finishCharcoalProduction() {

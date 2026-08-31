@@ -560,7 +560,8 @@ public class VillageRegistryEvents {
             if (isDoor) {
                 data.setDirty();
             }
-            if (isBed && event.getEntity() instanceof Player player) {
+            if (isBed && !level.canSeeSky(pos.above())
+                    && event.getEntity() instanceof Player player) {
                 // Placing a bed in a village improves that player's village opinion by 3.
                 village.adjustOpinionModifier(player.getUUID(), BED_PLACED_OPINION_DELTA);
                 data.setDirty();
