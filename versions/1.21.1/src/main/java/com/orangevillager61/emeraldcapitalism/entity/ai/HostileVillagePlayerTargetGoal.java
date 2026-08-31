@@ -1,13 +1,15 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
-/** Makes every iron golem attack a visible player hostile to its village. */
+/** Makes iron golems attack visible players hostile to their village or bank. */
 public final class HostileVillagePlayerTargetGoal extends NearestAttackableTargetGoal<ServerPlayer> {
 
     private final IronGolem golem;
@@ -15,15 +17,27 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
     public HostileVillagePlayerTargetGoal(IronGolem golem) {
         super(golem, ServerPlayer.class, 10, true, false,
                 target -> target instanceof Player player
-                        && VillageHostility.isHostilePlayer(golem, player));
+                        && isHostilePlayer(golem, player));
         this.golem = golem;
+    }
+
+    private static boolean isHostilePlayer(IronGolem golem, Player player) {
+        if (VillageHostility.isHostilePlayer(golem, player)) {
+            return true;
+        }
+        return VaultGolemGoals.isVaultGuard(golem)
+                && player.isAlive()
+                && !player.isSpectator()
+                && golem.level() instanceof ServerLevel level
+                && BankReputationData.get(level).getReputation(player.getUUID())
+                        <= BankReputationData.HOSTILITY_THRESHOLD;
     }
 
     @Override
     public boolean canContinueToUse() {
         @Nullable ServerPlayer target = golem.getTarget() instanceof ServerPlayer player ? player : null;
         return target != null
-                && VillageHostility.isHostilePlayer(golem, target)
+                && isHostilePlayer(golem, target)
                 && golem.hasLineOfSight(target)
                 && super.canContinueToUse();
     }
