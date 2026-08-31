@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
 import net.minecraft.server.level.ServerLevel;
@@ -22,6 +23,13 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
     }
 
     private static boolean isHostilePlayer(IronGolem golem, Player player) {
+        if (VaultGolemGoals.isVaultGuard(golem)
+                && golem.level() instanceof ServerLevel level
+                && BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank
+                && bank.isAttackAllPlayersEnabled()) {
+            return player.isAlive() && !player.isSpectator()
+                    && !bank.isControlledBy(player.getUUID());
+        }
         if (VillageHostility.isHostilePlayer(golem, player)) {
             return true;
         }

@@ -563,6 +563,48 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return nearest;
     }
 
+    /** Finds the bank owning a vault guard without loading another chunk. */
+    @Nullable
+    public static BankBlockEntity findBankForGolem(ServerLevel level, IronGolem golem) {
+        if (golem instanceof EmeraldGolem emeraldGolem
+                && emeraldGolem.getBankEmployeePos() != null
+                && level.getBlockEntity(emeraldGolem.getBankEmployeePos()) instanceof BankBlockEntity bank
+                && !bank.isRemoved()) {
+            return bank;
+        }
+
+        Set<BankBlockEntity> banks = LOADED_BANKS.get(level);
+        if (banks == null || banks.isEmpty()) {
+            return null;
+        }
+
+        BankBlockEntity nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        long nearestPosition = Long.MAX_VALUE;
+        for (BankBlockEntity bank : banks) {
+            if (bank.isRemoved() || !bank.isInsideVaultGuardArea(golem)) {
+                continue;
+            }
+
+            BlockPos bankPos = bank.getBlockPos();
+            double distance = bankPos.distSqr(golem.blockPosition());
+            long position = bankPos.asLong();
+            if (distance < nearestDistance
+                    || (Double.compare(distance, nearestDistance) == 0 && position < nearestPosition)) {
+                nearest = bank;
+                nearestDistance = distance;
+                nearestPosition = position;
+            }
+        }
+        return nearest;
+    }
+
+    private boolean isInsideVaultGuardArea(IronGolem golem) {
+        return new AABB(worldPosition)
+                .inflate(SEARCH_RADIUS, SEARCH_RADIUS * 2, SEARCH_RADIUS)
+                .intersects(golem.getBoundingBox());
+    }
+
     /** Clears the loaded-bank index at a server lifecycle boundary. */
     public static void clearLoadedBanks() {
         LOADED_BANKS.clear();

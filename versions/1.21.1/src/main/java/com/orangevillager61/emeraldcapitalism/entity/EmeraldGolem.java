@@ -316,9 +316,10 @@ public class EmeraldGolem extends IronGolem {
             return false;
         }
 
-        if (serverLevel.getBlockEntity(bankEmployeePos) instanceof BankBlockEntity bank
+        if (BankBlockEntity.findBankForGolem(serverLevel, this) instanceof BankBlockEntity bank
                 && bank.isAttackAllPlayersEnabled()) {
-            return !bank.isControlledBy(player.getUUID());
+            return player.isAlive() && !player.isSpectator()
+                    && !bank.isControlledBy(player.getUUID());
         }
         return BankReputationData.get(serverLevel).getReputation(player.getUUID())
                 <= BankReputationData.HOSTILITY_THRESHOLD;

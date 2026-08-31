@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.mojang.authlib.GameProfile;
+import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
@@ -11,6 +12,8 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldGolemRetreatGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.IronGolemInteractWithEmeraldDoorsGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
+import com.orangevillager61.emeraldcapitalism.menu.BankMenuOpenData;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
@@ -29,6 +32,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.pathfinder.Node;
@@ -372,6 +377,64 @@ public final class EmeraldGolemGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_20x3x20")
+    public static void bankGolemAttackSettingTargetsNonControllerPlayers(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
+            helper.fail("Could not create the bank for the bank-golem attack setting test");
+            return;
+        }
+
+        Player controller = helper.makeMockPlayer(GameType.SURVIVAL);
+        Player otherPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        controller.moveTo(bankPos.getX() + 2.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        otherPlayer.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        bank.setController(controller.getUUID());
+        BankMenuOpenData.ControlSettings current = bank.getControlSettings();
+        bank.setControlSettings(new BankMenuOpenData.ControlSettings(
+                current.manualTargets(), current.emeraldGolemTarget(),
+                current.emeraldSkrimisherTarget(), current.foodDays(),
+                current.villagerDeliveriesEnabled(), current.randomDeliveriesEnabled(),
+                current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(), true));
+
+        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        if (golem == null) {
+            helper.fail("Could not create the bank golem for the attack setting test");
+            return;
+        }
+        golem.setBankEmployeePos(bankPos);
+        VaultGolemGoals.markAsVaultGuard(golem);
+        golem.moveTo(bankPos.getX() + 0.5D, bankPos.getY(), bankPos.getZ() + 0.5D,
+                0.0F, 0.0F);
+        if (!level.addFreshEntity(golem)) {
+            helper.fail("Could not add the bank golem for the attack setting test");
+            return;
+        }
+
+        HostileVillagePlayerTargetGoal goal = findHostilePlayerGoal(golem);
+        helper.assertTrue(goal != null, "bank golem did not receive its hostile-player target goal");
+        if (goal == null) {
+            return;
+        }
+        helper.assertTrue(goal.canUse(),
+                "enabled bank attack setting did not find a non-controller player on sight");
+        goal.start();
+        helper.assertTrue(golem.getTarget() == otherPlayer,
+                "enabled bank attack setting targeted the controller instead of another player");
+        goal.stop();
+
+        bank.setControlSettings(new BankMenuOpenData.ControlSettings(
+                current.manualTargets(), current.emeraldGolemTarget(),
+                current.emeraldSkrimisherTarget(), current.foodDays(),
+                current.villagerDeliveriesEnabled(), current.randomDeliveriesEnabled(),
+                current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(), false));
+        helper.assertFalse(goal.canUse(),
+                "disabled bank attack setting still targeted a neutral player");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty_3x3x3")
     public static void onlyEmeraldGolemsTargetTheMayorDuringAnElection(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -434,6 +497,15 @@ public final class EmeraldGolemGameTests {
                 .map(goal -> goal.getGoal())
                 .filter(HostileVillageMayorTargetGoal.class::isInstance)
                 .map(HostileVillageMayorTargetGoal.class::cast)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static HostileVillagePlayerTargetGoal findHostilePlayerGoal(IronGolem golem) {
+        return golem.targetSelector.getAvailableGoals().stream()
+                .map(goal -> goal.getGoal())
+                .filter(HostileVillagePlayerTargetGoal.class::isInstance)
+                .map(HostileVillagePlayerTargetGoal.class::cast)
                 .findFirst()
                 .orElse(null);
     }
