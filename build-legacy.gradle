@@ -14,6 +14,15 @@ plugins {
     id 'idea'
 }
 
+// Stonecutter shares this build script across three real Gradle subprojects
+// (1.21.1, 1.21.4, 1.21.11), each with its own gradle.properties. Gradle's
+// automatic loading of subproject-level gradle.properties files is
+// inconsistent (documented as "limited support" in Gradle's own issue
+// tracker), so load this project's file explicitly instead of relying on it.
+def versionProps = new Properties()
+file("$projectDir/gradle.properties").withInputStream { versionProps.load(it) }
+versionProps.each { key, value -> project.ext.set(key, value) }
+
 version = mod_version
 group = mod_group_id
 
