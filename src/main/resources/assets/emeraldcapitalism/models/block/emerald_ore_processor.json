@@ -1,8 +1,12 @@
 {
-  "parent": "minecraft:block/orientable",
+  "parent": "minecraft:block/cube",
   "textures": {
-    "top": "emeraldcapitalism:block/emerald_ore_processor_top",
-    "front": "emeraldcapitalism:block/emerald_ore_processor_front",
-    "side": "emeraldcapitalism:block/emerald_ore_processor_side"
+    "down": "emeraldcapitalism:block/emerald_ore_processor_bottom",
+    "up": "emeraldcapitalism:block/emerald_ore_processor_top",
+    "north": "emeraldcapitalism:block/emerald_ore_processor_front",
+    "south": "emeraldcapitalism:block/emerald_ore_processor_back",
+    "west": "emeraldcapitalism:block/emerald_ore_processor_side",
+    "east": "emeraldcapitalism:block/emerald_ore_processor_side",
+    "particle": "emeraldcapitalism:block/emerald_ore_processor_front"
   }
 }
