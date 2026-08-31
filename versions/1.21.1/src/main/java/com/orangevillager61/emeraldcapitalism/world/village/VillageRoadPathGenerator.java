@@ -551,10 +551,13 @@ public final class VillageRoadPathGenerator {
                     return List.of();
                 }
 
-                // Preserve actual street blocks at the connection. A street
-                // piece's bounding box also contains terrain, so skipping the
-                // whole box would leave a grass gap before the real road.
-                if (isStreetSurface(sample.state().getBlock())) {
+                // Preserve actual street blocks after the entrance prefix. A
+                // street piece's bounding box also contains terrain, so skipping
+                // the whole box would leave a grass gap before the real road.
+                // Fixed entrance rows are intentionally retained in the plan:
+                // bank placement grades and clears that apron after this plan is
+                // created, so those road blocks must be restored afterward.
+                if (!fixedEntranceRow && isStreetSurface(sample.state().getBlock())) {
                     continue;
                 }
 
