@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
+import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
 import com.orangevillager61.emeraldcapitalism.menu.VillageManagerMenu;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlockEntityTypes;
@@ -258,7 +259,8 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
 
         // Assign a generated name to the bank if it does not yet have one
         BlockEntity bankBE = serverLevel.getBlockEntity(pos);
-        if (bankBE instanceof BankBlockEntity bank) {
+        BankBlockEntity bank = bankBE instanceof BankBlockEntity placedBank ? placedBank : null;
+        if (bank != null) {
             bank.setVillageId(villageId);
             if (bank.getBankName().isEmpty()) {
                 bank.setBankName(bankData.generateBankName());
@@ -268,6 +270,13 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
 
         for (UUID memberUUID : village.getMembers().keySet()) {
             bankData.openAccount(memberUUID);
+            if (bank != null && serverLevel.getEntity(memberUUID) instanceof Villager villager) {
+                int initialEmeralds = VillagerSpawnEvents.getPendingInitialEmeralds(villager);
+                if (initialEmeralds > 0) {
+                    bank.depositInitialEmeralds(serverLevel, villager, initialEmeralds);
+                    VillagerSpawnEvents.clearPendingInitialEmeralds(villager);
+                }
+            }
         }
 
         EmeraldCapitalism.LOGGER.info("[ECAP] Village manager at {} registered bank at {}",
