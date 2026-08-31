@@ -1999,6 +1999,15 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return totalEmeraldCount;
     }
 
+    /**
+     * Returns whether the cached chest totals are safe to use for destructive
+     * bank actions. A dirty cache may still be missing a newly placed chest or
+     * may retain totals from before a chest was broken.
+     */
+    public boolean hasUnverifiedChestCache() {
+        return chestCacheDirty;
+    }
+
     public int getTotalEmeraldBlockCount() {
         return totalEmeraldBlockCount;
     }

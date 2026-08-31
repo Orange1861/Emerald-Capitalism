@@ -57,7 +57,7 @@ public record SetVillageRepairPacket(UUID villageId, int featureId, boolean enab
                 player.sendSystemMessage(Component.literal("[ECAP] Unknown village repair setting."));
                 return;
             }
-            if (!VillagePOIAccessPolicy.isLocalContextValid(player, level, village)
+            if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)
                     || village.getPlayerRelationship(level, player) != VillageRelationship.GOVERNOR) {
                 player.sendSystemMessage(Component.literal(
                         "[ECAP] Only the village Governor can change village repair settings."));

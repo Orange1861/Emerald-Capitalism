@@ -58,7 +58,7 @@ public record UpdateWelcomeMessagePacket(UUID villageId, String welcomeMessage) 
                 player.sendSystemMessage(Component.literal("[ECAP] Village not found."));
                 return;
             }
-            if (!VillagePOIAccessPolicy.isLocalContextValid(player, level, village)
+            if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)
                     || village.getPlayerRelationship(level, player)
                     != VillageRelationship.GOVERNOR) {
                 player.sendSystemMessage(Component.literal("[ECAP] Only the village Governor can change the welcome message."));

@@ -471,6 +471,8 @@ public final class BankGameplayGameTests {
         }
 
         BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+        helper.assertTrue(!bank.hasUnverifiedChestCache(),
+                "bank chest cache remained unverified after its initial scan");
         chest.setItem(0, new ItemStack(Items.EMERALD_BLOCK, 2));
         chest.setItem(1, new ItemStack(Items.PUMPKIN, 3));
 
@@ -571,6 +573,8 @@ public final class BankGameplayGameTests {
                         && restored.getTotalEmeraldCount() == 0
                         && restored.getClosestEmeraldProcessorPos() == null,
                 "derived caches were not reset before the next normal scan");
+        helper.assertTrue(restored.hasUnverifiedChestCache(),
+                "reloaded bank was allowed to trust totals before its first chest scan");
         helper.assertTrue(!restored.isQueued(employee.getUUID())
                         && restored.getActiveGolemConstructionVillager() == null,
                 "transient queue or construction reservation survived reload");

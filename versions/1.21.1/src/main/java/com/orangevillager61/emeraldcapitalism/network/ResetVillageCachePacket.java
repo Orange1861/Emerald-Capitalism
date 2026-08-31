@@ -55,7 +55,7 @@ public record ResetVillageCachePacket(UUID villageId, int featureId) implements 
                 player.sendSystemMessage(Component.literal("[ECAP] Unknown village cache."));
                 return;
             }
-            if (!VillagePOIAccessPolicy.isLocalContextValid(player, level, village)
+            if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)
                     || village.getPlayerRelationship(level, player) != VillageRelationship.GOVERNOR) {
                 player.sendSystemMessage(Component.literal(
                         "[ECAP] Only the village Governor can reset village caches."));

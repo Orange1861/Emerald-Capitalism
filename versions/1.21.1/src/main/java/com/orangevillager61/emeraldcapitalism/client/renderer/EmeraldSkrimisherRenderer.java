@@ -16,8 +16,8 @@ public final class EmeraldSkrimisherRenderer
 
     public static final ModelLayerLocation EMERALD_SKRIMISHER_LAYER =
             new ModelLayerLocation(ModIds.id("emerald_skrimisher"), "main");
-    private static final ResourceLocation COPPER_GOLEM_TEXTURE =
-            ModIds.id("textures/entity/emerald_skrimisher/copper_golem.png");
+    private static final ResourceLocation EMERALD_SKRIMISHER_TEXTURE =
+            ModIds.id("textures/entity/emerald_skrimisher/emerald_skrimisher.png");
 
     public EmeraldSkrimisherRenderer(EntityRendererProvider.Context context) {
         super(context,
@@ -32,6 +32,6 @@ public final class EmeraldSkrimisherRenderer
 
     @Override
     public @NotNull ResourceLocation getTextureLocation(@NotNull EmeraldSkrimisher entity) {
-        return COPPER_GOLEM_TEXTURE;
+        return EMERALD_SKRIMISHER_TEXTURE;
     }
 }

@@ -52,7 +52,7 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
         PacketHandlerUtil.withServerPlayer(context, "become_governor_candidate", player -> {
             ServerLevel level = PacketHandlerUtil.serverLevel(player);
             VillageRecord village = VillageRegistryData.get(level).getVillages().get(packet.villageId());
-            if (village == null || !VillagePOIAccessPolicy.isLocalContextValid(player, level, village)) {
+            if (village == null || !VillagePOIAccessPolicy.isMutationContextValid(player, level, village)) {
                 player.sendSystemMessage(Component.literal("[ECAP] You must be inside that village to apply as a governor candidate."));
                 return;
             }

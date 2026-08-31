@@ -597,6 +597,15 @@ public class VillageRegistryEvents {
         // Bank break check
         if (state.getBlock() instanceof BankBlock) {
             if (level.getBlockEntity(pos) instanceof BankBlockEntity bank) {
+                if (bank.hasUnverifiedChestCache()) {
+                    event.setCanceled(true);
+                    Player breaker = event.getPlayer();
+                    if (breaker instanceof ServerPlayer serverPlayer) {
+                        serverPlayer.sendSystemMessage(Component.literal(
+                                "The bank is still verifying its linked chests; try again shortly."));
+                    }
+                    return;
+                }
                 if (bank.getTotalEmeraldCount() > 0) {
                     // Prevent breaking while villager funds are held
                     event.setCanceled(true);

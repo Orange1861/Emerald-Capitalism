@@ -31,10 +31,18 @@ public final class VillagePOIDataFactory {
 
     @Nullable
     static BankBlockEntity resolveBank(VillageRecord village, ServerLevel level) {
-        BlockPos vmPos = VillageRegistryData.get(level).getVMPos(village.getVillageId());
-        if (vmPos == null) return null;
-        if (!(level.getBlockEntity(vmPos) instanceof VillageManagerBlockEntity vm)) return null;
-        BlockPos bankPos = vm.getBankPos();
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        BlockPos bankPos = registry.getBankPos(village.getVillageId());
+        if (bankPos == null) {
+            // The direct registry entry is authoritative and survives manager
+            // chunk unloads. The manager fallback covers the short placement
+            // window before that entry is written.
+            BlockPos vmPos = registry.getVMPos(village.getVillageId());
+            if (vmPos == null || !(level.getBlockEntity(vmPos) instanceof VillageManagerBlockEntity vm)) {
+                return null;
+            }
+            bankPos = vm.getBankPos();
+        }
         if (bankPos == null) return null;
         return level.getBlockEntity(bankPos) instanceof BankBlockEntity bank ? bank : null;
     }

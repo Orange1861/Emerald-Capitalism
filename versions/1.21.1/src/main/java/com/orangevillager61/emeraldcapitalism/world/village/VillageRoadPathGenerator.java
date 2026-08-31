@@ -47,6 +47,11 @@ public final class VillageRoadPathGenerator {
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
     };
+    private static final Comparator<StreetTarget> STREET_TARGET_ORDER =
+            Comparator.comparingLong(StreetTarget::score)
+                    .thenComparingInt(target -> target.pos().getX())
+                    .thenComparingInt(target -> target.pos().getY())
+                    .thenComparingInt(target -> target.pos().getZ());
 
     public void generate(ServerLevel level, BlockPos pathStart, BlockPos pathTargetHint,
                          List<StructurePiece> villagePieces, String biomeType,
@@ -288,7 +293,7 @@ public final class VillageRoadPathGenerator {
         Set<Long> mainNetwork = largestConnectedStreetNetwork(candidatesByColumn);
         List<StreetTarget> candidates = mainNetwork.stream()
                 .map(candidatesByColumn::get)
-                .sorted(Comparator.comparingLong(StreetTarget::score))
+                .sorted(STREET_TARGET_ORDER)
                 .toList();
         List<StreetTarget> targets = new ArrayList<>(MAX_TARGET_ATTEMPTS);
         for (StreetTarget candidate : candidates) {
@@ -309,9 +314,10 @@ public final class VillageRoadPathGenerator {
         Set<Long> unvisited = new HashSet<>(streetByColumn.keySet());
         Set<Long> largest = Set.of();
         long largestNearestScore = Long.MAX_VALUE;
+        long largestAnchor = Long.MAX_VALUE;
 
         while (!unvisited.isEmpty()) {
-            long start = unvisited.iterator().next();
+            long start = unvisited.stream().min(Long::compare).orElseThrow();
             List<Long> queue = new ArrayList<>();
             Set<Long> component = new HashSet<>();
             queue.add(start);
@@ -339,10 +345,14 @@ public final class VillageRoadPathGenerator {
                 }
             }
 
+            long componentAnchor = component.stream().min(Long::compare).orElseThrow();
             if (component.size() > largest.size()
-                    || (component.size() == largest.size() && nearestScore < largestNearestScore)) {
+                    || (component.size() == largest.size() && nearestScore < largestNearestScore)
+                    || (component.size() == largest.size() && nearestScore == largestNearestScore
+                    && componentAnchor < largestAnchor)) {
                 largest = component;
                 largestNearestScore = nearestScore;
+                largestAnchor = componentAnchor;
             }
         }
         return largest;
@@ -382,7 +392,10 @@ public final class VillageRoadPathGenerator {
 
         RouteKey startKey = new RouteKey(start.getX(), start.getZ(), startDirection);
         PriorityQueue<OpenRouteNode> open = new PriorityQueue<>(
-                Comparator.comparingInt(OpenRouteNode::estimatedTotalCost));
+                Comparator.comparingInt(OpenRouteNode::estimatedTotalCost)
+                        .thenComparingInt(node -> node.key().x())
+                        .thenComparingInt(node -> node.key().z())
+                        .thenComparingInt(node -> directionOrder(node.key().incomingDirection())));
         Map<RouteKey, Integer> costs = new HashMap<>();
         Map<RouteKey, Integer> steps = new HashMap<>();
         Map<RouteKey, RouteKey> cameFrom = new HashMap<>();
@@ -706,6 +719,16 @@ public final class VillageRoadPathGenerator {
 
     private int heuristic(int x, int z, BlockPos target) {
         return (Math.abs(target.getX() - x) + Math.abs(target.getZ() - z)) * 10;
+    }
+
+    private static int directionOrder(Direction direction) {
+        return switch (direction) {
+            case NORTH -> 0;
+            case SOUTH -> 1;
+            case WEST -> 2;
+            case EAST -> 3;
+            default -> direction.ordinal();
+        };
     }
 
     private long horizontalDistanceSq(BlockPos from, int x, int z) {

@@ -58,6 +58,10 @@ public record RequestExpandBoundsPacket() implements CustomPacketPayload {
                 context.reply(VillagePOIDataPacket.empty());
                 return;
             }
+            if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)) {
+                context.reply(VillagePOIDataPacket.empty());
+                return;
+            }
 
             long now = level.getGameTime();
             Long lastExpandTick = LAST_EXPAND_TICK_BY_PLAYER.get(player.getUUID());

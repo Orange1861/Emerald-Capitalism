@@ -58,7 +58,7 @@ public record RenameVillagePacket(UUID villageId, String newName) implements Cus
                 player.sendSystemMessage(Component.literal("[ECAP] Village not found."));
                 return;
             }
-            if (!VillagePOIAccessPolicy.isLocalContextValid(player, level, village)
+            if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)
                     || village.getPlayerRelationship(level, player)
                     != VillageRelationship.GOVERNOR) {
                 player.sendSystemMessage(Component.literal("[ECAP] Only the village Governor can rename this village."));

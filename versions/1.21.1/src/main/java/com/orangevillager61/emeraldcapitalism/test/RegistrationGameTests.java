@@ -27,6 +27,7 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -42,6 +43,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -255,6 +257,32 @@ public final class RegistrationGameTests {
         );
         if (VillagePOIAccessPolicy.isLocalContextValid(player, overworld, village)) {
             helper.fail("A client-supplied position was treated as proof of level ownership");
+            return;
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void spectatorsCannotMutateVillagePoiState(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(1, 1, 1));
+        ServerPlayer player = new ServerPlayer(
+                level.getServer(), level,
+                new GameProfile(UUID.randomUUID(), "ecap-spectator-policy-test"),
+                ClientInformation.createDefault());
+        player.setPos(center.getX() + 0.5D, center.getY(), center.getZ() + 0.5D);
+        VillageRecord village = new VillageRecord(
+                UUID.randomUUID(), center, new net.minecraft.world.phys.AABB(center).inflate(8.0D));
+
+        player.setGameMode(GameType.SPECTATOR);
+        if (VillagePOIAccessPolicy.isMutationContextValid(player, level, village)) {
+            helper.fail("spectator was accepted by the village mutation access policy");
+            return;
+        }
+
+        player.setGameMode(GameType.SURVIVAL);
+        if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)) {
+            helper.fail("survival player inside the village was rejected by the mutation access policy");
             return;
         }
         helper.succeed();

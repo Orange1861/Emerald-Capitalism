@@ -32,4 +32,13 @@ public final class VillagePOIAccessPolicy {
         double z = player.getZ();
         return village.getBoundingBox().contains(x, y, z);
     }
+
+    /**
+     * Validates a player context for a server-side village mutation.
+     * Spectators may inspect a manager menu, but cannot change village state.
+     */
+    public static boolean isMutationContextValid(ServerPlayer player, ServerLevel level,
+                                                  VillageRecord village) {
+        return !player.isSpectator() && isLocalContextValid(player, level, village);
+    }
 }

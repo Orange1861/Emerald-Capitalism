@@ -84,7 +84,7 @@ public final class VillageGovernance {
                                 != ECAPVillagerProfessions.MAYOR.get()
                                 && !BankEmployeeLookup.isEmployee(level, villager))
                 .stream()
-                .sorted(Comparator.comparingDouble(villager -> villager.distanceToSqr(managerPos))
+                .sorted(Comparator.comparingDouble((Villager villager) -> villager.distanceToSqr(managerPos.getCenter()))
                         .thenComparing(villager -> villager.getUUID().toString()))
                 .toList();
 

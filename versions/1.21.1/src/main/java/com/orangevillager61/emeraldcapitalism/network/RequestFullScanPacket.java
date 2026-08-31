@@ -53,6 +53,10 @@ public record RequestFullScanPacket() implements CustomPacketPayload {
                 context.reply(VillagePOIDataPacket.empty());
                 return;
             }
+            if (!VillagePOIAccessPolicy.isMutationContextValid(player, level, village)) {
+                context.reply(VillagePOIDataPacket.empty());
+                return;
+            }
 
             long now = level.getGameTime();
             Long lastScanTick = LAST_FULL_SCAN_TICK_BY_PLAYER.get(player.getUUID());
