@@ -84,6 +84,7 @@ public final class VillageBankStructurePlacer {
     private static final int VAULT_SIZE_Z = 10;
     private static final int VAULT_VILLAGER_COUNT = 3;
     private static final int INITIAL_CHARCOAL_COUNT = 64;
+    private static final int INITIAL_PUMPKIN_COUNT = 3;
     private static final int INITIAL_LOG_COUNT = 48;
     private static final int TERRAIN_BLEND_RADIUS = 4;
     private static final int ABANDONED_VAULT_TOP_DEPTH = 8;
@@ -628,6 +629,7 @@ public final class VillageBankStructurePlacer {
 
             replaceGeneratedBankCoalWithCharcoal(level, topPlacePos, rotation);
             seedInitialBread(level, vaultOrigin, rotation);
+            seedInitialPumpkins(level, vaultOrigin, rotation);
             seedInitialLogs(level, vaultOrigin, rotation, plan.biomeType());
             seedInitialNearestVaultMap(level, vaultOrigin, rotation);
 
@@ -847,6 +849,53 @@ public final class VillageBankStructurePlacer {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Generated bank vault at {} could only fit {} of 32 starter bread",
                     vaultOrigin, 32 - remaining);
+        }
+    }
+
+    /** Seeds newly generated normal bank vaults with three pumpkins. */
+    private void seedInitialPumpkins(ServerLevel level, BlockPos vaultOrigin, Rotation rotation) {
+        int remaining = INITIAL_PUMPKIN_COUNT;
+        BlockPos minCorner = transformedMinCorner(vaultOrigin, rotation, VAULT_SIZE_X, VAULT_SIZE_Z);
+        int sizeX = isQuarterTurn(rotation) ? VAULT_SIZE_Z : VAULT_SIZE_X;
+        int sizeZ = isQuarterTurn(rotation) ? VAULT_SIZE_X : VAULT_SIZE_Z;
+
+        for (int x = 0; x < sizeX && remaining > 0; x++) {
+            for (int y = 0; y < VAULT_HEIGHT && remaining > 0; y++) {
+                for (int z = 0; z < sizeZ && remaining > 0; z++) {
+                    BlockPos chestPos = minCorner.offset(x, y, z);
+                    if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
+                        continue;
+                    }
+
+                    for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
+                        ItemStack existing = chest.getItem(slot);
+                        if (!existing.is(Items.PUMPKIN) || existing.getCount() >= existing.getMaxStackSize()) {
+                            continue;
+                        }
+
+                        int added = Math.min(remaining, existing.getMaxStackSize() - existing.getCount());
+                        existing.grow(added);
+                        chest.setItem(slot, existing);
+                        remaining -= added;
+                    }
+
+                    for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
+                        if (!chest.getItem(slot).isEmpty()) {
+                            continue;
+                        }
+
+                        int added = Math.min(remaining, Items.PUMPKIN.getDefaultMaxStackSize());
+                        chest.setItem(slot, new ItemStack(Items.PUMPKIN, added));
+                        remaining -= added;
+                    }
+                }
+            }
+        }
+
+        if (remaining > 0) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP] Generated bank vault at {} could only fit {} of {} starter pumpkins",
+                    vaultOrigin, INITIAL_PUMPKIN_COUNT - remaining, INITIAL_PUMPKIN_COUNT);
         }
     }
 
