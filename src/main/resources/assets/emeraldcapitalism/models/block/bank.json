@@ -1,6 +1,12 @@
 {
-  "parent": "minecraft:block/lectern",
+  "parent": "minecraft:block/cube",
   "textures": {
-    "top": "emeraldcapitalism:block/villager_manager_top"
+    "down": "emeraldcapitalism:block/bank_bottom",
+    "up": "emeraldcapitalism:block/bank_top",
+    "north": "emeraldcapitalism:block/bank_front",
+    "south": "emeraldcapitalism:block/bank_back",
+    "west": "emeraldcapitalism:block/bank_left",
+    "east": "emeraldcapitalism:block/bank_right",
+    "particle": "emeraldcapitalism:block/bank_front"
   }
 }

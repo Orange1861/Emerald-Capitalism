@@ -1,4 +1,5 @@
 Make the bars slightly shorter in bank trades
+TODO: Improve bank model and textures beyond the initial six-face implementation
 Reduce defensive null/empty checks
 Make ecap repo
 Rename to ecap in files

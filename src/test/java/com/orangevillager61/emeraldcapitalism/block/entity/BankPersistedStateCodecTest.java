@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.block.entity;
 
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
+import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
@@ -64,7 +65,8 @@ class BankPersistedStateCodecTest {
         BankBlockEntity.PersistedState source = new BankBlockEntity.PersistedState(
                 Optional.of(VILLAGE_ID), true, Optional.empty(), "Bank",
                 List.of(), List.of(), List.of(), locations, 2,
-                Optional.empty(), Optional.empty(), Optional.empty(), 0L);
+                Optional.empty(), Optional.empty(), Optional.empty(), 0L,
+                false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false, false);
 
         BankBlockEntity.PersistedState decoded = roundTrip(source);
         assertEquals(locations, decoded.trackedChestPositions());

@@ -11,10 +11,15 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRarity;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookStackFactory;
 import com.orangevillager61.emeraldcapitalism.worldgen.BankVaultRuinsProcessor;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -30,6 +35,7 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
@@ -87,6 +93,7 @@ public final class VillageBankStructurePlacer {
     private static final int INITIAL_CHARCOAL_COUNT = 64;
     private static final int INITIAL_PUMPKIN_COUNT = 3;
     private static final int INITIAL_LOG_COUNT = 48;
+    private static final float ABANDONED_VAULT_BANK_RULE_BOOK_CHANCE = 0.33F;
     private static final int TERRAIN_BLEND_RADIUS = 4;
     private static final int ABANDONED_VAULT_TOP_DEPTH = 8;
 
@@ -313,6 +320,7 @@ public final class VillageBankStructurePlacer {
             return null;
         }
         seedAbandonedVaultMap(level, plan);
+        seedAbandonedVaultBankRuleBook(level, plan);
         VillageRegistryData.get(level).markAbandonedVaultPosition(plan.origin());
         EmeraldCapitalism.LOGGER.info(
                 "[ECAP] Generated abandoned-village vault ruins at {} for bell {}",
@@ -637,8 +645,9 @@ public final class VillageBankStructurePlacer {
             replaceGeneratedBankCoalWithCharcoal(level, topPlacePos, rotation);
             seedInitialBread(level, vaultOrigin, rotation);
             seedInitialPumpkins(level, vaultOrigin, rotation);
-            seedInitialLogs(level, vaultOrigin, rotation, plan.biomeType());
-            seedInitialNearestVaultMap(level, vaultOrigin, rotation);
+        seedInitialLogs(level, vaultOrigin, rotation, plan.biomeType());
+        seedInitialNearestVaultMap(level, vaultOrigin, rotation);
+            seedInitialBankRuleBook(level, vaultOrigin, rotation);
 
             // Entity relocation is deferred until all fallible placement work succeeds,
             // so a failed generation attempt does not move villagers out of their homes.
@@ -1003,6 +1012,27 @@ public final class VillageBankStructurePlacer {
                 vaultOrigin);
     }
 
+    /** Seeds each generated bank with exactly one randomly selected bank-rule book. */
+    private void seedInitialBankRuleBook(ServerLevel level, BlockPos vaultOrigin, Rotation rotation) {
+        List<LibraryBookDefinition> books = LibraryBookRegistry.entries(LibraryBookRarity.BANK_RULE);
+        if (books.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP] Generated bank vault at {} has no bank-rule books available",
+                    vaultOrigin);
+            return;
+        }
+
+        LibraryBookDefinition book = books.get(level.getRandom().nextInt(books.size()));
+        if (placeBankRuleBook(level, vaultOrigin, VAULT_SIZE_X, VAULT_HEIGHT, VAULT_SIZE_Z,
+                rotation, book)) {
+            return;
+        }
+
+        EmeraldCapitalism.LOGGER.warn(
+                "[ECAP] Generated bank vault at {} had no empty slot for its bank-rule book",
+                vaultOrigin);
+    }
+
     /** Returns the vanilla village wood palette for the bank's generated biome style. */
     static Item starterLogsForBiome(String biomeType) {
         return switch (biomeType == null ? "" : biomeType.toUpperCase(Locale.ROOT)) {
@@ -1012,6 +1042,80 @@ public final class VillageBankStructurePlacer {
             case "PLAINS" -> Items.OAK_LOG;
             default -> Items.OAK_LOG;
         };
+    }
+
+    /** Adds one bank-rule book to an abandoned vault on its single chance roll. */
+    private void seedAbandonedVaultBankRuleBook(ServerLevel level, PlannedAbandonedVault plan) {
+        if (level.getRandom().nextFloat() >= ABANDONED_VAULT_BANK_RULE_BOOK_CHANCE) {
+            return;
+        }
+
+        List<LibraryBookDefinition> books = LibraryBookRegistry.entries(LibraryBookRarity.BANK_RULE);
+        if (books.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP] Abandoned vault at {} rolled a bank-rule book but none are available",
+                    plan.origin());
+            return;
+        }
+
+        LibraryBookDefinition book = books.get(level.getRandom().nextInt(books.size()));
+        if (placeBankRuleBook(level, plan.origin(), plan.sizeX(), plan.sizeY(), plan.sizeZ(),
+                Rotation.NONE, book)) {
+            return;
+        }
+
+        EmeraldCapitalism.LOGGER.warn(
+                "[ECAP] Abandoned vault at {} had no empty slot for its bank-rule book",
+                plan.origin());
+    }
+
+    private boolean placeBankRuleBook(ServerLevel level, BlockPos origin, int sizeX, int sizeY,
+                                      int sizeZ, Rotation rotation, LibraryBookDefinition book) {
+        BlockPos minCorner = transformedMinCorner(origin, rotation, sizeX, sizeZ);
+        int worldSizeX = isQuarterTurn(rotation) ? sizeZ : sizeX;
+        int worldSizeZ = isQuarterTurn(rotation) ? sizeX : sizeZ;
+        List<EmeraldChestBlockEntity> chests = new ArrayList<>();
+        for (int x = 0; x < worldSizeX; x++) {
+            for (int y = 0; y < sizeY; y++) {
+                for (int z = 0; z < worldSizeZ; z++) {
+                    BlockPos chestPos = minCorner.offset(x, y, z);
+                    if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
+                        continue;
+                    }
+                    chests.add(chest);
+                }
+            }
+        }
+
+        // Structure placement is a fresh-bank boundary, but remove any authored copies
+        // first so the generated bank has exactly one bank-rule book even if its template
+        // later gains a prefilled copy.
+        for (EmeraldChestBlockEntity chest : chests) {
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                if (isBankRuleBook(chest.getItem(slot))) {
+                    chest.removeItemNoUpdate(slot);
+                }
+            }
+        }
+
+        for (EmeraldChestBlockEntity chest : chests) {
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                if (chest.getItem(slot).isEmpty()) {
+                    chest.setItem(slot, LibraryBookStackFactory.createItemStack(book, level));
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isBankRuleBook(ItemStack stack) {
+        if (!stack.is(Items.WRITTEN_BOOK)) {
+            return false;
+        }
+        CustomData metadata = stack.get(DataComponents.CUSTOM_DATA);
+        return metadata != null
+                && LibraryBookRarity.BANK_RULE.id().equals(metadata.copyTag().getString("book_rarity"));
     }
 
     /**

@@ -65,7 +65,7 @@ public final class AbandonedVaultLocateCommand {
                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                                 Component.translatable("chat.coordinates.tooltip"))));
         source.sendSuccess(() -> Component.translatable("commands.locate.structure.success",
-                AbandonedVaultLocator.STRUCTURE_KEY.location(), coordinates, distance), false);
+                AbandonedVaultLocator.STRUCTURE_KEY.location().toString(), coordinates, distance), false);
         return distance;
     }
 }

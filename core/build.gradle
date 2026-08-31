@@ -31,6 +31,9 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+    // Core naming tests consume the canonical runtime resources owned by the mod.
+    // Keep the source single-owned while making it available to the core test JVM.
+    classpath += files(rootProject.file('src/main/resources'))
 }
 
 def forbiddenCoreReferences = [

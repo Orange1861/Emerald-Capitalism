@@ -19,7 +19,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
@@ -78,32 +77,8 @@ public class BankBlock extends BaseEntityBlock {
         return bankPos.relative(state.getValue(FACING).getOpposite());
     }
 
-    // Match the vanilla lectern's collision and selection shapes.
-    private static final VoxelShape SHAPE_BASE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 2.0D, 16.0D);
-    private static final VoxelShape SHAPE_POST = Block.box(4.0D, 2.0D, 4.0D, 12.0D, 14.0D, 12.0D);
-    private static final VoxelShape SHAPE_COMMON = Shapes.or(SHAPE_BASE, SHAPE_POST);
-    private static final VoxelShape SHAPE_TOP_PLATE = Block.box(0.0D, 15.0D, 0.0D, 16.0D, 16.0D, 16.0D);
-    private static final VoxelShape SHAPE_COLLISION = Shapes.or(SHAPE_COMMON, SHAPE_TOP_PLATE);
-    private static final VoxelShape SHAPE_WEST = Shapes.or(
-            Block.box(1.0D, 10.0D, 0.0D, 5.333333D, 14.0D, 16.0D),
-            Block.box(5.333333D, 12.0D, 0.0D, 9.666667D, 16.0D, 16.0D),
-            Block.box(9.666667D, 14.0D, 0.0D, 14.0D, 18.0D, 16.0D),
-            SHAPE_COMMON);
-    private static final VoxelShape SHAPE_NORTH = Shapes.or(
-            Block.box(0.0D, 10.0D, 1.0D, 16.0D, 14.0D, 5.333333D),
-            Block.box(0.0D, 12.0D, 5.333333D, 16.0D, 16.0D, 9.666667D),
-            Block.box(0.0D, 14.0D, 9.666667D, 16.0D, 18.0D, 14.0D),
-            SHAPE_COMMON);
-    private static final VoxelShape SHAPE_EAST = Shapes.or(
-            Block.box(10.666667D, 10.0D, 0.0D, 15.0D, 14.0D, 16.0D),
-            Block.box(6.333333D, 12.0D, 0.0D, 10.666667D, 16.0D, 16.0D),
-            Block.box(2.0D, 14.0D, 0.0D, 6.333333D, 18.0D, 16.0D),
-            SHAPE_COMMON);
-    private static final VoxelShape SHAPE_SOUTH = Shapes.or(
-            Block.box(0.0D, 10.0D, 10.666667D, 16.0D, 14.0D, 15.0D),
-            Block.box(0.0D, 12.0D, 6.333333D, 16.0D, 16.0D, 10.666667D),
-            Block.box(0.0D, 14.0D, 2.0D, 16.0D, 18.0D, 6.333333D),
-            SHAPE_COMMON);
+    // Keep interaction geometry aligned with the bank's full-cube resource model.
+    private static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 16.0D, 16.0D);
 
     public BankBlock(Properties properties) {
         super(properties);
@@ -131,24 +106,19 @@ public class BankBlock extends BaseEntityBlock {
     @Override
     protected @NotNull VoxelShape getCollisionShape(@NotNull BlockState state, @NotNull BlockGetter level,
                                                       @NotNull BlockPos pos, @NotNull CollisionContext context) {
-        return SHAPE_COLLISION;
+        return SHAPE;
     }
 
     @Override
     protected @NotNull VoxelShape getShape(@NotNull BlockState state, @NotNull BlockGetter level,
                                              @NotNull BlockPos pos, @NotNull CollisionContext context) {
-        return switch (state.getValue(FACING)) {
-            case SOUTH -> SHAPE_SOUTH;
-            case WEST -> SHAPE_WEST;
-            case NORTH -> SHAPE_NORTH;
-            default -> SHAPE_EAST;
-        };
+        return SHAPE;
     }
 
     @Override
     protected @NotNull VoxelShape getOcclusionShape(@NotNull BlockState state, @NotNull BlockGetter level,
                                                       @NotNull BlockPos pos) {
-        return SHAPE_COMMON;
+        return SHAPE;
     }
 
     @Override

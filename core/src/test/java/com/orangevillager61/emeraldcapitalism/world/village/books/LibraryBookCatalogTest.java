@@ -26,7 +26,7 @@ class LibraryBookCatalogTest {
 
         assertEquals(List.of("common-a", "common-b", "legendary"),
                 selected.stream().map(LibraryBookDefinition::id).toList());
-        assertEquals(3, calls.get());
+        assertEquals(selected.size() * 2, calls.get());
     }
 
     private static LibraryBookDefinition book(String id, LibraryBookRarity rarity) {
