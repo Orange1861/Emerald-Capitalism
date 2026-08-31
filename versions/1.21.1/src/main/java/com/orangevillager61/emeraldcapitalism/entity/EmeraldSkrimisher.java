@@ -16,6 +16,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
+import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -57,10 +58,12 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
         // IronGolem.registerGoals() installs its ordinary MeleeAttackGoal. The
         // Skrimisher has a different attack sequence, so do not let the
         // inherited goal compete with its dedicated combat goal.
-        this.goalSelector.removeAllGoals(goal -> goal instanceof MeleeAttackGoal);
+        this.goalSelector.removeAllGoals(goal -> goal instanceof MeleeAttackGoal
+                || goal instanceof RandomStrollGoal);
         this.goalSelector.addGoal(1, new EmeraldSkrimisherCombatGoal(this));
         this.goalSelector.addGoal(2, new EmeraldSkrimisherBankDepositGoal(this));
         this.goalSelector.addGoal(6, new EmeraldSkrimisherPickupGoal(this));
+        this.goalSelector.addGoal(8, new RandomStrollGoal(this, 0.6D));
     }
 
     public static AttributeSupplier.Builder createAttributes() {

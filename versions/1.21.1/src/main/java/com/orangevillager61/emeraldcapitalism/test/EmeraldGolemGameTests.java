@@ -25,6 +25,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -58,6 +59,44 @@ public final class EmeraldGolemGameTests {
         boolean hasWanderGoal = golem.goalSelector.getAvailableGoals().stream()
                 .anyMatch(goal -> goal.getGoal() instanceof RandomStrollGoal);
         helper.assertTrue(hasWanderGoal, "emerald golem must register a random stroll goal");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void emeraldSkrimisherHasWanderGoal(GameTestHelper helper) {
+        EmeraldSkrimisher skrimisher = ECAPEntityTypes.EMERALD_SKRIMISHER.get().create(helper.getLevel());
+        if (skrimisher == null) {
+            helper.fail("Could not create the emerald skirmisher");
+            return;
+        }
+
+        helper.assertTrue(hasWanderGoal(skrimisher),
+                "emerald skirmisher must register a random stroll goal");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void emeraldGolemOpenablesGoalDoesNotBlockMovement(GameTestHelper helper) {
+        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(helper.getLevel());
+        if (golem == null) {
+            helper.fail("Could not create the emerald golem for the movement-goal test");
+            return;
+        }
+
+        helper.getLevel().addFreshEntity(golem);
+        EmeraldGolemInteractWithOpenablesGoal openablesGoal = golem.goalSelector.getAvailableGoals().stream()
+                .map(wrappedGoal -> wrappedGoal.getGoal())
+                .filter(EmeraldGolemInteractWithOpenablesGoal.class::isInstance)
+                .map(EmeraldGolemInteractWithOpenablesGoal.class::cast)
+                .findFirst()
+                .orElse(null);
+        if (openablesGoal == null) {
+            helper.fail("Emerald golem did not receive its openables goal");
+            return;
+        }
+
+        helper.assertFalse(openablesGoal.getFlags().contains(Goal.Flag.MOVE),
+                "emerald golem openables goal must not claim movement from the wander goal");
         helper.succeed();
     }
 

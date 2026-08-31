@@ -30,9 +30,9 @@ import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import java.util.Comparator;
 
 /**
  * GUI screen for the Bank block.
@@ -687,6 +687,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         marketDirectionBtn = addRenderableWidget(Button.builder(Component.literal("Buy"), btn -> {
             marketBuy = !marketBuy;
             updateMarketControls();
+            refreshMarketList();
         }).bounds(x, controlsY - 24, 58, 20).build());
         marketDonateBtn = addRenderableWidget(Button.builder(Component.literal("Donate"), btn -> {
             marketDonate = !marketDonate;
@@ -694,6 +695,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 marketBuy = false;
             }
             updateMarketControls();
+            refreshMarketList();
         }).bounds(x + 60, controlsY - 24, 58, 20).build());
         marketConfirmBtn = addRenderableWidget(Button.builder(Component.literal("Confirm"), btn -> confirmMarketTrade())
                 .bounds(x + 120, controlsY - 24, 58, 20).build());
@@ -1046,6 +1048,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                         || marketEntry.config().supportsFixedBuy();
                 marketDonate = false;
                 updateMarketControls();
+                refreshMarketList();
                 return true;
             }
 
@@ -1109,21 +1112,25 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     }
 
     private boolean isMarketUnavailableForBank(BankMenu.MarketEntry entry) {
-        MarketTradeQuote displayedQuote = marketOfferQuote(entry);
-        // A zero-emerald offer is rendered as "Bank has too few ..." and is not actionable.
-        if (!displayedQuote.valid() || displayedQuote.emeraldAmount() <= 0) {
-            return true;
-        }
-
-        boolean bankCanSell = entry.config().tradeType() != MarketTradeType.FIXED
-                || entry.config().supportsFixedBuy();
-        if (!bankCanSell) {
-            return false;
-        }
-
+        TradeSide side = marketAvailabilitySide(entry);
         int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
                 marketDemandContext(entry));
-        return entry.stock() < batch || !marketQuote(entry, batch, TradeSide.BUY).valid();
+        MarketTradeQuote quote = marketQuote(entry, batch, side);
+        // A zero-emerald sell offer is rendered as "Bank has too few ..." and is not actionable.
+        return !quote.valid() || (side == TradeSide.SELL && quote.emeraldAmount() <= 0);
+    }
+
+    private TradeSide marketAvailabilitySide(BankMenu.MarketEntry entry) {
+        if (entry.config().tradeType() == MarketTradeType.FIXED) {
+            if (marketBuy && entry.config().supportsFixedBuy()) {
+                return TradeSide.BUY;
+            }
+            if (!marketBuy && entry.config().supportsFixedSell()) {
+                return TradeSide.SELL;
+            }
+            return entry.config().supportsFixedBuy() ? TradeSide.BUY : TradeSide.SELL;
+        }
+        return marketSide(entry);
     }
 
     private int marketSortPriority(BankMenu.MarketEntry entry) {

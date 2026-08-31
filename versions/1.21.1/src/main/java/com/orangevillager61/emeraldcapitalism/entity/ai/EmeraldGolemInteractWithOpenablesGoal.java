@@ -39,7 +39,9 @@ public class EmeraldGolemInteractWithOpenablesGoal extends Goal {
 
     public EmeraldGolemInteractWithOpenablesGoal(@Nonnull EmeraldGolem golem) {
         this.golem = golem;
-        this.setFlags(EnumSet.of(Flag.MOVE));
+        // This goal observes and services the active navigation path. Claiming
+        // MOVE would stop the movement goal that created that path.
+        this.setFlags(EnumSet.noneOf(Flag.class));
     }
 
     @Override
