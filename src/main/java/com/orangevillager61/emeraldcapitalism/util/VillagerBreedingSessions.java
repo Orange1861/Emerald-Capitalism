@@ -1,6 +1,5 @@
 package com.orangevillager61.emeraldcapitalism.util;
 
-import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
@@ -80,8 +79,6 @@ public final class VillagerBreedingSessions {
         Optional<BlockPos> reservedBed = reserveBed(level, owner);
         if (reservedBed.isEmpty()) {
             blockPair(level, owner, partner, gameTime);
-            EmeraldCapitalism.LOGGER.debug(
-                    "BREEDING BLOCKED_NO_BED parent1={} parent2={}", ownerId, partnerId);
             return StartResult.BLOCKED_NO_BED;
         }
 
@@ -90,9 +87,6 @@ public final class VillagerBreedingSessions {
         sessions(level).put(ownerId, session);
         sessions(level).put(partnerId, session);
         deadlines(level).add(new SessionDeadline(session.expiresAt() + 1L, session));
-        EmeraldCapitalism.LOGGER.debug(
-                "BREEDING STARTED parent1={} parent2={} bed={} expires={}",
-                ownerId, partnerId, session.bed(), session.expiresAt());
         return StartResult.STARTED;
     }
 
@@ -131,8 +125,6 @@ public final class VillagerBreedingSessions {
     /** Blocks a rejected pair briefly and clears their stale breeding memories. */
     public static void rejectPair(ServerLevel level, Villager first, Villager second, AbortReason reason) {
         blockPair(level, first, second, level.getGameTime());
-        EmeraldCapitalism.LOGGER.debug(
-                "BREEDING {} parent1={} parent2={}", reason, first.getUUID(), second.getUUID());
     }
 
     /**
@@ -161,9 +153,6 @@ public final class VillagerBreedingSessions {
             return;
         }
         session.markCommitted();
-        EmeraldCapitalism.LOGGER.debug(
-                "BREEDING SUCCESS parent1={} parent2={} bed={}",
-                parent.getUUID(), partner.getUUID(), session.bed());
     }
 
     /**
@@ -181,9 +170,6 @@ public final class VillagerBreedingSessions {
         if (partner.getAge() > 0) partner.setAge(0);
         blockPair(level, parent, partner, level.getGameTime());
         clearBreedingMemories(parent, partner);
-        EmeraldCapitalism.LOGGER.debug(
-                "BREEDING SPAWN_REJECTED parent1={} parent2={} bed={}",
-                parent.getUUID(), partner.getUUID(), session.bed());
     }
 
     /** Aborts an active session and releases its reserved POI ticket. */
@@ -201,10 +187,6 @@ public final class VillagerBreedingSessions {
         Villager partner = findVillager(level, session.other(villager.getUUID()));
         clearBreedingMemories(villager, partner);
         blockPair(level, villager, partner, level.getGameTime());
-
-        EmeraldCapitalism.LOGGER.debug(
-                "BREEDING {} parent1={} parent2={} bed={}",
-                reason, session.parent1(), session.parent2(), session.bed());
     }
 
     /** Called by a behavior stop hook to classify and clean up an interrupted session. */
@@ -250,9 +232,6 @@ public final class VillagerBreedingSessions {
             } else {
                 removeSession(level, expired);
                 releaseBed(level, expired.bed());
-                EmeraldCapitalism.LOGGER.debug(
-                        "BREEDING ABORTED_TIMEOUT parent1={} parent2={} bed={}",
-                        expired.parent1(), expired.parent2(), expired.bed());
             }
         }
         if (deadlines.isEmpty()) {
