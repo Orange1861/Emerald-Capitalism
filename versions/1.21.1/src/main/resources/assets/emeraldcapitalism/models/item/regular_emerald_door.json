@@ -1,5 +1,6 @@
 {
   "parent": "minecraft:block/block",
+  "gui_light": "front",
   "render_type": "cutout",
   "textures": {
     "lower": "emeraldcapitalism:block/emerald_door_lower",
@@ -8,27 +9,27 @@
   },
   "elements": [
     {
-      "from": [0, 0, 0],
-      "to": [3, 8, 16],
+      "from": [0, 0, 7.5],
+      "to": [16, 8, 8.5],
       "faces": {
-        "north": {"uv": [0, 0, 3, 16], "texture": "#lower"},
-        "south": {"uv": [0, 0, 3, 16], "texture": "#lower"},
-        "west": {"uv": [0, 0, 16, 16], "texture": "#lower"},
-        "east": {"uv": [0, 0, 16, 16], "texture": "#lower"},
-        "up": {"uv": [0, 0, 3, 16], "texture": "#lower"},
-        "down": {"uv": [0, 0, 3, 16], "texture": "#lower"}
+        "north": {"uv": [0, 0, 16, 16], "texture": "#lower"},
+        "south": {"uv": [0, 0, 16, 16], "texture": "#lower"},
+        "west": {"uv": [0, 0, 1, 16], "texture": "#lower"},
+        "east": {"uv": [0, 0, 1, 16], "texture": "#lower"},
+        "up": {"uv": [0, 0, 16, 1], "texture": "#lower"},
+        "down": {"uv": [0, 0, 16, 1], "texture": "#lower"}
       }
     },
     {
-      "from": [0, 8, 0],
-      "to": [3, 16, 16],
+      "from": [0, 8, 7.5],
+      "to": [16, 16, 8.5],
       "faces": {
-        "north": {"uv": [0, 0, 3, 16], "texture": "#upper"},
-        "south": {"uv": [0, 0, 3, 16], "texture": "#upper"},
-        "west": {"uv": [0, 0, 16, 16], "texture": "#upper"},
-        "east": {"uv": [0, 0, 16, 16], "texture": "#upper"},
-        "up": {"uv": [0, 0, 3, 16], "texture": "#upper"},
-        "down": {"uv": [0, 0, 3, 16], "texture": "#upper"}
+        "north": {"uv": [0, 0, 16, 16], "texture": "#upper"},
+        "south": {"uv": [0, 0, 16, 16], "texture": "#upper"},
+        "west": {"uv": [0, 0, 1, 16], "texture": "#upper"},
+        "east": {"uv": [0, 0, 1, 16], "texture": "#upper"},
+        "up": {"uv": [0, 0, 16, 1], "texture": "#upper"},
+        "down": {"uv": [0, 0, 16, 1], "texture": "#upper"}
       }
     }
   ]
