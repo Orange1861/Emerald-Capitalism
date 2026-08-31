@@ -16,8 +16,9 @@ where a version difference belongs.
 ## Target setup
 
 Run `verifyPortSetup` before adapting source. It validates the shared-source
-layout and coverage manifests, resolves the 1.21.4 Parchment artifact, and
-selects the Java 25 toolchain for 26.1. The current legacy mapping coordinate
+layout and coverage manifests, resolves the configured legacy mappings, and
+selects the configured Java toolchain for every Stonecutter target. The current
+legacy mapping coordinate
 is:
 
 ```text
@@ -36,8 +37,9 @@ invariant, focused GameTests, target method, injection point, supported-event
 alternative assessment, and—where server automation cannot exercise a client
 hook—the linked manual smoke check.
 
-Run `:1.21.1:auditMixins` on the active target before porting a mixin. The
-server-side units run against a passing all-enabled baseline and then in fresh
+Run `:1.21.1:runGameTestServer` and then `:1.21.1:auditMixins` on the active
+target before porting a mixin. The server-side units run against a passing
+all-enabled baseline and then in fresh
 GameTest JVMs with one unit disabled. A passing disabled run is only a removal
 candidate: verify the target's supported event/API and retain the mapped
 invariant test before deleting a hook. Client units are explicitly marked for

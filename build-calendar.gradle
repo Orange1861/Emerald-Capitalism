@@ -91,10 +91,9 @@ neoForge {
         // This run config launches GameTestServer and runs all registered gametests, then exits.
         gameTestServer {
             type = "gameTestServer"
-            // Re-verify this working-directory resolution behavior on 26.x. The
-            // legacy branch's comment about StructureUtils.testStructuresDir was
-            // specific to how 1.21.1 resolved it; confirm it still holds here.
-            gameDirectory = project.file('.')
+            // Keep the shared GameTest fixtures discoverable from the repository
+            // root; verify this working-directory resolution again on 26.x.
+            gameDirectory = rootProject.file('.')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 

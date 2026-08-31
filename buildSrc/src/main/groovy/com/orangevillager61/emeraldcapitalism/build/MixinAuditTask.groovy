@@ -175,7 +175,8 @@ abstract class MixinAuditTask extends DefaultTask {
             String relativePath = (entry.path as String)?.replace('\\', '/')
             String side = entry.side as String
             String entryKey = (entry.entryKey as String) ?: (side == 'client' ? 'client' : 'mixins')
-            if (!relativePath || !(side in ['server', 'client']) || !(entryKey in ['mixins', 'client'])) {
+            String expectedEntryKey = side == 'client' ? 'client' : 'mixins'
+            if (!relativePath || !(side in ['server', 'client']) || entryKey != expectedEntryKey) {
                 throw new GradleException("Invalid mixin config declaration: ${entry}")
             }
             if (!configPaths.add(relativePath)) {

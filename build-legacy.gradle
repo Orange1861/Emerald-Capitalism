@@ -109,8 +109,8 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             // NeoForge 1.21.1 resolves StructureUtils.testStructuresDir relative to the
-            // game process working directory. Keep the checked-in GameTest fixture discoverable.
-            gameDirectory = project.file('.')
+            // game process working directory. Fixtures are shared at repository root.
+            gameDirectory = rootProject.file('.')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
