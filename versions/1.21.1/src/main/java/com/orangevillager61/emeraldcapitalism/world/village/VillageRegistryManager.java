@@ -148,7 +148,9 @@ public class VillageRegistryManager {
     /** Rechecks the one candidate against live opinion, Mayor presence, and bank control. */
     private void refreshVillageGovernance() {
         for (VillageRecord village : registryData.getVillages().values()) {
-            if (VillageGovernance.refresh(level, village)) {
+            boolean changed = VillageGovernance.refresh(level, village);
+            changed |= VillageGovernance.refreshMayorIfVacant(level, village);
+            if (changed) {
                 registryData.setDirty();
                 VillagePOIDataCache.invalidateVillage(village.getVillageId());
             }
@@ -541,6 +543,7 @@ public class VillageRegistryManager {
                 if (villager.getVillagerData().getProfession()
                         == com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions.MAYOR.get()) {
                     VillageGovernance.refresh(level, village);
+                    VillageGovernance.refreshMayorIfVacant(level, village);
                 }
                 registryData.setDirty();
                 EmeraldCapitalism.LOGGER.debug("Removed dead villager {} from village {}",
