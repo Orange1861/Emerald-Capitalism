@@ -170,7 +170,7 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
             }
         }
 
-        target.knockback(10.0D, sourceDirection.x, sourceDirection.z);
+        target.knockback(7.5D, sourceDirection.x, sourceDirection.z);
     }
 
     @Override
