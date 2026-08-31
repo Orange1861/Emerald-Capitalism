@@ -84,7 +84,7 @@ public final class VillageBankStructurePlacer {
     private static final int VAULT_SIZE_Z = 10;
     private static final int VAULT_VILLAGER_COUNT = 3;
     private static final int INITIAL_CHARCOAL_COUNT = 64;
-    private static final int INITIAL_PLANK_COUNT = 96;
+    private static final int INITIAL_PLANK_COUNT = 192;
     private static final int TERRAIN_BLEND_RADIUS = 4;
     private static final int ABANDONED_VAULT_TOP_DEPTH = 8;
 
@@ -132,8 +132,11 @@ public final class VillageBankStructurePlacer {
             return null;
         }
         finishPlannedPlacement(level, placed);
+        VillageRoadPathGenerator.PreparedVillageRoads preparedRoads = ROAD_PATH_GENERATOR
+                .prepare(level, villagePieces)
+                .withAdditionalBuildings(List.of(plan.placementBox()));
         ROAD_PATH_GENERATOR.generate(level, plan.pathStart(), plan.pathTarget(), villagePieces,
-                plan.biomeType(), bankEntranceDirection(plan.rotation()));
+                plan.biomeType(), bankEntranceDirection(plan.rotation()), preparedRoads);
         return placed.bankPos();
     }
 

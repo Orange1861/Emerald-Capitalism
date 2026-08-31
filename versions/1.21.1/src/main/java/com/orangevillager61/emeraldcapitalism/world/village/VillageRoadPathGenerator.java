@@ -51,8 +51,16 @@ public final class VillageRoadPathGenerator {
     public void generate(ServerLevel level, BlockPos pathStart, BlockPos pathTargetHint,
                          List<StructurePiece> villagePieces, String biomeType,
                          Direction entranceDirection) {
+        generate(level, pathStart, pathTargetHint, villagePieces, biomeType,
+                entranceDirection, null);
+    }
+
+    /** Applies a bank connector while avoiding the bank footprint itself. */
+    public void generate(ServerLevel level, BlockPos pathStart, BlockPos pathTargetHint,
+                         List<StructurePiece> villagePieces, String biomeType,
+                         Direction entranceDirection, @Nullable PreparedVillageRoads preparedRoads) {
         place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, BANK_PROFILE, null, null));
+                entranceDirection, BANK_PROFILE, preparedRoads, null));
     }
 
     /**
@@ -241,7 +249,7 @@ public final class VillageRoadPathGenerator {
                     streetTarget.surfaceBlock(), biomeType);
             List<PlannedPathCell> placementPlan = createPlacementPlan(
                     level, completeRoute, profile.fixedEntranceRows(), entranceDirection,
-                    surfaceCache, profile.pathWidth());
+                    roads, surfaceCache, profile.pathWidth());
             if (placementPlan.isEmpty()) {
                 continue;
             }
@@ -503,6 +511,7 @@ public final class VillageRoadPathGenerator {
     private List<PlannedPathCell> createPlacementPlan(ServerLevel level, List<BlockPos> route,
                                                        int fixedEntranceRows,
                                                        Direction entranceDirection,
+                                                       PreparedVillageRoads roads,
                                                        SurfaceCache surfaceCache,
                                                        int pathWidth) {
         if (route.size() < 2) {
@@ -524,6 +533,13 @@ public final class VillageRoadPathGenerator {
                     z += width;
                 } else {
                     x += width;
+                }
+
+                // A path plan may be applied after its building is placed. Reject
+                // every cell inside a reserved building box so a stale or malformed
+                // route cannot overwrite doors, walls, or other structure blocks.
+                if (roads.isInsideBuilding(x, z)) {
+                    return List.of();
                 }
 
                 boolean fixedEntranceRow = routeIndex < fixedEntranceRows;

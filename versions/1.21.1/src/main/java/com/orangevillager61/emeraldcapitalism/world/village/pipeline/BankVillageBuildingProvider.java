@@ -51,10 +51,12 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         if (bank == null) {
             return List.of();
         }
+        VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
+                .withAdditionalBuildings(List.of(bank.placementBox()));
         VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planBankConnection(
                 context.level(), bank.pathStart(), bank.pathTarget(), context.pieces(),
                 context.biomeType(), bank.entranceDirection(),
-                context.preparedRoadsWithReservations(),
+                roads,
                 context.chunkLoadBudget());
         return List.of(new PlannedBank(bank, connector));
     }
