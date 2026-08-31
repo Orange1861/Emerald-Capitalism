@@ -9,6 +9,9 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.HostileVillageMayorTarge
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.UUIDUtil;
@@ -318,6 +321,15 @@ public class EmeraldGolem extends IronGolem {
         }
 
         BankBlockEntity bank = BankBlockEntity.findBankForGolem(serverLevel, this);
+        if (bank != null && bank.getVillageId() != null) {
+            VillageRecord village = VillageRegistryData.get(serverLevel).getVillages().get(bank.getVillageId());
+            if (village != null
+                    && VillageGovernance.isContestedGovernorCandidateForBank(
+                            serverLevel, village, bank, player.getUUID())) {
+                return VillageGovernance.isContestedGovernorAttackAllowed(
+                        serverLevel, village, bank, player.getUUID());
+            }
+        }
         if (bank != null && bank.isAttackAllPlayersEnabled()) {
             return player.isAlive() && !player.isSpectator()
                     && !bank.isControlledBy(player.getUUID());

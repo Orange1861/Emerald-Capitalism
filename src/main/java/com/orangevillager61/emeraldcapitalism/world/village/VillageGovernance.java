@@ -191,6 +191,15 @@ public final class VillageGovernance {
                 && (bank == null || !bank.isControlledBy(playerId));
     }
 
+    /** Returns whether this candidate belongs to this exact registered bank. */
+    public static boolean isContestedGovernorCandidateForBank(ServerLevel level,
+                                                               VillageRecord village,
+                                                               BankBlockEntity bank,
+                                                               UUID playerId) {
+        return isContestedGovernor(level, village, playerId)
+                && isRegisteredBank(level, village, bank);
+    }
+
     /** Returns whether a contested candidate may currently be targeted by the bank. */
     public static boolean isContestedGovernorAttackAllowed(ServerLevel level,
                                                             VillageRecord village,
@@ -198,8 +207,7 @@ public final class VillageGovernance {
                                                             UUID playerId) {
         Villager mayor = findLivingMayor(level, village);
         return mayor != null
-                && isContestedGovernor(level, village, playerId)
-                && isRegisteredBank(level, village, bank)
+                && isContestedGovernorCandidateForBank(level, village, bank, playerId)
                 && village.isGovernorCandidateAttackGraceElapsed(
                         bank.getBlockPos(), playerId, mayor.getUUID(), level.getGameTime());
     }

@@ -36,6 +36,15 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
                 && golem.level() instanceof ServerLevel level
                 && BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank
                 && bank.isAttackAllPlayersEnabled()) {
+            if (bank.getVillageId() != null) {
+                VillageRecord village = VillageRegistryData.get(level).getVillages().get(bank.getVillageId());
+                if (village != null
+                        && VillageGovernance.isContestedGovernorCandidateForBank(
+                                level, village, bank, player.getUUID())) {
+                    return VillageGovernance.isContestedGovernorAttackAllowed(
+                            level, village, bank, player.getUUID());
+                }
+            }
             return player.isAlive() && !player.isSpectator()
                     && !bank.isControlledBy(player.getUUID());
         }
@@ -70,6 +79,8 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
 
         VillageRecord village = VillageRegistryData.get(level).getVillages().get(bank.getVillageId());
         return village != null
+                && VillageGovernance.isContestedGovernorCandidateForBank(
+                        level, village, bank, player.getUUID())
                 && VillageGovernance.isContestedGovernorAttackAllowed(
                         level, village, bank, player.getUUID());
     }
