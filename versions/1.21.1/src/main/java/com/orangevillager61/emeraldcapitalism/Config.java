@@ -25,7 +25,7 @@ public class Config {
 
 
     private static final ModConfigSpec.BooleanValue ENABLE_VILLAGER_NAMES = BUILDER
-            .comment("If true, villagers receive server-authoritative names from the village substrate system.")
+            .comment("If enabled, villagers will be named based on Emerald Capitalism's Unique Language System.")
             .translation("emeraldcapitalism.configuration.enableVillagerNames")
             .define("enableVillagerNames", true);
 

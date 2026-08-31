@@ -24,7 +24,7 @@
   "emeraldcapitalism.configuration.villagersCanStarveToDeath.tooltip": "If true, villagers can starve to death. If false, they stop taking starvation damage at 2 HP.",
 
   "emeraldcapitalism.configuration.enableVillagerNames": "Enable Villager Names",
-  "emeraldcapitalism.configuration.enableVillagerNames.tooltip": "If true, villagers receive server-authoritative names from the village substrate system.",
+  "emeraldcapitalism.configuration.enableVillagerNames.tooltip": "If enabled, villagers will be named based on Emerald Capitalism's Unique Language System.",
 
   "emeraldcapitalism.configuration.proportionalVillagerReputation": "Proportional Villager Reputation",
   "emeraldcapitalism.configuration.proportionalVillagerReputation.tooltip": "If true, villager reputation loss from player damage is proportional to damage dealt (5 points per HP, 10 per heart).",
@@ -83,8 +83,14 @@
   "emeraldcapitalism.configuration.ai.zombieAI.zombiesCanBreakDoorsOnAnyDifficulty.tooltip": "If true, zombies with the door-breaking ability can break wooden doors on any difficulty. If false, they can only break doors on Hard.",
   "emeraldcapitalism.configuration.ai.zombieAI.zombieDoorBreakingChancePercent": "Zombie Door-Breaking Chance",
   "emeraldcapitalism.configuration.ai.zombieAI.zombieDoorBreakingChancePercent.tooltip": "Percentage of newly spawned zombies that receive the door-breaking ability. Range: 0–100%; default: 50%.",
+  "emeraldcapitalism.configuration.illness": "Illness",
+  "emeraldcapitalism.configuration.illness.tooltip": "Settings for villager illnesses.",
+  "emeraldcapitalism.configuration.illness.zombieVirus": "Zombie Plague",
+  "emeraldcapitalism.configuration.illness.zombieVirus.tooltip": "Settings for Zombie Plague infection and progression.",
   "emeraldcapitalism.configuration.illness.zombieVirus.phaseOneDurationSeconds": "Zombie Plague Greening Phase Duration",
+  "emeraldcapitalism.configuration.illness.zombieVirus.phaseOneDurationSeconds.tooltip": "How long Zombie Plague remains in the greening phase before the turning phase begins. Unit: seconds. Default: 600 seconds (10 minutes).",
   "emeraldcapitalism.configuration.illness.zombieVirus.hitTimeReductionSeconds": "Zombie Plague Hit Time Reduction",
+  "emeraldcapitalism.configuration.illness.zombieVirus.hitTimeReductionSeconds.tooltip": "How much time a later Zombie hit removes from the greening phase of Zombie Plague. Unit: seconds. Default: 20 seconds.",
   "emeraldcapitalism.configuration.illness.zombieVirus.rottenFleshInfectionChancePercent": "Rotten Flesh Zombie Plague Chance",
   "emeraldcapitalism.configuration.illness.zombieVirus.rottenFleshInfectionChancePercent.tooltip": "Chance of contracting Zombie Plague when consuming rotten flesh. Range: 0–100%; default: 2%.",
   "effect.emeraldcapitalism.zombie_virus": "Zombie Plague",
