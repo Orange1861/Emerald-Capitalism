@@ -3,7 +3,7 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 /** Platform-free relationship rules between a player and a village. */
 public enum VillageRelationship {
     GOVERNOR("Governor"),
-    GOVERNOR_CANDIDATE("Governor-Candidate"),
+    GOVERNOR_CANDIDATE("Governor Candidate"),
     NEUTRAL("Neutral"),
     HOSTILE("Hostile");
 

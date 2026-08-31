@@ -47,6 +47,11 @@ public class VillagePOIScreen extends Screen {
     private static final int TAB_BUTTON_HEIGHT = 20;
     private static final int TAB_BUTTON_GAP = 8;
     private static final int TOP_RIGHT_BUTTON_GAP = 8;
+    private static final int OWNERSHIP_ROW_GAP = 12;
+    private static final int REPAIR_BUTTON_X = 200;
+    private static final int REPAIR_BUTTON_WIDTH = 100;
+    private static final int REPAIR_BUTTON_GAP = 20;
+    private static final int RESET_CACHE_BUTTON_X = REPAIR_BUTTON_X + REPAIR_BUTTON_WIDTH + REPAIR_BUTTON_GAP;
 
     // Column X-offsets (relative to table left)
     private static final int COL_NAME = 0;
@@ -81,7 +86,7 @@ public class VillagePOIScreen extends Screen {
     private EditBox renameBox;
     private Button renameBtn;
     private Button welcomeBtn;
-    private Button candidateBtn;
+    private Button claimOwnershipBtn;
     private Button farmlandRepairBtn;
     private Button farmlandResetBtn;
     private Button doorRepairBtn;
@@ -189,25 +194,20 @@ public class VillagePOIScreen extends Screen {
                 })
                 .bounds(width - 80 - PADDING, titleRowY, 80, font.lineHeight + 4)
                 .build());
-        candidateBtn = addRenderableWidget(Button.builder(
-                Component.literal("Become Governor Candidate"),
-                btn -> {
-                    UUID villageId = VillagePOIClientCache.getVillageId();
-                    if (villageId != null) {
-                        btn.active = false;
-                        PacketDistributor.sendToServer(new BecomeGovernorCandidatePacket(villageId));
-                    }
-                })
-                .bounds(PADDING, titleRowY, 145, font.lineHeight + 4)
+        // Ownership controls live in the Ownership tab.
+        claimOwnershipBtn = addRenderableWidget(Button.builder(
+                Component.literal("Claim Village Ownership"),
+                btn -> claimVillageOwnership())
+                .bounds(tableLeft, contentTop, 170, TAB_BUTTON_HEIGHT)
                 .build());
 
-        // Ownership controls live in the Ownership tab instead of the title row.
+        int ownershipDetailsY = contentTop + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
         renameBtn = addRenderableWidget(Button.builder(
                 Component.literal("Rename"),
                 btn -> toggleRename())
-                .bounds(tableLeft, contentTop, 90, TAB_BUTTON_HEIGHT)
+                .bounds(tableLeft, ownershipDetailsY, 90, TAB_BUTTON_HEIGHT)
                 .build());
-        renameBox = new EditBox(font, tableLeft + 96, contentTop, 220, TAB_BUTTON_HEIGHT,
+        renameBox = new EditBox(font, tableLeft + 96, ownershipDetailsY, 220, TAB_BUTTON_HEIGHT,
                 Component.literal("Village Name"));
         renameBox.setMaxLength(64);
         renameBox.setVisible(false);
@@ -221,28 +221,33 @@ public class VillagePOIScreen extends Screen {
                         minecraft.setScreen(new WelcomeMessageScreen(this));
                     }
                 })
-                .bounds(tableLeft + 330, contentTop, 100, TAB_BUTTON_HEIGHT)
+                .bounds(tableLeft + 330, ownershipDetailsY, 100, TAB_BUTTON_HEIGHT)
                 .build());
 
+        int repairRowOneY = ownershipDetailsY + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
         farmlandRepairBtn = addRenderableWidget(Button.builder(
                 Component.literal("Repair"),
                 btn -> toggleVillageRepair(SetVillageRepairPacket.FARMLAND))
-                .bounds(tableLeft + 200, contentTop + TAB_BUTTON_HEIGHT + 12, 100, TAB_BUTTON_HEIGHT)
+                .bounds(tableLeft + REPAIR_BUTTON_X, repairRowOneY,
+                        REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
         farmlandResetBtn = addRenderableWidget(Button.builder(
                 Component.literal("Reset Cache"),
                 btn -> resetVillageCache(SetVillageRepairPacket.FARMLAND))
-                .bounds(tableLeft + 306, contentTop + TAB_BUTTON_HEIGHT + 12, 100, TAB_BUTTON_HEIGHT)
+                .bounds(tableLeft + RESET_CACHE_BUTTON_X, repairRowOneY,
+                        REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
         doorRepairBtn = addRenderableWidget(Button.builder(
                 Component.literal("Repair"),
                 btn -> toggleVillageRepair(SetVillageRepairPacket.DOORS))
-                .bounds(tableLeft + 200, contentTop + TAB_BUTTON_HEIGHT + 12 + ROW_HEIGHT, 100, TAB_BUTTON_HEIGHT)
+                .bounds(tableLeft + REPAIR_BUTTON_X, repairRowOneY + ROW_HEIGHT,
+                        REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
         doorResetBtn = addRenderableWidget(Button.builder(
                 Component.literal("Reset Cache"),
                 btn -> resetVillageCache(SetVillageRepairPacket.DOORS))
-                .bounds(tableLeft + 306, contentTop + TAB_BUTTON_HEIGHT + 12 + ROW_HEIGHT, 100, TAB_BUTTON_HEIGHT)
+                .bounds(tableLeft + RESET_CACHE_BUTTON_X, repairRowOneY + ROW_HEIGHT,
+                        REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
 
         // Toggle overlay button (tab row, right side)
@@ -401,7 +406,7 @@ public class VillagePOIScreen extends Screen {
 
         boolean scanInProgress = VillagePOIClientCache.isScanInProgress();
         boolean hasData = VillagePOIClientCache.hasData();
-        boolean canApplyAsCandidate = VillagePOIClientCache.canBecomeGovernorCandidate();
+        boolean canClaimOwnership = VillagePOIClientCache.canBecomeGovernorCandidate();
         if (expandBoundsBtn != null) expandBoundsBtn.active = hasData && !scanInProgress;
         if (fullScanBtn != null) fullScanBtn.active = hasData && !scanInProgress;
         if (renameBtn != null) {
@@ -435,9 +440,9 @@ public class VillagePOIScreen extends Screen {
             doorResetBtn.visible = activeTab == Tab.OWNERSHIP;
             doorResetBtn.active = hasData && !scanInProgress;
         }
-        if (candidateBtn != null) {
-            candidateBtn.visible = hasData && !scanInProgress && canApplyAsCandidate;
-            candidateBtn.active = candidateBtn.visible;
+        if (claimOwnershipBtn != null) {
+            claimOwnershipBtn.visible = activeTab == Tab.OWNERSHIP;
+            claimOwnershipBtn.active = hasData && !scanInProgress && canClaimOwnership;
         }
         super.render(graphics, mouseX, mouseY, partialTick);
 
@@ -519,6 +524,18 @@ public class VillagePOIScreen extends Screen {
         return super.charTyped(codePoint, modifiers);
     }
 
+    private void claimVillageOwnership() {
+        if (claimOwnershipBtn == null || !claimOwnershipBtn.active) {
+            return;
+        }
+        UUID villageId = VillagePOIClientCache.getVillageId();
+        if (villageId == null) {
+            return;
+        }
+        claimOwnershipBtn.active = false;
+        PacketDistributor.sendToServer(new BecomeGovernorCandidatePacket(villageId));
+    }
+
     private void renderVillagersTab(GuiGraphics graphics, int mouseX, int mouseY) {
         // Column headers (clickable)
         int headerY = contentTop - ROW_HEIGHT;
@@ -573,7 +590,7 @@ public class VillagePOIScreen extends Screen {
 
     private void renderVillageStatsTab(GuiGraphics graphics) {
         VillageRelationship relationship = VillagePOIClientCache.getRelationship();
-        drawStatLine(graphics, tableLeft, contentTop - ROW_HEIGHT, "Relationship",
+        drawStatLine(graphics, tableLeft, contentTop - ROW_HEIGHT, "Your Relationship",
                 relationship.displayName(), relationshipColor(relationship));
         List<VillageStatsPresentation.StatLine> lines = buildVillageStatsLines();
         statsScrollOffset = Math.min(statsScrollOffset, Math.max(0, lines.size() - maxVisibleRows));
@@ -689,7 +706,8 @@ public class VillagePOIScreen extends Screen {
     }
 
     private void renderOwnershipTab(GuiGraphics graphics) {
-        int rowOneY = contentTop + TAB_BUTTON_HEIGHT + 12;
+        int ownershipDetailsY = contentTop + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
+        int rowOneY = ownershipDetailsY + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
         int rowTwoY = rowOneY + ROW_HEIGHT;
         graphics.drawString(font, "Ownership controls", tableLeft, contentTop - ROW_HEIGHT,
                 relationshipColor(VillagePOIClientCache.getRelationship()));

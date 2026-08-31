@@ -84,7 +84,7 @@ public final class VillageBankStructurePlacer {
     private static final int VAULT_SIZE_Z = 10;
     private static final int VAULT_VILLAGER_COUNT = 3;
     private static final int INITIAL_CHARCOAL_COUNT = 64;
-    private static final int INITIAL_PLANK_COUNT = 192;
+    private static final int INITIAL_LOG_COUNT = 48;
     private static final int TERRAIN_BLEND_RADIUS = 4;
     private static final int ABANDONED_VAULT_TOP_DEPTH = 8;
 
@@ -628,7 +628,7 @@ public final class VillageBankStructurePlacer {
 
             replaceGeneratedBankCoalWithCharcoal(level, topPlacePos, rotation);
             seedInitialBread(level, vaultOrigin, rotation);
-            seedInitialPlanks(level, vaultOrigin, rotation, plan.biomeType());
+            seedInitialLogs(level, vaultOrigin, rotation, plan.biomeType());
             seedInitialNearestVaultMap(level, vaultOrigin, rotation);
 
             // Entity relocation is deferred until all fallible placement work succeeds,
@@ -850,11 +850,11 @@ public final class VillageBankStructurePlacer {
         }
     }
 
-    /** Seeds newly generated normal bank vaults with the village biome's wood. */
-    private void seedInitialPlanks(ServerLevel level, BlockPos vaultOrigin, Rotation rotation,
-                                   String biomeType) {
-        Item planks = starterPlanksForBiome(biomeType);
-        int remaining = INITIAL_PLANK_COUNT;
+    /** Seeds newly generated normal bank vaults with 48 logs matching the village biome. */
+    private void seedInitialLogs(ServerLevel level, BlockPos vaultOrigin, Rotation rotation,
+                                 String biomeType) {
+        Item logs = starterLogsForBiome(biomeType);
+        int remaining = INITIAL_LOG_COUNT;
         BlockPos minCorner = transformedMinCorner(vaultOrigin, rotation, VAULT_SIZE_X, VAULT_SIZE_Z);
         int sizeX = isQuarterTurn(rotation) ? VAULT_SIZE_Z : VAULT_SIZE_X;
         int sizeZ = isQuarterTurn(rotation) ? VAULT_SIZE_X : VAULT_SIZE_Z;
@@ -869,7 +869,7 @@ public final class VillageBankStructurePlacer {
 
                     for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
                         ItemStack existing = chest.getItem(slot);
-                        if (!existing.is(planks) || existing.getCount() >= existing.getMaxStackSize()) {
+                        if (!existing.is(logs) || existing.getCount() >= existing.getMaxStackSize()) {
                             continue;
                         }
 
@@ -884,8 +884,8 @@ public final class VillageBankStructurePlacer {
                             continue;
                         }
 
-                        int added = Math.min(remaining, planks.getDefaultMaxStackSize());
-                        chest.setItem(slot, new ItemStack(planks, added));
+                        int added = Math.min(remaining, logs.getDefaultMaxStackSize());
+                        chest.setItem(slot, new ItemStack(logs, added));
                         remaining -= added;
                     }
                 }
@@ -895,8 +895,8 @@ public final class VillageBankStructurePlacer {
         if (remaining > 0) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Generated bank vault at {} could only fit {} of {} starter {}",
-                    vaultOrigin, INITIAL_PLANK_COUNT - remaining, INITIAL_PLANK_COUNT,
-                    planks.getDescription().getString());
+                    vaultOrigin, INITIAL_LOG_COUNT - remaining, INITIAL_LOG_COUNT,
+                    logs.getDescription().getString());
         }
     }
 
@@ -929,13 +929,13 @@ public final class VillageBankStructurePlacer {
     }
 
     /** Returns the vanilla village wood palette for the bank's generated biome style. */
-    static Item starterPlanksForBiome(String biomeType) {
+    static Item starterLogsForBiome(String biomeType) {
         return switch (biomeType == null ? "" : biomeType.toUpperCase(Locale.ROOT)) {
-            case "DESERT" -> Items.JUNGLE_PLANKS;
-            case "SAVANNA" -> Items.ACACIA_PLANKS;
-            case "TAIGA", "SNOWY" -> Items.SPRUCE_PLANKS;
-            case "PLAINS" -> Items.OAK_PLANKS;
-            default -> Items.OAK_PLANKS;
+            case "DESERT" -> Items.JUNGLE_LOG;
+            case "SAVANNA" -> Items.ACACIA_LOG;
+            case "TAIGA", "SNOWY" -> Items.SPRUCE_LOG;
+            case "PLAINS" -> Items.OAK_LOG;
+            default -> Items.OAK_LOG;
         };
     }
 
