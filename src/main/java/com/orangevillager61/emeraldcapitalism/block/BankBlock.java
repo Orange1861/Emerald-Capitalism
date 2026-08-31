@@ -15,6 +15,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.BlockHitResult;
@@ -34,6 +35,7 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
+import java.util.UUID;
 
 /**
  * The Bank block: a village infrastructure block that tracks all {@link EmeraldChestBlock}
@@ -41,9 +43,10 @@ import javax.annotation.Nullable;
  * <p>
  * On placement this block attempts to:
  * <ol>
+ *   <li>Assign control to the placing player.</li>
  *   <li>Link itself to the containing village (via {@link VillageRegistryData}).</li>
  *   <li>Notify the village manager for that village so it can register this bank.</li>
- *   <li>If the village manager already has a bank, break this duplicate and drop it.</li>
+ *   <li>If the village or its manager already belongs to another claim, break this duplicate and drop it.</li>
  * </ol>
  * <p>
  * The block cannot be broken while its linked chests hold any villager funds;
@@ -187,32 +190,70 @@ public class BankBlock extends BaseEntityBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof BankBlockEntity bank)) return;
 
+        UUID placerId = placer instanceof Player player ? player.getUUID() : null;
+
         ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
-        if (overworld == null) return;
+        if (overworld == null) {
+            if (placerId != null) {
+                bank.setController(placerId);
+            }
+            return;
+        }
 
         VillageRegistryData data = VillageRegistryData.get(overworld);
         VillageRecord record = data.getVillageFor(pos);
-        if (record == null) return; // Not inside any village: bank sits unlinked until VM scans
+        if (record == null) {
+            if (placerId != null) {
+                bank.setController(placerId);
+            }
+            return; // Not inside any village: bank sits unlinked until VM scans
+        }
 
-        bank.setVillageId(record.getVillageId());
+        if (hasConflictingVillageOwner(record, placerId)
+                || hasConflictingBank(data, record, pos)) {
+            rejectPlacement(level, pos, placer);
+            return;
+        }
 
         // Notify the village manager for this village
         BlockPos vmPos = data.getVMPos(record.getVillageId());
-        if (vmPos == null) return; // No VM placed yet: VM will find bank on its next scan
+        VillageManagerBlockEntity vm = null;
+        if (vmPos != null && overworld.getBlockEntity(vmPos) instanceof VillageManagerBlockEntity foundVM) {
+            vm = foundVM;
+            if (vm.hasBankRegistered()) {
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP] Duplicate bank placed at {} for village {} "
+                                + "(bank already registered at {}), removing duplicate",
+                        pos, record.getVillageId(), vm.getBankPos());
+                rejectPlacement(level, pos, placer);
+                return;
+            }
+        }
 
-        BlockEntity vmBE = serverLevel.getBlockEntity(vmPos);
-        if (!(vmBE instanceof VillageManagerBlockEntity vm)) return;
-
-        if (vm.hasBankRegistered()) {
-            // Duplicate bank: break it and drop the item
-            EmeraldCapitalism.LOGGER.info(
-                    "[ECAP] Duplicate bank placed at {} for village {} "
-                            + "(bank already registered at {}), removing duplicate",
-                    pos, record.getVillageId(), vm.getBankPos());
-            level.destroyBlock(pos, true);
-        } else {
+        if (placerId != null) {
+            bank.setController(placerId);
+        }
+        bank.setVillageId(record.getVillageId());
+        if (vm != null) {
             vm.registerBank(pos);
         }
+    }
+
+    private static boolean hasConflictingVillageOwner(VillageRecord record, @Nullable UUID placerId) {
+        UUID governorId = record.getGovernorId();
+        return governorId != null && placerId != null && !governorId.equals(placerId);
+    }
+
+    private static boolean hasConflictingBank(VillageRegistryData data, VillageRecord record, BlockPos pos) {
+        BlockPos registeredBankPos = data.getBankPos(record.getVillageId());
+        return registeredBankPos != null && !registeredBankPos.equals(pos);
+    }
+
+    private static void rejectPlacement(Level level, BlockPos pos, @Nullable LivingEntity placer) {
+        if (placer instanceof Player player) {
+            player.sendSystemMessage(Component.literal("Too Close to Nearby Bank or Village"));
+        }
+        level.destroyBlock(pos, true);
     }
 
     @Override

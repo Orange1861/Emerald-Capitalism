@@ -224,6 +224,8 @@
   "advancements.emeraldcapitalism.turned_into_zombie.description": "Die from Zombkolaps and rise as a zombie.",
   "advancements.emeraldcapitalism.congrats_governor.title": "Congrats Governor",
   "advancements.emeraldcapitalism.congrats_governor.description": "Become a Governor after defeating or taking control of a bank.",
+  "advancements.emeraldcapitalism.villages_have_books_to_read.title": "Villages have books to read?!",
+  "advancements.emeraldcapitalism.villages_have_books_to_read.description": "Find a book in a village library.",
   "death.attack.zombie_plague": "%1$s became a zombie",
 
   "entity.minecraft.villager.emeraldcapitalism.mayor": "Mayor",

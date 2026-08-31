@@ -1021,6 +1021,12 @@ public class VillageRecord {
         return playerId != null && playerId.equals(governorId);
     }
 
+    /** Returns the UUID of the village's appointed governor, or {@code null} when ungoverned. */
+    @Nullable
+    public UUID getGovernorId() {
+        return governorId;
+    }
+
     /** Returns whether this player has registered as a governor candidate. */
     public boolean isGovernorCandidate(UUID playerId) {
         return playerId != null && playerId.equals(governorCandidateId);

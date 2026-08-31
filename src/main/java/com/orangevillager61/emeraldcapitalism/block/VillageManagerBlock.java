@@ -122,6 +122,7 @@ public class VillageManagerBlock extends BaseEntityBlock {
 
         // Village records are scoped to the dimension containing the manager.
         VillageRegistryData data = VillageRegistryData.get(serverLevel);
+        UUID placerId = placer instanceof Player player ? player.getUUID() : null;
 
         // 1. Check if already inside or near an existing village
         VillageRecord existing = data.getNearestVillage(pos);
@@ -132,8 +133,17 @@ public class VillageManagerBlock extends BaseEntityBlock {
             boolean inside = bb.contains(x, y, z);
             // Link if inside bounding box or within 16 blocks of bell
             if (inside || distSq <= 16 * 16) {
+                if (hasConflictingVillageOwner(existing, placerId)
+                        || hasConflictingVillageManager(data, existing, pos)
+                        || hasConflictingNearbyBank(serverLevel, villageManager,
+                        existing.getVillageId(), placerId)) {
+                    rejectPlacement(level, pos, placer);
+                    return;
+                }
+
                 villageManager.setVillageId(existing.getVillageId());
                 data.registerVillageManager(existing.getVillageId(), pos);
+                appointGovernor(data, existing, placerId);
                 if (placer instanceof ServerPlayer player) {
                     player.sendSystemMessage(Component.literal(
                             "[Village Manager] Linked to existing village " + existing.getVillageId().toString().substring(0, 8)
@@ -148,9 +158,14 @@ public class VillageManagerBlock extends BaseEntityBlock {
         // 2. Look for an unregistered bell nearby
         BlockPos bellPos = VillageManagerPlacement.findNearestBell(serverLevel, pos, 32);
         if (bellPos != null) {
+            if (hasConflictingNearbyBank(serverLevel, villageManager, null, placerId)) {
+                rejectPlacement(level, pos, placer);
+                return;
+            }
             UUID villageId = UUID.randomUUID();
             AABB bounds = new AABB(bellPos).inflate(128, 48, 128);
-            data.getOrCreateVillage(villageId, bellPos, bounds);
+            VillageRecord village = data.getOrCreateVillage(villageId, bellPos, bounds);
+            appointGovernor(data, village, placerId);
             data.setDirty();
             villageManager.setVillageId(villageId);
             data.registerVillageManager(villageId, pos);
@@ -164,9 +179,14 @@ public class VillageManagerBlock extends BaseEntityBlock {
         }
 
         // 3. No village or bell nearby: create a new village area centered on block
+        if (hasConflictingNearbyBank(serverLevel, villageManager, null, placerId)) {
+            rejectPlacement(level, pos, placer);
+            return;
+        }
         UUID villageId = UUID.randomUUID();
         AABB bounds = new AABB(pos).inflate(64, 32, 64);
-        data.getOrCreateVillage(villageId, pos, bounds);
+        VillageRecord village = data.getOrCreateVillage(villageId, pos, bounds);
+        appointGovernor(data, village, placerId);
         data.setDirty();
         villageManager.setVillageId(villageId);
         data.registerVillageManager(villageId, pos);
@@ -201,5 +221,55 @@ public class VillageManagerBlock extends BaseEntityBlock {
         if (bankVillage == null || bankVillage.equals(vmVillage)) {
             vm.registerBank(found);
         }
+    }
+
+    private static boolean hasConflictingVillageOwner(VillageRecord record, @Nullable UUID placerId) {
+        UUID governorId = record.getGovernorId();
+        return governorId != null && placerId != null && !governorId.equals(placerId);
+    }
+
+    private static boolean hasConflictingVillageManager(VillageRegistryData data,
+                                                         VillageRecord record,
+                                                         BlockPos pos) {
+        BlockPos managerPos = data.getVMPos(record.getVillageId());
+        return managerPos != null && !managerPos.equals(pos);
+    }
+
+    private static boolean hasConflictingNearbyBank(ServerLevel level,
+                                                     VillageManagerBlockEntity villageManager,
+                                                     @Nullable UUID villageId,
+                                                     @Nullable UUID placerId) {
+        BlockPos bankPos = villageManager.findNearbyBank(level);
+        if (bankPos == null) {
+            return false;
+        }
+
+        BlockEntity blockEntity = level.getBlockEntity(bankPos);
+        if (!(blockEntity instanceof BankBlockEntity bank)) {
+            return false;
+        }
+
+        UUID bankVillageId = bank.getVillageId();
+        if (bankVillageId != null && !bankVillageId.equals(villageId)) {
+            return true;
+        }
+
+        UUID bankOwnerId = bank.getControllerId();
+        return bankOwnerId != null && placerId != null && !bankOwnerId.equals(placerId);
+    }
+
+    private static void appointGovernor(VillageRegistryData data,
+                                        VillageRecord village,
+                                        @Nullable UUID placerId) {
+        if (placerId != null && village.setGovernor(placerId)) {
+            data.setDirty();
+        }
+    }
+
+    private static void rejectPlacement(Level level, BlockPos pos, @Nullable LivingEntity placer) {
+        if (placer instanceof Player player) {
+            player.sendSystemMessage(Component.literal("Too Close to Nearby Bank or Village"));
+        }
+        level.destroyBlock(pos, true);
     }
 }

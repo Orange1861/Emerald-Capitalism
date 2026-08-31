@@ -1,0 +1,119 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:book"
+    },
+    "title": {
+      "translate": "advancements.emeraldcapitalism.villages_have_books_to_read.title"
+    },
+    "description": {
+      "translate": "advancements.emeraldcapitalism.villages_have_books_to_read.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "common_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:written_book",
+            "predicates": {
+              "minecraft:custom_data": {
+                "book_rarity": "common"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "uncommon_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:written_book",
+            "predicates": {
+              "minecraft:custom_data": {
+                "book_rarity": "uncommon"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "rare_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:written_book",
+            "predicates": {
+              "minecraft:custom_data": {
+                "book_rarity": "rare"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "legendary_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:written_book",
+            "predicates": {
+              "minecraft:custom_data": {
+                "book_rarity": "legendary"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "bank_rule_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:written_book",
+            "predicates": {
+              "minecraft:custom_data": {
+                "book_rarity": "bank_rule"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "village_manager_book": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:written_book",
+            "predicates": {
+              "minecraft:custom_data": {
+                "book_rarity": "village_manager"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "common_book",
+      "uncommon_book",
+      "rare_book",
+      "legendary_book",
+      "bank_rule_book",
+      "village_manager_book"
+    ]
+  ]
+}

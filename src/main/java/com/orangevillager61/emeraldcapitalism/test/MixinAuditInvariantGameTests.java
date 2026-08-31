@@ -273,6 +273,35 @@ public final class MixinAuditInvariantGameTests {
         });
     }
 
+    @GameTest(template = "empty_3x3x3")
+    public static void villagerKeepsLadderPathWhileWaitingForAnotherClimber(GameTestHelper helper) {
+        BlockPos ladderBase = installLadder(helper);
+        Villager climber = helper.spawn(EntityType.VILLAGER, 1, 2, 1);
+        climber.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY() + 1.0D,
+                ladderBase.getZ() + 0.5D, 0.0F, 0.0F);
+        Villager waiter = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        waiter.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(),
+                ladderBase.getZ() + 0.5D, 0.0F, 0.0F);
+
+        helper.assertTrue(climber.getNavigation().moveTo(ladderPath(ladderBase, 1), 1.0D),
+                "climber ladder path could not be installed");
+        helper.assertTrue(waiter.getNavigation().moveTo(ladderPath(ladderBase, 0), 1.0D),
+                "waiting villager ladder path could not be installed");
+        helper.runAfterDelay(2, () -> {
+            helper.assertTrue(waiter.getNavigation().getPath() != null,
+                    "waiting villager lost its ladder path while the column was occupied");
+            helper.succeed();
+        });
+    }
+
+    private static Path ladderPath(BlockPos ladderBase, int firstOffset) {
+        List<Node> nodes = new ArrayList<>();
+        for (int offset = firstOffset; offset < 5; offset++) {
+            nodes.add(new Node(ladderBase.getX(), ladderBase.getY() + offset, ladderBase.getZ()));
+        }
+        return new Path(nodes, ladderBase.above(4), true);
+    }
+
     private static BlockPos installLadder(GameTestHelper helper) {
         BlockPos ladderBase = helper.absolutePos(new BlockPos(1, 1, 1));
         helper.getLevel().setBlock(ladderBase.below(), Blocks.STONE.defaultBlockState(), 3);
