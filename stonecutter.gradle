@@ -229,5 +229,6 @@ tasks.register('verifyPortSetup') {
     group = 'verification'
     description = 'Verifies shared-source policy, target mapping/toolchain readiness, and regression manifests.'
     dependsOn 'verifySharedSourceLayout', 'verifyClientSmokeManifest', 'verifyRegressionCoverage'
-    dependsOn ':1.21.4:verifyTargetSetup', ':26.1:verifyTargetSetup'
+    dependsOn ':1.21.1:verifyTargetSetup', ':1.21.4:verifyTargetSetup', ':1.21.11:verifyTargetSetup'
+    dependsOn ':26.1:verifyTargetSetup', ':26.2:verifyTargetSetup'
 }

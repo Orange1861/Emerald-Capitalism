@@ -195,7 +195,32 @@ abstract class MixinAuditTask extends DefaultTask {
             }
             configs << [path: relativePath, side: side, entryKey: entryKey, names: names]
         }
+        validateLoadedMixinConfigs(repository, configs)
         return configs
+    }
+
+    private static void validateLoadedMixinConfigs(Path repository, List<Map> configs) {
+        Path metadataPath = repository.resolve('src/main/templates/META-INF/neoforge.mods.toml')
+        if (!Files.isRegularFile(metadataPath)) {
+            throw new GradleException("Mod metadata is missing; cannot verify loaded mixin configs: ${metadataPath}")
+        }
+
+        Set<String> manifestSuffixes = configs.collect {
+            String name = new File(it.path as String).name
+            int separator = name.indexOf('.')
+            if (separator < 1 || separator == name.length() - 1) {
+                throw new GradleException("Mixin config path has no usable file name: ${it.path}")
+            }
+            name.substring(separator + 1)
+        } as Set<String>
+        Set<String> loadedSuffixes = new LinkedHashSet<>()
+        def matcher = Files.readString(metadataPath) =~ /config="\$\{mod_id\}\.([^"]+)"/
+        matcher.each { match -> loadedSuffixes.add(match[1] as String) }
+        if (loadedSuffixes != manifestSuffixes) {
+            throw new GradleException(
+                    "Mixin audit configs do not match the configs declared in neoforge.mods.toml: " +
+                            "loaded=${loadedSuffixes}, manifest=${manifestSuffixes}")
+        }
     }
 
     private static void validateManifest(Path repository, Map manifest, List<Map> mixinConfigs,
@@ -209,6 +234,8 @@ abstract class MixinAuditTask extends DefaultTask {
         }
 
         Map<String, Map> configsByPath = mixinConfigs.collectEntries { [(it.path as String): it] }
+        Set<String> clientSmokeIds = units.any { ((it.auditMode as String) ?: 'gametest') == 'manual-client' }
+                ? readClientSmokeIds(repository) : new HashSet<>()
         List<String> assigned = []
         Set<String> unitIds = new HashSet<>()
         units.each { Map unit ->
@@ -239,8 +266,19 @@ abstract class MixinAuditTask extends DefaultTask {
             if (auditMode == 'gametest' && config.side != 'server') {
                 throw new GradleException("Client mixin unit ${id} must use auditMode=manual-client")
             }
-            if (auditMode == 'manual-client' && ((unit.manualChecks ?: []) as List).isEmpty()) {
-                throw new GradleException("Client mixin unit ${id} must declare manualChecks")
+            if (auditMode == 'manual-client') {
+                if (config.side != 'client') {
+                    throw new GradleException("Manual-client mixin unit ${id} must use a client mixin config")
+                }
+                List<String> manualChecks = (unit.manualChecks ?: []) as List<String>
+                if (manualChecks.isEmpty()) {
+                    throw new GradleException("Client mixin unit ${id} must declare manualChecks")
+                }
+                Set<String> unknownManualChecks = new LinkedHashSet<>(manualChecks)
+                unknownManualChecks.removeAll(clientSmokeIds)
+                if (!unknownManualChecks.isEmpty()) {
+                    throw new GradleException("Client mixin unit ${id} references unknown smoke checks: ${unknownManualChecks}")
+                }
             }
             ['invariant', 'target', 'injectionPoint', 'supportedEventAlternative'].each { String field ->
                 if (!((unit[field] as String)?.trim())) {
@@ -296,6 +334,18 @@ abstract class MixinAuditTask extends DefaultTask {
                 throw new GradleException("Optional mixin hooks require a documented fallback and diagnostic GameTest: ${optionalHooks}")
             }
         }
+    }
+
+    private static Set<String> readClientSmokeIds(Path repository) {
+        Map manifest = readJson(repository.resolve('gradle/client-smoke.json'))
+        Set<String> ids = new HashSet<>()
+        ((manifest.renderers ?: []) + (manifest.screens ?: []) + (manifest.checks ?: [])).each { Map entry ->
+            String id = entry.id as String
+            if (!id || !ids.add("client-smoke.${id}")) {
+                throw new GradleException("Client smoke manifest contains a duplicate or empty id: ${id}")
+            }
+        }
+        return ids
     }
 
     private static Set<String> discoverGameTests(Path sourceRoot) {
