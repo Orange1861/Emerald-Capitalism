@@ -576,7 +576,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         g.drawString(font, "Market", panelX, y, TITLE_COLOR);
         BankMenu.MarketEntry entry = selectedMarketEntry();
         if (entry == null) {
-            g.drawString(font, "No market items are configured.", panelX, y + ROW_HEIGHT + 4, LABEL_COLOR);
+            drawMarketText(g, panelX, y + ROW_HEIGHT + 4,
+                    "No market items are configured.", LABEL_COLOR);
             return;
         }
 
@@ -589,11 +590,11 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         }
         drawRowAt(g, panelX, y, "Stock:", String.valueOf(entry.stock()), VALUE_COLOR);
         y += ROW_HEIGHT;
-        String price = fixedTrade
-                ? fixedPriceLabel(entry)
-                : formatRate(entry.config().baseRate(), entry.stock(), entry.population());
-        drawRowAt(g, panelX, y, "Current Price:", price, VALUE_COLOR);
-        y += ROW_HEIGHT;
+        if (!fixedTrade) {
+            drawRowAt(g, panelX, y, "Current Price:",
+                    formatRate(entry.config().baseRate(), entry.stock(), entry.population()), VALUE_COLOR);
+            y += ROW_HEIGHT;
+        }
         if (quote.valid()) {
             if (!fixedTrade) {
                 drawRowAt(g, panelX, y, "Projected:", format(quote.projectedMidRate()), GOLD_COLOR);
@@ -611,30 +612,35 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 y += ROW_HEIGHT;
             }
         } else {
-            g.drawString(font, marketUnavailable ? "Unavailable" : marketError, panelX, y,
+            drawMarketText(g, panelX, y, marketUnavailable ? "Unavailable" : marketError,
                     marketUnavailable ? LABEL_COLOR : WARN_COLOR);
             y += ROW_HEIGHT;
         }
         y += 5;
         String positionLabel = entry.config().metric() == MarketMetric.TARGET_RATIO
                 ? "Target position" : "Supply position";
-        g.drawString(font, positionLabel, panelX, y, LABEL_COLOR);
+        drawMarketText(g, panelX, y, positionLabel, LABEL_COLOR);
         drawSupplyBar(g, panelX, y + ROW_HEIGHT, imageWidth - PADDING - panelX,
                 entry, quote.valid() ? quote.projectedStock() : entry.stock(),
                 quote.valid() && quote.projectedStock() != entry.stock());
         int messageY = y + ROW_HEIGHT + 22;
         if (!marketNotice.isEmpty()) {
-            g.drawString(font, marketNotice, panelX, messageY, LABEL_COLOR);
+            drawMarketText(g, panelX, messageY, marketNotice, LABEL_COLOR);
             messageY += ROW_HEIGHT;
         }
         if (!marketError.isEmpty() && !marketUnavailable) {
-            g.drawString(font, marketError, panelX, messageY, WARN_COLOR);
+            drawMarketText(g, panelX, messageY, marketError, WARN_COLOR);
         }
     }
 
     private void drawRowAt(GuiGraphics g, int x, int y, String label, String value, int color) {
-        g.drawString(font, label, x, y, LABEL_COLOR);
-        g.drawString(font, value, x + 88, y, color);
+        int valueX = x + 88;
+        g.drawString(font, fitMarketText(label, valueX - x - 4), x, y, LABEL_COLOR);
+        drawMarketText(g, valueX, y, value, color);
+    }
+
+    private void drawMarketText(GuiGraphics g, int x, int y, String text, int color) {
+        g.drawString(font, fitMarketText(text, imageWidth - PADDING - x), x, y, color);
     }
 
     private void drawSupplyBar(GuiGraphics g, int x, int y, int width, BankMenu.MarketEntry entry,
@@ -966,8 +972,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     // Helpers
 
     private void drawRow(GuiGraphics g, int y, String label, String value, int valueColor) {
-        g.drawString(font, label, LABEL_X, y, LABEL_COLOR);
-        g.drawString(font, value, VALUE_X, y, valueColor);
+        g.drawString(font, fitMarketText(label, VALUE_X - LABEL_X - 4), LABEL_X, y, LABEL_COLOR);
+        drawMarketText(g, VALUE_X, y, value, valueColor);
     }
 
     private String formatOpinion(int opinion) {
@@ -1156,21 +1162,4 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         return entry.config().supportsFixedBuy() && entry.config().supportsFixedSell();
     }
 
-    private String fixedPriceLabel(BankMenu.MarketEntry entry) {
-        int batch = entry.config().minimumTradeSize();
-        StringBuilder label = new StringBuilder();
-        if (entry.config().supportsFixedBuy()) {
-            label.append("Buy: ").append(entry.config().fixedEmeraldAmount(TradeSide.BUY))
-                    .append(" emeralds -> ").append(batch).append(" ").append(entry.displayName());
-        }
-        if (entry.config().supportsFixedSell()) {
-            if (label.length() > 0) {
-                label.append("; ");
-            }
-            label.append("Sell: ").append(batch).append(" ").append(entry.displayName())
-                    .append(" -> ").append(entry.config().fixedEmeraldAmount(TradeSide.SELL))
-                    .append(" emeralds");
-        }
-        return label.toString();
-    }
 }
