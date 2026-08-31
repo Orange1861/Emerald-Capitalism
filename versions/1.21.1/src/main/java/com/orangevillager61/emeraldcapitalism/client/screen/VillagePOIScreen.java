@@ -232,7 +232,7 @@ public class VillagePOIScreen extends Screen {
                         REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
         farmlandResetBtn = addRenderableWidget(Button.builder(
-                Component.literal("Reset Cache"),
+                Component.literal("Reset List"),
                 btn -> resetVillageCache(SetVillageRepairPacket.FARMLAND))
                 .bounds(tableLeft + RESET_CACHE_BUTTON_X, repairRowOneY,
                         REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
@@ -244,7 +244,7 @@ public class VillagePOIScreen extends Screen {
                         REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
         doorResetBtn = addRenderableWidget(Button.builder(
-                Component.literal("Reset Cache"),
+                Component.literal("Reset List"),
                 btn -> resetVillageCache(SetVillageRepairPacket.DOORS))
                 .bounds(tableLeft + RESET_CACHE_BUTTON_X, repairRowOneY + ROW_HEIGHT,
                         REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
@@ -715,7 +715,7 @@ public class VillagePOIScreen extends Screen {
         graphics.drawString(font, "Doors", tableLeft, rowTwoY + 5, 0xFFFFFF);
         graphics.drawString(font, "Repair settings apply to this village only.", tableLeft,
                 rowTwoY + ROW_HEIGHT + 10, 0x888888);
-        graphics.drawString(font, "Reset Cache rebuilds the village's tracked block cache.", tableLeft,
+        graphics.drawString(font, "Reset List rebuilds the village's tracked block list.", tableLeft,
                 rowTwoY + ROW_HEIGHT + 22, 0x888888);
     }
 
