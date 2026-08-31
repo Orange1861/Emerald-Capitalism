@@ -71,6 +71,7 @@ public final class BankerWorkGoal extends Goal {
         return isEligible()
                 && context != null
                 && !failed
+                && context.bank().isBankIndependent()
                 && context.bank().isEmployee(villager.getUUID());
     }
 
@@ -130,7 +131,7 @@ public final class BankerWorkGoal extends Goal {
         }
 
         BankBlockEntity bank = BankEmployeeLookup.findEmployeeBank(level, villager);
-        if (bank == null) {
+        if (bank == null || !bank.isBankIndependent()) {
             return null;
         }
 

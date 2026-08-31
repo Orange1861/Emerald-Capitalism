@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.market.MarketPricingEngine;
 import com.orangevillager61.emeraldcapitalism.market.MarketRegistry;
 import com.orangevillager61.emeraldcapitalism.market.MarketTradeQuote;
 import com.orangevillager61.emeraldcapitalism.market.TradeSide;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerInventoryPolicy;
@@ -56,18 +57,17 @@ public final class VillagerInventoryBankGoal extends Goal {
                 || villager.isSleeping()
                 || villager.isTrading()
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                || level.getGameTime() < nextActionTick
-                || !isInventoryFull()
-                || !hasLiquidatableItems()) {
+                || level.getGameTime() < nextActionTick) {
             return false;
         }
 
         bank = BankEmployeeLookup.findVillageBank(level, villager);
-        if (bank == null) {
+        if (bank == null || !bank.isVillagerDeliveriesEnabled() || !isDeliveryModeEnabled()
+                || (!isInventoryFull() && !isLumberjackDelivery())) {
             return false;
         }
         BankAccountData.get(level).openAccount(villager.getUUID());
-        return true;
+        return hasLiquidatableItems();
     }
 
     @Override
@@ -108,7 +108,9 @@ public final class VillagerInventoryBankGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                && !bank.isRemoved();
+                && !bank.isRemoved()
+                && bank.isVillagerDeliveriesEnabled()
+                && isDeliveryModeEnabled();
     }
 
     @Override
@@ -153,7 +155,7 @@ public final class VillagerInventoryBankGoal extends Goal {
         boolean transferred = false;
         for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
             ItemStack held = villager.getInventory().getItem(slot);
-            if (held.isEmpty() || VillagerInventoryPolicy.isReservedForVillager(villager, held)) {
+            if (held.isEmpty() || !isDeliverableItem(held)) {
                 continue;
             }
 
@@ -224,11 +226,34 @@ public final class VillagerInventoryBankGoal extends Goal {
     private boolean hasLiquidatableItems() {
         for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
             ItemStack stack = villager.getInventory().getItem(slot);
-            if (!stack.isEmpty() && !VillagerInventoryPolicy.isReservedForVillager(villager, stack)) {
+            if (!stack.isEmpty() && isDeliverableItem(stack)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean isDeliveryModeEnabled() {
+        return bank != null && (bank.isRandomDeliveriesEnabled() || isLumberjackDelivery());
+    }
+
+    private boolean isLumberjackDelivery() {
+        return bank != null
+                && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.LUMBERJACK.get()
+                && bank.isLumberjackDeliveriesEnabled();
+    }
+
+    private boolean isDeliverableItem(ItemStack stack) {
+        if (VillagerInventoryPolicy.isReservedForVillager(villager, stack)
+                || bank == null
+                || (stack.is(net.minecraft.world.item.Items.BREAD)
+                && !bank.isBreadDeliveriesEnabled())) {
+            return false;
+        }
+        if (bank.isRandomDeliveriesEnabled()) {
+            return true;
+        }
+        return isLumberjackDelivery() && (stack.is(ItemTags.LOGS) || stack.is(ItemTags.COALS));
     }
 
     private boolean isInventoryFull() {

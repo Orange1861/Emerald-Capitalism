@@ -2,7 +2,9 @@ package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
+import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
+import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithGolemConstructionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherBankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherCombatGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherPickupGoal;
@@ -10,11 +12,14 @@ import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -362,6 +367,70 @@ public final class EmeraldSkrimisherGameTests {
         helper.assertTrue(helper.getLevel().getEntitiesOfClass(
                         EmeraldSkrimisher.class, new net.minecraft.world.phys.AABB(base).inflate(1.0D)).size() == 1,
                 "Skrimisher was not spawned at the construction site");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void emeraldSmithCraftsChestDuringSkrimisherConstruction(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos storagePos = helper.absolutePos(new BlockPos(1, 1, 2));
+        BlockPos processorPos = helper.absolutePos(new BlockPos(1, 1, 0));
+        BlockPos constructionPos = helper.absolutePos(new BlockPos(5, 1, 1));
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+        helper.setBlock(new BlockPos(1, 1, 0), ECAPBlocks.EMERALD_ORE_PROCESSOR.get().defaultBlockState());
+
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        EmeraldChestBlockEntity storage = (EmeraldChestBlockEntity) level.getBlockEntity(storagePos);
+        if (bank == null || storage == null) {
+            helper.fail("bank or emerald chest block entity was not created");
+            return;
+        }
+
+        UUID villageId = UUID.randomUUID();
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        registry.getOrCreateVillage(villageId, bankPos, new AABB(
+                bankPos.getX() - 8, bankPos.getY() - 2, bankPos.getZ() - 8,
+                bankPos.getX() + 8, bankPos.getY() + 2, bankPos.getZ() + 8));
+        registry.registerBankPosition(villageId, bankPos);
+        bank.setVillageId(villageId);
+        bank.setGolemConstructionPos(constructionPos);
+        storage.setItem(0, new ItemStack(Items.EMERALD, 17));
+        storage.setItem(1, new ItemStack(Items.CHEST));
+        storage.setItem(2, new ItemStack(Items.PUMPKIN));
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+
+        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        if (golem == null) {
+            helper.fail("could not create the completed emerald golem fixture");
+            return;
+        }
+        golem.moveTo(bankPos.getX() + 2.5D, bankPos.getY(), bankPos.getZ() + 0.5D,
+                0.0F, 0.0F);
+        level.addFreshEntity(golem);
+        bank.registerEmeraldGolemEmployee(golem.getUUID());
+
+        Villager smith = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.VILLAGER,
+                1, 1, 0);
+        smith.setVillagerData(smith.getVillagerData().setProfession(
+                ECAPVillagerProfessions.EMERALDSMITH.get()));
+        EmeraldSmithGolemConstructionGoal goal = new EmeraldSmithGolemConstructionGoal(smith);
+        helper.assertValueEqual(bank.getEmeraldSkrimisherLimit(level), 2,
+                "bank formula did not allow two Skrimishers for one live emerald golem");
+        helper.assertTrue(goal.canUse(),
+                "emerald smith did not select the post-golem Skrimisher construction task");
+        goal.start();
+        goal.tick();
+        goal.tick();
+
+        helper.assertValueEqual(bank.getMarketStock(level, Items.CHEST), 0,
+                "emerald smith did not consume the vanilla chest while crafting a Skrimisher chest");
+        helper.assertValueEqual(bank.getLiveEmeraldValue(level), 0,
+                "emerald smith did not consume the emerald chest recipe inputs");
+        helper.assertTrue(level.getBlockState(constructionPos).is(Blocks.EMERALD_BLOCK),
+                "emerald smith did not place the Skrimisher's emerald base");
+        goal.stop();
         helper.succeed();
     }
 

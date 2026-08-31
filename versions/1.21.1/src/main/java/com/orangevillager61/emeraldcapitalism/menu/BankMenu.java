@@ -24,6 +24,10 @@ public class BankMenu extends AbstractContainerMenu {
         }
     }
 
+    /** Server-authoritative employee row shown by the bank screen. */
+    public record EmployeeEntry(String name, String entityType, String profession) {
+    }
+
     /** Server-authoritative market snapshot sent with the bank menu. */
     public record MarketEntry(String id, String itemId, String displayName, int stock,
                               int population, int bankTarget, MarketItemConfig config) {
@@ -34,6 +38,7 @@ public class BankMenu extends AbstractContainerMenu {
     private final UUID viewerId;
     private int bankOpinion;
     private List<MarketEntry> marketEntries;
+    private BankMenuOpenData.ControlSettings controlSettings;
 
     /** Server-side constructor; display data is sent through the menu-open payload. */
     public BankMenu(int containerId, Inventory playerInventory, BankBlockEntity blockEntity,
@@ -43,6 +48,7 @@ public class BankMenu extends AbstractContainerMenu {
         this.viewerId = viewerId;
         this.bankOpinion = 0;
         this.marketEntries = List.of();
+        this.controlSettings = this.openData.controlSettings();
     }
 
     /** Client-side constructor for the server-authoritative open snapshot. */
@@ -52,6 +58,7 @@ public class BankMenu extends AbstractContainerMenu {
         this.viewerId = null;
         this.bankOpinion = openData.bankOpinion();
         this.marketEntries = openData.marketEntries();
+        this.controlSettings = openData.controlSettings();
     }
 
     @Override
@@ -179,6 +186,14 @@ public class BankMenu extends AbstractContainerMenu {
         return openData.accounts();
     }
 
+    public List<EmployeeEntry> getEmployees() {
+        return openData.employees();
+    }
+
+    public BankMenuOpenData.ControlSettings getControlSettings() {
+        return controlSettings;
+    }
+
     public List<MarketEntry> getMarketEntries() {
         return marketEntries;
     }
@@ -193,5 +208,9 @@ public class BankMenu extends AbstractContainerMenu {
     public void applyMarketData(List<MarketEntry> entries, int bankOpinion) {
         applyMarketEntries(entries);
         this.bankOpinion = bankOpinion;
+    }
+
+    public void applyControlSettings(BankMenuOpenData.ControlSettings settings) {
+        this.controlSettings = java.util.Objects.requireNonNull(settings, "settings");
     }
 }

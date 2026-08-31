@@ -125,6 +125,25 @@ class BankPersistedStateCodecTest {
     }
 
     @Test
+    void controlSettingsRoundTrip() {
+        BankBlockEntity.PersistedState source = new BankBlockEntity.PersistedState(
+                Optional.empty(), false, Optional.of(TAKEOVER_KILLER), "Bank",
+                List.of(), List.of(), List.of(), List.of(), 0,
+                Optional.empty(), Optional.empty(), Optional.empty(), 0L,
+                true, 12, 8, 17, false, false, false, true);
+
+        BankBlockEntity.PersistedState decoded = roundTrip(source);
+        assertTrue(decoded.manualTargets());
+        assertEquals(12, decoded.emeraldGolemTarget());
+        assertEquals(8, decoded.emeraldSkrimisherTarget());
+        assertEquals(17, decoded.foodDays());
+        assertFalse(decoded.villagerDeliveriesEnabled());
+        assertFalse(decoded.randomDeliveriesEnabled());
+        assertFalse(decoded.breadDeliveriesEnabled());
+        assertTrue(decoded.lumberjackDeliveriesEnabled());
+    }
+
+    @Test
     void takeoverKillerLockRoundTrips() {
         BankBlockEntity.PersistedState source = new BankBlockEntity.PersistedState(
                 Optional.of(VILLAGE_ID), true, Optional.empty(), "Bank",

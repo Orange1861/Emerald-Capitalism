@@ -15,8 +15,11 @@ import com.orangevillager61.emeraldcapitalism.network.MarketDataClientCache;
 import com.orangevillager61.emeraldcapitalism.network.MarketTradePacket;
 import com.orangevillager61.emeraldcapitalism.network.RenameBankPacket;
 import com.orangevillager61.emeraldcapitalism.network.SetBankControlPacket;
+import com.orangevillager61.emeraldcapitalism.network.SetBankSettingsPacket;
+import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ObjectSelectionList;
@@ -37,10 +40,12 @@ import java.util.UUID;
 /**
  * GUI screen for the Bank block.
  * <p>
- * Two tabs:
+ * Main tabs cover:
  * <ul>
  *   <li><b>Overview</b>: chest count, emerald totals, deposit queue, scrollable chest list</li>
  *   <li><b>Accounts</b>: scrollable list of villager accounts (name + balance)</li>
+ *   <li><b>Employees</b>: registered bank employees and their professions</li>
+ *   <li><b>Control</b>: bank targets and villager delivery settings</li>
  * </ul>
  * A rename button at the top-right allows renaming the bank.
  */
@@ -74,8 +79,10 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     // State
 
-    private enum Tab { OVERVIEW, ACCOUNTS, INVENTORY, MARKET }
+    private enum Tab { OVERVIEW, ACCOUNTS, EMPLOYEES, INVENTORY, CONTROL, MARKET }
     private Tab activeTab = Tab.OVERVIEW;
+    private enum ControlTab { TARGETS, DELIVERIES }
+    private ControlTab activeControlTab = ControlTab.TARGETS;
 
     /** Mutable bank name shown in title / rename box, updated optimistically on save. */
     private String displayBankName;
@@ -97,6 +104,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private List<BankPresentation.AccountRow> accountDisplayItems = List.of();
     private int accountQueuedCount = 0;
 
+    // Employees tab
+    private int employeeScrollOffset = 0;
+
     // Market tab
     private MarketItemList marketList;
     private EditBox marketQuantityBox;
@@ -113,6 +123,22 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private boolean marketUnavailable;
     private List<BankMenu.MarketEntry> lastMarketEntries = List.of();
     private List<BankMenu.MarketEntry> displayedMarketEntries = List.of();
+
+    // Control tab
+    private Button targetTabBtn;
+    private Button deliveriesTabBtn;
+    private Button targetModeBtn;
+    private Button targetSaveBtn;
+    private EditBox emeraldGolemTargetBox;
+    private EditBox emeraldSkrimisherTargetBox;
+    private EditBox foodDaysBox;
+    private TargetSlider emeraldGolemSlider;
+    private TargetSlider emeraldSkrimisherSlider;
+    private TargetSlider foodDaysSlider;
+    private Button villagerDeliveriesBtn;
+    private Button randomDeliveriesBtn;
+    private Button breadDeliveriesBtn;
+    private Button lumberjackDeliveriesBtn;
 
     // Cached content-top relative to panel top-left (computed in init)
     private int contentTopRel;
@@ -152,14 +178,19 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 .bounds(leftPos + PADDING + TAB_W + 4, tabRowY, TAB_W, TAB_H)
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Inventory"),
-                btn -> switchTab(Tab.INVENTORY))
+        addRenderableWidget(Button.builder(Component.literal("Employees"),
+                btn -> switchTab(Tab.EMPLOYEES))
                 .bounds(leftPos + PADDING + (TAB_W + 4) * 2, tabRowY, TAB_W, TAB_H)
                 .build());
 
-        controlBtn = addRenderableWidget(Button.builder(Component.literal("Claim Bank"),
-                btn -> onControlToggle())
+        addRenderableWidget(Button.builder(Component.literal("Inventory"),
+                btn -> switchTab(Tab.INVENTORY))
                 .bounds(leftPos + PADDING + (TAB_W + 4) * 3, tabRowY, TAB_W, TAB_H)
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Control"),
+                btn -> switchTab(Tab.CONTROL))
+                .bounds(leftPos + PADDING + (TAB_W + 4) * 4, tabRowY, TAB_W, TAB_H)
                 .build());
 
         int controlY = tabRowY + TAB_H + 3;
@@ -193,6 +224,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         buildChestLines();
         buildAccountDisplayItems();
         buildMarketWidgets();
+        buildControlWidgets();
         updateControlButton();
 
         int contentAbsTop = topPos + contentTopRel;
@@ -204,6 +236,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         this.activeTab = tab;
         overviewScrollOffset = 0;
         accountScrollOffset = 0;
+        employeeScrollOffset = 0;
         boolean marketVisible = tab == Tab.MARKET;
         if (marketList != null) marketList.visible = marketVisible;
         if (marketQuantityBox != null) marketQuantityBox.setVisible(marketVisible);
@@ -212,6 +245,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         if (marketConfirmBtn != null) marketConfirmBtn.visible = marketVisible;
         if (marketMinusBtn != null) marketMinusBtn.visible = marketVisible;
         if (marketPlusBtn != null) marketPlusBtn.visible = marketVisible;
+        updateControlWidgets();
         updateMarketControls();
     }
 
@@ -300,8 +334,12 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             renderOverviewTab(g, contentY);
         } else if (activeTab == Tab.ACCOUNTS) {
             renderAccountsTab(g, contentY);
+        } else if (activeTab == Tab.EMPLOYEES) {
+            renderEmployeesTab(g, contentY);
         } else if (activeTab == Tab.INVENTORY) {
             renderInventoryTab(g, contentY);
+        } else if (activeTab == Tab.CONTROL) {
+            renderControlTab(g, contentY);
         } else {
             renderMarketTab(g, contentY);
         }
@@ -311,6 +349,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     public void render(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         refreshMarketSnapshot();
         updateControlButton();
+        updateControlWidgets();
         updateMarketControls();
         super.render(g, mouseX, mouseY, partialTick);
         this.renderTooltip(g, mouseX, mouseY);
@@ -518,6 +557,74 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         g.drawString(font, footer, LABEL_X, footerY, 0x888888);
     }
 
+    // Employees tab
+
+    private void renderEmployeesTab(GuiGraphics g, int y) {
+        List<BankMenu.EmployeeEntry> employees = menu.getEmployees();
+        if (employees.isEmpty()) {
+            g.drawString(font, "No bank employees registered.", LABEL_X, y + 4, LABEL_COLOR);
+            return;
+        }
+
+        g.drawString(font, "Name", LABEL_X, y, TITLE_COLOR);
+        g.drawString(font, "Entity type", 145, y, TITLE_COLOR);
+        g.drawString(font, "Profession", 285, y, TITLE_COLOR);
+        y += font.lineHeight + 3;
+        g.fill(LABEL_X, y, imageWidth - PADDING, y + 1, SEP_COLOR);
+        y += 4;
+
+        int panelBottom = imageHeight - PADDING - font.lineHeight - 2;
+        int visibleCount = Math.min((panelBottom - y) / ROW_HEIGHT,
+                employees.size() - employeeScrollOffset);
+        for (int i = 0; i < visibleCount; i++) {
+            BankMenu.EmployeeEntry employee = employees.get(employeeScrollOffset + i);
+            int rowY = y + i * ROW_HEIGHT;
+            if (i % 2 == 0) {
+                g.fill(LABEL_X - 2, rowY - 1, imageWidth - PADDING, rowY + ROW_HEIGHT - 2,
+                        0x20FFFFFF);
+            }
+            g.drawString(font, fitMarketText(employee.name(), 132), LABEL_X + 2, rowY, LABEL_COLOR);
+            g.drawString(font, fitMarketText(employee.entityType(), 132), 145, rowY, LABEL_COLOR);
+            g.drawString(font, fitMarketText(employee.profession(), imageWidth - PADDING - 285),
+                    285, rowY, LABEL_COLOR);
+        }
+
+        if (employees.size() > visibleCount) {
+            int barX = imageWidth - PADDING - 4;
+            int barTop = y;
+            int barHeight = visibleCount * ROW_HEIGHT;
+            int thumbH = Math.max(8, barHeight * visibleCount / employees.size());
+            int thumbY = barTop + (barHeight - thumbH) * employeeScrollOffset
+                    / Math.max(1, employees.size() - visibleCount);
+            g.fill(barX, barTop, barX + 3, barTop + barHeight, 0x40FFFFFF);
+            g.fill(barX, thumbY, barX + 3, thumbY + thumbH, 0xAAFFFFFF);
+        }
+
+        String footer = employees.size() + " employee" + (employees.size() == 1 ? "" : "s");
+        g.drawString(font, footer, LABEL_X, imageHeight - PADDING - font.lineHeight, 0x888888);
+    }
+
+    // Control tab
+
+    private void renderControlTab(GuiGraphics g, int y) {
+        if (activeControlTab == ControlTab.TARGETS) {
+            g.drawString(font, "Manual target values can be typed into the fields.",
+                    LABEL_X, y + 133, LABEL_COLOR);
+            g.drawString(font, "Entity targets: 0-" + BankBlockEntity.MAX_MANUAL_ENTITY_TARGET
+                    + "; food days: 0-" + BankTargets.MAX_FOOD_DAYS + ".",
+                    LABEL_X, y + 146, LABEL_COLOR);
+        } else {
+            g.drawString(font, "Random deliveries cover ordinary market items.",
+                    LABEL_X, y + 92, LABEL_COLOR);
+            g.drawString(font, "Lumberjack deliveries also disable tree cutting.",
+                    LABEL_X, y + 105, LABEL_COLOR);
+        }
+        if (!canEditControl()) {
+            g.drawString(font, "Only the bank controller can change these settings.",
+                    LABEL_X, imageHeight - PADDING - font.lineHeight, WARN_COLOR);
+        }
+    }
+
     // Scrolling
 
     private void renderInventoryTab(GuiGraphics g, int y) {
@@ -715,6 +822,271 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         marketDonateBtn.visible = false;
         marketConfirmBtn.visible = false;
         lastMarketEntries = menu.getMarketEntries();
+    }
+
+    private void buildControlWidgets() {
+        int contentTop = topPos + contentTopRel;
+        int right = leftPos + imageWidth - PADDING;
+        int controlActionWidth = 100;
+        int targetControlsY = contentTop + 25;
+        int sliderX = leftPos + PADDING;
+        int inputX = sliderX + 270;
+
+        targetTabBtn = addRenderableWidget(Button.builder(Component.literal("Targets"),
+                btn -> switchControlTab(ControlTab.TARGETS))
+                .bounds(sliderX, contentTop, 68, TAB_H).build());
+        deliveriesTabBtn = addRenderableWidget(Button.builder(Component.literal("Deliveries"),
+                btn -> switchControlTab(ControlTab.DELIVERIES))
+                .bounds(sliderX + 72, contentTop, 82, TAB_H).build());
+        controlBtn = addRenderableWidget(Button.builder(Component.literal("Claim Bank"),
+                btn -> onControlToggle())
+                .bounds(right - controlActionWidth, contentTop, controlActionWidth, TAB_H).build());
+
+        targetModeBtn = addRenderableWidget(Button.builder(Component.literal("Automatic targets"),
+                btn -> onTargetModeToggle())
+                .bounds(sliderX, targetControlsY, 150, 20).build());
+        targetSaveBtn = addRenderableWidget(Button.builder(Component.literal("Save"),
+                btn -> onTargetSave())
+                .bounds(right - 60, targetControlsY, 60, 20).build());
+
+        emeraldGolemTargetBox = addTargetBox(inputX, targetControlsY + 26, "Golem target");
+        emeraldSkrimisherTargetBox = addTargetBox(inputX, targetControlsY + 54, "Skrimisher target");
+        foodDaysBox = addTargetBox(inputX, targetControlsY + 82, "Food days");
+        emeraldGolemSlider = addRenderableWidget(new TargetSlider(
+                sliderX, targetControlsY + 26, 258, 20, "Emerald golems",
+                0, BankBlockEntity.MAX_MANUAL_ENTITY_TARGET, menu.getExpectedEmeraldGolemCount(),
+                emeraldGolemTargetBox));
+        emeraldSkrimisherSlider = addRenderableWidget(new TargetSlider(
+                sliderX, targetControlsY + 54, 258, 20, "Emerald skrimishers",
+                0, BankBlockEntity.MAX_MANUAL_ENTITY_TARGET, menu.getEmeraldGolemCount() * 2,
+                emeraldSkrimisherTargetBox));
+        foodDaysSlider = addRenderableWidget(new TargetSlider(
+                sliderX, targetControlsY + 82, 258, 20, "Food days",
+                0, BankTargets.MAX_FOOD_DAYS, menu.getControlSettings().foodDays(), foodDaysBox));
+
+        int deliveryY = contentTop + 30;
+        villagerDeliveriesBtn = addDeliveryButton(sliderX, deliveryY, "Villager deliveries",
+                DeliverySetting.VILLAGER);
+        randomDeliveriesBtn = addDeliveryButton(sliderX + 194, deliveryY, "Random deliveries",
+                DeliverySetting.RANDOM);
+        breadDeliveriesBtn = addDeliveryButton(sliderX, deliveryY + 28, "Bread deliveries",
+                DeliverySetting.BREAD);
+        lumberjackDeliveriesBtn = addDeliveryButton(sliderX + 194, deliveryY + 28,
+                "Lumberjack deliveries", DeliverySetting.LUMBERJACK);
+
+        syncTargetControls();
+        updateControlWidgets();
+    }
+
+    private EditBox addTargetBox(int x, int y, String hint) {
+        EditBox box = addRenderableWidget(new EditBox(font, x, y, 55, 20, Component.literal(hint)));
+        box.setMaxLength(4);
+        return box;
+    }
+
+    private Button addDeliveryButton(int x, int y, String label, DeliverySetting setting) {
+        return addRenderableWidget(Button.builder(Component.literal(label),
+                btn -> toggleDelivery(setting))
+                .bounds(x, y, 186, 20).build());
+    }
+
+    private void switchControlTab(ControlTab tab) {
+        activeControlTab = tab;
+        updateControlWidgets();
+    }
+
+    private void updateControlWidgets() {
+        if (targetTabBtn == null) {
+            return;
+        }
+        boolean controlVisible = activeTab == Tab.CONTROL;
+        boolean targetsVisible = controlVisible && activeControlTab == ControlTab.TARGETS;
+        boolean deliveriesVisible = controlVisible && activeControlTab == ControlTab.DELIVERIES;
+        boolean editable = canEditControl();
+        BankMenuOpenData.ControlSettings settings = menu.getControlSettings();
+
+        targetTabBtn.visible = controlVisible;
+        deliveriesTabBtn.visible = controlVisible;
+        controlBtn.visible = controlVisible;
+        targetModeBtn.visible = targetsVisible;
+        targetSaveBtn.visible = targetsVisible;
+        emeraldGolemTargetBox.setVisible(targetsVisible);
+        emeraldSkrimisherTargetBox.setVisible(targetsVisible);
+        foodDaysBox.setVisible(targetsVisible);
+        emeraldGolemSlider.visible = targetsVisible;
+        emeraldSkrimisherSlider.visible = targetsVisible;
+        foodDaysSlider.visible = targetsVisible;
+        villagerDeliveriesBtn.visible = deliveriesVisible;
+        randomDeliveriesBtn.visible = deliveriesVisible;
+        breadDeliveriesBtn.visible = deliveriesVisible;
+        lumberjackDeliveriesBtn.visible = deliveriesVisible;
+
+        targetModeBtn.setMessage(Component.literal(settings.manualTargets()
+                ? "Manual targets" : "Automatic targets"));
+        targetModeBtn.active = editable;
+        targetSaveBtn.active = editable && settings.manualTargets();
+        emeraldGolemTargetBox.active = editable && settings.manualTargets();
+        emeraldSkrimisherTargetBox.active = editable && settings.manualTargets();
+        foodDaysBox.active = editable && settings.manualTargets();
+        emeraldGolemSlider.active = editable && settings.manualTargets();
+        emeraldSkrimisherSlider.active = editable && settings.manualTargets();
+        foodDaysSlider.active = editable && settings.manualTargets();
+
+        villagerDeliveriesBtn.setMessage(deliveryMessage("Villager deliveries",
+                settings.villagerDeliveriesEnabled()));
+        randomDeliveriesBtn.setMessage(deliveryMessage("Random deliveries",
+                settings.randomDeliveriesEnabled()));
+        breadDeliveriesBtn.setMessage(deliveryMessage("Bread deliveries",
+                settings.breadDeliveriesEnabled()));
+        lumberjackDeliveriesBtn.setMessage(deliveryMessage("Lumberjack deliveries",
+                settings.lumberjackDeliveriesEnabled()));
+        villagerDeliveriesBtn.active = editable;
+        randomDeliveriesBtn.active = editable;
+        breadDeliveriesBtn.active = editable;
+        lumberjackDeliveriesBtn.active = editable;
+    }
+
+    private Component deliveryMessage(String label, boolean enabled) {
+        return Component.literal(label + ": " + (enabled ? "ON" : "OFF"));
+    }
+
+    private boolean canEditControl() {
+        return minecraft != null && minecraft.player != null && !minecraft.player.isSpectator()
+                && menu.getControllerId() != null
+                && menu.getControllerId().equals(minecraft.player.getUUID());
+    }
+
+    private void onTargetModeToggle() {
+        if (!canEditControl()) {
+            return;
+        }
+        BankMenuOpenData.ControlSettings current = menu.getControlSettings();
+        boolean manual = !current.manualTargets();
+        int golemTarget = current.emeraldGolemTarget();
+        int skrimisherTarget = current.emeraldSkrimisherTarget();
+        if (manual && !current.manualTargets()) {
+            golemTarget = menu.getExpectedEmeraldGolemCount();
+            skrimisherTarget = Math.min(BankBlockEntity.MAX_MANUAL_ENTITY_TARGET,
+                    menu.getEmeraldGolemCount() * 2);
+        }
+        submitControlSettings(new BankMenuOpenData.ControlSettings(manual, golemTarget,
+                skrimisherTarget, current.foodDays(), current.villagerDeliveriesEnabled(),
+                current.randomDeliveriesEnabled(), current.breadDeliveriesEnabled(),
+                current.lumberjackDeliveriesEnabled()));
+    }
+
+    private void onTargetSave() {
+        if (!canEditControl() || !menu.getControlSettings().manualTargets()) {
+            return;
+        }
+        BankMenuOpenData.ControlSettings current = menu.getControlSettings();
+        int golemTarget = parseTarget(emeraldGolemTargetBox, current.emeraldGolemTarget(),
+                BankBlockEntity.MAX_MANUAL_ENTITY_TARGET);
+        int skrimisherTarget = parseTarget(emeraldSkrimisherTargetBox,
+                current.emeraldSkrimisherTarget(), BankBlockEntity.MAX_MANUAL_ENTITY_TARGET);
+        int foodDays = parseTarget(foodDaysBox, current.foodDays(), BankTargets.MAX_FOOD_DAYS);
+        submitControlSettings(new BankMenuOpenData.ControlSettings(true, golemTarget,
+                skrimisherTarget, foodDays, current.villagerDeliveriesEnabled(),
+                current.randomDeliveriesEnabled(), current.breadDeliveriesEnabled(),
+                current.lumberjackDeliveriesEnabled()));
+    }
+
+    private int parseTarget(EditBox box, int fallback, int max) {
+        try {
+            int value = Integer.parseInt(box.getValue().trim());
+            int clamped = Math.max(0, Math.min(max, value));
+            box.setValue(String.valueOf(clamped));
+            return clamped;
+        } catch (NumberFormatException ignored) {
+            box.setValue(String.valueOf(fallback));
+            return fallback;
+        }
+    }
+
+    private void toggleDelivery(DeliverySetting setting) {
+        if (!canEditControl()) {
+            return;
+        }
+        BankMenuOpenData.ControlSettings current = menu.getControlSettings();
+        boolean value = switch (setting) {
+            case VILLAGER -> !current.villagerDeliveriesEnabled();
+            case RANDOM -> !current.randomDeliveriesEnabled();
+            case BREAD -> !current.breadDeliveriesEnabled();
+            case LUMBERJACK -> !current.lumberjackDeliveriesEnabled();
+        };
+        submitControlSettings(new BankMenuOpenData.ControlSettings(current.manualTargets(),
+                current.emeraldGolemTarget(), current.emeraldSkrimisherTarget(), current.foodDays(),
+                setting == DeliverySetting.VILLAGER ? value : current.villagerDeliveriesEnabled(),
+                setting == DeliverySetting.RANDOM ? value : current.randomDeliveriesEnabled(),
+                setting == DeliverySetting.BREAD ? value : current.breadDeliveriesEnabled(),
+                setting == DeliverySetting.LUMBERJACK ? value : current.lumberjackDeliveriesEnabled()));
+    }
+
+    private void submitControlSettings(BankMenuOpenData.ControlSettings settings) {
+        if (!canEditControl()) {
+            return;
+        }
+        menu.applyControlSettings(settings);
+        syncTargetControls();
+        PacketDistributor.sendToServer(new SetBankSettingsPacket(menu.getBlockPos(), settings));
+        updateControlWidgets();
+    }
+
+    private void syncTargetControls() {
+        if (emeraldGolemSlider == null) {
+            return;
+        }
+        BankMenuOpenData.ControlSettings settings = menu.getControlSettings();
+        int golemTarget = settings.manualTargets()
+                ? settings.emeraldGolemTarget() : menu.getExpectedEmeraldGolemCount();
+        int skrimisherTarget = settings.manualTargets()
+                ? settings.emeraldSkrimisherTarget()
+                : Math.min(BankBlockEntity.MAX_MANUAL_ENTITY_TARGET, menu.getEmeraldGolemCount() * 2);
+        emeraldGolemSlider.setIntegerValue(golemTarget);
+        emeraldSkrimisherSlider.setIntegerValue(skrimisherTarget);
+        foodDaysSlider.setIntegerValue(settings.foodDays());
+    }
+
+    private enum DeliverySetting { VILLAGER, RANDOM, BREAD, LUMBERJACK }
+
+    private final class TargetSlider extends AbstractSliderButton {
+        private final String label;
+        private final int min;
+        private final int max;
+        private final EditBox input;
+
+        private TargetSlider(int x, int y, int width, int height, String label,
+                             int min, int max, int initial, EditBox input) {
+            super(x, y, width, height, Component.literal(label),
+                    (double) (Math.max(min, Math.min(max, initial)) - min)
+                            / Math.max(1, max - min));
+            this.label = label;
+            this.min = min;
+            this.max = max;
+            this.input = input;
+            updateMessage();
+        }
+
+        @Override
+        protected void updateMessage() {
+            setMessage(Component.literal(label + ": " + integerValue()));
+        }
+
+        @Override
+        protected void applyValue() {
+            input.setValue(String.valueOf(integerValue()));
+        }
+
+        private int integerValue() {
+            return min + (int) Math.round(value * (max - min));
+        }
+
+        private void setIntegerValue(int target) {
+            int clamped = Math.max(min, Math.min(max, target));
+            value = (double) (clamped - min) / Math.max(1, max - min);
+            updateMessage();
+            input.setValue(String.valueOf(clamped));
+        }
     }
 
     private void refreshMarketSnapshot() {
@@ -964,6 +1336,11 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         if (activeTab == Tab.ACCOUNTS && !accountDisplayItems.isEmpty()) {
             accountScrollOffset = Math.max(0,
                     Math.min(accountScrollOffset - (int) scrollY, accountDisplayItems.size() - 1));
+            return true;
+        }
+        if (activeTab == Tab.EMPLOYEES && !menu.getEmployees().isEmpty()) {
+            employeeScrollOffset = Math.max(0,
+                    Math.min(employeeScrollOffset - (int) scrollY, menu.getEmployees().size() - 1));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);

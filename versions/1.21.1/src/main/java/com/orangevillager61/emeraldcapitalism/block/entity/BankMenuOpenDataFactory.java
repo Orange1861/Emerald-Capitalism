@@ -4,12 +4,16 @@ import com.orangevillager61.emeraldcapitalism.menu.BankMenu;
 import com.orangevillager61.emeraldcapitalism.menu.BankMenuOpenData;
 import com.orangevillager61.emeraldcapitalism.market.MarketItem;
 import com.orangevillager61.emeraldcapitalism.market.MarketRegistry;
+import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,6 +44,7 @@ final class BankMenuOpenDataFactory {
                 new BankMenuOpenData.Targets(
                         bank.getPumpkinTarget(), bank.getBreadTarget(),
                         bank.getPlankTarget(), bank.getCoalTarget()),
+                bank.getControlSettings(),
                 new BankMenuOpenData.Totals(
                         bank.getTotalEmeraldCount(), bank.getTotalEmeraldOreCount(),
                         bank.getTotalPumpkinCount(), bank.getTotalWheatCount(),
@@ -50,6 +55,7 @@ final class BankMenuOpenDataFactory {
                         .limit(BankMenuOpenData.MAX_CHEST_POSITIONS)
                         .toList(),
                 buildAccountsList(bank),
+                buildEmployees(bank),
                 buildMarketEntries(bank)
         );
     }
@@ -139,5 +145,51 @@ final class BankMenuOpenDataFactory {
         }
         entries.sort(Comparator.comparing(BankMenu.AccountEntry::name));
         return List.copyOf(entries);
+    }
+
+    private static List<BankMenu.EmployeeEntry> buildEmployees(BankBlockEntity bank) {
+        if (!(bank.getLevel() instanceof ServerLevel serverLevel)) {
+            return List.of();
+        }
+
+        ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
+        VillageRecord village = bank.getVillageId() == null || overworld == null
+                ? null
+                : VillageRegistryData.get(overworld).getVillages().get(bank.getVillageId());
+        List<BankMenu.EmployeeEntry> entries = new ArrayList<>();
+        for (UUID employeeId : bank.getEmployeeIds()) {
+            if (entries.size() >= BankMenuOpenData.MAX_EMPLOYEE_ENTRIES) {
+                return List.copyOf(entries);
+            }
+            Entity entity = serverLevel.getEntity(employeeId);
+            if (entity instanceof Villager villager) {
+                entries.add(new BankMenu.EmployeeEntry(
+                        villager.getName().getString(), "Villager", professionName(villager)));
+                continue;
+            }
+
+            VillagerPOIRecord record = village == null ? null : village.getMembers().get(employeeId);
+            entries.add(new BankMenu.EmployeeEntry(
+                    record == null ? "Unloaded villager" : record.getDisplayName(),
+                    "Villager", record == null ? "Unknown" : record.getProfession()));
+        }
+
+        for (UUID employeeId : bank.getEmeraldGolemEmployeeIds()) {
+            if (entries.size() >= BankMenuOpenData.MAX_EMPLOYEE_ENTRIES) {
+                break;
+            }
+            Entity entity = serverLevel.getEntity(employeeId);
+            String entityType = entity instanceof EmeraldSkrimisher
+                    ? "Emerald Skrimisher" : "Emerald Golem";
+            String name = entity == null ? entityType : entity.getName().getString();
+            entries.add(new BankMenu.EmployeeEntry(name, entityType, "—"));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static String professionName(Villager villager) {
+        var professionId = BuiltInRegistries.VILLAGER_PROFESSION
+                .getKey(villager.getVillagerData().getProfession());
+        return professionId == null ? "Unknown" : professionId.getPath();
     }
 }

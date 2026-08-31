@@ -13,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerLevel;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -89,6 +90,8 @@ public record SetBankControlPacket(BlockPos bankPos, boolean independent)
                     VillagePOIDataCache.invalidateVillage(village.getVillageId());
                 }
             }
+            PacketDistributor.sendToPlayer(player,
+                    new BankControlDataPacket(packet.bankPos(), bank.getControlSettings()));
             player.sendSystemMessage(Component.literal(packet.independent()
                     ? "[ECAP] Bank is now independent."
                     : "[ECAP] You now control this bank."));

@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.market.MarketDemandSource;
 import com.orangevillager61.emeraldcapitalism.market.MarketItemConfig;
 import com.orangevillager61.emeraldcapitalism.market.MarketMetric;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
+import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
@@ -24,14 +25,17 @@ public record BankMenuOpenData(
         int bankOpinion,
         EntityCounts entityCounts,
         Targets targets,
+        ControlSettings controlSettings,
         Totals totals,
         int chestCount,
         List<BlockPos> chestPositions,
         List<BankMenu.AccountEntry> accounts,
+        List<BankMenu.EmployeeEntry> employees,
         List<BankMenu.MarketEntry> marketEntries
 ) {
     public static final int MAX_CHEST_POSITIONS = 64;
     public static final int MAX_ACCOUNT_ENTRIES = 256;
+    public static final int MAX_EMPLOYEE_ENTRIES = 4096;
     public static final int MAX_MARKET_ENTRIES = 256;
 
     public BankMenuOpenData {
@@ -40,17 +44,21 @@ public record BankMenuOpenData(
         villageName = Objects.requireNonNull(villageName, "villageName");
         entityCounts = Objects.requireNonNull(entityCounts, "entityCounts");
         targets = Objects.requireNonNull(targets, "targets");
+        controlSettings = Objects.requireNonNull(controlSettings, "controlSettings");
         totals = Objects.requireNonNull(totals, "totals");
         chestPositions = List.copyOf(chestPositions);
         accounts = List.copyOf(accounts);
+        employees = List.copyOf(employees);
         marketEntries = List.copyOf(marketEntries);
     }
 
     public static BankMenuOpenData empty(BlockPos blockPos) {
         return new BankMenuOpenData(blockPos, "", null, "", true, null, 0,
                 new EntityCounts(0, 0, 0, 0), new Targets(0, 0, 0, 0),
+                new ControlSettings(false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS,
+                        true, true, true, false),
                 new Totals(0, 0, 0, 0, 0, 0, 0, 0), 0,
-                List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of());
     }
 
     public static void write(FriendlyByteBuf buf, BankMenuOpenData data) {
@@ -86,6 +94,8 @@ public record BankMenuOpenData(
         buf.writeVarInt(targets.plank());
         buf.writeVarInt(targets.coal());
 
+        writeControlSettings(buf, data.controlSettings());
+
         Totals totals = data.totals();
         buf.writeVarInt(totals.emerald());
         buf.writeVarInt(totals.emeraldOre());
@@ -99,6 +109,7 @@ public record BankMenuOpenData(
 
         writePositions(buf, data.chestPositions(), MAX_CHEST_POSITIONS);
         writeAccounts(buf, data.accounts());
+        writeEmployees(buf, data.employees());
         int marketCount = Math.min(data.marketEntries().size(), MAX_MARKET_ENTRIES);
         buf.writeVarInt(marketCount);
         for (int i = 0; i < marketCount; i++) {
@@ -119,19 +130,37 @@ public record BankMenuOpenData(
         EntityCounts entityCounts = new EntityCounts(
                 buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
         Targets targets = new Targets(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
+        ControlSettings controlSettings = readControlSettings(buf);
         Totals totals = new Totals(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                 buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
         int chestCount = buf.readVarInt();
         List<BlockPos> chestPositions = readPositions(buf, "chest positions", MAX_CHEST_POSITIONS);
         List<BankMenu.AccountEntry> accounts = readAccounts(buf);
+        List<BankMenu.EmployeeEntry> employees = readEmployees(buf);
         int marketCount = readCount(buf, "market entries", MAX_MARKET_ENTRIES);
         List<BankMenu.MarketEntry> marketEntries = new ArrayList<>(marketCount);
         for (int i = 0; i < marketCount; i++) {
             marketEntries.add(readMarketEntry(buf));
         }
         return new BankMenuOpenData(blockPos, bankName, villageId, villageName,
-                bankIndependent, controllerId, bankOpinion, entityCounts, targets, totals,
-                chestCount, chestPositions, accounts, marketEntries);
+                bankIndependent, controllerId, bankOpinion, entityCounts, targets, controlSettings, totals,
+                chestCount, chestPositions, accounts, employees, marketEntries);
+    }
+
+    public static void writeControlSettings(FriendlyByteBuf buf, ControlSettings settings) {
+        buf.writeBoolean(settings.manualTargets());
+        buf.writeVarInt(settings.emeraldGolemTarget());
+        buf.writeVarInt(settings.emeraldSkrimisherTarget());
+        buf.writeVarInt(settings.foodDays());
+        buf.writeBoolean(settings.villagerDeliveriesEnabled());
+        buf.writeBoolean(settings.randomDeliveriesEnabled());
+        buf.writeBoolean(settings.breadDeliveriesEnabled());
+        buf.writeBoolean(settings.lumberjackDeliveriesEnabled());
+    }
+
+    public static ControlSettings readControlSettings(FriendlyByteBuf buf) {
+        return new ControlSettings(buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
+                buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean());
     }
 
     public static void writeMarketEntry(FriendlyByteBuf buf,
@@ -233,6 +262,30 @@ public record BankMenuOpenData(
         return List.copyOf(accounts);
     }
 
+    private static void writeEmployees(FriendlyByteBuf buf,
+                                       List<BankMenu.EmployeeEntry> employees) {
+        int count = Math.min(employees.size(), MAX_EMPLOYEE_ENTRIES);
+        buf.writeVarInt(count);
+        for (int i = 0; i < count; i++) {
+            BankMenu.EmployeeEntry entry = employees.get(i);
+            buf.writeUtf(clamp(entry.name(), ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH),
+                    ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH);
+            buf.writeUtf(clamp(entry.entityType(), 64), 64);
+            buf.writeUtf(clamp(entry.profession(), 64), 64);
+        }
+    }
+
+    private static List<BankMenu.EmployeeEntry> readEmployees(FriendlyByteBuf buf) {
+        int count = readCount(buf, "employee entries", MAX_EMPLOYEE_ENTRIES);
+        List<BankMenu.EmployeeEntry> employees = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            employees.add(new BankMenu.EmployeeEntry(
+                    buf.readUtf(ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH),
+                    buf.readUtf(64), buf.readUtf(64)));
+        }
+        return List.copyOf(employees);
+    }
+
     private static int readCount(FriendlyByteBuf buf,
                                  String description, int max) {
         int count = buf.readVarInt();
@@ -251,6 +304,21 @@ public record BankMenuOpenData(
     }
 
     public record Targets(int pumpkin, int bread, int plank, int coal) {
+    }
+
+    public record ControlSettings(boolean manualTargets, int emeraldGolemTarget,
+                                  int emeraldSkrimisherTarget, int foodDays,
+                                  boolean villagerDeliveriesEnabled,
+                                  boolean randomDeliveriesEnabled,
+                                  boolean breadDeliveriesEnabled,
+                                  boolean lumberjackDeliveriesEnabled) {
+        public ControlSettings {
+            if (emeraldGolemTarget < 0 || emeraldGolemTarget > 4096
+                    || emeraldSkrimisherTarget < 0 || emeraldSkrimisherTarget > 4096
+                    || foodDays < 0 || foodDays > BankTargets.MAX_FOOD_DAYS) {
+                throw new IllegalArgumentException("Bank control target is outside its valid range");
+            }
+        }
     }
 
     public record Totals(int emerald, int emeraldOre, int pumpkin, int wheat,

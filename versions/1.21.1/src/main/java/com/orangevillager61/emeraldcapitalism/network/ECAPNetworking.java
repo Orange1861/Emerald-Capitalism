@@ -103,6 +103,18 @@ public final class ECAPNetworking {
                 SetBankControlPacket::handle
         );
 
+        // Client → Server: update settings for a bank controlled by the sender
+        registrar.playToServer(
+                SetBankSettingsPacket.TYPE,
+                SetBankSettingsPacket.STREAM_CODEC,
+                SetBankSettingsPacket::handle
+        );
+        registrar.playToClient(
+                BankControlDataPacket.TYPE,
+                BankControlDataPacket.STREAM_CODEC,
+                BankControlDataPacket::handle
+        );
+
         // Client → Server: rename a bank
         registrar.playToServer(
                 RenameBankPacket.TYPE,

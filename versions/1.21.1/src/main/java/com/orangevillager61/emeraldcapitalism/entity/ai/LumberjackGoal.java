@@ -322,7 +322,14 @@ public final class LumberjackGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                && lumberjackCuttingEnabled(level)
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
+    }
+
+    private boolean lumberjackCuttingEnabled(ServerLevel level) {
+        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+        return bank == null || !bank.isVillagerDeliveriesEnabled()
+                || !bank.isLumberjackDeliveriesEnabled();
     }
 
     private boolean isDepositPending(ServerLevel level) {

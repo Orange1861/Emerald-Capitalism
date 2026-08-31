@@ -56,6 +56,8 @@ public final class BankPumpkinDepositGoal extends Goal {
 
         WorkContext resolved = resolveContext(level);
         return resolved != null
+                && resolved.bank().isVillagerDeliveriesEnabled()
+                && resolved.bank().isRandomDeliveriesEnabled()
                 && resolved.bank().getTotalPumpkinCount() < resolved.bank().getPumpkinTarget()
                 && hasPendingTask();
     }
@@ -99,6 +101,8 @@ public final class BankPumpkinDepositGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                && context.bank().isVillagerDeliveriesEnabled()
+                && context.bank().isRandomDeliveriesEnabled()
                 && context.bank().isEmployee(villager.getUUID());
     }
 

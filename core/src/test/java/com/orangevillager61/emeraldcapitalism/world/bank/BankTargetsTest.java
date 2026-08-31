@@ -56,6 +56,14 @@ class BankTargetsTest {
     }
 
     @Test
+    void foodDaysScaleBreadReserveAndTradeQuantities() {
+        assertEquals(30, BankTargets.breadTarget(2, 5));
+        assertEquals(60, BankTargets.breadTarget(2, 10));
+        assertEquals(60, BankTargets.breadPurchaseQuantity(0, 10));
+        assertEquals(40, BankTargets.breadSaleQuantity(100, 10));
+    }
+
+    @Test
     void coalTargetUsesBaseReservePlusEmeraldOreCount() {
         assertEquals(192, BankTargets.coalTarget(0));
         assertEquals(197, BankTargets.coalTarget(5));

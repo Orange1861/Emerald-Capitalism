@@ -30,10 +30,14 @@ class BankMenuOpenDataCodecTest {
                 false, UUID.fromString("22222222-2222-2222-2222-222222222222"), -17,
                 new BankMenuOpenData.EntityCounts(2, 3, 1, 4),
                 new BankMenuOpenData.Targets(5, 6, 7, 8),
+                new BankMenuOpenData.ControlSettings(true, 12, 7, 9,
+                        true, false, true, true),
                 new BankMenuOpenData.Totals(9, 10, 11, 12, 13, 14, 15, 16), 4,
                 List.of(new BlockPos(1, 2, 3), new BlockPos(-4, 5, 6)),
                 List.of(new BankMenu.AccountEntry("Alice", 42, 0),
                         new BankMenu.AccountEntry("Bob", -3, -1)),
+                List.of(new BankMenu.EmployeeEntry("Alice", "Villager", "Farmer"),
+                        new BankMenu.EmployeeEntry("Emerald Golem", "Emerald Golem", "—")),
                 List.of(
                         new BankMenu.MarketEntry("dynamic", "minecraft:bread", "Bread", 19,
                                 10, 1, dynamic),
@@ -55,8 +59,10 @@ class BankMenuOpenDataCodecTest {
                 BlockPos.ZERO, "Independent", null, "", true, null, 0,
                 new BankMenuOpenData.EntityCounts(0, 0, 0, 0),
                 new BankMenuOpenData.Targets(0, 0, 0, 0),
+                new BankMenuOpenData.ControlSettings(false, 0, 0, 5,
+                        true, true, true, false),
                 new BankMenuOpenData.Totals(0, 0, 0, 0, 0, 0, 0, 0), 0,
-                List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of());
 
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
         BankMenuOpenData.write(buffer, source);
@@ -70,6 +76,8 @@ class BankMenuOpenDataCodecTest {
                 () -> BankMenuOpenData.read(bankBuffer(-1, 0, 0)));
         assertThrows(IllegalArgumentException.class,
                 () -> BankMenuOpenData.read(bankBuffer(0, BankMenuOpenData.MAX_ACCOUNT_ENTRIES + 1, 0)));
+        assertThrows(IllegalArgumentException.class,
+                () -> BankMenuOpenData.read(employeeBuffer(BankMenuOpenData.MAX_EMPLOYEE_ENTRIES + 1)));
         assertThrows(IllegalArgumentException.class,
                 () -> BankMenuOpenData.read(bankBuffer(0, 0, -1)));
         assertThrows(IllegalArgumentException.class,
@@ -100,6 +108,7 @@ class BankMenuOpenDataCodecTest {
         if (chestCount == 0) {
             buffer.writeVarInt(accountCount);
             if (accountCount == 0) {
+                buffer.writeVarInt(0);
                 buffer.writeVarInt(marketCount);
             }
         }
@@ -108,6 +117,7 @@ class BankMenuOpenDataCodecTest {
 
     private static FriendlyByteBuf marketBuffer(String demandSource, String metric) {
         FriendlyByteBuf buffer = bankPrefix();
+        buffer.writeVarInt(0);
         buffer.writeVarInt(0);
         buffer.writeVarInt(0);
         buffer.writeVarInt(1);
@@ -137,6 +147,14 @@ class BankMenuOpenDataCodecTest {
         return buffer;
     }
 
+    private static FriendlyByteBuf employeeBuffer(int employeeCount) {
+        FriendlyByteBuf buffer = bankPrefix();
+        buffer.writeVarInt(0);
+        buffer.writeVarInt(0);
+        buffer.writeVarInt(employeeCount);
+        return buffer;
+    }
+
     private static FriendlyByteBuf bankPrefix() {
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
         buffer.writeBlockPos(BlockPos.ZERO);
@@ -145,7 +163,18 @@ class BankMenuOpenDataCodecTest {
         buffer.writeBoolean(true);
         buffer.writeBoolean(false);
         buffer.writeInt(0);
-        for (int i = 0; i < 4 + 4 + 8; i++) {
+        for (int i = 0; i < 4 + 4; i++) {
+            buffer.writeVarInt(0);
+        }
+        buffer.writeBoolean(false);
+        buffer.writeVarInt(0);
+        buffer.writeVarInt(0);
+        buffer.writeVarInt(5);
+        buffer.writeBoolean(true);
+        buffer.writeBoolean(true);
+        buffer.writeBoolean(true);
+        buffer.writeBoolean(false);
+        for (int i = 0; i < 8; i++) {
             buffer.writeVarInt(0);
         }
         buffer.writeVarInt(0);

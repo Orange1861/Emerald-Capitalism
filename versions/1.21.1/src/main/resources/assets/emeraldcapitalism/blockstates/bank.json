@@ -1,17 +1,32 @@
 {
   "variants": {
-    "facing=east": {
+    "facing=east,banker_available=true": {
       "model": "emeraldcapitalism:block/bank",
       "y": 90
     },
-    "facing=north": {
+    "facing=east,banker_available=false": {
+      "model": "emeraldcapitalism:block/bank",
+      "y": 90
+    },
+    "facing=north,banker_available=true": {
       "model": "emeraldcapitalism:block/bank"
     },
-    "facing=south": {
+    "facing=north,banker_available=false": {
+      "model": "emeraldcapitalism:block/bank"
+    },
+    "facing=south,banker_available=true": {
       "model": "emeraldcapitalism:block/bank",
       "y": 180
     },
-    "facing=west": {
+    "facing=south,banker_available=false": {
+      "model": "emeraldcapitalism:block/bank",
+      "y": 180
+    },
+    "facing=west,banker_available=true": {
+      "model": "emeraldcapitalism:block/bank",
+      "y": 270
+    },
+    "facing=west,banker_available=false": {
       "model": "emeraldcapitalism:block/bank",
       "y": 270
     }

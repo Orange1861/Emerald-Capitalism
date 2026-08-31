@@ -30,6 +30,7 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import org.jetbrains.annotations.NotNull;
 
@@ -54,6 +55,8 @@ public class BankBlock extends BaseEntityBlock {
 
     public static final MapCodec<BankBlock> CODEC = simpleCodec(BankBlock::new);
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
+    /** Controlled banks stop exposing their block state as an acquirable banker POI. */
+    public static final BooleanProperty BANKER_AVAILABLE = BooleanProperty.create("banker_available");
 
     /**
      * Bank side convention, using Minecraft's named cardinal directions
@@ -104,7 +107,9 @@ public class BankBlock extends BaseEntityBlock {
 
     public BankBlock(Properties properties) {
         super(properties);
-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
+        this.registerDefaultState(this.stateDefinition.any()
+                .setValue(FACING, Direction.NORTH)
+                .setValue(BANKER_AVAILABLE, true));
     }
 
     @Override
@@ -114,7 +119,13 @@ public class BankBlock extends BaseEntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
+        builder.add(FACING, BANKER_AVAILABLE);
+    }
+
+    /** Returns this bank state with the dynamic banker job-site flag applied. */
+    public static BlockState withBankerJobAvailability(BlockState state, boolean available) {
+        return state.hasProperty(BANKER_AVAILABLE)
+                ? state.setValue(BANKER_AVAILABLE, available) : state;
     }
 
     @Override

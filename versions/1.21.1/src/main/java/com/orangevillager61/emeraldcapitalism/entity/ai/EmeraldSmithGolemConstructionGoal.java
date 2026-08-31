@@ -7,7 +7,6 @@ import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
-import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
@@ -530,7 +529,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             return false;
         }
 
-        int storedBlocks = Math.min(requiredBlocks, context.bank().getTotalEmeraldBlockCount());
+        int storedBlocks = Math.min(requiredBlocks,
+                context.bank().getMarketStock(level, Items.EMERALD_BLOCK));
         int blocksToCraft = requiredBlocks - storedBlocks;
 
         emeraldBlocks = storedBlocks > 0
@@ -572,9 +572,9 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         if (!withdrawAndCraftEmeraldBlocks(level, 1)) {
             return false;
         }
-        emeraldChest = context.bank().withdrawExactItem(level, ECAPItems.EMERALD_CHEST.get(), 1);
+        emeraldChest = context.bank().craftEmeraldChest(level);
         if (emeraldChest.isEmpty()) {
-            failureReason = "failed to withdraw an emerald chest for Skrimisher construction";
+            failureReason = "failed to craft an emerald chest for Skrimisher construction";
             return false;
         }
         return true;

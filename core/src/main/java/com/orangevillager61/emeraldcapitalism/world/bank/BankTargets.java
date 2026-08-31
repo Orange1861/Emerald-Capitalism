@@ -15,6 +15,7 @@ public final class BankTargets {
     public static final int INTERNAL_BREAD_DAYS = 5;
     public static final int BREAD_PER_VILLAGER = BREAD_PER_DAY * INTERNAL_BREAD_DAYS;
     public static final int BREAD_TRADE_TARGET = BREAD_PER_VILLAGER * 2;
+    public static final int MAX_FOOD_DAYS = 64;
     public static final int BASE_COAL_TARGET = 192;
     public static final int COAL_PER_EMERALD_ORE = 1;
 
@@ -56,25 +57,52 @@ public final class BankTargets {
 
     /** Returns five days of bread per villager, clamped to a valid item count. */
     public static int breadTarget(int villagerCount) {
+        return breadTarget(villagerCount, INTERNAL_BREAD_DAYS);
+    }
+
+    /** Returns the configured number of days of bread per villager. */
+    public static int breadTarget(int villagerCount, int foodDays) {
         int safeVillagerCount = Math.max(0, villagerCount);
-        if (safeVillagerCount > Integer.MAX_VALUE / BREAD_PER_VILLAGER) {
+        int safeFoodDays = Math.max(0, Math.min(MAX_FOOD_DAYS, foodDays));
+        long breadPerVillager = (long) BREAD_PER_DAY * safeFoodDays;
+        long target = breadPerVillager * safeVillagerCount;
+        if (target >= Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
         }
-        return safeVillagerCount * BREAD_PER_VILLAGER;
+        return (int) target;
     }
 
     /** Returns the amount needed to fill a villager to twice their bread target, or zero. */
     public static int breadPurchaseQuantity(int currentBread) {
+        return breadPurchaseQuantity(currentBread, INTERNAL_BREAD_DAYS);
+    }
+
+    /** Returns the amount needed to fill a villager to twice their configured bread target. */
+    public static int breadPurchaseQuantity(int currentBread, int foodDays) {
         int safeCurrentBread = Math.max(0, currentBread);
-        return safeCurrentBread < BREAD_PER_VILLAGER
-                ? BREAD_TRADE_TARGET - safeCurrentBread : 0;
+        int breadPerVillager = breadPerVillager(foodDays);
+        long target = (long) breadPerVillager * 2;
+        return safeCurrentBread < breadPerVillager
+                ? (int) Math.max(0, target - safeCurrentBread) : 0;
     }
 
     /** Returns the amount a villager may sell to reach twice their target, or zero. */
     public static int breadSaleQuantity(int currentBread) {
+        return breadSaleQuantity(currentBread, INTERNAL_BREAD_DAYS);
+    }
+
+    /** Returns the amount a villager may sell to reach twice their configured target. */
+    public static int breadSaleQuantity(int currentBread, int foodDays) {
         int safeCurrentBread = Math.max(0, currentBread);
-        return (long) safeCurrentBread * 2 >= (long) BREAD_PER_VILLAGER * 5
-                ? Math.max(0, safeCurrentBread - BREAD_TRADE_TARGET) : 0;
+        int breadPerVillager = breadPerVillager(foodDays);
+        return (long) safeCurrentBread * 2 >= (long) breadPerVillager * 5
+                ? Math.max(0, safeCurrentBread - breadPerVillager * 2) : 0;
+    }
+
+    /** Returns bread needed for one villager for the configured number of days. */
+    public static int breadPerVillager(int foodDays) {
+        int safeFoodDays = Math.max(0, Math.min(MAX_FOOD_DAYS, foodDays));
+        return BREAD_PER_DAY * safeFoodDays;
     }
 
     /** Returns the coal-and-charcoal reserve target: {@code 192 + emerald ore}. */

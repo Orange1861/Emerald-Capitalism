@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
+import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
@@ -111,6 +112,16 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     /** Display name of this bank (e.g. "Bank 1"). Empty string means not yet assigned. */
     private String bankName = "";
 
+    /** Player-configurable control settings. Automatic targets are the default. */
+    private boolean manualTargets;
+    private int emeraldGolemTarget;
+    private int emeraldSkrimisherTarget;
+    private int foodDays = BankTargets.INTERNAL_BREAD_DAYS;
+    private boolean villagerDeliveriesEnabled = true;
+    private boolean randomDeliveriesEnabled = true;
+    private boolean breadDeliveriesEnabled = true;
+    private boolean lumberjackDeliveriesEnabled;
+
     /**
      * Cached emerald-chest positions inside the search volume, in insertion order.
      * Insertion order is used as the "registration order" for chest deposit.
@@ -172,6 +183,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Safety bound for the durable guard-assignment list. */
     public static final int MAX_PERSISTED_GOLEM_EMPLOYEES = 4096;
+    /** Bounds for player-controlled target settings received from the bank screen. */
+    public static final int MAX_MANUAL_ENTITY_TARGET = MAX_PERSISTED_GOLEM_EMPLOYEES;
 
     /** Villagers assigned to this Bank, in the order they were registered. */
     private final LinkedHashSet<UUID> employeeIds = new LinkedHashSet<>();
@@ -212,14 +225,23 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             Optional<BlockPos> composterPos,
             Optional<BlockPos> golemConstructionPos,
             Optional<UUID> takeoverLockPlayer,
-            long takeoverLockUntil
+            long takeoverLockUntil,
+            boolean manualTargets,
+            int emeraldGolemTarget,
+            int emeraldSkrimisherTarget,
+            int foodDays,
+            boolean villagerDeliveriesEnabled,
+            boolean randomDeliveriesEnabled,
+            boolean breadDeliveriesEnabled,
+            boolean lumberjackDeliveriesEnabled
     ) {
         PersistedState(Optional<UUID> villageId, String bankName, List<UUID> employeeIds,
                        List<UUID> jobEmployeeIds, List<UUID> emeraldGolemEmployeeIds,
                        Optional<BlockPos> composterPos, Optional<BlockPos> golemConstructionPos) {
             this(villageId, true, Optional.empty(), bankName, employeeIds, jobEmployeeIds,
                     emeraldGolemEmployeeIds, List.of(), 0, composterPos, golemConstructionPos,
-                    Optional.empty(), 0L);
+                    Optional.empty(), 0L, false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS,
+                    true, true, true, false);
         }
 
         PersistedState(Optional<UUID> villageId, boolean bankIndependent, Optional<UUID> controllerId,
@@ -229,7 +251,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                        long takeoverLockUntil) {
             this(villageId, bankIndependent, controllerId, bankName, employeeIds, jobEmployeeIds,
                     emeraldGolemEmployeeIds, List.of(), 0, composterPos, golemConstructionPos,
-                    takeoverLockPlayer, takeoverLockUntil);
+                    takeoverLockPlayer, takeoverLockUntil, false, 0, 0,
+                    BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false);
         }
 
         private static final Codec<String> BANK_NAME_CODEC = Codec.STRING.validate(name ->
@@ -271,7 +294,26 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 UUIDUtil.CODEC.optionalFieldOf("takeover_lock_player")
                         .forGetter(PersistedState::takeoverLockPlayer),
                 Codec.LONG.optionalFieldOf("takeover_lock_until", 0L)
-                        .forGetter(PersistedState::takeoverLockUntil)
+                        .forGetter(PersistedState::takeoverLockUntil),
+                Codec.BOOL.optionalFieldOf("manual_targets", false)
+                        .forGetter(PersistedState::manualTargets),
+                Codec.intRange(0, MAX_MANUAL_ENTITY_TARGET)
+                        .optionalFieldOf("emerald_golem_target", 0)
+                        .forGetter(PersistedState::emeraldGolemTarget),
+                Codec.intRange(0, MAX_MANUAL_ENTITY_TARGET)
+                        .optionalFieldOf("emerald_skrimisher_target", 0)
+                        .forGetter(PersistedState::emeraldSkrimisherTarget),
+                Codec.intRange(0, BankTargets.MAX_FOOD_DAYS)
+                        .optionalFieldOf("food_days", BankTargets.INTERNAL_BREAD_DAYS)
+                        .forGetter(PersistedState::foodDays),
+                Codec.BOOL.optionalFieldOf("villager_deliveries_enabled", true)
+                        .forGetter(PersistedState::villagerDeliveriesEnabled),
+                Codec.BOOL.optionalFieldOf("random_deliveries_enabled", true)
+                        .forGetter(PersistedState::randomDeliveriesEnabled),
+                Codec.BOOL.optionalFieldOf("bread_deliveries_enabled", true)
+                        .forGetter(PersistedState::breadDeliveriesEnabled),
+                Codec.BOOL.optionalFieldOf("lumberjack_deliveries_enabled", false)
+                        .forGetter(PersistedState::lumberjackDeliveriesEnabled)
         ).apply(instance, PersistedState::new));
 
         PersistedState {
@@ -313,12 +355,18 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 takeoverLockPlayer = Optional.empty();
                 takeoverLockUntil = 0L;
             }
+            emeraldGolemTarget = Math.max(0,
+                    Math.min(MAX_MANUAL_ENTITY_TARGET, emeraldGolemTarget));
+            emeraldSkrimisherTarget = Math.max(0,
+                    Math.min(MAX_MANUAL_ENTITY_TARGET, emeraldSkrimisherTarget));
+            foodDays = Math.max(0, Math.min(BankTargets.MAX_FOOD_DAYS, foodDays));
         }
 
         static PersistedState empty() {
             return new PersistedState(
                     Optional.empty(), true, Optional.empty(), "", List.of(), List.of(), List.of(),
-                    List.of(), 0, Optional.empty(), Optional.empty(), Optional.empty(), 0L);
+                    List.of(), 0, Optional.empty(), Optional.empty(), Optional.empty(), 0L,
+                    false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false);
         }
 
         static PersistedState from(BankBlockEntity bank) {
@@ -335,7 +383,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     Optional.ofNullable(bank.composterPos),
                     Optional.ofNullable(bank.golemConstructionPos),
                     Optional.ofNullable(bank.takeoverLockPlayer),
-                    bank.takeoverLockUntil);
+                    bank.takeoverLockUntil, bank.manualTargets,
+                    bank.emeraldGolemTarget, bank.emeraldSkrimisherTarget, bank.foodDays,
+                    bank.villagerDeliveriesEnabled, bank.randomDeliveriesEnabled,
+                    bank.breadDeliveriesEnabled, bank.lumberjackDeliveriesEnabled);
         }
 
         void applyTo(BankBlockEntity bank) {
@@ -356,6 +407,14 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             bank.golemConstructionPos = golemConstructionPos.orElse(null);
             bank.takeoverLockPlayer = takeoverLockPlayer.orElse(null);
             bank.takeoverLockUntil = takeoverLockUntil;
+            bank.manualTargets = manualTargets;
+            bank.emeraldGolemTarget = emeraldGolemTarget;
+            bank.emeraldSkrimisherTarget = emeraldSkrimisherTarget;
+            bank.foodDays = foodDays;
+            bank.villagerDeliveriesEnabled = villagerDeliveriesEnabled;
+            bank.randomDeliveriesEnabled = randomDeliveriesEnabled;
+            bank.breadDeliveriesEnabled = breadDeliveriesEnabled;
+            bank.lumberjackDeliveriesEnabled = lumberjackDeliveriesEnabled;
         }
 
         private static <T> List<T> copyUniqueAtMost(List<T> values, int maxSize) {
@@ -1042,6 +1101,35 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return new ItemStack(item, amount);
     }
 
+    /**
+     * Crafts one Emerald Chest from one vanilla chest and the eight emeralds
+     * required by its recipe. The inputs are withdrawn from linked storage so
+     * an Emeraldsmith can craft the chest as part of a Skrimisher build.
+     */
+    public ItemStack craftEmeraldChest(ServerLevel level) {
+        int emeraldCost = EmeraldOreProcessorBlockEntity.EMERALDS_PER_CHEST;
+        if (getMarketStock(level, Items.CHEST) < 1
+                || getLiveEmeraldValue(level) < emeraldCost) {
+            return ItemStack.EMPTY;
+        }
+
+        ItemStack chestMaterials = withdrawExactItem(level, Items.CHEST, 1);
+        if (chestMaterials.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        if (!withdrawFromLinkedChests(level, emeraldCost)) {
+            // Withdrawing the chest created the capacity needed to restore it;
+            // do not consume the vanilla chest when the emerald transaction fails.
+            if (!storeItemInLinkedChests(level, chestMaterials)) {
+                EmeraldCapitalism.LOGGER.error(
+                        "[ECAP/Bank] Could not restore a vanilla chest after Emerald Chest crafting failed at {}",
+                        worldPosition);
+            }
+            return ItemStack.EMPTY;
+        }
+        return new ItemStack(ECAPItems.EMERALD_CHEST.get());
+    }
+
     /** Withdraws ordinary stocked Emerald Chest items without touching repair reserves. */
     private ItemStack withdrawEmeraldChestItems(ServerLevel level, int amount) {
         int available = 0;
@@ -1436,7 +1524,71 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the target emerald-golem count based on physical chest reserves. */
     public int getExpectedEmeraldGolemCount() {
-        return EmeraldGolemCalculator.calculate(totalEmeraldCount);
+        return manualTargets ? emeraldGolemTarget : EmeraldGolemCalculator.calculate(totalEmeraldCount);
+    }
+
+    public boolean hasManualTargets() {
+        return manualTargets;
+    }
+
+    public int getManualEmeraldGolemTarget() {
+        return emeraldGolemTarget;
+    }
+
+    public int getManualEmeraldSkrimisherTarget() {
+        return emeraldSkrimisherTarget;
+    }
+
+    public int getFoodDays() {
+        return foodDays;
+    }
+
+    public boolean isVillagerDeliveriesEnabled() {
+        return villagerDeliveriesEnabled;
+    }
+
+    public boolean isRandomDeliveriesEnabled() {
+        return randomDeliveriesEnabled;
+    }
+
+    public boolean isBreadDeliveriesEnabled() {
+        return breadDeliveriesEnabled;
+    }
+
+    public boolean isLumberjackDeliveriesEnabled() {
+        return lumberjackDeliveriesEnabled;
+    }
+
+    /** Returns the validated control settings shown by the bank screen. */
+    public BankMenuOpenData.ControlSettings getControlSettings() {
+        return new BankMenuOpenData.ControlSettings(manualTargets, emeraldGolemTarget,
+                emeraldSkrimisherTarget, foodDays, villagerDeliveriesEnabled,
+                randomDeliveriesEnabled, breadDeliveriesEnabled, lumberjackDeliveriesEnabled);
+    }
+
+    /** Applies server-validated player settings and marks the block entity dirty. */
+    public boolean setControlSettings(BankMenuOpenData.ControlSettings settings) {
+        Objects.requireNonNull(settings, "settings");
+        if (manualTargets == settings.manualTargets()
+                && emeraldGolemTarget == settings.emeraldGolemTarget()
+                && emeraldSkrimisherTarget == settings.emeraldSkrimisherTarget()
+                && foodDays == settings.foodDays()
+                && villagerDeliveriesEnabled == settings.villagerDeliveriesEnabled()
+                && randomDeliveriesEnabled == settings.randomDeliveriesEnabled()
+                && breadDeliveriesEnabled == settings.breadDeliveriesEnabled()
+                && lumberjackDeliveriesEnabled == settings.lumberjackDeliveriesEnabled()) {
+            return false;
+        }
+        manualTargets = settings.manualTargets();
+        emeraldGolemTarget = settings.emeraldGolemTarget();
+        emeraldSkrimisherTarget = settings.emeraldSkrimisherTarget();
+        foodDays = settings.foodDays();
+        villagerDeliveriesEnabled = settings.villagerDeliveriesEnabled();
+        randomDeliveriesEnabled = settings.randomDeliveriesEnabled();
+        breadDeliveriesEnabled = settings.breadDeliveriesEnabled();
+        lumberjackDeliveriesEnabled = settings.lumberjackDeliveriesEnabled();
+        setChanged();
+        return true;
     }
 
     /** Returns the internal pumpkin stock target from at least one expected golem. */
@@ -1444,7 +1596,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return BankTargets.pumpkinTarget(Math.max(1, getExpectedEmeraldGolemCount()));
     }
 
-    /** Returns the internal bread stock target: five days of bread per registered village villager. */
+    /** Returns the configured bread stock target per registered village villager. */
     public int getBreadTarget() {
         Level level = getLevel();
         if (!(level instanceof ServerLevel serverLevel) || villageId == null) {
@@ -1452,7 +1604,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         }
 
         VillageRecord village = VillageRegistryData.get(serverLevel).getVillages().get(villageId);
-        return village == null ? 0 : BankTargets.breadTarget(village.getMembers().size());
+        return village == null ? 0 : BankTargets.breadTarget(village.getMembers().size(), foodDays);
     }
 
     /** Returns the coal-and-charcoal reserve target for this bank. */
@@ -1512,7 +1664,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the skirmisher limit, which is twice the live emerald-golem count. */
     public int getEmeraldSkrimisherLimit(ServerLevel level) {
-        return BankTargets.emeraldSkrimisherLimit(getEmeraldGolemCount());
+        return manualTargets ? emeraldSkrimisherTarget
+                : BankTargets.emeraldSkrimisherLimit(getEmeraldGolemCount());
     }
 
     /** Returns whether a linked chest currently contains at least one matching item. */
@@ -1591,7 +1744,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         UUID villagerId = villager.getUUID();
         boolean changed = false;
 
-        if (jobSitePos.equals(worldPosition) && jobState.is(ECAPBlocks.BANK.get())) {
+        if (jobSitePos.equals(worldPosition) && jobState.is(ECAPBlocks.BANK.get())
+                && jobState.getValue(BankBlock.BANKER_AVAILABLE)) {
             changed |= addEmployee(villagerId, true);
         } else if (isOwnedProcessor(jobSitePos, jobState)) {
             changed |= addEmployee(villagerId, true);
@@ -1893,8 +2047,22 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             bankIndependent = false;
             controllerId = playerId;
         }
+        updateBankerJobSiteState();
         setChanged();
         return true;
+    }
+
+    /** Keeps the POI state synchronized with the durable independent/controller flag. */
+    private void updateBankerJobSiteState() {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        BlockState currentState = serverLevel.getBlockState(worldPosition);
+        BlockState desiredState = BankBlock.withBankerJobAvailability(
+                currentState, bankIndependent);
+        if (currentState != desiredState) {
+            serverLevel.setBlock(worldPosition, desiredState, 3);
+        }
     }
 
     public void autoDetectVillage() {
@@ -1918,6 +2086,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         }
         LOADED_BANKS.computeIfAbsent(serverLevel,
                 ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(this);
+        updateBankerJobSiteState();
         if (villageId == null) {
             return;
         }
@@ -2199,9 +2368,12 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 && golemConstructionPos != null
                 && getRegisteredEmeraldGolemCount() >= getExpectedEmeraldGolemCount()
                 && getEmeraldSkrimisherCount(level) < getEmeraldSkrimisherLimit(level)
-                && (totalEmeraldBlockCount >= 1 || totalEmeraldCount >= 9)
+                // One emerald block forms the base and the chest recipe costs
+                // eight more emeralds, for seventeen emerald-value in total.
+                && getLiveEmeraldValue(level) >= (9
+                + EmeraldOreProcessorBlockEntity.EMERALDS_PER_CHEST)
                 && totalPumpkinCount >= 1
-                && hasStoredItem(level, ECAPItems.EMERALD_CHEST.get());
+                && getMarketStock(level, Items.CHEST) >= 1;
     }
 
     /** Acquires the single construction slot for a server-side Emeraldsmith. */
