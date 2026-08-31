@@ -34,12 +34,25 @@ public class VillagerPOIRecord {
     }
 
     private static final int MAX_STATUS_NAME_LENGTH = 8;
+    private static final float MAX_PERSISTED_HEALTH = 1_000.0F;
+    private static final int MAX_PERSISTED_DEPARTURE_COUNTER = 1_000_000;
+    private static final long MAX_PERSISTED_GAME_TIME = 1_000_000_000_000L;
     private static final Codec<Status> STATUS_CODEC = boundedStringCodec(
             MAX_STATUS_NAME_LENGTH, "Villager status").xmap(Status::fromString, Status::name);
     private static final Codec<String> DISPLAY_NAME_CODEC = boundedStringCodec(
             ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH, "Villager display name");
     private static final Codec<String> PROFESSION_CODEC = boundedStringCodec(
             ProtocolStringLimits.MAX_PROFESSION_LABEL_LENGTH, "Villager profession");
+    private static final Codec<Float> HEALTH_CODEC = Codec.FLOAT.validate(value ->
+            Float.isFinite(value) && value >= 0.0F && value <= MAX_PERSISTED_HEALTH
+                    ? DataResult.success(value)
+                    : DataResult.error(() -> "Villager health is outside the supported range"));
+    private static final Codec<Integer> DEPARTURE_COUNTER_CODEC =
+            Codec.intRange(0, MAX_PERSISTED_DEPARTURE_COUNTER);
+    private static final Codec<Long> GAME_TIME_CODEC = Codec.LONG.validate(value ->
+            value >= 0L && value <= MAX_PERSISTED_GAME_TIME
+                    ? DataResult.success(value)
+                    : DataResult.error(() -> "Villager verification time is outside the supported range"));
 
     /** Codec for the durable portion of a villager's village POI record. */
     public static final Codec<VillagerPOIRecord> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -54,10 +67,12 @@ public class VillagerPOIRecord {
                     .forGetter(record -> Optional.ofNullable(record.jobSitePos)),
             net.minecraft.core.UUIDUtil.CODEC.optionalFieldOf("family_id")
                     .forGetter(record -> Optional.ofNullable(record.familyId)),
-            Codec.FLOAT.optionalFieldOf("health", 0.0F).forGetter(VillagerPOIRecord::getHealth),
+            HEALTH_CODEC.optionalFieldOf("health", 0.0F).forGetter(VillagerPOIRecord::getHealth),
             STATUS_CODEC.optionalFieldOf("status", Status.ACTIVE).forGetter(VillagerPOIRecord::getStatus),
-            Codec.INT.optionalFieldOf("departure_counter", 0).forGetter(VillagerPOIRecord::getDepartureCounter),
-            Codec.LONG.optionalFieldOf("last_verified_tick", 0L).forGetter(VillagerPOIRecord::getLastVerifiedTick)
+            DEPARTURE_COUNTER_CODEC.optionalFieldOf("departure_counter", 0)
+                    .forGetter(VillagerPOIRecord::getDepartureCounter),
+            GAME_TIME_CODEC.optionalFieldOf("last_verified_tick", 0L)
+                    .forGetter(VillagerPOIRecord::getLastVerifiedTick)
     ).apply(instance, VillagerPOIRecord::fromCodec));
 
     private static Codec<String> boundedStringCodec(int maxLength, String description) {
@@ -94,11 +109,11 @@ public class VillagerPOIRecord {
         this.bedPos = bedPos;
         this.jobSitePos = jobSitePos;
         this.familyId = familyId;
-        this.health = health;
+        this.health = requireHealth(health);
         this.opinionOfPlayer = 0;
-        this.status = status;
-        this.departureCounter = departureCounter;
-        this.lastVerifiedTick = lastVerifiedTick;
+        this.status = java.util.Objects.requireNonNull(status, "status");
+        this.departureCounter = requireDepartureCounter(departureCounter);
+        this.lastVerifiedTick = requireGameTime(lastVerifiedTick);
     }
 
     private static VillagerPOIRecord fromCodec(
@@ -202,7 +217,7 @@ public class VillagerPOIRecord {
     }
 
     public void setHealth(float health) {
-        this.health = health;
+        this.health = requireHealth(health);
     }
 
     /** Sets the viewer-specific reputation used by the current ledger snapshot. */
@@ -229,15 +244,36 @@ public class VillagerPOIRecord {
     }
 
     public void setStatus(Status status) {
-        this.status = status;
+        this.status = java.util.Objects.requireNonNull(status, "status");
     }
 
     public void setDepartureCounter(int departureCounter) {
-        this.departureCounter = departureCounter;
+        this.departureCounter = requireDepartureCounter(departureCounter);
     }
 
     public void setLastVerifiedTick(long lastVerifiedTick) {
-        this.lastVerifiedTick = lastVerifiedTick;
+        this.lastVerifiedTick = requireGameTime(lastVerifiedTick);
+    }
+
+    private static float requireHealth(float value) {
+        if (!Float.isFinite(value) || value < 0.0F || value > MAX_PERSISTED_HEALTH) {
+            throw new IllegalArgumentException("Villager health is outside the supported range");
+        }
+        return value;
+    }
+
+    private static int requireDepartureCounter(int value) {
+        if (value < 0 || value > MAX_PERSISTED_DEPARTURE_COUNTER) {
+            throw new IllegalArgumentException("Villager departure counter is outside the supported range");
+        }
+        return value;
+    }
+
+    private static long requireGameTime(long value) {
+        if (value < 0L || value > MAX_PERSISTED_GAME_TIME) {
+            throw new IllegalArgumentException("Villager verification time is outside the supported range");
+        }
+        return value;
     }
 
     // NBT Serialization

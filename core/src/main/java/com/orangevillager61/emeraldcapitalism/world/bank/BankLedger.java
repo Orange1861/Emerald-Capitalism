@@ -8,6 +8,11 @@ import java.util.UUID;
 
 /** Platform-free bank accounts and durable bank-name sequencing. */
 public final class BankLedger {
+    /** Keeps persisted balances and arithmetic within a deliberately bounded domain. */
+    public static final int MIN_BALANCE = -1_000_000_000;
+    public static final int MAX_BALANCE = 1_000_000_000;
+    public static final int MAX_BANK_NUMBER = 2_000_000_000;
+
     private final Map<UUID, Integer> balances = new HashMap<>();
     private int nextBankNumber = 1;
 
@@ -18,8 +23,8 @@ public final class BankLedger {
         Objects.requireNonNull(balances, "balances");
         balances.forEach((uuid, balance) -> this.balances.put(
                 Objects.requireNonNull(uuid, "balance uuid"),
-                Objects.requireNonNull(balance, "balance")));
-        this.nextBankNumber = Math.max(1, nextBankNumber);
+                requireBalance(balance)));
+        this.nextBankNumber = normalizeNextBankNumber(nextBankNumber);
     }
 
     public boolean openAccount(UUID uuid) {
@@ -43,12 +48,12 @@ public final class BankLedger {
 
     public void deposit(UUID uuid, int amount) {
         requireAccountMutation(uuid, amount);
-        balances.merge(uuid, amount, Integer::sum);
+        balances.compute(uuid, (account, balance) -> checkedBalanceChange(balance, amount));
     }
 
     public void withdraw(UUID uuid, int amount) {
         requireAccountMutation(uuid, amount);
-        balances.merge(uuid, -amount, Integer::sum);
+        balances.compute(uuid, (account, balance) -> checkedBalanceChange(balance, -amount));
     }
 
     public Map<UUID, Integer> balances() {
@@ -60,9 +65,32 @@ public final class BankLedger {
     }
 
     public String generateBankName() {
+        if (nextBankNumber >= MAX_BANK_NUMBER) {
+            throw new IllegalStateException("Bank name sequence exhausted");
+        }
         String name = "Bank " + nextBankNumber;
         nextBankNumber++;
         return name;
+    }
+
+    private static int checkedBalanceChange(int currentBalance, int change) {
+        long updated = (long) currentBalance + change;
+        if (updated < MIN_BALANCE || updated > MAX_BALANCE) {
+            throw new IllegalStateException("Bank balance would exceed the supported range");
+        }
+        return (int) updated;
+    }
+
+    private static int requireBalance(Integer balance) {
+        Objects.requireNonNull(balance, "balance");
+        if (balance < MIN_BALANCE || balance > MAX_BALANCE) {
+            throw new IllegalArgumentException("Bank balance is outside the supported range");
+        }
+        return balance;
+    }
+
+    private static int normalizeNextBankNumber(int value) {
+        return value < 1 || value > MAX_BANK_NUMBER ? 1 : value;
     }
 
     private void requireAccountMutation(UUID uuid, int amount) {

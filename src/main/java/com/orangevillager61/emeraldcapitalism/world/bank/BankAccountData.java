@@ -1,7 +1,11 @@
 package com.orangevillager61.emeraldcapitalism.world.bank;
 
+import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
+import com.mojang.serialization.Decoder;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.Encoder;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import net.minecraft.core.HolderLookup;
@@ -14,8 +18,11 @@ import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -36,13 +43,54 @@ public class BankAccountData extends SavedData {
     private record AccountEntry(UUID uuid, int balance) {
         private static final Codec<AccountEntry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 UUIDUtil.CODEC.fieldOf("uuid").forGetter(AccountEntry::uuid),
-                Codec.INT.fieldOf("balance").forGetter(AccountEntry::balance)
+                Codec.intRange(BankLedger.MIN_BALANCE, BankLedger.MAX_BALANCE)
+                        .fieldOf("balance").forGetter(AccountEntry::balance)
         ).apply(instance, AccountEntry::new));
     }
 
+    /** Keeps valid accounts when one persisted account entry is malformed. */
+    private static final Codec<List<AccountEntry>> ACCOUNTS_CODEC = Codec.of(
+            new Encoder<>() {
+                @Override
+                public <T> DataResult<T> encode(List<AccountEntry> input, DynamicOps<T> ops, T prefix) {
+                    return AccountEntry.CODEC.sizeLimitedListOf(MAX_PERSISTED_ACCOUNTS)
+                            .encode(input, ops, prefix);
+                }
+            },
+            new Decoder<>() {
+                @Override
+                public <T> DataResult<Pair<List<AccountEntry>, T>> decode(DynamicOps<T> ops, T input) {
+                    return ops.getStream(input).flatMap(elements -> {
+                        List<T> encodedAccounts = elements.limit((long) MAX_PERSISTED_ACCOUNTS + 1).toList();
+                        if (encodedAccounts.size() > MAX_PERSISTED_ACCOUNTS) {
+                            return DataResult.error(() -> "Bank account data exceeds "
+                                    + MAX_PERSISTED_ACCOUNTS + " persisted accounts");
+                        }
+
+                        List<AccountEntry> accounts = new ArrayList<>();
+                        Set<UUID> seen = new HashSet<>();
+                        for (T element : encodedAccounts) {
+                            AccountEntry.CODEC.parse(ops, element)
+                                    .resultOrPartial(message -> EmeraldCapitalism.LOGGER.warn(
+                                            "[ECAP] Skipping corrupt bank account entry: {}", message))
+                                    .ifPresent(account -> {
+                                        if (seen.add(account.uuid())) {
+                                            accounts.add(account);
+                                        } else {
+                                            EmeraldCapitalism.LOGGER.warn(
+                                                    "[ECAP] Skipping duplicate bank account entry for {}", account.uuid());
+                                        }
+                                    });
+                        }
+                        return DataResult.success(Pair.of(accounts, ops.empty()));
+                    });
+                }
+            }
+    );
+
     /** Codec for durable bank balances and the bank-name sequence. */
     public static final Codec<BankAccountData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            AccountEntry.CODEC.sizeLimitedListOf(MAX_PERSISTED_ACCOUNTS)
+            ACCOUNTS_CODEC
                     .optionalFieldOf("accounts", List.of())
                     .forGetter(BankAccountData::accountEntries),
             Codec.INT.optionalFieldOf("next_bank_number", 1)
@@ -60,9 +108,12 @@ public class BankAccountData extends SavedData {
     }
 
     private static BankAccountData fromCodec(List<AccountEntry> accounts, int nextBankNumber) {
-        Map<UUID, Integer> balances = new java.util.HashMap<>();
+        Map<UUID, Integer> balances = new HashMap<>();
         for (AccountEntry account : accounts) {
-            balances.put(account.uuid(), account.balance());
+            if (balances.putIfAbsent(account.uuid(), account.balance()) != null) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Ignoring duplicate bank account for {} while constructing ledger", account.uuid());
+            }
         }
         return new BankAccountData(new BankLedger(balances, nextBankNumber));
     }

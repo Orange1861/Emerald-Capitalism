@@ -36,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -185,6 +186,11 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
                 return; // Entity not yet loaded: skip
             }
 
+            if (bank.getVillageId() != null && !villageId.equals(bank.getVillageId())) {
+                deregisterBank();
+                return;
+            }
+
             populateDepositQueue(level, village, bank);
         }
     }
@@ -246,10 +252,22 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
      * village members who do not already have one.
      */
     public void registerBank(BlockPos pos) {
+        Objects.requireNonNull(pos, "pos");
+        Level lvl = getLevel();
+        if (lvl instanceof ServerLevel serverLevel && villageId != null) {
+            BlockEntity bankBE = serverLevel.getBlockEntity(pos);
+            if (bankBE instanceof BankBlockEntity bank
+                    && bank.getVillageId() != null
+                    && !villageId.equals(bank.getVillageId())) {
+                throw new IllegalStateException("Cannot register a bank assigned to another village");
+            }
+        }
+        if (bankPos != null && !bankPos.equals(pos)) {
+            deregisterBank();
+        }
         this.bankPos = pos.immutable();
         setChanged();
 
-        Level lvl = getLevel();
         if (!(lvl instanceof ServerLevel serverLevel) || villageId == null) return;
 
         VillageRecord village = VillageRegistryData.get(serverLevel).getVillages().get(villageId);
@@ -283,10 +301,7 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
                 getBlockPos(), pos);
     }
 
-    /**
-     * Deregisters the bank from this VM. Does NOT clear the bank entity's queue
-     * (the bank entity handles that when it receives the deregistration signal).
-     */
+    /** Deregisters the bank from this VM and clears a matching bank's village link. */
     public void deregisterBank() {
         if (bankPos == null) return;
 
@@ -296,6 +311,9 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
             BlockEntity be = serverLevel.getBlockEntity(bankPos);
             if (be instanceof BankBlockEntity bank) {
                 bank.clearQueue();
+                if (Objects.equals(bank.getVillageId(), villageId)) {
+                    bank.setVillageId(null);
+                }
             }
         }
 
@@ -325,7 +343,26 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
     }
 
     public void setVillageId(@Nullable UUID villageId) {
+        if (Objects.equals(this.villageId, villageId)) {
+            return;
+        }
+
+        UUID previousVillageId = this.villageId;
+        if (bankPos != null) {
+            // A bank link is scoped to the old village. Clear it before changing
+            // the ID so a later periodic scan cannot debit the wrong village.
+            deregisterBank();
+        }
+
+        Level lvl = getLevel();
+        if (lvl instanceof ServerLevel serverLevel && previousVillageId != null) {
+            VillageRegistryData.get(serverLevel).deregisterVillageManager(previousVillageId, getBlockPos());
+        }
+
         this.villageId = villageId;
+        if (lvl instanceof ServerLevel serverLevel && villageId != null) {
+            VillageRegistryData.get(serverLevel).registerVillageManager(villageId, getBlockPos());
+        }
         setChanged();
     }
 
@@ -366,10 +403,11 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
      */
     @Override
     public void setRemoved() {
+        deregisterBank();
         super.setRemoved();
         Level lvl = getLevel();
         if (lvl instanceof ServerLevel serverLevel && !lvl.isClientSide() && villageId != null) {
-            VillageRegistryData.get(serverLevel).deregisterVillageManager(villageId);
+            VillageRegistryData.get(serverLevel).deregisterVillageManager(villageId, getBlockPos());
         }
     }
 

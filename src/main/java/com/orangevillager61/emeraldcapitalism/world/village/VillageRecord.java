@@ -44,6 +44,8 @@ public class VillageRecord {
     /** Number of blocks added on each side when shrinking the box to fit: one chunk. */
     private static final int BOUNDARY_MARGIN = 16;
     private static final int INITIAL_SCAN_PREFETCH_WINDOW = 4;
+    private static final double MAX_PERSISTED_COORDINATE = 30_000_000.0D;
+    private static final double MAX_PERSISTED_BOUNDING_EXTENT = 1_000_000.0D;
 
     /** Default welcome message shown when a player enters the village. */
     public static final String DEFAULT_WELCOME_MESSAGE = "Welcome to our village!";
@@ -88,6 +90,19 @@ public class VillageRecord {
                         || !Double.isFinite(bounds.minZ()) || !Double.isFinite(bounds.maxX())
                         || !Double.isFinite(bounds.maxY()) || !Double.isFinite(bounds.maxZ())) {
                     return DataResult.error(() -> "AABB coordinates must be finite");
+                }
+                if (Math.abs(bounds.minX()) > MAX_PERSISTED_COORDINATE
+                        || Math.abs(bounds.minY()) > MAX_PERSISTED_COORDINATE
+                        || Math.abs(bounds.minZ()) > MAX_PERSISTED_COORDINATE
+                        || Math.abs(bounds.maxX()) > MAX_PERSISTED_COORDINATE
+                        || Math.abs(bounds.maxY()) > MAX_PERSISTED_COORDINATE
+                        || Math.abs(bounds.maxZ()) > MAX_PERSISTED_COORDINATE) {
+                    return DataResult.error(() -> "AABB coordinates exceed the supported world range");
+                }
+                if (Math.abs(bounds.maxX() - bounds.minX()) > MAX_PERSISTED_BOUNDING_EXTENT
+                        || Math.abs(bounds.maxY() - bounds.minY()) > MAX_PERSISTED_BOUNDING_EXTENT
+                        || Math.abs(bounds.maxZ() - bounds.minZ()) > MAX_PERSISTED_BOUNDING_EXTENT) {
+                    return DataResult.error(() -> "AABB extent exceeds the supported village range");
                 }
                 return DataResult.success(new AABB(
                         Math.min(bounds.minX(), bounds.maxX()),
@@ -317,7 +332,7 @@ public class VillageRecord {
                                                     decoded.getFirst().governorCandidateAttackGraceUntil =
                                                             completeGrace ? graceUntil : 0L;
                                                     return decoded;
-                                                }))));
+                                                }))))))));
                             }));
                 }
             }
@@ -663,11 +678,18 @@ public class VillageRecord {
             }
         }
         for (VillagerPOIRecord member : members) {
-            record.members.put(member.getVillagerUUID(), member);
+            if (record.members.putIfAbsent(member.getVillagerUUID(), member) != null) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Ignoring duplicate villager POI record for {}", member.getVillagerUUID());
+            }
         }
         for (OpinionModifier opinionModifier : opinionModifiers) {
             if (opinionModifier.modifier() != 0) {
-                record.opinionModifiers.put(opinionModifier.playerId(), opinionModifier.modifier());
+                if (record.opinionModifiers.putIfAbsent(
+                        opinionModifier.playerId(), opinionModifier.modifier()) != null) {
+                    EmeraldCapitalism.LOGGER.warn(
+                            "[ECAP] Ignoring duplicate village opinion modifier for {}", opinionModifier.playerId());
+                }
             }
         }
         record.farmlandRegistry.addAll(farmlandRegistry);
@@ -904,8 +926,9 @@ public class VillageRecord {
         VillageOpinionCache.invalidateVillage(villageId);
     }
 
+    /** Returns a live read-only view; mutate membership through {@link #addMember} or {@link #removeMember}. */
     public Map<UUID, VillagerPOIRecord> getMembers() {
-        return members;
+        return Collections.unmodifiableMap(members);
     }
 
     public Map<UUID, VillagerPOIRecord> getMembersSnapshot() {

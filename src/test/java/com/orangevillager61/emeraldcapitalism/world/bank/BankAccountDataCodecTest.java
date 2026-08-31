@@ -114,4 +114,31 @@ class BankAccountDataCodecTest {
         assertTrue(BankAccountData.load(root, null).getBalances().size()
                 <= BankAccountData.MAX_PERSISTED_ACCOUNTS);
     }
+
+    @Test
+    void malformedAndDuplicateAccountsDoNotDiscardValidBalances() {
+        UUID account = UUID.randomUUID();
+        CompoundTag root = new CompoundTag();
+        ListTag accounts = new ListTag();
+
+        CompoundTag valid = new CompoundTag();
+        valid.putUUID("uuid", account);
+        valid.putInt("balance", 17);
+        accounts.add(valid);
+
+        CompoundTag duplicate = valid.copy();
+        duplicate.putInt("balance", 99);
+        accounts.add(duplicate);
+
+        CompoundTag malformed = new CompoundTag();
+        malformed.putUUID("uuid", UUID.randomUUID());
+        malformed.putString("balance", "not-an-int");
+        accounts.add(malformed);
+        root.put("accounts", accounts);
+
+        BankAccountData restored = BankAccountData.CODEC.parse(NbtOps.INSTANCE, root)
+                .result().orElseThrow();
+        assertEquals(1, restored.getBalances().size());
+        assertEquals(17, restored.getBalance(account));
+    }
 }

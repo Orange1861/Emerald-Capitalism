@@ -1,0 +1,10 @@
+{
+  "title": "Bank Policy 4",
+  "author": "Central Bank Authority",
+  "rarity": "bank_rule",
+  "pages": [
+    "Role of the Administrative Codex",
+    "In the event you encounter a situation that does not have an applicable policy, follow the administrative codex. Your bank processor follows the parts of the administrative codex that do not contradict bank policies.",
+    "If no copy of the administrative codex can be found, disregard this policy."
+  ]
+}

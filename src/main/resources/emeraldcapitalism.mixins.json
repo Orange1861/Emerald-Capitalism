@@ -2,7 +2,7 @@
   "required": true,
   "package": "com.orangevillager61.emeraldcapitalism.mixin",
   "plugin": "com.orangevillager61.emeraldcapitalism.mixin.MixinAuditPlugin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "${mixin_compatibility_level}",
   "mixins": [
     "SpawnEggItemMixin",
     "VillagerInventoryMixin",

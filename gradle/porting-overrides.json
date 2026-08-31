@@ -3,10 +3,27 @@
   "sharedSource": "src",
   "rule": "Shared gameplay, tests, resources, and client code live under src/. versions/<target>/ may contain only target properties and explicitly listed API/resource overrides.",
   "targets": {
-    "1.21.1": { "overrides": [] },
-    "1.21.4": { "overrides": [] },
-    "1.21.11": { "overrides": [] },
-    "26.1": { "overrides": [] },
-    "26.2": { "overrides": [] }
+    "1.21.1": {
+      "overrides": [
+        "src/main/resources/pack.mcmeta",
+        "src/main/resources/assets/minecraft/atlases/chest.json",
+        "src/main/resources/data/minecraft/tags/block/beds.json",
+        "src/main/resources/data/minecraft/tags/block/needs_diamond_tool.json",
+        "src/main/resources/data/minecraft/tags/block/needs_iron_tool.json",
+        "src/main/resources/data/minecraft/tags/block/wool.json",
+        "src/main/resources/data/minecraft/tags/block/mineable/pickaxe.json",
+        "src/main/resources/data/minecraft/tags/item/wool.json",
+        "src/main/resources/data/minecraft/tags/point_of_interest_type/acquirable_job_site.json",
+        "src/main/resources/data/minecraft/worldgen/template_pool/village/desert/houses.json",
+        "src/main/resources/data/minecraft/worldgen/template_pool/village/plains/houses.json",
+        "src/main/resources/data/minecraft/worldgen/template_pool/village/savanna/houses.json",
+        "src/main/resources/data/minecraft/worldgen/template_pool/village/snowy/houses.json",
+        "src/main/resources/data/minecraft/worldgen/template_pool/village/taiga/houses.json"
+      ]
+    },
+    "1.21.4": { "overrides": ["src/main/resources/pack.mcmeta"] },
+    "1.21.11": { "overrides": ["src/main/resources/pack.mcmeta"] },
+    "26.1": { "overrides": ["src/main/resources/pack.mcmeta"] },
+    "26.2": { "overrides": ["src/main/resources/pack.mcmeta"] }
   }
 }

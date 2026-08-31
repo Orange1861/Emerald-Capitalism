@@ -1,0 +1,11 @@
+{
+  "title": "Emerald Processor Blueprint",
+  "author": "Hundin Indani Glodkeit",
+  "rarity": "bank_rule",
+  "pages": [
+    "The Emerald Processor makes and breaks a bank. With it, we have our source of power, we can turn emerald from a useless ore into any object or into a fighter. Without it, we decay.",
+    "Thus, this book contains the recipe on how to construct another Emerald Processor in the event that your bank loses it. While this book is useless without a bank processor, please do not let this book leave your bank.",
+    "Note: This recipe only works in a bank’s emerald crafting grid.",
+    "D H D\nE F E\nD D D\nD - Deepslate bricks\nE = Emerald\nF- Furnace\nH - Hopper"
+  ]
+}

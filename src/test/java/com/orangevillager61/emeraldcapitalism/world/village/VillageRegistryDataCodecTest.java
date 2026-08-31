@@ -160,6 +160,50 @@ class VillageRegistryDataCodecTest {
     }
 
     @Test
+    void duplicatePersistedVillageMembersAndOpinionIdsKeepTheFirstEntry() {
+        CompoundTag village = encodedMinimalVillage();
+
+        CompoundTag member = encodedMember();
+        ListTag members = new ListTag();
+        members.add(member);
+        members.add(member.copy());
+        village.put("members", members);
+
+        UUID playerId = UUID.randomUUID();
+        ListTag opinions = new ListTag();
+        CompoundTag firstOpinion = new CompoundTag();
+        firstOpinion.putUUID("player_id", playerId);
+        firstOpinion.putInt("modifier", 7);
+        opinions.add(firstOpinion);
+        CompoundTag duplicateOpinion = firstOpinion.copy();
+        duplicateOpinion.putInt("modifier", 99);
+        opinions.add(duplicateOpinion);
+        village.put("opinion_modifiers", opinions);
+
+        VillageRecord restored = VillageRecord.CODEC.parse(NbtOps.INSTANCE, village)
+                .result().orElseThrow();
+        assertEquals(1, restored.getMembers().size());
+        assertEquals(7, restored.getOpinionModifier(playerId));
+    }
+
+    @Test
+    void invalidVillagerPoiNumbersAreRejectedAtTheCodecBoundary() {
+        CompoundTag invalidHealth = encodedMember();
+        invalidHealth.putFloat("health", Float.NaN);
+        assertTrue(VillagerPOIRecord.CODEC.parse(NbtOps.INSTANCE, invalidHealth).error().isPresent());
+
+        CompoundTag invalidDepartureCounter = encodedMember();
+        invalidDepartureCounter.putInt("departure_counter", -1);
+        assertTrue(VillagerPOIRecord.CODEC.parse(NbtOps.INSTANCE, invalidDepartureCounter)
+                .error().isPresent());
+
+        CompoundTag invalidVerificationTime = encodedMember();
+        invalidVerificationTime.putLong("last_verified_tick", -1L);
+        assertTrue(VillagerPOIRecord.CODEC.parse(NbtOps.INSTANCE, invalidVerificationTime)
+                .error().isPresent());
+    }
+
+    @Test
     void malformedMemberIsSkippedWithoutDiscardingItsVillage() {
         UUID villageId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();
@@ -355,6 +399,8 @@ class VillageRegistryDataCodecTest {
 
         assertThrows(UnsupportedOperationException.class,
                 () -> data.getVillages().clear());
+        assertThrows(UnsupportedOperationException.class,
+                () -> village.getMembers().clear());
         assertThrows(UnsupportedOperationException.class,
                 () -> data.getSnapshot(villageId).clear());
         assertThrows(UnsupportedOperationException.class,

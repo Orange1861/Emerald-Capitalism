@@ -20,6 +20,7 @@ plugins {
 def versionProps = new Properties()
 file("$projectDir/gradle.properties").withInputStream { versionProps.load(it) }
 versionProps.each { key, value -> project.ext.set(key, value) }
+def mixinCompatibilityLevel = project.property('mixin_compatibility_level')
 
 version = mod_version
 group = mod_group_id
@@ -75,6 +76,10 @@ tasks.register('verifyTargetSetup') {
         if (launcher.metadata.languageVersion.asInt() != configuredJava) {
             throw new GradleException("Java ${configuredJava} toolchain was not selected for ${minecraft_version}")
         }
+        String expectedMixinLevel = configuredJava >= 25 ? 'JAVA_25' : 'JAVA_21'
+        if (mixinCompatibilityLevel != expectedMixinLevel) {
+            throw new GradleException("${minecraft_version} must use ${expectedMixinLevel} mixin compatibility, found ${mixinCompatibilityLevel}")
+        }
         logger.lifecycle("Verified ${minecraft_version}: ${coordinate} and Java ${configuredJava} (${launcher.metadata.installationPath})")
     }
 }
@@ -124,7 +129,9 @@ neoForge {
             }
 
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', rootProject.file('src/main/resources/').getAbsolutePath()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(),
+                    '--existing', rootProject.file('src/main/resources/').getAbsolutePath(),
+                    '--existing', file('src/main/resources/').getAbsolutePath()
         }
 
         // applies to all the run configs above
@@ -238,6 +245,12 @@ idea {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    filesMatching(['emeraldcapitalism.mixins.json', 'emeraldcapitalism.client.mixins.json']) {
+        expand(mixin_compatibility_level: mixinCompatibilityLevel)
+    }
 }
 
 sourceSets {

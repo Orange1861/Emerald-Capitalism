@@ -46,7 +46,7 @@ authors="OrangeVillager61"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Example mod description.
+Emerald Capitalism builds a history and basic economy for Minecraft villagers. Banks set prices by supply and demand, construct golems with emeralds, and keep villagers fed.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.

@@ -1,7 +1,7 @@
 {
   "required": true,
   "package": "com.orangevillager61.emeraldcapitalism.client.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "${mixin_compatibility_level}",
   "client": [
     "VillagerProfessionLayerMixin"
   ],

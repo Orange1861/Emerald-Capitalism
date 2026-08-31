@@ -29,4 +29,19 @@ class BankLedgerTest {
         ledger.openAccount(ACCOUNT);
         assertThrows(IllegalArgumentException.class, () -> ledger.withdraw(ACCOUNT, 0));
     }
+
+    @Test
+    void balanceAndBankNameSequencesFailBeforeIntegerOverflow() {
+        BankLedger positive = new BankLedger(
+                java.util.Map.of(ACCOUNT, BankLedger.MAX_BALANCE), 1);
+        assertThrows(IllegalStateException.class, () -> positive.deposit(ACCOUNT, 1));
+
+        BankLedger negative = new BankLedger(
+                java.util.Map.of(ACCOUNT, BankLedger.MIN_BALANCE), 1);
+        assertThrows(IllegalStateException.class, () -> negative.withdraw(ACCOUNT, 1));
+
+        BankLedger exhausted = new BankLedger(
+                java.util.Map.of(), BankLedger.MAX_BANK_NUMBER);
+        assertThrows(IllegalStateException.class, exhausted::generateBankName);
+    }
 }

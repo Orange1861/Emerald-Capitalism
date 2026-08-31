@@ -1,0 +1,132 @@
+﻿Title: Bank Policies Preamble
+
+
+Author: Central Bank Authority
+
+
+Page One: The bank policies state how a bank should be run and handle various situations that the bank might encounter. Following these policies are vital for the survival of your bank.
+
+
+Page Two: Following these policies is mandatory, so we programmed them into every bank processor. The bank processor responds to various situations automatically for the safety of the bank.
+
+
+Page Three: Below are some major principles:
+
+
+Do not trust any governors or governor candidates.
+Build emerald golems and emerald skirmishers to protect the bank and the nearby village.
+
+
+Page Four:
+
+
+Build a reserve of supplies, then hoard emeralds to build more defenders.
+You are supreme in your village, not the Muknek.
+Do not let anyone through the iron door.
+
+
+Page Five: Always remember that you are the frontline against the dangers of the day and the night. Without the banks, everyone will perish.
+
+
+Page Six: The world rests on your shoulders and the Bank Policies.
+
+
+Title: Bank Policy 1
+
+
+Author: Central Bank Authority
+
+
+Page One: Reject all Governor Candidates.
+
+
+Page Two: Every once in a while, a Muknek goes insane and nominates someone to be the next governor of your village. You must reject this nomination.
+
+
+Page Three: Governors are dangerous tyrants who will seize your resources. We are better off without them. We are supreme, not the Muknek or a governor.
+
+
+Page Four: Besides, we have the legal right to refuse any nomination.
+
+
+Page Five: Furthermore, NEVER NOMINATE A GOVERNOR.
+
+
+Title: Bank Policy 2:
+
+
+Author: Central Bank Authority
+
+
+Page One: Kill Any Nominated Governor on Sight
+
+
+Page Two: If the Muknek or Governor Candidates disobeys the law and ignores your nomination. You must kill both of them. This is the only way to protect the bank.
+
+
+Page Three: Without the Muknek, the Governor Candidate loses their patron. Kill the Governor Candidate enough times, and the Muknek will lose faith in them.
+
+
+Page Four: All resources should be used to kill these individuals. This includes all emerald constructs.
+
+
+Page Five: If you fail, the bank dies. Do not let it happen.
+
+
+Title: Bank Policy 3
+
+
+Author: Central Bank Authority
+
+
+Page One: Bank Policy Supremacy Clause
+
+
+Page Two: The Bank Policies are the highest authority for banks. Do not follow anyone else or other legal documents without referring to Bank Policies.
+
+
+Page Three: Any other authority is not designed for banking interests and could destroy your bank if not superseded by these policies. Always remember that.
+
+
+Title: Bank Policy 4
+
+
+Author: Central Bank Authority
+
+
+Page One: Role of the Administrative Codex
+
+
+Page Two: In the event you encounter a situation that does not have an applicable policy, follow the administrative codex. Your bank processor follows the parts of the administrative codex that do not contradict bank policies.
+
+
+Page Three: If no copy of the administrative codex can be found, disregard this policy.
+
+
+Title: Emerald Processor Blueprint
+
+
+Author: Hundin Indani Glodkeit
+
+
+Page One: The Emerald Processor makes and breaks a bank. With it, we have our source of power, we can turn emerald from a useless ore into any object or into a fighter. Without it, we decay.
+
+
+Page Two: Thus, this book contains the recipe on how to construct another Emerald Processor in the event that your bank loses it. While this book is useless without a bank processor, please do not let this book leave your bank.
+
+
+Page Three: Note: This recipe only works in a bank’s emerald crafting grid.
+
+
+Page Four:  
+
+
+D H D
+E F E
+D D D
+
+
+D - Deepslate bricks
+E = Emerald
+F- Furnace
+H - Hopper

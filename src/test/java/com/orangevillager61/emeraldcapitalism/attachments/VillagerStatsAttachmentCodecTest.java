@@ -208,6 +208,25 @@ class VillagerStatsAttachmentCodecTest {
     }
 
     @Test
+    void persistedTimersTimesAndBalancesRejectImpossibleValues() {
+        CompoundTag negativeTimer = new CompoundTag();
+        negativeTimer.putInt("ticks_since_last_heal", -1);
+        assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, negativeTimer).error().isPresent());
+
+        CompoundTag oversizedTimer = new CompoundTag();
+        oversizedTimer.putInt("beg_time", 1_000_001);
+        assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, oversizedTimer).error().isPresent());
+
+        CompoundTag negativeTime = new CompoundTag();
+        negativeTime.putLong("last_ate_time", -1L);
+        assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, negativeTime).error().isPresent());
+
+        CompoundTag oversizedBalance = new CompoundTag();
+        oversizedBalance.putInt("emerald_balance", 1_000_000_001);
+        assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, oversizedBalance).error().isPresent());
+    }
+
+    @Test
     void familyCollectionsAreCopiedAndDuplicateRulesRemainUnchanged() {
         VillagerStatsAttachment source = new VillagerStatsAttachment();
         UUID child = UUID.randomUUID();

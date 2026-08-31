@@ -5,6 +5,7 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.villager.HungerState;
+import com.orangevillager61.emeraldcapitalism.world.bank.BankLedger;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
@@ -23,6 +24,16 @@ public class VillagerStatsAttachment {
     private static final int MAX_PERSISTED_GRANDPARENTS = 4;
     private static final int MAX_NAMING_ELEMENT_LENGTH = 64;
     private static final int MAX_PERSISTED_DRIFT_RULES = 12;
+    private static final int MAX_PERSISTED_TIMER_TICKS = 1_000_000;
+    private static final long MAX_PERSISTED_GAME_TIME = 1_000_000_000_000L;
+
+    private static final Codec<Long> PERSISTED_GAME_TIME_CODEC = Codec.LONG.validate(value ->
+            value >= 0L && value <= MAX_PERSISTED_GAME_TIME
+                    ? DataResult.success(value)
+                    : DataResult.error(() -> "Persisted game time is outside the supported range"));
+    private static final Codec<Integer> PERSISTED_TIMER_CODEC = Codec.intRange(0, MAX_PERSISTED_TIMER_TICKS);
+    private static final Codec<Integer> EMERALD_BALANCE_CODEC =
+            Codec.intRange(BankLedger.MIN_BALANCE, BankLedger.MAX_BALANCE);
 
     private static final Codec<String> NAMING_ELEMENT_CODEC = boundedStringCodec(
             MAX_NAMING_ELEMENT_LENGTH, "Villager naming element");
@@ -72,15 +83,17 @@ public class VillagerStatsAttachment {
      */
     public static final Codec<VillagerStatsAttachment> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("hunger_level", 20).forGetter(VillagerStatsAttachment::getHungerLevel),
-            Codec.LONG.optionalFieldOf("last_ate_time", 0L).forGetter(VillagerStatsAttachment::getLastAteTime),
-            Codec.INT.optionalFieldOf("ticks_since_last_hunger_decrease", 0)
+            PERSISTED_GAME_TIME_CODEC.optionalFieldOf("last_ate_time", 0L)
+                    .forGetter(VillagerStatsAttachment::getLastAteTime),
+            PERSISTED_TIMER_CODEC.optionalFieldOf("ticks_since_last_hunger_decrease", 0)
                     .forGetter(VillagerStatsAttachment::getTicksSinceLastHungerDecrease),
-            Codec.INT.optionalFieldOf("ticks_since_last_heal", 0)
+            PERSISTED_TIMER_CODEC.optionalFieldOf("ticks_since_last_heal", 0)
                     .forGetter(VillagerStatsAttachment::getTicksSinceLastHeal),
-            Codec.INT.optionalFieldOf("ticks_since_last_starvation_damage", 0)
+            PERSISTED_TIMER_CODEC.optionalFieldOf("ticks_since_last_starvation_damage", 0)
                     .forGetter(VillagerStatsAttachment::getTicksSinceLastStarvationDamage),
-            Codec.LONG.optionalFieldOf("last_beg_time", 0L).forGetter(VillagerStatsAttachment::getLastBegTime),
-            Codec.INT.optionalFieldOf("beg_time", 0).forGetter(VillagerStatsAttachment::getBegTime),
+            PERSISTED_GAME_TIME_CODEC.optionalFieldOf("last_beg_time", 0L)
+                    .forGetter(VillagerStatsAttachment::getLastBegTime),
+            PERSISTED_TIMER_CODEC.optionalFieldOf("beg_time", 0).forGetter(VillagerStatsAttachment::getBegTime),
             UUIDUtil.CODEC.optionalFieldOf("beg_donor_uuid")
                     .forGetter(attachment -> Optional.ofNullable(attachment.getBegDonorUUID())),
             NamingState.CODEC.optionalFieldOf("villager_naming")
@@ -105,7 +118,7 @@ public class VillagerStatsAttachment {
                     .forGetter(VillagerStatsAttachment::getChildrenUUIDs),
             GRANDPARENT_UUIDS_CODEC.optionalFieldOf("grandparent_uuids", List.of())
                     .forGetter(VillagerStatsAttachment::getGrandparentUUIDs),
-            Codec.INT.optionalFieldOf("emerald_balance", 0)
+            EMERALD_BALANCE_CODEC.optionalFieldOf("emerald_balance", 0)
                     .forGetter(VillagerStatsAttachment::getEmeraldBalance)
     ).apply(instance, VillagerStatsAttachment::new));
 
@@ -186,12 +199,12 @@ public class VillagerStatsAttachment {
             List<UUID> grandparentUUIDs,
             int emeraldBalance) {
         hungerState.setHungerLevel(hungerLevel);
-        hungerState.setLastAteTime(lastAteTime);
-        hungerState.setTicksSinceLastHungerDecrease(ticksSinceLastHungerDecrease);
-        hungerState.setTicksSinceLastHeal(ticksSinceLastHeal);
-        hungerState.setTicksSinceLastStarvationDamage(ticksSinceLastStarvationDamage);
-        this.lastBegTime = lastBegTime;
-        this.begTime = begTime;
+        setLastAteTime(lastAteTime);
+        setTicksSinceLastHungerDecrease(ticksSinceLastHungerDecrease);
+        setTicksSinceLastHeal(ticksSinceLastHeal);
+        setTicksSinceLastStarvationDamage(ticksSinceLastStarvationDamage);
+        setLastBegTime(lastBegTime);
+        setBegTime(begTime);
         this.begDonorUUID = begDonorUUID.orElse(null);
         namingState.ifPresent(state -> {
             this.personalFirstElement = state.personalFirstElement().orElse(null);
@@ -207,7 +220,7 @@ public class VillagerStatsAttachment {
         this.parent2Name = parent2Name.orElse(null);
         this.childrenUUIDs.addAll(childrenUUIDs);
         this.grandparentUUIDs.addAll(grandparentUUIDs);
-        this.emeraldBalance = emeraldBalance;
+        setEmeraldBalance(emeraldBalance);
     }
 
     // Getters and setters
@@ -240,7 +253,7 @@ public class VillagerStatsAttachment {
     }
 
     public void setLastAteTime(long time) {
-        hungerState.setLastAteTime(time);
+        hungerState.setLastAteTime(requirePersistedGameTime(time));
     }
 
     public int getTicksSinceLastHungerDecrease() {
@@ -248,7 +261,7 @@ public class VillagerStatsAttachment {
     }
 
     public void setTicksSinceLastHungerDecrease(int ticks) {
-        hungerState.setTicksSinceLastHungerDecrease(ticks);
+        hungerState.setTicksSinceLastHungerDecrease(requirePersistedTimer(ticks));
     }
 
     public int getTicksSinceLastHeal() {
@@ -256,7 +269,7 @@ public class VillagerStatsAttachment {
     }
 
     public void setTicksSinceLastHeal(int ticks) {
-        hungerState.setTicksSinceLastHeal(ticks);
+        hungerState.setTicksSinceLastHeal(requirePersistedTimer(ticks));
     }
 
     public int getTicksSinceLastStarvationDamage() {
@@ -264,7 +277,7 @@ public class VillagerStatsAttachment {
     }
 
     public void setTicksSinceLastStarvationDamage(int ticks) {
-        hungerState.setTicksSinceLastStarvationDamage(ticks);
+        hungerState.setTicksSinceLastStarvationDamage(requirePersistedTimer(ticks));
     }
 
     public long getLastBegTime() {
@@ -272,7 +285,7 @@ public class VillagerStatsAttachment {
     }
 
     public void setLastBegTime(long lastBegTime) {
-        this.lastBegTime = lastBegTime;
+        this.lastBegTime = requirePersistedGameTime(lastBegTime);
     }
 
     public int getBegTime() {
@@ -280,7 +293,7 @@ public class VillagerStatsAttachment {
     }
 
     public void setBegTime(int begTime) {
-        this.begTime = begTime;
+        this.begTime = requirePersistedTimer(begTime);
     }
 
     public UUID getBegDonorUUID() {
@@ -310,14 +323,14 @@ public class VillagerStatsAttachment {
      * Sets the villager's emerald balance.
      */
     public void setEmeraldBalance(int balance) {
-        this.emeraldBalance = balance;
+        this.emeraldBalance = requireEmeraldBalance(balance);
     }
 
     /**
      * Adds emeralds to the villager's balance (e.g., when player buys items with emeralds).
      */
     public void addEmeralds(int amount) {
-        this.emeraldBalance += amount;
+        this.emeraldBalance = checkedBalanceChange(amount);
     }
 
     /**
@@ -325,7 +338,10 @@ public class VillagerStatsAttachment {
      * Balance can go negative.
      */
     public void subtractEmeralds(int amount) {
-        this.emeraldBalance -= amount;
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Emerald subtraction amount must be positive");
+        }
+        this.emeraldBalance = checkedBalanceChange(-amount);
     }
 
     /**
@@ -333,6 +349,35 @@ public class VillagerStatsAttachment {
      */
     public boolean isInDebt() {
         return emeraldBalance < 0;
+    }
+
+    private int checkedBalanceChange(int change) {
+        long updated = (long) emeraldBalance + change;
+        if (updated < BankLedger.MIN_BALANCE || updated > BankLedger.MAX_BALANCE) {
+            throw new IllegalStateException("Villager emerald balance would exceed the supported range");
+        }
+        return (int) updated;
+    }
+
+    private static long requirePersistedGameTime(long value) {
+        if (value < 0L || value > MAX_PERSISTED_GAME_TIME) {
+            throw new IllegalArgumentException("Persisted game time is outside the supported range");
+        }
+        return value;
+    }
+
+    private static int requirePersistedTimer(int value) {
+        if (value < 0 || value > MAX_PERSISTED_TIMER_TICKS) {
+            throw new IllegalArgumentException("Persisted timer is outside the supported range");
+        }
+        return value;
+    }
+
+    private static int requireEmeraldBalance(int value) {
+        if (value < BankLedger.MIN_BALANCE || value > BankLedger.MAX_BALANCE) {
+            throw new IllegalArgumentException("Villager emerald balance is outside the supported range");
+        }
+        return value;
     }
 
     // Eating animation methods

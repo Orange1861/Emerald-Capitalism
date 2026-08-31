@@ -40,6 +40,8 @@ import java.util.UUID;
 public class VillageRegistryData extends SavedData {
 
     private static final String DATA_NAME = "emeraldcapitalism_village_registry";
+    private static final int MAX_PERSISTED_WORLD_COORDINATE = 30_000_000;
+    private static final int MAX_PERSISTED_VILLAGE_NUMBER = 2_000_000_000;
     static final int MAX_PERSISTED_VILLAGES = 65_536;
     static final int MAX_PERSISTED_REGISTRY_ENTRIES = 65_536;
 
@@ -61,12 +63,18 @@ public class VillageRegistryData extends SavedData {
     ) {
         private static final Codec<PendingPlacementState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 UUIDUtil.CODEC.fieldOf("village_id").forGetter(PendingPlacementState::villageId),
-                Codec.INT.fieldOf("min_x").forGetter(PendingPlacementState::minX),
-                Codec.INT.fieldOf("min_y").forGetter(PendingPlacementState::minY),
-                Codec.INT.fieldOf("min_z").forGetter(PendingPlacementState::minZ),
-                Codec.INT.fieldOf("max_x").forGetter(PendingPlacementState::maxX),
-                Codec.INT.fieldOf("max_y").forGetter(PendingPlacementState::maxY),
-                Codec.INT.fieldOf("max_z").forGetter(PendingPlacementState::maxZ)
+                Codec.intRange(-MAX_PERSISTED_WORLD_COORDINATE, MAX_PERSISTED_WORLD_COORDINATE)
+                        .fieldOf("min_x").forGetter(PendingPlacementState::minX),
+                Codec.intRange(-MAX_PERSISTED_WORLD_COORDINATE, MAX_PERSISTED_WORLD_COORDINATE)
+                        .fieldOf("min_y").forGetter(PendingPlacementState::minY),
+                Codec.intRange(-MAX_PERSISTED_WORLD_COORDINATE, MAX_PERSISTED_WORLD_COORDINATE)
+                        .fieldOf("min_z").forGetter(PendingPlacementState::minZ),
+                Codec.intRange(-MAX_PERSISTED_WORLD_COORDINATE, MAX_PERSISTED_WORLD_COORDINATE)
+                        .fieldOf("max_x").forGetter(PendingPlacementState::maxX),
+                Codec.intRange(-MAX_PERSISTED_WORLD_COORDINATE, MAX_PERSISTED_WORLD_COORDINATE)
+                        .fieldOf("max_y").forGetter(PendingPlacementState::maxY),
+                Codec.intRange(-MAX_PERSISTED_WORLD_COORDINATE, MAX_PERSISTED_WORLD_COORDINATE)
+                        .fieldOf("max_z").forGetter(PendingPlacementState::maxZ)
         ).apply(instance, PendingPlacementState::new));
 
         private static PendingPlacementState from(PendingManagerPlacement placement) {
@@ -200,7 +208,10 @@ public class VillageRegistryData extends SavedData {
     ) {
         VillageRegistryData data = new VillageRegistryData();
         for (VillageRecord village : villages) {
-            data.villages.put(village.getVillageId(), village);
+            if (data.villages.putIfAbsent(village.getVillageId(), village) != null) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Ignoring duplicate village record for {}", village.getVillageId());
+            }
         }
         data.processedStartChunks.addAll(processedStartChunks);
         data.generatedBankVillages.addAll(generatedBankVillages);
@@ -209,13 +220,21 @@ public class VillageRegistryData extends SavedData {
         data.generatedLumbermillStructures.addAll(generatedLumbermillStructures);
         data.abandonedVaultPositions.addAll(abandonedVaultPositions);
         for (BankPosition bankPosition : bankPositions) {
-            data.bankPositions.put(bankPosition.villageId(), bankPosition.bankPosition().immutable());
+            if (data.bankPositions.putIfAbsent(
+                    bankPosition.villageId(), bankPosition.bankPosition().immutable()) != null) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Ignoring duplicate bank position for {}", bankPosition.villageId());
+            }
         }
         for (PendingPlacementState pending : pendingManagerPlacements) {
             data.pendingManagerPlacements.add(pending.toPendingPlacement());
         }
-        data.nextVillageNumber = Math.max(1, nextVillageNumber);
+        data.nextVillageNumber = normalizeNextVillageNumber(nextVillageNumber);
         return data;
+    }
+
+    private static int normalizeNextVillageNumber(int value) {
+        return value >= 1 && value < MAX_PERSISTED_VILLAGE_NUMBER ? value : 1;
     }
 
     private List<BankPosition> bankPositionEntries() {
@@ -400,6 +419,9 @@ public class VillageRegistryData extends SavedData {
         if (!currentName.isBlank() && !"Village".equals(currentName)) {
             return;
         }
+        if (nextVillageNumber >= MAX_PERSISTED_VILLAGE_NUMBER) {
+            throw new IllegalStateException("Village name sequence exhausted");
+        }
         String newName = "Village " + nextVillageNumber;
         if (level == null) {
             village.setName(newName);
@@ -550,6 +572,11 @@ public class VillageRegistryData extends SavedData {
      */
     public void deregisterVillageManager(UUID villageId) {
         vmPositions.remove(villageId);
+    }
+
+    /** Removes a manager only when the registry still points at that manager's position. */
+    public void deregisterVillageManager(UUID villageId, BlockPos managerPos) {
+        vmPositions.remove(villageId, managerPos);
     }
 
     /**
