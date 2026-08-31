@@ -250,7 +250,12 @@ public class VillageManagerBlock extends BaseEntityBlock {
         }
 
         UUID bankVillageId = bank.getVillageId();
-        if (bankVillageId != null && !bankVillageId.equals(villageId)) {
+        // An unlinked bank is available for this ledger to claim. Its controller
+        // alone must not turn the pairing into a proximity conflict.
+        if (bankVillageId == null) {
+            return false;
+        }
+        if (!bankVillageId.equals(villageId)) {
             return true;
         }
 
