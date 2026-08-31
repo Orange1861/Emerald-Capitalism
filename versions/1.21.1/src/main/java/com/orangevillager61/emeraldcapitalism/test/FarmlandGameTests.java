@@ -114,6 +114,32 @@ public class FarmlandGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_3x3x3")
+    public static void scanKeepsOneChunkAroundTrackedVillageBlocks(GameTestHelper helper) {
+        BlockPos farm = new BlockPos(1, 1, 1);
+        helper.setBlock(farm, Blocks.FARMLAND.defaultBlockState());
+
+        ServerLevel level = helper.getLevel();
+        BlockPos absoluteFarm = helper.absolutePos(farm);
+        VillageRecord record = new VillageRecord(
+                UUID.randomUUID(),
+                absoluteFarm,
+                new AABB(absoluteFarm).inflate(32)
+        );
+
+        record.fullScan(level);
+
+        AABB bounds = record.getBoundingBox();
+        helper.assertTrue(bounds.minX == absoluteFarm.getX() - 16
+                        && bounds.maxX == absoluteFarm.getX() + 16
+                        && bounds.minY == absoluteFarm.getY() - 16
+                        && bounds.maxY == absoluteFarm.getY() + 16
+                        && bounds.minZ == absoluteFarm.getZ() - 16
+                        && bounds.maxZ == absoluteFarm.getZ() + 16,
+                "Village scan should retain one chunk of tracking space around discovered blocks");
+        helper.succeed();
+    }
+
     // Farmland→dirt adds to repair queue
 
     @GameTest(template = "empty_3x3x3")

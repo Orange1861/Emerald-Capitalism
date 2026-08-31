@@ -34,7 +34,7 @@ Page 9: This model also still allows the creation of splash potions, which makes
 Page 10: This is the recipe to brew the Zombkolaps Potion. Depending on how you brew this potion, you can create either a drinkable or splash version of the Zombkolaps Potion. 
 
 
-Page 11: This potion will infect anyone with the Greening Phase of Zombkolaps.
+Page 11: This potion will infect anyone with the Rotting Phase of Zombkolaps.
 
 
 Page 12: Firstly, in a brewing stand make a Thick Potion using a water bottle and glowstone dust. Then, add rotten flesh to the potion to create the Zombkolaps potion. You can add gunpowder to turn into a splash potion.

@@ -21,10 +21,10 @@ public final class ZombieVirusBrewingEvents {
     public static void registerBrewingRecipes(RegisterBrewingRecipesEvent event) {
         PotionBrewing.Builder builder = event.getBuilder();
 
-        // Thick potion + rotten flesh starts the infection in the greening phase.
+        // Thick potion + rotten flesh starts the infection in the rotting phase.
         builder.addMix(Potions.THICK, Items.ROTTEN_FLESH, ECAPPotions.ZOMBIE_VIRUS_PHASE_ONE);
 
-        // Compacted rotten flesh advances the greening phase to the terminal turning phase.
+        // Compacted rotten flesh advances the rotting phase to the terminal turning phase.
         builder.addMix(ECAPPotions.ZOMBIE_VIRUS_PHASE_ONE,
                 ECAPItems.COMPACTED_ROTTEN_FLESH.get(),
                 ECAPPotions.ZOMBIE_VIRUS_PHASE_TWO);

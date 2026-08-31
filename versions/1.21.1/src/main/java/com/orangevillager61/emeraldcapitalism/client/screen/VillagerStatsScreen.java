@@ -233,7 +233,7 @@ public class VillagerStatsScreen extends AbstractContainerScreen<VillagerStatsMe
 
         int seconds = Math.max(0, this.menu.getIllnessRemainingTicks() / 20);
         guiGraphics.drawString(this.font,
-                "Illness: Zombie Plague (Greening Phase): " + (seconds / 60) + ":" + String.format("%02d", seconds % 60),
+                "Illness: Zombie Plague (Rotting Phase): " + (seconds / 60) + ":" + String.format("%02d", seconds % 60),
                 x, y, 0x4CAF50, false);
     }
 

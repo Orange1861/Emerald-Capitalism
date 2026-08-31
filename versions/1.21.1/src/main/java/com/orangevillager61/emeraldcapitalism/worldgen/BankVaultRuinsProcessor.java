@@ -26,7 +26,6 @@ public final class BankVaultRuinsProcessor extends StructureProcessor {
     public static final MapCodec<BankVaultRuinsProcessor> CODEC = MapCodec.unit(BankVaultRuinsProcessor::new);
 
     private static final float BLOCK_DECAY_CHANCE = 0.20F;
-    private static final float CHEST_LOOT_CHANCE = 0.20F;
     private static final ResourceLocation CHEST_LOOT_TABLE = ModIds.id("chests/bank_vault_ruins");
     private static final ResourceLocation MAP_CHEST_LOOT_TABLE =
             ModIds.id("chests/bank_vault_ruins_map");
@@ -56,28 +55,20 @@ public final class BankVaultRuinsProcessor extends StructureProcessor {
         }
 
         if (inputState.is(ECAPBlocks.EMERALD_CHEST.get())) {
-            return withChestLoot(relativeBlockInfo, random, designatedMapChest);
+            return withChestLoot(relativeBlockInfo, designatedMapChest);
         }
 
         return relativeBlockInfo;
     }
 
     private StructureTemplate.StructureBlockInfo withChestLoot(
-            StructureTemplate.StructureBlockInfo blockInfo,
-            RandomSource random, boolean designatedMapChest) {
-        boolean hasLoot = designatedMapChest || random.nextFloat() < CHEST_LOOT_CHANCE;
-        if (!hasLoot && blockInfo.nbt() == null) {
-            return blockInfo;
-        }
-
+            StructureTemplate.StructureBlockInfo blockInfo, boolean designatedMapChest) {
         CompoundTag nbt = blockInfo.nbt() == null ? new CompoundTag() : blockInfo.nbt().copy();
         nbt.remove("Items");
         nbt.remove("LootTable");
         nbt.remove("LootTableSeed");
-        if (hasLoot) {
-            nbt.putString("LootTable", (designatedMapChest
-                    ? MAP_CHEST_LOOT_TABLE : CHEST_LOOT_TABLE).toString());
-        }
+        nbt.putString("LootTable", (designatedMapChest
+                ? MAP_CHEST_LOOT_TABLE : CHEST_LOOT_TABLE).toString());
         return new StructureTemplate.StructureBlockInfo(blockInfo.pos(), blockInfo.state(), nbt);
     }
 

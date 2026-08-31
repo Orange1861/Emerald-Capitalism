@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 
-/** Makes healthy and greening-phase villagers flee nearby turning-phase villagers. */
+/** Makes healthy and rotting-phase villagers flee nearby turning-phase villagers. */
 public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
 
     private static final double DETECTION_RANGE = 8.0D;

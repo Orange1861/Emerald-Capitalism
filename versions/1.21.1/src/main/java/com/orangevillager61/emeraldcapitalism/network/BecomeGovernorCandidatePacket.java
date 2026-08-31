@@ -1,16 +1,22 @@
 package com.orangevillager61.emeraldcapitalism.network;
 
 import com.orangevillager61.emeraldcapitalism.Config;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRelationship;
-import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookDefinition;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRarity;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookStackFactory;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -77,12 +83,28 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
                 return;
             }
 
+            LibraryBookDefinition managerBook = LibraryBookRegistry.entries(LibraryBookRarity.VILLAGE_MANAGER)
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+            if (managerBook == null) {
+                EmeraldCapitalism.LOGGER.error(
+                        "[ECAP] Cannot complete governor claim: no Village Manager book is loaded.");
+                player.sendSystemMessage(Component.literal(
+                        "[ECAP] The Village Manager book is unavailable; try again after resources reload."));
+                return;
+            }
+
             if (!village.becomeGovernorCandidate(player.getUUID(), opinion)) {
                 return;
             }
             boolean promoted = VillageGovernance.refresh(level, village);
             VillageRegistryData.get(level).setDirty();
             VillagePOIDataCache.invalidateVillage(village.getVillageId());
+            ItemStack book = LibraryBookStackFactory.createItemStack(managerBook);
+            if (!player.getInventory().add(book)) {
+                player.drop(book, false);
+            }
             player.sendSystemMessage(Component.literal(promoted
                     ? "[ECAP] You are now the village Governor."
                     : "[ECAP] You are now a governor candidate."));

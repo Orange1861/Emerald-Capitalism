@@ -39,4 +39,38 @@ public final class BankVaultRuinsGameTests {
                 "The designated emerald chest did not receive the second-vault-map loot table");
         helper.succeed();
     }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void survivingOrdinaryEmeraldChestsReceiveVaultLootTable(GameTestHelper helper) {
+        StructureTemplate template = helper.getLevel().getStructureManager()
+                .get(ModIds.id("bank_vault_ruins"))
+                .orElseThrow(() -> new AssertionError("Missing bank vault ruins template"));
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        var chests = template.filterBlocks(BlockPos.ZERO, settings, ECAPBlocks.EMERALD_CHEST.get());
+        BlockPos designatedMapChest = chests.stream()
+                .map(StructureTemplate.StructureBlockInfo::pos)
+                .min((left, right) -> left.compareTo(right))
+                .orElseThrow(() -> new AssertionError("Bank vault ruins template has no emerald chest"));
+        boolean foundSurvivingOrdinaryChest = false;
+
+        for (StructureTemplate.StructureBlockInfo chest : chests) {
+            if (chest.pos().equals(designatedMapChest)) {
+                continue;
+            }
+            StructureTemplate.StructureBlockInfo processed = new BankVaultRuinsProcessor().process(
+                    helper.getLevel(), BlockPos.ZERO, BlockPos.ZERO, chest, chest, settings, template);
+            if (!processed.state().is(ECAPBlocks.EMERALD_CHEST.get())) {
+                continue;
+            }
+            foundSurvivingOrdinaryChest = true;
+            helper.assertTrue(processed.nbt() != null
+                            && "emeraldcapitalism:chests/bank_vault_ruins".equals(
+                            processed.nbt().getString("LootTable")),
+                    "A surviving ordinary emerald chest did not receive the vault loot table");
+        }
+
+        helper.assertTrue(foundSurvivingOrdinaryChest,
+                "Bank vault ruins template has no surviving ordinary emerald chest to verify");
+        helper.succeed();
+    }
 }

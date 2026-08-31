@@ -41,8 +41,8 @@ import java.util.*;
  */
 public class VillageRecord {
 
-    /** Number of blocks added on each side when shrinking the box to fit. */
-    private static final int BOUNDARY_MARGIN = 4;
+    /** Number of blocks added on each side when shrinking the box to fit: one chunk. */
+    private static final int BOUNDARY_MARGIN = 16;
     private static final int INITIAL_SCAN_PREFETCH_WINDOW = 4;
 
     /** Default welcome message shown when a player enters the village. */

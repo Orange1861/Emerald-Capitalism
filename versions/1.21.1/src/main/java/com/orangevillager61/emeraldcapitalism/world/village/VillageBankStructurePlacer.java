@@ -11,8 +11,11 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
 import com.orangevillager61.emeraldcapitalism.worldgen.BankVaultRuinsProcessor;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -26,15 +29,19 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
@@ -45,10 +52,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -160,7 +169,6 @@ public final class VillageBankStructurePlacer {
         }
 
         String biomeType = VillagePathBlocks.inferBiomeType(level, bellPos, villagePieces);
-        VillagePieceBounds pieceBounds = preparePieceBounds(villagePieces);
         List<BankSite> preferredSites = new ArrayList<>();
         List<BankSite> fallbackSites = new ArrayList<>();
         for (int distance : DISTANCES_FROM_BELL) {
@@ -172,16 +180,12 @@ public final class VillageBankStructurePlacer {
                 if (reservedCollision.test(footprint)) {
                     continue;
                 }
-                int overlap = pieceBounds.overlapType(originX, originZ, TOP_SIZE, TOP_SIZE);
-                if (overlap == VillagePieceBounds.BUILDING_OVERLAP) {
-                    continue;
-                }
                 BankSite site = resolveSite(level, originX, originZ, bellPos,
-                        pieceBounds.pathBoxes(), managerPos, loadBudget);
+                        villagePieces, managerPos, loadBudget);
                 if (site == null) {
                     continue;
                 }
-                if (overlap == VillagePieceBounds.PATH_OVERLAP) {
+                if (site.overlapType() == VillagePieceBounds.PATH_OVERLAP) {
                     fallbackSites.add(site);
                 } else {
                     preferredSites.add(site);
@@ -342,9 +346,20 @@ public final class VillageBankStructurePlacer {
 
     @Nullable
     private BankSite resolveSite(ServerLevel level, int originX, int originZ, BlockPos villageCenter,
-                                 List<BoundingBox> pathBoxes, @Nullable BlockPos managerPos,
+                                 List<StructurePiece> villagePieces, @Nullable BlockPos managerPos,
                                  ChunkLoadBudget loadBudget) {
         if (!ensureChunksLoaded(level, originX, originZ, loadBudget)) {
+            return null;
+        }
+
+        // A persisted pending-village retry may not retain the transient structure-piece
+        // list. Recover structure starts from loaded chunk references before deciding
+        // whether this bank would overlap an existing house.
+        VillagePieceBounds pieceBounds = preparePieceBounds(
+                level, originX, originZ, villagePieces);
+        int overlap = pieceBounds.overlapType(originX, originZ, TOP_SIZE, TOP_SIZE);
+        if (overlap == VillagePieceBounds.BUILDING_OVERLAP
+                || pieceBounds.overlapsBuilding(placementProtectionBox(originX, originZ))) {
             return null;
         }
 
@@ -364,10 +379,10 @@ public final class VillageBankStructurePlacer {
             return null;
         }
 
-        BankOrientation orientation = chooseOrientation(origin, villageCenter, pathBoxes);
+        BankOrientation orientation = chooseOrientation(origin, villageCenter, pieceBounds.pathBoxes());
         return new BankSite(origin, terrain.earthwork(), terrain.maxHeightDifference(),
                 orientation.rotation(), orientation.pathStart(), orientation.pathTarget(),
-                orientation.connectionCost());
+                orientation.connectionCost(), overlap);
     }
 
     /**
@@ -459,11 +474,12 @@ public final class VillageBankStructurePlacer {
     private boolean ensureChunksLoaded(ServerLevel level, int originX, int originZ, ChunkLoadBudget budget) {
         // The bank can rotate after the site has been selected. Cover the
         // axis-aligned envelope of every possible vault orientation so a rotated
-        // pair never writes into an unprepared chunk.
-        int minX = originX - (VAULT_SIZE_Z - 1);
-        int maxX = originX + TOP_SIZE - 1 + VAULT_SIZE_X;
-        int minZ = originZ - (VAULT_SIZE_X - 1);
-        int maxZ = originZ + TOP_SIZE - 1 + VAULT_SIZE_Z;
+        // pair never writes into an unprepared chunk. The terrain blend and
+        // entrance apron are also part of the placement transaction.
+        int minX = originX - TERRAIN_BLEND_RADIUS - (VAULT_SIZE_Z - 1);
+        int maxX = originX + TOP_SIZE - 1 + VAULT_SIZE_X + TERRAIN_BLEND_RADIUS;
+        int minZ = originZ - TERRAIN_BLEND_RADIUS - (VAULT_SIZE_X - 1);
+        int maxZ = originZ + TOP_SIZE - 1 + VAULT_SIZE_Z + TERRAIN_BLEND_RADIUS;
         return ensureChunksLoaded(level, minX, maxX, minZ, maxZ, budget);
     }
 
@@ -516,8 +532,9 @@ public final class VillageBankStructurePlacer {
     }
 
     private boolean containsProtectedBlock(ServerLevel level, BlockPos origin, @Nullable BlockPos managerPos) {
-        BoundingBox topBox = new BoundingBox(origin.getX(), origin.getY(), origin.getZ(),
-                origin.getX() + TOP_SIZE - 1, origin.getY() + TOP_HEIGHT + 4, origin.getZ() + TOP_SIZE - 1);
+        BoundingBox placementBox = placementProtectionBox(origin.getX(), origin.getZ());
+        BoundingBox topBox = new BoundingBox(placementBox.minX(), origin.getY(), placementBox.minZ(),
+                placementBox.maxX(), origin.getY() + TOP_HEIGHT + 4, placementBox.maxZ());
         if (managerPos != null && topBox.isInside(managerPos)) {
             return true;
         }
@@ -533,6 +550,14 @@ public final class VillageBankStructurePlacer {
         return false;
     }
 
+    /** Covers every surface column and entrance-apron column that placement may rewrite. */
+    private BoundingBox placementProtectionBox(int originX, int originZ) {
+        return new BoundingBox(
+                originX - TERRAIN_BLEND_RADIUS, Integer.MIN_VALUE / 2, originZ - TERRAIN_BLEND_RADIUS,
+                originX + TOP_SIZE - 1 + TERRAIN_BLEND_RADIUS, Integer.MAX_VALUE / 2,
+                originZ + TOP_SIZE - 1 + TERRAIN_BLEND_RADIUS);
+    }
+
     @Nullable
     public PlacedBank placePlanned(ServerLevel level, PlannedBank plan) {
         StructureTemplate topTemplate = plan.topTemplate();
@@ -545,6 +570,18 @@ public final class VillageBankStructurePlacer {
         BlockPos vaultClearOrigin = transformedMinCorner(vaultOrigin, rotation, VAULT_SIZE_X, VAULT_SIZE_Z);
         int vaultClearSizeX = isQuarterTurn(rotation) ? VAULT_SIZE_Z : VAULT_SIZE_X;
         int vaultClearSizeZ = isQuarterTurn(rotation) ? VAULT_SIZE_X : VAULT_SIZE_Z;
+        // Planning and placement are separated across server ticks. Recheck the
+        // world immediately before mutating it so a house or protected block added
+        // after planning cannot be replaced by a stale plan.
+        VillagePieceBounds currentPieceBounds = preparePieceBounds(level,
+                topOrigin.getX(), topOrigin.getZ(), List.of());
+        if (currentPieceBounds.overlapsBuilding(placementProtectionBox(topOrigin.getX(), topOrigin.getZ()))
+                || containsProtectedBlock(level, topOrigin, null)) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP] Refusing stale bank placement at {} because its write area is occupied",
+                    topOrigin);
+            return null;
+        }
         PlacementSnapshot snapshot = PlacementSnapshot.capture(level,
                 placementRollbackBox(level, topOrigin, vaultOrigin, vaultClearOrigin,
                         vaultClearSizeX, vaultClearSizeZ));
@@ -1217,6 +1254,69 @@ public final class VillageBankStructurePlacer {
         return template.getSize().getX() == x && template.getSize().getY() == y && template.getSize().getZ() == z;
     }
 
+    private VillagePieceBounds preparePieceBounds(ServerLevel level, int originX, int originZ,
+                                                    List<StructurePiece> fallbackPieces) {
+        List<StructurePiece> pieces = new ArrayList<>(fallbackPieces);
+        int minX = originX - TERRAIN_BLEND_RADIUS;
+        int maxX = originX + TOP_SIZE - 1 + TERRAIN_BLEND_RADIUS;
+        int minZ = originZ - TERRAIN_BLEND_RADIUS;
+        int maxZ = originZ + TOP_SIZE - 1 + TERRAIN_BLEND_RADIUS;
+        Registry<Structure> structureRegistry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Set<StructureStart> visitedStarts = new HashSet<>();
+
+        for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
+            for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
+                if (!level.hasChunk(chunkX, chunkZ)) {
+                    continue;
+                }
+                ChunkAccess chunk = level.getChunk(chunkX, chunkZ);
+                for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
+                    collectVillageStructurePieces(structureRegistry, entry.getKey(), entry.getValue(),
+                            pieces, visitedStarts);
+                }
+                for (Map.Entry<Structure, LongSet> entry : chunk.getAllReferences().entrySet()) {
+                    if (!isVillageStructure(structureRegistry.getKey(entry.getKey()))) {
+                        continue;
+                    }
+                    for (long startChunkLong : entry.getValue()) {
+                        int startChunkX = ChunkPos.getX(startChunkLong);
+                        int startChunkZ = ChunkPos.getZ(startChunkLong);
+                        if (!level.hasChunk(startChunkX, startChunkZ)) {
+                            continue;
+                        }
+                        StructureStart start = level.getChunk(startChunkX, startChunkZ)
+                                .getStartForStructure(entry.getKey());
+                        collectVillageStructurePieces(structureRegistry, entry.getKey(), start,
+                                pieces, visitedStarts);
+                    }
+                }
+            }
+        }
+        return preparePieceBounds(pieces);
+    }
+
+    private void collectVillageStructurePieces(Registry<Structure> structureRegistry, Structure structure,
+                                                @Nullable StructureStart start,
+                                                List<StructurePiece> pieces,
+                                                Set<StructureStart> visitedStarts) {
+        if (start == null || !start.isValid() || !visitedStarts.add(start)
+                || !isVillageStructure(structureRegistry.getKey(structure))) {
+            return;
+        }
+        pieces.addAll(start.getPieces());
+    }
+
+    private static boolean isVillageStructure(@Nullable ResourceLocation structureId) {
+        if (structureId == null || !structureId.getNamespace().equals("minecraft")) {
+            return false;
+        }
+        return switch (structureId.getPath()) {
+            case "village_plains", "village_desert", "village_savanna",
+                 "village_taiga", "village_snowy" -> true;
+            default -> false;
+        };
+    }
+
     /** Bounded rollback state for the two-template bank placement transaction. */
     private static final class PlacementSnapshot {
         private final Map<BlockPos, BlockSnapshot> blocks;
@@ -1318,7 +1418,7 @@ public final class VillageBankStructurePlacer {
 
     private record BankSite(BlockPos origin, int terrainCost, int maxHeightDifference,
                             Rotation rotation, BlockPos pathStart, BlockPos pathTarget,
-                            int connectionCost) {}
+                            int connectionCost, int overlapType) {}
 
     private record VillagePieceBounds(List<BoundingBox> pathBoxes,
                                       List<BoundingBox> buildingBoxes) {
@@ -1340,6 +1440,15 @@ public final class VillageBankStructurePlacer {
                 }
             }
             return NO_OVERLAP;
+        }
+
+        private boolean overlapsBuilding(BoundingBox footprint) {
+            for (BoundingBox building : buildingBoxes) {
+                if (footprint.intersects(building)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

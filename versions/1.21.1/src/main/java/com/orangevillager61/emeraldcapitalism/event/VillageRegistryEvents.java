@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankMorningTradeGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.BankPumpkinDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankerWorkGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
@@ -439,6 +440,14 @@ public class VillageRegistryEvents {
      * Adds the custom farmer goals to a villager's goal selector if not already present.
      */
     private static void injectFarmerGoals(Villager villager) {
+        boolean hasPumpkinDepositGoal = villager.goalSelector.getAvailableGoals().stream()
+                .anyMatch(g -> g.getGoal() instanceof BankPumpkinDepositGoal);
+        if (!hasPumpkinDepositGoal) {
+            // Bank supply delivery takes priority over ordinary farmer work, but
+            // remains below the higher-priority bank routines.
+            villager.goalSelector.addGoal(3, new BankPumpkinDepositGoal(villager));
+        }
+
         boolean hasFarmlandRepairGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof ReplenishFarmlandGoal);
         if (!hasFarmlandRepairGoal) {

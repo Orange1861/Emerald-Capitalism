@@ -147,13 +147,13 @@ public class Config {
 
 
     private static final ModConfigSpec.IntValue ZOMBIE_VIRUS_PHASE_ONE_DURATION_SECONDS = BUILDER
-            .comment("How long Zombie Plague remains in the greening phase before the turning phase begins.",
+            .comment("How long Zombie Plague remains in the rotting phase before the turning phase begins.",
                      "Unit: seconds. Default: 600 seconds (10 minutes).")
             .translation("emeraldcapitalism.configuration.illness.zombieVirus.phaseOneDurationSeconds")
             .defineInRange("illness.zombieVirus.phaseOneDurationSeconds", 600, 1, 86_400);
 
     private static final ModConfigSpec.IntValue ZOMBIE_VIRUS_HIT_TIME_REDUCTION_SECONDS = BUILDER
-            .comment("How much time a later Zombie hit removes from the greening phase of Zombie Plague.",
+            .comment("How much time a later Zombie hit removes from the rotting phase of Zombie Plague.",
                      "Unit: seconds. Default: 20 seconds.")
             .translation("emeraldcapitalism.configuration.illness.zombieVirus.hitTimeReductionSeconds")
             .defineInRange("illness.zombieVirus.hitTimeReductionSeconds", 20, 1, 3_600);
