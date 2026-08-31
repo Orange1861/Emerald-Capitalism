@@ -83,6 +83,30 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         }
 
         @Override
+        public List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
+                VillageGenerationContext context) {
+            /*
+             * The bank placer grades and clears the entrance apron during
+             * placement. Replan the connector against that final terrain so
+             * the first route cells line up with the bank's finished grade.
+             * Keep the planning-time connector as a fallback and for the
+             * building-planning reservation it already provided.
+            */
+            VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
+                    .withoutBuilding(plan.reservationBox())
+                    .withAdditionalBuildings(List.of(plan.placementBox()));
+            VillageRoadPathGenerator.PlannedPath postPlacementConnector =
+                    context.roadGenerator().planBankConnection(
+                            context.level(), plan.pathStart(), plan.pathTarget(), context.pieces(),
+                            context.biomeType(), plan.entranceDirection(),
+                            roads, context.chunkLoadBudget());
+            if (postPlacementConnector != null) {
+                return List.of(postPlacementConnector);
+            }
+            return reservedPaths();
+        }
+
+        @Override
         public boolean place(VillageGenerationContext context) {
             placed = placer.placePlanned(context.level(), plan);
             if (placed == null) {

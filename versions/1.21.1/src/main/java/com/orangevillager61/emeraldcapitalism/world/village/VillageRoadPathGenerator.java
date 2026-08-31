@@ -211,7 +211,8 @@ public final class VillageRoadPathGenerator {
                 : prepare(level, villagePieces);
         SurfaceCache surfaceCache = new SurfaceCache(level);
         List<StreetTarget> streetTargets = findStreetTargets(
-                level, pathStart, roads.streetByColumn(), profile.maxTargetDistance());
+                level, pathStart, pathTargetHint, roads.streetByColumn(),
+                profile.maxTargetDistance());
         if (streetTargets.isEmpty()) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] {} path at {} found no actual street surface near target hint {}",
@@ -270,6 +271,7 @@ public final class VillageRoadPathGenerator {
     }
 
     private List<StreetTarget> findStreetTargets(ServerLevel level, BlockPos from,
+                                                  BlockPos targetHint,
                                                   Map<Long, StreetCell> streetByColumn,
                                                   int maxTargetDistance) {
         Map<Long, StreetTarget> candidatesByColumn = new HashMap<>();
@@ -285,7 +287,10 @@ public final class VillageRoadPathGenerator {
             if (distanceSq > maxDistanceSq) {
                 continue;
             }
-            long score = distanceSq * 100L + streetSurfacePenalty(currentSurface);
+            // Building-specific orientation chooses the intended street edge. Favor
+            // that hint first, then use entrance distance as the deterministic tie-breaker.
+            long hintDistanceSq = horizontalDistanceSq(targetHint, cell.pos().getX(), cell.pos().getZ());
+            long score = hintDistanceSq * 100L + distanceSq + streetSurfacePenalty(currentSurface);
             candidatesByColumn.put(entry.getKey(),
                     new StreetTarget(cell.pos(), currentSurface, score));
         }
@@ -871,6 +876,30 @@ public final class VillageRoadPathGenerator {
             }
             merged.replaceAll((ignored, boxes) -> List.copyOf(boxes));
             return new PreparedVillageRoads(streetByColumn, merged);
+        }
+
+        /**
+         * Removes one exact exclusion claim while retaining all other building
+         * obstacles. This is used when a building's reservation includes a
+         * deliberate approach area that its connector must pave.
+         */
+        public PreparedVillageRoads withoutBuilding(BoundingBox excludedBox) {
+            Map<Long, List<BoundingBox>> filtered = new HashMap<>();
+            buildingsByChunk.forEach((key, boxes) -> {
+                List<BoundingBox> remaining = boxes.stream()
+                        .filter(box -> !sameBounds(box, excludedBox))
+                        .toList();
+                if (!remaining.isEmpty()) {
+                    filtered.put(key, remaining);
+                }
+            });
+            return new PreparedVillageRoads(streetByColumn, filtered);
+        }
+
+        private static boolean sameBounds(BoundingBox first, BoundingBox second) {
+            return first.minX() == second.minX() && first.minY() == second.minY()
+                    && first.minZ() == second.minZ() && first.maxX() == second.maxX()
+                    && first.maxY() == second.maxY() && first.maxZ() == second.maxZ();
         }
     }
 

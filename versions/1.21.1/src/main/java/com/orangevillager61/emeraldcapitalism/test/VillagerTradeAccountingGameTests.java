@@ -189,6 +189,68 @@ public final class VillagerTradeAccountingGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
+    public static void bankWithdrawalRejectsUnrepresentableEmeraldChange(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankRelativePos = new BlockPos(1, 1, 1);
+        BlockPos chestRelativePos = new BlockPos(1, 1, 2);
+        BlockPos bankPos = helper.absolutePos(bankRelativePos);
+        BlockPos chestPos = helper.absolutePos(chestRelativePos);
+        helper.setBlock(bankRelativePos, ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(chestRelativePos, ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(chestPos);
+        if (bank == null || chest == null) {
+            helper.fail("bank or emerald chest block entity was not created");
+            return;
+        }
+
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            chest.setItem(slot, new ItemStack(Items.EMERALD_BLOCK, 2));
+        }
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+
+        int valueBefore = chest.getEmeraldCount();
+        helper.assertFalse(bank.withdrawFromLinkedChests(level, 1),
+                "bank withdrew emeralds without room to store the block change");
+        helper.assertValueEqual(chest.getEmeraldCount(), valueBefore,
+                "failed bank withdrawal destroyed the block's fractional change");
+        helper.assertValueEqual(bank.getLiveEmeraldValue(level), valueBefore,
+                "failed bank withdrawal changed the bank's physical emerald value");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void bankWithdrawalDoesNotOverpayFromAnInsufficientBlockStack(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankRelativePos = new BlockPos(1, 1, 1);
+        BlockPos chestRelativePos = new BlockPos(1, 1, 2);
+        BlockPos bankPos = helper.absolutePos(bankRelativePos);
+        BlockPos chestPos = helper.absolutePos(chestRelativePos);
+        helper.setBlock(bankRelativePos, ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(chestRelativePos, ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(chestPos);
+        if (bank == null || chest == null) {
+            helper.fail("bank or emerald chest block entity was not created");
+            return;
+        }
+
+        chest.setItem(0, new ItemStack(Items.EMERALD_BLOCK));
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+
+        int valueBefore = chest.getEmeraldCount();
+        helper.assertFalse(bank.withdrawFromLinkedChests(level, 10),
+                "bank paid ten emeralds from a chest containing only one block");
+        helper.assertValueEqual(chest.getEmeraldCount(), valueBefore,
+                "failed bank withdrawal consumed an insufficient emerald block");
+        helper.assertValueEqual(bank.getLiveEmeraldValue(level), valueBefore,
+                "failed bank withdrawal changed the bank's physical emerald value");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
     public static void villagerEmeraldDropDebitsBalanceOnce(GameTestHelper helper) {
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);

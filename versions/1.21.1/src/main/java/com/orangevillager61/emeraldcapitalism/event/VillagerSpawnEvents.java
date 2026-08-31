@@ -39,6 +39,7 @@ public class VillagerSpawnEvents {
     private static final int BABY_STRUCTURE_SPAWN_EMERALDS_MAX = STRUCTURE_SPAWN_EMERALDS_MAX / 2;
     private static final int STRUCTURE_SPAWN_BREAD_MIN_DAYS = 6;
     private static final int STRUCTURE_SPAWN_BREAD_MAX_DAYS = 9;
+    private static final String INITIAL_EMERALDS_TAG = "EmeraldCapitalismInitialEmeralds";
     private static final Map<UUID, Integer> PENDING_PARENT_ASSIGNMENT_RETRIES = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> PARENT_ASSIGNMENT_READY_TIME = new ConcurrentHashMap<>();
 
@@ -440,25 +441,44 @@ public class VillagerSpawnEvents {
                 : STRUCTURE_SPAWN_EMERALDS_MAX;
         int emeraldCount = minimumEmeralds
                 + villager.level().getRandom().nextInt(maximumEmeralds - minimumEmeralds + 1);
-        addEmeraldsToInventory(inventory, emeraldCount);
+        int insertedEmeralds = addEmeraldsToInventory(inventory, emeraldCount);
+        if (insertedEmeralds > 0) {
+            long pendingEmeralds = (long) getPendingInitialEmeralds(villager) + insertedEmeralds;
+            villager.getPersistentData().putInt(
+                    INITIAL_EMERALDS_TAG,
+                    (int) Math.min(Integer.MAX_VALUE, pendingEmeralds));
+        }
         int breadDays = STRUCTURE_SPAWN_BREAD_MIN_DAYS
                 + villager.level().getRandom().nextInt(
                 STRUCTURE_SPAWN_BREAD_MAX_DAYS - STRUCTURE_SPAWN_BREAD_MIN_DAYS + 1);
         inventory.addItem(new ItemStack(Items.BREAD, BankTargets.BREAD_PER_DAY * breadDays));
     }
 
-    private static void addEmeraldsToInventory(SimpleContainer inventory, int emeraldCount) {
+    /** Returns the structure-spawn emeralds waiting to be settled at a village bank. */
+    public static int getPendingInitialEmeralds(Villager villager) {
+        return Math.max(0, villager.getPersistentData().getInt(INITIAL_EMERALDS_TAG));
+    }
+
+    /** Clears the one-time structure-spawn emerald settlement marker. */
+    public static void clearPendingInitialEmeralds(Villager villager) {
+        villager.getPersistentData().remove(INITIAL_EMERALDS_TAG);
+    }
+
+    private static int addEmeraldsToInventory(SimpleContainer inventory, int emeraldCount) {
         int remainingEmeralds = emeraldCount;
+        int insertedEmeralds = 0;
         int maxStackSize = Items.EMERALD.getDefaultMaxStackSize();
         while (remainingEmeralds > 0) {
             int stackSize = Math.min(remainingEmeralds, maxStackSize);
             ItemStack remainder = inventory.addItem(new ItemStack(Items.EMERALD, stackSize));
             int inserted = stackSize - remainder.getCount();
             if (inserted <= 0) {
-                return;
+                return insertedEmeralds;
             }
+            insertedEmeralds += inserted;
             remainingEmeralds -= inserted;
         }
+        return insertedEmeralds;
     }
 
 }

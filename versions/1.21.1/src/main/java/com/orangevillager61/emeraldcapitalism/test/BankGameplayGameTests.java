@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankMorningTradeGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
+import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
 import com.orangevillager61.emeraldcapitalism.market.MarketItem;
 import com.orangevillager61.emeraldcapitalism.market.MarketRegistry;
 import com.orangevillager61.emeraldcapitalism.market.MarketTradeService;
@@ -372,6 +373,42 @@ public final class BankGameplayGameTests {
         helper.assertTrue(!goal.canUse(), "empty morning sale check unexpectedly started a sale");
         villager.getInventory().setItem(0, new ItemStack(Items.PUMPKIN));
         helper.assertTrue(!goal.canUse(), "morning sale check repeated after finding no items");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void generatedVillagerInitialEmeraldsGoStraightToBank(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BankBlockEntity bank = setupMarketBank(helper, Items.BREAD, 0);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                helper.absolutePos(new BlockPos(1, 1, 2)));
+        if (chest == null) {
+            helper.fail("initial-deposit bank chest was not created");
+            return;
+        }
+
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        VillagerSpawnEvents.addStructureSpawnSupplies(villager);
+        int initialEmeralds = VillagerSpawnEvents.getPendingInitialEmeralds(villager);
+        bank.queueDepositIfEligible(villager);
+        bank.depositInitialEmeralds(level, villager, initialEmeralds);
+        VillagerSpawnEvents.clearPendingInitialEmeralds(villager);
+
+        helper.assertValueEqual(countItem(villager, Items.EMERALD), 0,
+                "generated villager kept its initial emeralds");
+        helper.assertTrue(initialEmeralds >= 32 && initialEmeralds <= 96,
+                "generated villager did not receive the expected initial emerald range");
+        helper.assertValueEqual(BankAccountData.get(level).getBalance(villager.getUUID()), initialEmeralds,
+                "generated villager initial emeralds were not credited to its account");
+        helper.assertValueEqual(countItem(chest, Items.EMERALD), initialEmeralds,
+                "bank did not receive generated villager initial emeralds");
+        helper.assertTrue(!bank.isQueued(villager.getUUID()),
+                "completed initial transfer left the villager in the regular deposit queue");
+
+        villager.getInventory().addItem(new ItemStack(Items.EMERALD, 20));
+        bank.queueDepositIfEligible(villager);
+        helper.assertTrue(bank.isQueued(villager.getUUID()),
+                "regular deposits were disabled after the initial settlement");
         helper.succeed();
     }
 

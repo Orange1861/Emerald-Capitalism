@@ -556,6 +556,33 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
+     * Deposits only the villager's recorded starting amount. Any emeralds above
+     * that amount remain eligible for the regular deposit queue.
+     */
+    public int depositInitialEmeralds(ServerLevel level, Villager villager, int initialEmeralds) {
+        if (initialEmeralds <= 0) {
+            return 0;
+        }
+
+        if (chestCacheDirty) {
+            fullScan(level);
+            chestCacheDirty = false;
+            processorCacheDirty = false;
+        }
+
+        UUID uuid = villager.getUUID();
+        BankAccountData.get(level).openAccount(uuid);
+        int deposited = depositEmeralds(level, villager, initialEmeralds);
+        removeQueuedDeposit(uuid);
+        return deposited;
+    }
+
+    private void removeQueuedDeposit(UUID uuid) {
+        queuedDepositors.remove(uuid);
+        depositQueue.remove(uuid);
+    }
+
+    /**
      * Empties the deposit queue and resets all depositor tracking state.
      * Called when the bank is deregistered from its village manager.
      */
@@ -683,12 +710,17 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Credits the villager's emerald inventory and distributes it to linked chests. */
     public void handleDepositorArrival(ServerLevel level, Villager villager) {
+        depositEmeralds(level, villager, Integer.MAX_VALUE);
+    }
+
+    private int depositEmeralds(ServerLevel level, Villager villager, int maximumEmeraldValue) {
         UUID uuid = villager.getUUID();
 
         SimpleContainer inv = villager.getInventory();
-        int totalEmeraldValue = EmeraldConsolidationUtils.countEmeraldValue(inv);
-        int storageCapacity = Math.min(totalEmeraldValue, getEmeraldStorageCapacity(level));
-        if (storageCapacity <= 0) return; // nothing to deposit or no room
+        int requestedEmeraldValue = Math.min(
+                EmeraldConsolidationUtils.countEmeraldValue(inv), maximumEmeraldValue);
+        int storageCapacity = Math.min(requestedEmeraldValue, getEmeraldStorageCapacity(level));
+        if (storageCapacity <= 0) return 0; // nothing to deposit or no room
 
         int emeraldBlocks = EmeraldConsolidationUtils.countItem(inv, Items.EMERALD_BLOCK);
         int emeralds = EmeraldConsolidationUtils.countItem(inv, Items.EMERALD);
@@ -699,7 +731,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         int blocksToDeposit = Math.min(emeraldBlocks, storageCapacity / 9);
         int emeraldsToDeposit = Math.min(emeralds, storageCapacity - blocksToDeposit * 9);
         int toDeposit = blocksToDeposit * 9 + emeraldsToDeposit;
-        if (toDeposit <= 0) return; // nothing to deposit
+        if (toDeposit <= 0) return 0; // nothing to deposit
 
         EmeraldConsolidationUtils.removeItems(inv, Items.EMERALD_BLOCK, blocksToDeposit);
         EmeraldConsolidationUtils.removeItems(inv, Items.EMERALD, emeraldsToDeposit);
@@ -712,6 +744,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         EmeraldCapitalism.LOGGER.debug(
                 "[ECAP/Bank] Villager {} deposited {} emeralds", uuid, toDeposit);
+        return toDeposit;
     }
 
     /**
@@ -767,36 +800,51 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
      * @param level  the server level (used to resolve block entities)
      * @param amount the number of emeralds to withdraw
      * @return {@code true} if the full amount was satisfied; {@code false} if the chests
-     *         collectively held less than {@code amount} (partial withdrawal may have occurred)
+     *         cannot satisfy the exact withdrawal without losing value
      */
     public boolean withdrawFromLinkedChests(ServerLevel level, int amount) {
         int remaining = amount;
+        int surplus = 0;
         Map<BlockPos, Map<Integer, ItemStack>> originalSlots = new HashMap<>();
         for (BlockPos chestPos : cachedChestPositions) {
             if (remaining <= 0) break;
             BlockEntity be = level.getBlockEntity(chestPos);
             if (be instanceof EmeraldChestBlockEntity chest) {
-                remaining = withdrawEmeraldsFromChest(chest, remaining, chestPos, originalSlots);
+                ChestWithdrawal withdrawal = withdrawEmeraldsFromChest(
+                        chest, remaining, chestPos, originalSlots);
+                remaining = withdrawal.remaining();
+                surplus += withdrawal.surplus();
             }
         }
         if (remaining > 0) {
             restoreChestSlots(level, originalSlots);
             return false;
         }
+        if (surplus > 0
+                && addEmeraldsToLinkedChests(level, surplus, originalSlots) > 0) {
+            // Breaking a block for exact change is only valid when the change can
+            // be stored somewhere. Otherwise keep the withdrawal atomic.
+            restoreChestSlots(level, originalSlots);
+            return false;
+        }
         return true;
+    }
+
+    private record ChestWithdrawal(int remaining, int surplus) {
     }
 
     /**
      * Removes up to {@code needed} emeralds from a single chest.
      * Pass 1 takes raw emerald items; pass 2 breaks emerald blocks (9 each),
-     * returning any fractional surplus as raw emeralds via {@link #addEmeraldsToChest}.
+     * reporting any fractional surplus for the linked-chest change pass.
      *
-     * @return the number of emeralds still needed after this chest (0 if fully satisfied)
+     * @return the remaining emerald need and any fractional block surplus
      */
-    private static int withdrawEmeraldsFromChest(EmeraldChestBlockEntity chest, int needed,
-                                                  BlockPos chestPos,
-                                                  Map<BlockPos, Map<Integer, ItemStack>> originalSlots) {
+    private static ChestWithdrawal withdrawEmeraldsFromChest(
+            EmeraldChestBlockEntity chest, int needed, BlockPos chestPos,
+            Map<BlockPos, Map<Integer, ItemStack>> originalSlots) {
         int remaining = needed;
+        int surplus = 0;
         int size = chest.getContainerSize();
 
         // Pass 1: raw emerald items
@@ -814,21 +862,35 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         for (int slot = 0; slot < size && remaining > 0; slot++) {
             ItemStack stack = chest.getItem(slot);
             if (!stack.is(Items.EMERALD_BLOCK)) continue;
-            int blocksNeeded = (remaining + 8) / 9; // ceiling division
+            int blocksNeeded = (remaining - 1) / 9 + 1; // ceiling division
             int take = Math.min(stack.getCount(), blocksNeeded);
             int emeraldsProvided = take * 9;
             rememberChestSlot(originalSlots, chestPos, slot, stack);
             stack.shrink(take);
             chest.setItem(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
-            int surplus = emeraldsProvided - remaining;
-            remaining = 0;
-            if (surplus > 0) {
-                // Return the fractional surplus as raw emeralds
-                addEmeraldsToChest(chest, surplus, chestPos, originalSlots);
+            if (emeraldsProvided >= remaining) {
+                surplus = emeraldsProvided - remaining;
+                remaining = 0;
+                break;
             }
-            break; // remaining is now 0
+            remaining -= emeraldsProvided;
         }
 
+        return new ChestWithdrawal(remaining, surplus);
+    }
+
+    private int addEmeraldsToLinkedChests(
+            ServerLevel level, int amount,
+            Map<BlockPos, Map<Integer, ItemStack>> originalSlots) {
+        int remaining = amount;
+        for (BlockPos chestPos : cachedChestPositions) {
+            if (remaining <= 0) {
+                break;
+            }
+            if (level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest) {
+                remaining = addEmeraldsToChest(chest, remaining, chestPos, originalSlots);
+            }
+        }
         return remaining;
     }
 

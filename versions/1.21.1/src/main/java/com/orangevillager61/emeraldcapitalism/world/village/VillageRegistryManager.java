@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
+import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIAccessPolicy;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIDataCache;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIDataFactory;
@@ -689,6 +690,12 @@ public class VillageRegistryManager {
             bank.registerSpawnedEmployee(villager);
         }
         bank.registerEmployeeFromJob(level, villager, jobSitePos);
+
+        int initialEmeralds = VillagerSpawnEvents.getPendingInitialEmeralds(villager);
+        if (initialEmeralds > 0) {
+            bank.depositInitialEmeralds(level, villager, initialEmeralds);
+            VillagerSpawnEvents.clearPendingInitialEmeralds(villager);
+        }
         bank.queueDepositIfEligible(villager);
     }
 
