@@ -35,18 +35,31 @@ class ConvertBooksTest(unittest.TestCase):
         self.assertEqual("village_manager", definition.rarity)
         self.assertEqual(("First page", "Second page"), definition.pages)
 
-    def test_unmarked_paragraphs_are_pages(self) -> None:
+    def test_unmarked_paragraphs_are_skipped_instead_of_pages(self) -> None:
+        with self.assertRaisesRegex(BookParseError, "no pages were found"):
+            parse_book(
+                [
+                    "Title: A Test Book",
+                    "Author: Ada",
+                    "Rarity: Common",
+                    "First paragraph",
+                    "Second paragraph",
+                ],
+                "common",
+            )
+
+    def test_unmarked_lines_after_page_marker_continue_current_page(self) -> None:
         definition = parse_book(
             [
                 "Title: A Test Book",
                 "Author: Ada",
-                "Rarity: Common",
-                "First paragraph",
-                "Second paragraph",
+                "Page 1: First line",
+                "Second line",
+                "",
             ],
             "common",
         )
-        self.assertEqual(("First paragraph", "Second paragraph"), definition.pages)
+        self.assertEqual(("First line\nSecond line",), definition.pages)
         self.assertEqual("static", definition.type)
 
     def test_game_data_type_is_normalized(self) -> None:
@@ -56,7 +69,7 @@ class ConvertBooksTest(unittest.TestCase):
                 "Author: Sairviv",
                 "Rarity: Legendary",
                 "Type: Steve Grave Location",
-                "The answer is at {{steve_grave_coordinates}}.",
+                "Page 1: The answer is at {{steve_grave_coordinates}}.",
             ],
             "legendary",
         )
@@ -74,13 +87,19 @@ class ConvertBooksTest(unittest.TestCase):
                 "Page 1: First page",
                 "Title: Second Book",
                 "Author: Bob",
-                "Second book paragraph one",
+                "Page 1: Second book paragraph one",
                 "Second book paragraph two",
             ],
             "common",
         )
         self.assertEqual(["First Book", "Second Book"], [book.title for book in definitions])
-        self.assertEqual([("First page",), ("Second book paragraph one", "Second book paragraph two")], [book.pages for book in definitions])
+        self.assertEqual(
+            [
+                ("First page",),
+                ("Second book paragraph one\nSecond book paragraph two",),
+            ],
+            [book.pages for book in definitions],
+        )
 
     def test_multi_book_source_writes_one_json_per_book(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -94,7 +113,7 @@ class ConvertBooksTest(unittest.TestCase):
                 "Page 1: First page\n"
                 "Title: Second Book\n"
                 "Author: Bob\n"
-                "Second page\n",
+                "Page 1: Second page\n",
                 encoding="utf-8",
             )
             output_root = root / "generated"

@@ -27,12 +27,12 @@ Page 2: The second page of the book.
 ```
 
 `Title` and `Author` are required. `Rarity` may be omitted when the source
-folder supplies it. `Pages:` may be used as a section heading. When `Page N`
-markers are present, they delimit pages; otherwise every non-empty paragraph
-after the metadata becomes one page in order. In a multi-book file, every new
-`Title` field ends the current book and starts the next one. Books generated
-from a multi-book source receive filenames containing the source name, book
-number, and title.
+folder supplies it. `Pages:` may be used as a section heading. `Page N`
+markers delimit pages; lines before the first marker are skipped, and later
+unmarked lines continue the current page. Each book must contain at least one
+page marker. In a multi-book file, every new `Title` field ends the current
+book and starts the next one. Books generated from a multi-book source receive
+filenames containing the source name, book number, and title.
 
 `Type` defaults to `Static`. The `Steve Grave Location` type replaces
 `{{steve_grave_coordinates}}` in page text with the generated grave structure's

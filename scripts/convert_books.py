@@ -14,9 +14,10 @@ The metadata format is one field per paragraph::
     Page 1: The first page.
     Page 2: The second page.
 
-If ``Page N`` markers are absent, every non-empty paragraph after the metadata
-becomes a page in document order.  A single source file may contain multiple
-books: every new ``Title`` field ends the current book and starts the next one.
+``Page N`` markers define the pages.  Unmarked lines before the first page
+marker are skipped, while later unmarked lines continue the current page.  A
+single source file may contain multiple books: every new ``Title`` field ends
+the current book and starts the next one.
 The source folder supplies the rarity when the document does not contain a
 ``Rarity`` field.  This keeps special books such as Village Manager books easy
 to author while still validating an explicit rarity when one is supplied.
@@ -213,7 +214,7 @@ def _validate_text(value: str, field: str, maximum: int) -> str:
 
 
 def _parse_pages(paragraphs: Iterable[str]) -> tuple[str, ...]:
-    """Parse explicit Page N markers or use each paragraph as a page."""
+    """Parse explicit Page N markers, skipping lines before the first page."""
 
     non_empty = [_clean_paragraph(value) for value in paragraphs if _clean_paragraph(value)]
     explicit_pages: list[list[str]] = []
@@ -235,10 +236,10 @@ def _parse_pages(paragraphs: Iterable[str]) -> tuple[str, ...]:
             assert current is not None
             current.append(paragraph)
 
-    if saw_marker:
-        pages = ["\n".join(page).strip() for page in explicit_pages]
-    else:
-        pages = non_empty
+    # An unmarked paragraph is not an implicit page. It is ignored when no
+    # explicit page marker has been seen, which prevents stray lines from
+    # changing the page count.
+    pages = ["\n".join(page).strip() for page in explicit_pages] if saw_marker else []
 
     pages = [page for page in pages if page]
     if not pages:

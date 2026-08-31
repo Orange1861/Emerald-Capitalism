@@ -73,7 +73,13 @@ neoForge {
         }
 
         data {
-            data()
+            // Minecraft 1.21.1 uses the combined data run. Starting with 1.21.4,
+            // NeoForge exposes the split clientData/serverData run types instead.
+            if (minecraft_version == '1.21.1') {
+                data()
+            } else {
+                clientData()
+            }
 
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
             programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()

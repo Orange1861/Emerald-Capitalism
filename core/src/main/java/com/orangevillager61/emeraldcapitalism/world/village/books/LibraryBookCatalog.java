@@ -65,8 +65,9 @@ public final class LibraryBookCatalog {
                 roll -= rarity.libraryPoolWeight();
             }
 
+            final LibraryBookRarity selectedRarity = chosenRarity;
             List<LibraryBookDefinition> candidates = availableBooks.stream()
-                    .filter(book -> book.rarity() == chosenRarity
+                    .filter(book -> book.rarity() == selectedRarity
                             && !selectedIds.contains(book.id()))
                     .toList();
             LibraryBookDefinition chosen = candidates.get(bounded(nextInt, candidates.size()));
