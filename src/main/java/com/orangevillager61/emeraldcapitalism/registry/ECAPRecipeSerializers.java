@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.registry;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.recipe.EmeraldCraftingRecipe;
 import com.orangevillager61.emeraldcapitalism.recipe.SawmillRecipe;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.RecipeSerializer;
@@ -19,6 +20,9 @@ public final class ECAPRecipeSerializers {
 
     public static final Supplier<RecipeSerializer<SawmillRecipe>> SAWMILL = RECIPE_SERIALIZERS.register(
             "sawmill", SawmillRecipe.Serializer::new);
+
+    public static final Supplier<RecipeSerializer<EmeraldCraftingRecipe>> EMERALD_CRAFTING =
+            RECIPE_SERIALIZERS.register("emerald_crafting", EmeraldCraftingRecipe.Serializer::new);
 
     private ECAPRecipeSerializers() {}
 }

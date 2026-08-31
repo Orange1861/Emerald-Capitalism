@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
+import com.orangevillager61.emeraldcapitalism.block.EmeraldOreProcessorBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
@@ -97,6 +98,10 @@ public final class VillageBankStructurePlacer {
     private static final BlockPos BANK_DOOR_PATH_START = new BlockPos(-1, 0, 5);
     /** The bank block's authored FACING value in {@code bank_top.nbt}. */
     private static final Direction AUTHORED_BANK_FACING = Direction.EAST;
+    /** The emerald processor's known position within {@code bank_top.nbt}. */
+    private static final BlockPos EMERALD_ORE_PROCESSOR_OFFSET = new BlockPos(8, 1, 7);
+    /** The emerald processor's authored FACING value in {@code bank_top.nbt}. */
+    private static final Direction AUTHORED_EMERALD_ORE_PROCESSOR_FACING = Direction.NORTH;
     /**
      * The vault's roof is directly beneath the top's floor.  The X component is the
      * requested five blocks in the positive-X direction from the top template origin.
@@ -623,6 +628,8 @@ public final class VillageBankStructurePlacer {
             }
 
             alignGeneratedBankFacing(level, bankPos, rotation);
+            BlockPos processorPos = topPlacePos.offset(rotateOffset(EMERALD_ORE_PROCESSOR_OFFSET, rotation));
+            alignGeneratedProcessorFacing(level, processorPos, rotation);
 
             captureGolemConstructionLocation(level, topPlacePos, vaultOrigin, rotation,
                     (BankBlockEntity) bank);
@@ -751,6 +758,25 @@ public final class VillageBankStructurePlacer {
 
         if (state.getValue(BankBlock.FACING) != expectedFacing) {
             level.setBlock(bankPos, state.setValue(BankBlock.FACING, expectedFacing), 2);
+        }
+    }
+
+    /**
+     * Keeps the generated processor's front aligned with its authored direction
+     * after the bank template is rotated around the selected site.
+     */
+    private void alignGeneratedProcessorFacing(ServerLevel level, BlockPos processorPos,
+                                                Rotation rotation) {
+        BlockState state = level.getBlockState(processorPos);
+        if (!state.is(ECAPBlocks.EMERALD_ORE_PROCESSOR.get())
+                || !state.hasProperty(EmeraldOreProcessorBlock.FACING)) {
+            return;
+        }
+
+        Direction expectedFacing = rotation.rotate(AUTHORED_EMERALD_ORE_PROCESSOR_FACING);
+        if (state.getValue(EmeraldOreProcessorBlock.FACING) != expectedFacing) {
+            level.setBlock(processorPos,
+                    state.setValue(EmeraldOreProcessorBlock.FACING, expectedFacing), 2);
         }
     }
 

@@ -6,7 +6,7 @@ import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.npc.Villager;
 import org.jetbrains.annotations.Nullable;
 
-/** Makes unowned bank golems and skirmishers attack their village mayor during a contested election. */
+/** Makes emerald golems and skirmishers attack their village mayor during a contested election. */
 public final class HostileVillageMayorTargetGoal extends NearestAttackableTargetGoal<Villager> {
 
     private final EmeraldGolem golem;

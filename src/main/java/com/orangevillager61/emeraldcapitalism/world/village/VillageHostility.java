@@ -2,7 +2,6 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
-import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -64,7 +63,7 @@ public final class VillageHostility {
         return village != null && isHostilePlayer(level, village, player);
     }
 
-    /** Returns whether an unowned bank golem or skirmisher should attack its village mayor. */
+    /** Returns whether an emerald golem or skirmisher should attack its village mayor. */
     public static boolean isHostileMayor(LivingEntity resident, Villager mayor) {
         if (!(resident.level() instanceof ServerLevel level)
                 || !mayor.isAlive()
@@ -73,10 +72,7 @@ public final class VillageHostility {
             return false;
         }
 
-        if (!(resident instanceof EmeraldGolem golem)
-                || (!(golem.isVaultGuard() || golem instanceof EmeraldSkrimisher))
-                || !(BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank)
-                || !bank.isBankIndependent()) {
+        if (!(resident instanceof EmeraldGolem)) {
             return false;
         }
 
@@ -85,7 +81,9 @@ public final class VillageHostility {
         return residentVillage != null
                 && mayorVillage != null
                 && residentVillage.getVillageId().equals(mayorVillage.getVillageId())
-                && mayorVillage.getGovernorCandidateId() != null;
+                && mayorVillage.getGovernorCandidateId() != null
+                && VillageGovernance.findBank(level, mayorVillage) instanceof BankBlockEntity bank
+                && bank.isBankIndependent();
     }
 
     /** Finds the nearest visible hostile player within the resident's village context. */

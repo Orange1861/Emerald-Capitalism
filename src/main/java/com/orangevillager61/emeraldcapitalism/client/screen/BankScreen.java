@@ -79,7 +79,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     // State
 
-    private enum Tab { OVERVIEW, ACCOUNTS, EMPLOYEES, INVENTORY, CONTROL, MARKET }
+    private enum Tab { OVERVIEW, ACCOUNTS, EMPLOYEES, INVENTORY, CONTROL, CRAFTING, MARKET }
     private Tab activeTab = Tab.OVERVIEW;
     private enum ControlTab { TARGETS, DELIVERIES, SECURITY }
     private ControlTab activeControlTab = ControlTab.TARGETS;
@@ -160,6 +160,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         this.inventoryLabelY = -999; // hide vanilla inventory label
         this.titleLabelY     = PADDING;
         this.titleLabelX     = (imageWidth - font.width(displayBankName)) / 2;
+        menu.setCraftingVisible(false);
         this.canRename = this.minecraft != null
                 && this.minecraft.player != null
                 && !this.minecraft.player.isSpectator()
@@ -193,6 +194,11 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         addRenderableWidget(Button.builder(Component.literal("Control"),
                 btn -> switchTab(Tab.CONTROL))
                 .bounds(leftPos + PADDING + (TAB_W + 4) * 4, tabRowY, TAB_W, TAB_H)
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Crafting"),
+                btn -> switchTab(Tab.CRAFTING))
+                .bounds(leftPos + PADDING + (TAB_W + 4) * 5, tabRowY, TAB_W, TAB_H)
                 .build());
 
         int controlY = tabRowY + TAB_H + 3;
@@ -236,6 +242,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private void switchTab(Tab tab) {
         this.activeTab = tab;
+        menu.setCraftingVisible(tab == Tab.CRAFTING);
         overviewScrollOffset = 0;
         accountScrollOffset = 0;
         employeeScrollOffset = 0;
@@ -317,6 +324,35 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     protected void renderBg(@NotNull GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         g.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, BG_COLOR);
         g.renderOutline(leftPos, topPos, imageWidth, imageHeight, BORDER_COLOR);
+        if (activeTab == Tab.CRAFTING) {
+            drawCraftingSlotBackground(g, BankMenu.RESULT_X, BankMenu.RESULT_Y, true);
+            for (int row = 0; row < 3; row++) {
+                for (int column = 0; column < 3; column++) {
+                    drawCraftingSlotBackground(g,
+                            BankMenu.CRAFT_GRID_X + column * 18,
+                            BankMenu.CRAFT_GRID_Y + row * 18, false);
+                }
+            }
+            for (int row = 0; row < 3; row++) {
+                for (int column = 0; column < 9; column++) {
+                    drawCraftingSlotBackground(g,
+                            BankMenu.PLAYER_INV_X + column * 18,
+                            BankMenu.PLAYER_INV_Y + row * 18, false);
+                }
+            }
+            for (int column = 0; column < 9; column++) {
+                drawCraftingSlotBackground(g,
+                        BankMenu.PLAYER_INV_X + column * 18,
+                        BankMenu.PLAYER_HOTBAR_Y, false);
+            }
+        }
+    }
+
+    private void drawCraftingSlotBackground(GuiGraphics g, int x, int y, boolean result) {
+        int color = result ? 0xFF263D26 : 0xFF202020;
+        g.fill(leftPos + x - 1, topPos + y - 1,
+                leftPos + x + 17, topPos + y + 17, color);
+        g.renderOutline(leftPos + x - 1, topPos + y - 1, 18, 18, 0xFF777777);
     }
 
     @Override
@@ -342,6 +378,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             renderInventoryTab(g, contentY);
         } else if (activeTab == Tab.CONTROL) {
             renderControlTab(g, contentY);
+        } else if (activeTab == Tab.CRAFTING) {
+            renderCraftingTab(g, contentY);
         } else {
             renderMarketTab(g, contentY);
         }
@@ -355,6 +393,17 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         updateMarketControls();
         super.render(g, mouseX, mouseY, partialTick);
         this.renderTooltip(g, mouseX, mouseY);
+    }
+
+    // Crafting tab
+
+    private void renderCraftingTab(GuiGraphics g, int y) {
+        g.drawString(font, "Emerald Crafting", BankMenu.CRAFT_GRID_X, y, DARK_GREEN);
+        g.drawString(font, "Output", BankMenu.RESULT_X, BankMenu.RESULT_Y - 13, LABEL_COLOR);
+        g.drawString(font, "→", 162, BankMenu.RESULT_Y + 4, VALUE_COLOR);
+        g.drawString(font, "Inventory", BankMenu.PLAYER_INV_X, BankMenu.PLAYER_INV_Y - 13, LABEL_COLOR);
+        g.drawString(font, "Normal crafting recipes and Emerald Crafting recipes are supported.",
+                PADDING, imageHeight - PADDING - font.lineHeight, LABEL_COLOR);
     }
 
     // Overview tab

@@ -558,7 +558,7 @@ public final class EmeraldGolemGameTests {
             return;
         }
 
-        BlockPos center = helper.absolutePos(new BlockPos(5, 1, 5));
+        BlockPos center = helper.absolutePos(new BlockPos(9, 1, 9));
         VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
                 UUID.randomUUID(), center, new net.minecraft.world.phys.AABB(center).inflate(8.0D));
         UUID villageId = village.getVillageId();

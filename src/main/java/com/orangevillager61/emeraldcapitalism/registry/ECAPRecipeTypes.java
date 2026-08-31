@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.registry;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.recipe.EmeraldCraftingRecipe;
 import com.orangevillager61.emeraldcapitalism.recipe.SawmillRecipe;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import net.minecraft.core.registries.Registries;
@@ -20,6 +21,9 @@ public final class ECAPRecipeTypes {
 
     public static final Supplier<RecipeType<SawmillRecipe>> SAWMILL = RECIPE_TYPES.register(
             "sawmill", () -> RecipeType.simple(ModIds.id("sawmill")));
+
+    public static final Supplier<RecipeType<EmeraldCraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
+            "emerald_crafting", () -> RecipeType.simple(ModIds.id("emerald_crafting")));
 
     private ECAPRecipeTypes() {}
 }

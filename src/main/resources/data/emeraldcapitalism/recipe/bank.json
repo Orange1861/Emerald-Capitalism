@@ -1,0 +1,18 @@
+{
+  "type": "emeraldcapitalism:emerald_crafting",
+  "pattern": [
+    "DHD",
+    "EFE",
+    "DDD"
+  ],
+  "key": {
+    "D": { "item": "minecraft:deepslate_bricks" },
+    "H": { "item": "minecraft:hopper" },
+    "E": { "item": "minecraft:emerald" },
+    "F": { "item": "minecraft:furnace" }
+  },
+  "result": {
+    "id": "emeraldcapitalism:bank",
+    "count": 1
+  }
+}
