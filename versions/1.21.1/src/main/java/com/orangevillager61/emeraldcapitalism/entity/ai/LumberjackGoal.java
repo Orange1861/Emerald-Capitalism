@@ -30,6 +30,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 
 import javax.annotation.Nullable;
 import java.util.EnumSet;
@@ -48,6 +49,8 @@ public final class LumberjackGoal extends Goal {
     private static final double MAX_VERTICAL_REACH_ABOVE_HEAD = 10.0D;
     private static final float SPEED_MODIFIER = 0.6F;
     private static final int HAND_BREAK_TICKS_PER_HARDNESS = 30;
+    private static final int NAVIGATION_RETRY_INTERVAL_TICKS = 10;
+    private static final int MAX_NAVIGATION_FAILURES = 20;
     private static final int FURNACE_INPUT_SLOT = 0;
     private static final int FURNACE_FUEL_SLOT = 1;
     private static final int FURNACE_RESULT_SLOT = 2;
@@ -72,6 +75,7 @@ public final class LumberjackGoal extends Goal {
     private long nextSearchTick;
     private long nextFurnaceSearchTick;
     private long nextNavigationRetryTick;
+    private int navigationFailures;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
     private boolean furnaceInputInserted;
     private boolean returningToJobSite;
@@ -129,6 +133,7 @@ public final class LumberjackGoal extends Goal {
         nextLogIndex = 0;
         breakTicks = 0;
         logsCollectedThisTree = 0;
+        navigationFailures = 0;
         return tree != null;
     }
 
@@ -154,7 +159,15 @@ public final class LumberjackGoal extends Goal {
             holdPositionWhileWorking();
             failed = false;
         } else {
-            failed = productionFurnace == null ? !moveToCurrentTarget() : !moveToProductionFurnace();
+            failed = false;
+            boolean started = productionFurnace == null
+                    ? moveToCurrentTarget()
+                    : moveToProductionFurnace();
+            if (started) {
+                navigationFailures = 0;
+            } else if (villager.level() instanceof ServerLevel level) {
+                recordNavigationFailure(level);
+            }
         }
         navigationWatchdog.reset();
     }
@@ -190,11 +203,18 @@ public final class LumberjackGoal extends Goal {
             // the next log again.
             navigationTarget = null;
             navigationWatchdog.reset();
+            navigationFailures = 0;
         }
         if (!isWithinWorkReach(target)) {
-            if (navigationTarget == null && !moveToCurrentTarget()) {
-                failed = true;
-                villager.getNavigation().stop();
+            if (navigationTarget == null) {
+                if (level.getGameTime() < nextNavigationRetryTick) {
+                    return;
+                }
+                if (moveToCurrentTarget()) {
+                    navigationFailures = 0;
+                } else {
+                    recordNavigationFailure(level);
+                }
             } else if (navigationTarget != null
                     && navigationWatchdog.isStuck(villager, navigationTarget)) {
                 failed = true;
@@ -205,7 +225,11 @@ public final class LumberjackGoal extends Goal {
                 // but never restart navigation every tick.
                 navigationTarget = null;
                 navigationWatchdog.reset();
-                failed = !moveToCurrentTarget();
+                if (moveToCurrentTarget()) {
+                    navigationFailures = 0;
+                } else {
+                    recordNavigationFailure(level);
+                }
             }
             return;
         }
@@ -238,6 +262,7 @@ public final class LumberjackGoal extends Goal {
             nextLogIndex++;
             navigationTarget = null;
             navigationWatchdog.reset();
+            navigationFailures = 0;
         }
     }
 
@@ -245,6 +270,7 @@ public final class LumberjackGoal extends Goal {
         villager.getNavigation().stop();
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         navigationTarget = null;
+        navigationFailures = 0;
         navigationWatchdog.reset();
     }
 
@@ -286,6 +312,7 @@ public final class LumberjackGoal extends Goal {
         lastBreakingStage = -1;
         navigationWatchdog.reset();
         nextNavigationRetryTick = 0L;
+        navigationFailures = 0;
         failed = false;
     }
 
@@ -393,8 +420,13 @@ public final class LumberjackGoal extends Goal {
         if (target == null) {
             return false;
         }
+        if (!(villager.level() instanceof ServerLevel level)) {
+            return false;
+        }
         if (navigationTarget == null) {
-            navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, target, 2);
+            navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, target, 2,
+                    candidate -> level.getBlockState(candidate)
+                            .isPathfindable(PathComputationType.LAND));
             if (navigationTarget == null) {
                 return false;
             }
@@ -406,14 +438,25 @@ public final class LumberjackGoal extends Goal {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                     new WalkTarget(navigationTarget, SPEED_MODIFIER, 1));
+        } else {
+            navigationTarget = null;
         }
         return started;
     }
 
+    private void recordNavigationFailure(ServerLevel level) {
+        navigationFailures++;
+        nextNavigationRetryTick = level.getGameTime() + NAVIGATION_RETRY_INTERVAL_TICKS;
+        if (navigationFailures >= MAX_NAVIGATION_FAILURES) {
+            failed = true;
+            villager.getNavigation().stop();
+        }
+    }
+
     /**
-     * Removes a selected-tree leaf occupying the villager's forward head
-     * space. Leaves are normally cleared after the logs, but one in this
-     * position can prevent navigation from ever reaching the next log.
+     * Removes selected-tree leaves occupying the villager's forward head
+     * space. Leaves are normally cleared after the logs, but leaving part of
+     * this space blocked can prevent navigation from reaching the next log.
      */
     private boolean clearLeafBlockingApproach(ServerLevel level, BlockPos target) {
         if (tree == null) {
@@ -423,6 +466,7 @@ public final class LumberjackGoal extends Goal {
         BlockPos origin = villager.blockPosition();
         int targetX = Integer.signum(target.getX() - origin.getX());
         int targetZ = Integer.signum(target.getZ() - origin.getZ());
+        boolean cleared = false;
         for (int y = 1; y <= 2; y++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
@@ -445,11 +489,11 @@ public final class LumberjackGoal extends Goal {
                     }
 
                     breakBlockAndCollect(level, candidate, state);
-                    return true;
+                    cleared = true;
                 }
             }
         }
-        return false;
+        return cleared;
     }
 
     private int handBreakTicks(ServerLevel level, BlockPos pos, BlockState state) {

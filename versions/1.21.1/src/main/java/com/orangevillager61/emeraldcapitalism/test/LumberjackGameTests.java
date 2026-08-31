@@ -33,13 +33,17 @@ public final class LumberjackGameTests {
         BlockPos base = installSmallTree(helper);
         BlockPos furnacePos = installNearbyFurnace(helper);
         BlockPos blockingLeaf = base.west().above();
+        BlockPos secondBlockingLeaf = base.east().above();
         helper.setBlock(blockingLeaf, Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(secondBlockingLeaf, Blocks.OAK_LEAVES.defaultBlockState());
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
         helper.assertTrue(goal.canUse(), "lumberjack did not detect a supported log cluster with leaves");
         goal.start();
         helper.assertTrue(helper.getLevel().getBlockState(blockingLeaf).isAir(),
                 "lumberjack left a canopy leaf blocking its head-level approach");
+        helper.assertTrue(helper.getLevel().getBlockState(secondBlockingLeaf).isAir(),
+                "lumberjack stopped after clearing only one canopy leaf");
         goal.tick();
         helper.assertTrue(lumberjack.getNavigation().isDone(),
                 "lumberjack kept navigating after reaching the tree log it was cutting");
