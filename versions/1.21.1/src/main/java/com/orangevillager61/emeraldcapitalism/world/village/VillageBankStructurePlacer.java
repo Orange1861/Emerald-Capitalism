@@ -169,8 +169,7 @@ public final class VillageBankStructurePlacer {
         }
 
         String biomeType = VillagePathBlocks.inferBiomeType(level, bellPos, villagePieces);
-        List<BankSite> preferredSites = new ArrayList<>();
-        List<BankSite> fallbackSites = new ArrayList<>();
+        List<BankSite> safeSites = new ArrayList<>();
         for (int distance : DISTANCES_FROM_BELL) {
             for (int[] direction : DIRECTIONS) {
                 int originX = bellPos.getX() + direction[0] * distance - TOP_SIZE / 2;
@@ -185,11 +184,7 @@ public final class VillageBankStructurePlacer {
                 if (site == null) {
                     continue;
                 }
-                if (site.overlapType() == VillagePieceBounds.PATH_OVERLAP) {
-                    fallbackSites.add(site);
-                } else {
-                    preferredSites.add(site);
-                }
+                safeSites.add(site);
             }
         }
 
@@ -197,11 +192,12 @@ public final class VillageBankStructurePlacer {
                 .comparingInt(BankSite::connectionCost)
                 .thenComparingInt(BankSite::terrainCost)
                 .thenComparingInt(BankSite::maxHeightDifference);
-        preferredSites.sort(terrainOrder);
-        fallbackSites.sort(terrainOrder);
+        safeSites.sort(terrainOrder);
 
-        BankSite selected = !preferredSites.isEmpty() ? preferredSites.getFirst()
-                : (!fallbackSites.isEmpty() ? fallbackSites.getFirst() : null);
+        // Existing roads are connector targets, never valid bank footprints. The old
+        // fallback selected a road-overlapping site when all safer candidates failed,
+        // allowing the bank entrance and its connector to overwrite the street.
+        BankSite selected = safeSites.isEmpty() ? null : safeSites.getFirst();
         if (selected != null) {
             return new PlannedBank(topTemplate.get(), vaultTemplate.get(), selected.origin(),
                     selected.rotation(), selected.pathStart(), selected.pathTarget(), biomeType);
@@ -358,7 +354,7 @@ public final class VillageBankStructurePlacer {
         VillagePieceBounds pieceBounds = preparePieceBounds(
                 level, originX, originZ, villagePieces);
         int overlap = pieceBounds.overlapType(originX, originZ, TOP_SIZE, TOP_SIZE);
-        if (overlap == VillagePieceBounds.BUILDING_OVERLAP
+        if (overlap != VillagePieceBounds.NO_OVERLAP
                 || pieceBounds.overlapsBuilding(placementProtectionBox(originX, originZ))) {
             return null;
         }
@@ -382,7 +378,7 @@ public final class VillageBankStructurePlacer {
         BankOrientation orientation = chooseOrientation(origin, villageCenter, pieceBounds.pathBoxes());
         return new BankSite(origin, terrain.earthwork(), terrain.maxHeightDifference(),
                 orientation.rotation(), orientation.pathStart(), orientation.pathTarget(),
-                orientation.connectionCost(), overlap);
+                orientation.connectionCost());
     }
 
     /**
@@ -1418,7 +1414,7 @@ public final class VillageBankStructurePlacer {
 
     private record BankSite(BlockPos origin, int terrainCost, int maxHeightDifference,
                             Rotation rotation, BlockPos pathStart, BlockPos pathTarget,
-                            int connectionCost, int overlapType) {}
+                            int connectionCost) {}
 
     private record VillagePieceBounds(List<BoundingBox> pathBoxes,
                                       List<BoundingBox> buildingBoxes) {
