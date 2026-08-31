@@ -1061,7 +1061,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
                 marketDemandContext(entry));
         TradeSide side = entry.config().tradeType() == MarketTradeType.FIXED
-                && entry.config().supportsFixedBuy() ? TradeSide.BUY : TradeSide.SELL;
+                && !entry.config().supportsFixedBuy() ? TradeSide.SELL : TradeSide.BUY;
         return marketQuote(entry, batch, side);
     }
 
@@ -1071,11 +1071,11 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     }
 
     private String marketOfferLabel(BankMenu.MarketEntry entry, MarketTradeQuote quote) {
-        if (!quote.valid()) {
-            return "Unavailable";
-        }
         if (isMapTrade(entry) && !hasMapSalePermission(entry)) {
             return "Requires bank opinion +" + MarketTradeService.MAP_SALE_BANK_OPINION_THRESHOLD;
+        }
+        if (!quote.valid()) {
+            return "Unavailable";
         }
         if (quote.emeraldAmount() == 0) {
             return "Bank has too few " + pluralMarketItemName(entry.displayName());
@@ -1114,7 +1114,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
         int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
                 marketDemandContext(entry));
-        return !marketQuote(entry, batch, TradeSide.BUY).valid();
+        return entry.stock() < batch || !marketQuote(entry, batch, TradeSide.BUY).valid();
     }
 
     private int marketSortPriority(BankMenu.MarketEntry entry) {
