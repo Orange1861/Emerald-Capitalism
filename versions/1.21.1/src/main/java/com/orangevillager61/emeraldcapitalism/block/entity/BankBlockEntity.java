@@ -469,6 +469,35 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
+    /** Finds the nearest loaded bank without forcing any chunks to load. */
+    @Nullable
+    public static BankBlockEntity findNearestLoadedBank(ServerLevel level, BlockPos origin) {
+        Set<BankBlockEntity> banks = LOADED_BANKS.get(level);
+        if (banks == null || banks.isEmpty()) {
+            return null;
+        }
+
+        BankBlockEntity nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        long nearestPosition = Long.MAX_VALUE;
+        for (BankBlockEntity bank : banks) {
+            if (bank.isRemoved()) {
+                continue;
+            }
+
+            BlockPos bankPos = bank.getBlockPos();
+            double distance = bankPos.distSqr(origin);
+            long position = bankPos.asLong();
+            if (distance < nearestDistance
+                    || (Double.compare(distance, nearestDistance) == 0 && position < nearestPosition)) {
+                nearest = bank;
+                nearestDistance = distance;
+                nearestPosition = position;
+            }
+        }
+        return nearest;
+    }
+
     /** Clears the loaded-bank index at a server lifecycle boundary. */
     public static void clearLoadedBanks() {
         LOADED_BANKS.clear();

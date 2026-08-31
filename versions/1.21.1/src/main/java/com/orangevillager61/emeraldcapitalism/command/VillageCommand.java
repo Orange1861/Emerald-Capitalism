@@ -1,11 +1,14 @@
 package com.orangevillager61.emeraldcapitalism.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.orangevillager61.emeraldcapitalism.Config;
+import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.event.VillageRegistryEvents;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
+import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageManagerPlacement;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
@@ -16,6 +19,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
@@ -36,6 +40,8 @@ import java.util.UUID;
  *   <li>{@code /ecap village link <id>}: link a nearby manager block to a village</li>
  *   <li>{@code /ecap village rename <id> <name>}: rename a village</li>
  *   <li>{@code /ecap village reset}: clear all village data</li>
+ *   <li>{@code /ecap reputation <amount> nearestbank}: adjust bank reputation</li>
+ *   <li>{@code /ecap reputation <amount> nearestvillage}: adjust village reputation</li>
  * </ul>
  */
 public class VillageCommand {
@@ -70,6 +76,16 @@ public class VillageCommand {
                                 .then(Commands.literal("reset")
                                         .executes(ctx -> resetVillages(ctx.getSource())))
                         )
+                        .then(Commands.literal("reputation")
+                                .then(Commands.argument("amount", IntegerArgumentType.integer())
+                                        .then(Commands.literal("nearestbank")
+                                                .executes(ctx -> adjustNearestBankReputation(
+                                                        ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "amount"))))
+                                        .then(Commands.literal("nearestvillage")
+                                                .executes(ctx -> adjustNearestVillageReputation(
+                                                        ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "amount"))))))
                         .then(Commands.literal("performance")
                                 .executes(ctx -> showPerformance(ctx.getSource())))
         );
@@ -84,6 +100,65 @@ public class VillageCommand {
                         operation.name().toLowerCase(Locale.ROOT), snapshot.calls(),
                         snapshot.averageMillis(), snapshot.maximumMillis())), false));
         return snapshots.size();
+    }
+
+    private static int adjustNearestBankReputation(CommandSourceStack source, int amount) {
+        ServerPlayer player = getCommandPlayer(source);
+        if (player == null) {
+            return 0;
+        }
+
+        ServerLevel level = player.serverLevel();
+        BankBlockEntity bank = BankBlockEntity.findNearestLoadedBank(level, player.blockPosition());
+        if (bank == null) {
+            source.sendFailure(Component.literal("No loaded bank could be found."));
+            return 0;
+        }
+
+        BankReputationData reputation = BankReputationData.get(level);
+        int before = reputation.getReputation(player.getUUID());
+        int after = reputation.adjustReputation(player.getUUID(), amount);
+        BlockPos bankPos = bank.getBlockPos();
+        source.sendSuccess(() -> Component.literal(
+                "Changed bank reputation by " + amount + " with the nearest bank at ("
+                        + bankPos.getX() + ", " + bankPos.getY() + ", " + bankPos.getZ()
+                        + "): " + before + " -> " + after
+        ), true);
+        return 1;
+    }
+
+    private static int adjustNearestVillageReputation(CommandSourceStack source, int amount) {
+        ServerPlayer player = getCommandPlayer(source);
+        if (player == null) {
+            return 0;
+        }
+
+        ServerLevel level = player.serverLevel();
+        VillageRegistryData data = getData(level);
+        VillageRecord village = data.getNearestVillage(player.blockPosition());
+        if (village == null) {
+            source.sendFailure(Component.literal("No registered village could be found."));
+            return 0;
+        }
+
+        int before = village.getOpinionModifier(player.getUUID());
+        int after = village.adjustOpinionModifier(player.getUUID(), amount);
+        data.setDirty();
+        BlockPos bellPos = village.getBellPosition();
+        source.sendSuccess(() -> Component.literal(
+                "Changed village reputation by " + amount + " with " + village.getName()
+                        + " at (" + bellPos.getX() + ", " + bellPos.getY() + ", " + bellPos.getZ()
+                        + "): " + before + " -> " + after
+        ), true);
+        return 1;
+    }
+
+    private static ServerPlayer getCommandPlayer(CommandSourceStack source) {
+        if (source.getEntity() instanceof ServerPlayer player) {
+            return player;
+        }
+        source.sendFailure(Component.literal("This command must be run by a player."));
+        return null;
     }
 
     // Helpers

@@ -869,7 +869,8 @@ public class VillageRecord {
      * average villager opinion plus concrete village actions.
      */
     public int adjustOpinionModifier(UUID playerId, int delta) {
-        int updated = opinionModifiers.getOrDefault(playerId, 0) + delta;
+        long requested = (long) opinionModifiers.getOrDefault(playerId, 0) + delta;
+        int updated = (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, requested));
         if (updated == 0) {
             opinionModifiers.remove(playerId);
         } else {
