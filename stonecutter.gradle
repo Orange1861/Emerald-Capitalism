@@ -1,5 +1,9 @@
 plugins {
     id 'dev.kikugie.stonecutter'
+    // Resolve ModDevGradle once so every Stonecutter subproject shares the
+    // same plugin classes. Its IntelliJ integration registers IdeaExtPlugin
+    // on the root project and otherwise can collide across plugin versions.
+    id 'net.neoforged.moddev' version '2.0.141' apply false
 }
 
 stonecutter.active '1.21.1' /* [SC] DO NOT EDIT */

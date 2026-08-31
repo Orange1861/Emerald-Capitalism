@@ -9,9 +9,7 @@ import com.orangevillager61.emeraldcapitalism.build.MixinAuditTask
 plugins {
     id 'java-library'
     id 'maven-publish'
-    // Bump this to whatever's current for the calendar era. 2.0.141 was current
-    // per NeoForge's own 26.1 migration notes in March 2026, check before using.
-    id 'net.neoforged.moddev' version '2.0.141'
+    id 'net.neoforged.moddev'
     id 'idea'
 }
 

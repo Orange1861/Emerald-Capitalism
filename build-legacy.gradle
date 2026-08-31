@@ -10,7 +10,7 @@ import com.orangevillager61.emeraldcapitalism.build.MixinAuditTask
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.140'
+    id 'net.neoforged.moddev'
     id 'idea'
 }
 
