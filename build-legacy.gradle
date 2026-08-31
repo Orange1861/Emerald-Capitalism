@@ -41,11 +41,11 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(Integer.parseInt(java_ve
 
 sourceSets {
     main {
-        java.srcDir rootProject.file('src/main/java')
-        resources.srcDir rootProject.file('src/main/resources')
+        java.setSrcDirs([rootProject.file('src/main/java'), file('src/main/java')].unique())
+        resources.setSrcDirs([rootProject.file('src/main/resources'), file('src/main/resources')].unique())
     }
     test {
-        java.srcDir rootProject.file('src/test/java')
+        java.setSrcDirs([rootProject.file('src/test/java'), file('src/test/java')].unique())
     }
 }
 

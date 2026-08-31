@@ -612,14 +612,25 @@ public final class EmeraldGolemGameTests {
         helper.assertTrue(emeraldGolem.getTarget() == mayor,
                 "bank golem did not target the village mayor during an election");
 
+        boolean foundSkrimisherMayor = false;
+        for (int attempt = 0; attempt < 40 && !foundSkrimisherMayor; attempt++) {
+            foundSkrimisherMayor = skrimisherGoal.canUse();
+        }
+        helper.assertTrue(foundSkrimisherMayor,
+                "an emerald skirmisher did not find the mayor while a candidate was registered");
+        skrimisherGoal.start();
+        helper.assertTrue(skrimisher.getTarget() == mayor,
+                "emerald skirmisher did not target the village mayor during an election");
+
         bank.setController(candidateId);
         helper.assertFalse(emeraldGoal.canContinueToUse(),
                 "bank golem continued targeting the mayor after the bank was claimed");
-        helper.assertFalse(skrimisherGoal.canUse(),
-                "an unassigned emerald skirmisher targeted the mayor");
+        helper.assertFalse(skrimisherGoal.canContinueToUse(),
+                "emerald skirmisher continued targeting the mayor after the bank was claimed");
 
         village.clearGovernorCandidate();
         emeraldGoal.stop();
+        skrimisherGoal.stop();
         helper.assertFalse(emeraldGoal.canUse(),
                 "emerald golem remained hostile to the mayor after the candidate was removed");
         helper.succeed();

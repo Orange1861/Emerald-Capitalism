@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
+import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -63,7 +64,7 @@ public final class VillageHostility {
         return village != null && isHostilePlayer(level, village, player);
     }
 
-    /** Returns whether an unowned bank golem should attack the mayor in its village. */
+    /** Returns whether an unowned bank golem or skirmisher should attack its village mayor. */
     public static boolean isHostileMayor(LivingEntity resident, Villager mayor) {
         if (!(resident.level() instanceof ServerLevel level)
                 || !mayor.isAlive()
@@ -73,7 +74,7 @@ public final class VillageHostility {
         }
 
         if (!(resident instanceof EmeraldGolem golem)
-                || !golem.isVaultGuard()
+                || (!(golem.isVaultGuard() || golem instanceof EmeraldSkrimisher))
                 || !(BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank)
                 || !bank.isBankIndependent()) {
             return false;

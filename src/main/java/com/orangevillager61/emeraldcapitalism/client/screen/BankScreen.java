@@ -371,9 +371,11 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         }
         y += ROW_HEIGHT;
 
-        int bankOpinion = m.getBankOpinion();
-        drawRow(g, y, "Your bank opinion:", formatOpinion(bankOpinion), opinionColor(bankOpinion));
-        y += ROW_HEIGHT;
+        if (!isBankOwner()) {
+            int bankOpinion = m.getBankOpinion();
+            drawRow(g, y, "Your bank opinion:", formatOpinion(bankOpinion), opinionColor(bankOpinion));
+            y += ROW_HEIGHT;
+        }
 
         drawRow(g, y, "Control:", m.isBankIndependent()
                 ? "Independent" : "Player controlled", m.isBankIndependent() ? VALUE_COLOR : GOLD_COLOR);
@@ -971,6 +973,12 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private boolean canEditControl() {
         return minecraft != null && minecraft.player != null && !minecraft.player.isSpectator()
+                && menu.getControllerId() != null
+                && menu.getControllerId().equals(minecraft.player.getUUID());
+    }
+
+    private boolean isBankOwner() {
+        return minecraft != null && minecraft.player != null
                 && menu.getControllerId() != null
                 && menu.getControllerId().equals(minecraft.player.getUUID());
     }
