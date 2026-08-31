@@ -104,6 +104,7 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
                 sendLedgerRefresh(player, village, level);
                 return;
             }
+            VillageGovernance.bindGovernorCandidateAttackGrace(level, village);
             boolean promoted = VillageGovernance.refresh(level, village);
             VillageRegistryData.get(level).setDirty();
             VillagePOIDataCache.invalidateVillage(village.getVillageId());

@@ -81,10 +81,9 @@ public final class VillageHostility {
         return residentVillage != null
                 && mayorVillage != null
                 && residentVillage.getVillageId().equals(mayorVillage.getVillageId())
-                && mayorVillage.getGovernorCandidateId() != null
-                && mayorVillage.isGovernorCandidateAttackGraceElapsed(level.getGameTime())
                 && VillageGovernance.findBank(level, mayorVillage) instanceof BankBlockEntity bank
-                && bank.isBankIndependent();
+                && VillageGovernance.isContestedGovernorMayorAttackAllowed(
+                        level, mayorVillage, bank, mayor);
     }
 
     /** Finds the nearest visible hostile player within the resident's village context. */

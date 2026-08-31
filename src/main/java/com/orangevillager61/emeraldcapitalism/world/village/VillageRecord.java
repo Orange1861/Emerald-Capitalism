@@ -250,7 +250,16 @@ public class VillageRecord {
                                         ops.createBoolean(input.doorRepairEnabled)))
                                 .flatMap(withDoorSetting -> ops.mergeToMap(withDoorSetting,
                                         ops.createString("governor_candidate_attack_grace_until"),
-                                        ops.createLong(input.governorCandidateAttackGraceUntil)));
+                                        ops.createLong(input.governorCandidateAttackGraceUntil)))
+                                .flatMap(withGraceUntil -> mergeOptionalUuid(ops, withGraceUntil,
+                                        "governor_candidate_attack_player",
+                                        input.governorCandidateAttackPlayerId))
+                                .flatMap(withGracePlayer -> mergeOptionalBlockPos(ops, withGracePlayer,
+                                        "governor_candidate_attack_bank",
+                                        input.governorCandidateAttackBankPos))
+                                .flatMap(withGraceBank -> mergeOptionalUuid(ops, withGraceBank,
+                                        "governor_candidate_attack_mayor",
+                                        input.governorCandidateAttackMayorId));
                     });
                 }
             },
@@ -275,16 +284,38 @@ public class VillageRecord {
                                                         readOptionalLong(ops, map,
                                                                 "governor_candidate_attack_grace_until",
                                                                 decoded.getFirst().governorCandidateAttackGraceUntil)
-                                                                .map(graceUntil -> {
+                                                                .flatMap(graceUntil ->
+                                                                        readOptionalUuid(ops, map,
+                                                                                "governor_candidate_attack_player")
+                                                                                .flatMap(gracePlayer ->
+                                                                                        readOptionalBlockPos(ops, map,
+                                                                                                "governor_candidate_attack_bank")
+                                                                                                .flatMap(graceBank ->
+                                                                                                        readOptionalUuid(ops, map,
+                                                                                                                "governor_candidate_attack_mayor")
+                                                                                                                .map(graceMayor -> {
                                                     decoded.getFirst().doorRegistry.addAll(doors);
                                                     decoded.getFirst().missingDoorRegistry.addAll(missingDoors);
                                                     decoded.getFirst().missingDoorRegistry.removeAll(
                                                             decoded.getFirst().doorRegistry);
                                                     decoded.getFirst().farmlandRepairEnabled = farmlandEnabled;
                                                     decoded.getFirst().doorRepairEnabled = doorEnabled;
+                                                    UUID candidateId = decoded.getFirst().governorCandidateId;
+                                                    UUID gracePlayerId = gracePlayer.orElse(null);
+                                                    BlockPos graceBankPos = graceBank.orElse(null);
+                                                    UUID graceMayorId = graceMayor.orElse(null);
+                                                    boolean completeGrace = candidateId != null
+                                                            && candidateId.equals(gracePlayerId)
+                                                            && graceBankPos != null
+                                                            && graceMayorId != null;
+                                                    decoded.getFirst().governorCandidateAttackPlayerId =
+                                                            completeGrace ? gracePlayerId : null;
+                                                    decoded.getFirst().governorCandidateAttackBankPos =
+                                                            completeGrace ? graceBankPos : null;
+                                                    decoded.getFirst().governorCandidateAttackMayorId =
+                                                            completeGrace ? graceMayorId : null;
                                                     decoded.getFirst().governorCandidateAttackGraceUntil =
-                                                            decoded.getFirst().governorCandidateId == null
-                                                                    ? 0L : graceUntil;
+                                                            completeGrace ? graceUntil : 0L;
                                                     return decoded;
                                                 }))));
                             }));
@@ -296,6 +327,24 @@ public class VillageRecord {
         return Codec.STRING.validate(value -> value.length() <= maxLength
                 ? DataResult.success(value)
                 : DataResult.error(() -> description + " exceeds " + maxLength + " characters"));
+    }
+
+    private static <T> DataResult<T> mergeOptionalUuid(DynamicOps<T> ops, T input, String key,
+                                                       @Nullable UUID value) {
+        if (value == null) {
+            return DataResult.success(input);
+        }
+        return UUIDUtil.CODEC.encodeStart(ops, value)
+                .flatMap(encoded -> ops.mergeToMap(input, ops.createString(key), encoded));
+    }
+
+    private static <T> DataResult<T> mergeOptionalBlockPos(DynamicOps<T> ops, T input, String key,
+                                                           @Nullable BlockPos value) {
+        if (value == null) {
+            return DataResult.success(input);
+        }
+        return BlockPos.CODEC.encodeStart(ops, value)
+                .flatMap(encoded -> ops.mergeToMap(input, ops.createString(key), encoded));
     }
 
     private final UUID villageId;
@@ -319,6 +368,15 @@ public class VillageRecord {
     /** The one player currently standing as governor candidate, if any. */
     @Nullable
     private UUID governorCandidateId;
+    /** Candidate UUID associated with the bank/mayor attack grace tuple. */
+    @Nullable
+    private UUID governorCandidateAttackPlayerId;
+    /** Bank position associated with the bank/mayor attack grace tuple. */
+    @Nullable
+    private BlockPos governorCandidateAttackBankPos;
+    /** Mayor UUID associated with the bank/mayor attack grace tuple. */
+    @Nullable
+    private UUID governorCandidateAttackMayorId;
     /** Absolute game-time tick at which bank hostility toward the candidate may begin. */
     private long governorCandidateAttackGraceUntil;
 
@@ -915,6 +973,26 @@ public class VillageRecord {
                 .parse(ops, encoded);
     }
 
+    private static <T> DataResult<Optional<UUID>> readOptionalUuid(DynamicOps<T> ops,
+                                                                    MapLike<T> map,
+                                                                    String key) {
+        T encoded = map.get(ops.createString(key));
+        if (encoded == null) {
+            return DataResult.success(Optional.empty());
+        }
+        return UUIDUtil.CODEC.parse(ops, encoded).map(value -> Optional.of(value));
+    }
+
+    private static <T> DataResult<Optional<BlockPos>> readOptionalBlockPos(DynamicOps<T> ops,
+                                                                            MapLike<T> map,
+                                                                            String key) {
+        T encoded = map.get(ops.createString(key));
+        if (encoded == null) {
+            return DataResult.success(Optional.empty());
+        }
+        return BlockPos.CODEC.parse(ops, encoded).map(value -> Optional.of(value));
+    }
+
     /** Returns whether this player is the village's appointed governor. */
     public boolean isGovernor(UUID playerId) {
         return playerId != null && playerId.equals(governorId);
@@ -939,6 +1017,9 @@ public class VillageRecord {
         if (playerId != null) {
             if (playerId.equals(governorCandidateId)) {
                 governorCandidateId = null;
+                governorCandidateAttackPlayerId = null;
+                governorCandidateAttackBankPos = null;
+                governorCandidateAttackMayorId = null;
                 governorCandidateAttackGraceUntil = 0L;
             }
         }
@@ -957,6 +1038,9 @@ public class VillageRecord {
             throw new IllegalArgumentException("Game time cannot be negative");
         }
         governorCandidateId = playerId;
+        governorCandidateAttackPlayerId = playerId;
+        governorCandidateAttackBankPos = null;
+        governorCandidateAttackMayorId = null;
         governorCandidateAttackGraceUntil = gameTime > Long.MAX_VALUE
                 - GOVERNOR_CANDIDATE_ATTACK_GRACE_TICKS
                 ? Long.MAX_VALUE
@@ -970,18 +1054,48 @@ public class VillageRecord {
             return false;
         }
         governorCandidateId = null;
+        governorCandidateAttackPlayerId = null;
+        governorCandidateAttackBankPos = null;
+        governorCandidateAttackMayorId = null;
         governorCandidateAttackGraceUntil = 0L;
         return true;
     }
 
-    /** Returns whether the bank's grace period has elapsed for the current candidate. */
-    public boolean isGovernorCandidateAttackGraceElapsed(long gameTime) {
-        return governorCandidateId == null || gameTime >= governorCandidateAttackGraceUntil;
+    /** Binds the grace period to the bank and Mayor involved in this election. */
+    public boolean bindGovernorCandidateAttackGrace(BlockPos bankPos, UUID mayorId) {
+        if (governorCandidateId == null || bankPos == null || mayorId == null) {
+            return false;
+        }
+        governorCandidateAttackPlayerId = governorCandidateId;
+        governorCandidateAttackBankPos = bankPos.immutable();
+        governorCandidateAttackMayorId = mayorId;
+        return true;
     }
 
-    /** Ends the bank's grace period when the current candidate takes hostile action. */
-    public boolean endGovernorCandidateAttackGrace(UUID playerId) {
-        if (!isGovernorCandidate(playerId) || governorCandidateAttackGraceUntil == 0L) {
+    /** Returns whether this exact bank, candidate, and Mayor have passed grace. */
+    public boolean isGovernorCandidateAttackGraceElapsed(BlockPos bankPos, UUID playerId,
+                                                          UUID mayorId, long gameTime) {
+        if (!isGovernorCandidate(playerId)
+                || !playerId.equals(governorCandidateAttackPlayerId)
+                || bankPos == null
+                || !bankPos.equals(governorCandidateAttackBankPos)
+                || mayorId == null
+                || !mayorId.equals(governorCandidateAttackMayorId)) {
+            return false;
+        }
+        return governorCandidateAttackGraceUntil == 0L
+                || gameTime >= governorCandidateAttackGraceUntil;
+    }
+
+    /** Ends grace when the current candidate acts against this exact bank and Mayor. */
+    public boolean endGovernorCandidateAttackGrace(BlockPos bankPos, UUID playerId, UUID mayorId) {
+        if (governorCandidateAttackGraceUntil == 0L
+                || !isGovernorCandidate(playerId)
+                || !playerId.equals(governorCandidateAttackPlayerId)
+                || bankPos == null
+                || !bankPos.equals(governorCandidateAttackBankPos)
+                || mayorId == null
+                || !mayorId.equals(governorCandidateAttackMayorId)) {
             return false;
         }
         governorCandidateAttackGraceUntil = 0L;

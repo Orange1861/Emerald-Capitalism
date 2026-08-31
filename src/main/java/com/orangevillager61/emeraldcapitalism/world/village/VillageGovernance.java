@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
+import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPPoiTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
@@ -42,7 +43,7 @@ public final class VillageGovernance {
     }
 
     @Nullable
-    private static Villager findLivingMayor(ServerLevel level, VillageRecord village) {
+    public static Villager findLivingMayor(ServerLevel level, VillageRecord village) {
         return level.getEntitiesOfClass(Villager.class, village.getBoundingBox(),
                         villager -> villager.isAlive()
                                 && villager.getVillagerData().getProfession()
@@ -164,6 +165,23 @@ public final class VillageGovernance {
         return blockEntity instanceof BankBlockEntity bank ? bank : null;
     }
 
+    /** Binds a newly registered candidate's grace period to the current bank and Mayor. */
+    public static boolean bindGovernorCandidateAttackGrace(ServerLevel level, VillageRecord village) {
+        if (village.getGovernorCandidateId() == null) {
+            return false;
+        }
+        BankBlockEntity bank = findBank(level, village);
+        Villager mayor = findLivingMayor(level, village);
+        if (bank == null || mayor == null || !isRegisteredBank(level, village, bank)) {
+            return false;
+        }
+        boolean bound = village.bindGovernorCandidateAttackGrace(bank.getBlockPos(), mayor.getUUID());
+        if (bound) {
+            VillageRegistryData.get(level).setDirty();
+        }
+        return bound;
+    }
+
     /** Returns true when this candidate is internally marked as a contested Governor. */
     public static boolean isContestedGovernor(ServerLevel level, VillageRecord village, UUID playerId) {
         BankBlockEntity bank = findBank(level, village);
@@ -176,26 +194,99 @@ public final class VillageGovernance {
     /** Returns whether a contested candidate may currently be targeted by the bank. */
     public static boolean isContestedGovernorAttackAllowed(ServerLevel level,
                                                             VillageRecord village,
+                                                            BankBlockEntity bank,
                                                             UUID playerId) {
-        return isContestedGovernor(level, village, playerId)
-                && village.isGovernorCandidateAttackGraceElapsed(level.getGameTime());
+        Villager mayor = findLivingMayor(level, village);
+        return mayor != null
+                && isContestedGovernor(level, village, playerId)
+                && isRegisteredBank(level, village, bank)
+                && village.isGovernorCandidateAttackGraceElapsed(
+                        bank.getBlockPos(), playerId, mayor.getUUID(), level.getGameTime());
     }
 
-    /** Ends the candidate's bank attack grace period for a qualifying player action. */
-    public static boolean endGovernorCandidateAttackGrace(ServerLevel level, UUID playerId) {
-        if (playerId == null) {
+    /** Returns whether this exact independent bank may currently target its Mayor. */
+    public static boolean isContestedGovernorMayorAttackAllowed(ServerLevel level,
+                                                                  VillageRecord village,
+                                                                  BankBlockEntity bank,
+                                                                  Villager mayor) {
+        UUID candidateId = village.getGovernorCandidateId();
+        return candidateId != null
+                && mayor != null
+                && mayor.isAlive()
+                && mayor.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()
+                && isContestedGovernor(level, village, candidateId)
+                && bank != null
+                && bank.isBankIndependent()
+                && isRegisteredBank(level, village, bank)
+                && village.isGovernorCandidateAttackGraceElapsed(
+                        bank.getBlockPos(), candidateId, mayor.getUUID(), level.getGameTime());
+    }
+
+    /** Ends grace for a player action involving one exact bank and Mayor. */
+    public static boolean endGovernorCandidateAttackGrace(ServerLevel level,
+                                                           VillageRecord village,
+                                                           BankBlockEntity bank,
+                                                           Villager mayor,
+                                                           UUID playerId) {
+        if (village == null || bank == null || mayor == null || playerId == null
+                || !isRegisteredBank(level, village, bank)) {
+            return false;
+        }
+        boolean ended = village.endGovernorCandidateAttackGrace(
+                bank.getBlockPos(), playerId, mayor.getUUID());
+        if (ended) {
+            VillageRegistryData.get(level).setDirty();
+        }
+        return ended;
+    }
+
+    /** Ends grace for a player opening a tall emerald door in one village context. */
+    public static boolean endGovernorCandidateAttackGrace(ServerLevel level,
+                                                           BlockPos contextPos,
+                                                           UUID playerId) {
+        if (contextPos == null || playerId == null) {
+            return false;
+        }
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        VillageRecord village = registry.getVillageFor(contextPos);
+        if (village == null) {
+            return false;
+        }
+        return endGovernorCandidateAttackGrace(level, village, findBank(level, village),
+                findLivingMayor(level, village), playerId);
+    }
+
+    /** Ends grace for a candidate hitting an emerald golem tied to one exact bank. */
+    public static boolean endGovernorCandidateAttackGrace(ServerLevel level,
+                                                           EmeraldGolem golem,
+                                                           UUID playerId) {
+        if (golem == null || playerId == null) {
             return false;
         }
 
         VillageRegistryData registry = VillageRegistryData.get(level);
-        boolean ended = false;
-        for (VillageRecord village : registry.getVillages().values()) {
-            ended |= village.endGovernorCandidateAttackGrace(playerId);
+        BankBlockEntity bank = BankBlockEntity.findBankForGolem(level, golem);
+        VillageRecord village = bank == null || bank.getVillageId() == null
+                ? VillageHostility.findVillage(level, golem.blockPosition())
+                : registry.getVillages().get(bank.getVillageId());
+        if (village == null) {
+            return false;
         }
-        if (ended) {
-            registry.setDirty();
+        if (bank == null) {
+            bank = findBank(level, village);
         }
-        return ended;
+        return endGovernorCandidateAttackGrace(level, village, bank,
+                findLivingMayor(level, village), playerId);
+    }
+
+    private static boolean isRegisteredBank(ServerLevel level, VillageRecord village,
+                                            BankBlockEntity bank) {
+        BlockPos registeredBankPos = VillageRegistryData.get(level).getBankPos(village.getVillageId());
+        return registeredBankPos != null
+                && bank != null
+                && registeredBankPos.equals(bank.getBlockPos())
+                && village.getVillageId().equals(bank.getVillageId())
+                && findBank(level, village) == bank;
     }
 
     /**

@@ -50,8 +50,8 @@ public final class BankReputationEvents {
             return;
         }
 
-        if (event.getEntity() instanceof EmeraldGolem) {
-            VillageGovernance.endGovernorCandidateAttackGrace(level, player.getUUID());
+        if (event.getEntity() instanceof EmeraldGolem golem) {
+            VillageGovernance.endGovernorCandidateAttackGrace(level, golem, player.getUUID());
         }
 
         if (!isBankEmployee(level, event.getEntity())) {

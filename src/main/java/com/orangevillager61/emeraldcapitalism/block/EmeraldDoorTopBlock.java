@@ -128,7 +128,8 @@ public class EmeraldDoorTopBlock extends Block {
         boolean open = !lowerState.getValue(BlockStateProperties.OPEN);
         DoorPairingUtils.setDoorAndPairedOpen(level, lowerDoorPos, open, Block.UPDATE_ALL);
         if (open && level instanceof ServerLevel serverLevel) {
-            VillageGovernance.endGovernorCandidateAttackGrace(serverLevel, player.getUUID());
+            VillageGovernance.endGovernorCandidateAttackGrace(
+                    serverLevel, lowerDoorPos, player.getUUID());
         }
         level.playSound(player, lowerDoorPos, open ? SoundEvents.WOODEN_DOOR_OPEN : SoundEvents.WOODEN_DOOR_CLOSE,
                 SoundSource.BLOCKS, 1.0F, 0.9F);
