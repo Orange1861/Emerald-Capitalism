@@ -3,10 +3,15 @@ package com.orangevillager61.emeraldcapitalism.entity;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherBankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherCombatGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherPickupGoal;
+import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.util.VillagerSkrimisherItemPool;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -21,6 +26,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -34,6 +40,9 @@ import java.util.Comparator;
 public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier {
 
     public static final int INVENTORY_SIZE = 9;
+
+    private static final ResourceKey<LootTable> LOOT_TABLE = ResourceKey.create(
+            Registries.LOOT_TABLE, ModIds.id("entities/emerald_skrimisher"));
 
     private final SimpleContainer inventory = new SimpleContainer(INVENTORY_SIZE);
 
@@ -76,6 +85,17 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
     @Override
     public boolean wantsToPickUp(ItemStack stack) {
         return canHoldItem(stack);
+    }
+
+    @Override
+    protected ResourceKey<LootTable> getDefaultLootTable() {
+        return LOOT_TABLE;
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource damageSource, boolean recentlyHit) {
+        super.dropCustomDeathLoot(level, damageSource, recentlyHit);
+        this.inventory.removeAllItems().forEach(this::spawnAtLocation);
     }
 
     @Override

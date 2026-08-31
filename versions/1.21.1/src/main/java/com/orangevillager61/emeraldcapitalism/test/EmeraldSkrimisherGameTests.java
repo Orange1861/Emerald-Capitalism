@@ -30,6 +30,7 @@ import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.List;
 import java.util.UUID;
 
 /** Focused server-side tests for Emerald Skrimisher stats, storage, and pickup. */
@@ -309,6 +310,37 @@ public final class EmeraldSkrimisherGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
+    public static void emeraldSkrimisherDropsChestEmeraldsAndInventory(GameTestHelper helper) {
+        var level = helper.getLevel();
+        EmeraldSkrimisher skrimisher = create(helper);
+        if (skrimisher == null) {
+            return;
+        }
+
+        skrimisher.moveTo(1.5D, 1.0D, 1.5D, 0.0F, 0.0F);
+        skrimisher.getInventory().setItem(0, new ItemStack(Items.IRON_INGOT, 3));
+        skrimisher.getInventory().setItem(1, new ItemStack(Items.ROTTEN_FLESH, 2));
+        if (!level.addFreshEntity(skrimisher)) {
+            helper.fail("Could not add the Emerald Skrimisher for the drop test");
+            return;
+        }
+        skrimisher.hurt(level.damageSources().generic(), 100.0F);
+
+        List<ItemEntity> drops = level.getEntitiesOfClass(
+                ItemEntity.class, skrimisher.getBoundingBox().inflate(2.0D));
+        helper.assertValueEqual(countDroppedItem(drops, ECAPItems.EMERALD_CHEST.get()), 1,
+                "Emerald Skrimisher must drop one Emerald Chest");
+        int emeraldCount = countDroppedItem(drops, Items.EMERALD);
+        helper.assertTrue(emeraldCount >= 1 && emeraldCount <= 2,
+                "Emerald Skrimisher must drop between one and two emeralds, got " + emeraldCount);
+        helper.assertValueEqual(countDroppedItem(drops, Items.IRON_INGOT), 3,
+                "Emerald Skrimisher must drop its iron inventory contents");
+        helper.assertValueEqual(countDroppedItem(drops, Items.ROTTEN_FLESH), 2,
+                "Emerald Skrimisher must drop its rotten flesh inventory contents");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
     public static void emeraldChestAndEmeraldBlockSummonSkrimisher(GameTestHelper helper) {
         BlockPos relativeBase = new BlockPos(1, 1, 1);
         BlockPos base = helper.absolutePos(relativeBase);
@@ -361,5 +393,12 @@ public final class EmeraldSkrimisherGameTests {
             }
         }
         return count;
+    }
+
+    private static int countDroppedItem(List<ItemEntity> drops, net.minecraft.world.item.Item item) {
+        return drops.stream()
+                .filter(drop -> drop.getItem().is(item))
+                .mapToInt(drop -> drop.getItem().getCount())
+                .sum();
     }
 }

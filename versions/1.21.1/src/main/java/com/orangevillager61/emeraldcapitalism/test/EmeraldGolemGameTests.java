@@ -79,10 +79,19 @@ public final class EmeraldGolemGameTests {
 
         List<ItemEntity> drops = level.getEntitiesOfClass(
                 ItemEntity.class, golem.getBoundingBox().inflate(2.0D));
-        helper.assertTrue(drops.stream().anyMatch(drop -> drop.getItem().is(net.minecraft.world.item.Items.EMERALD)),
-                "emerald golem must drop emeralds");
+        int emeraldCount = drops.stream()
+                .filter(drop -> drop.getItem().is(net.minecraft.world.item.Items.EMERALD))
+                .mapToInt(drop -> drop.getItem().getCount())
+                .sum();
+        helper.assertTrue(emeraldCount >= 4 && emeraldCount <= 8,
+                "emerald golem must drop between four and eight emeralds, got " + emeraldCount);
         helper.assertFalse(drops.stream().anyMatch(drop -> drop.getItem().is(net.minecraft.world.item.Items.IRON_INGOT)),
                 "emerald golem must not drop iron ingots");
+        helper.assertFalse(drops.stream().anyMatch(drop -> drop.getItem().is(net.minecraft.world.item.Items.POPPY)),
+                "emerald golem must not drop poppies");
+        helper.assertTrue(drops.stream().allMatch(drop -> drop.getItem().is(net.minecraft.world.item.Items.EMERALD)
+                        || drop.getItem().is(net.minecraft.world.item.Items.EMERALD_BLOCK)),
+                "emerald golem must only drop emeralds or emerald blocks");
         helper.succeed();
     }
 

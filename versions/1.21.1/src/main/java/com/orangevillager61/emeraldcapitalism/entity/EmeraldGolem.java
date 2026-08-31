@@ -437,7 +437,6 @@ public class EmeraldGolem extends IronGolem {
         return 0.0F;
     }
 
-    // Drops: emeralds + poppies
     /** Use the emerald golem loot table instead of the inherited iron golem table. */
     @Override
     protected ResourceKey<LootTable> getDefaultLootTable() {

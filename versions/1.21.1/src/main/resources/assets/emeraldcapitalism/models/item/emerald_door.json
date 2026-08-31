@@ -1,3 +1,48 @@
 {
-  "parent": "emeraldcapitalism:block/emerald_door_bottom"
+  "parent": "minecraft:block/block",
+  "render_type": "cutout",
+  "textures": {
+    "lower": "emeraldcapitalism:block/3_block_emerald_door_lower",
+    "middle": "emeraldcapitalism:block/3_block_emerald_door_middle",
+    "upper": "emeraldcapitalism:block/3_block_emerald_door_top",
+    "particle": "#lower"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [3, 5.333333, 16],
+      "faces": {
+        "north": {"uv": [0, 0, 3, 16], "texture": "#lower"},
+        "south": {"uv": [0, 0, 3, 16], "texture": "#lower"},
+        "west": {"uv": [0, 0, 16, 16], "texture": "#lower"},
+        "east": {"uv": [0, 0, 16, 16], "texture": "#lower"},
+        "up": {"uv": [0, 0, 3, 16], "texture": "#lower"},
+        "down": {"uv": [0, 0, 3, 16], "texture": "#lower"}
+      }
+    },
+    {
+      "from": [0, 5.333333, 0],
+      "to": [3, 10.666667, 16],
+      "faces": {
+        "north": {"uv": [0, 0, 3, 16], "texture": "#middle"},
+        "south": {"uv": [0, 0, 3, 16], "texture": "#middle"},
+        "west": {"uv": [0, 0, 16, 16], "texture": "#middle"},
+        "east": {"uv": [0, 0, 16, 16], "texture": "#middle"},
+        "up": {"uv": [0, 0, 3, 16], "texture": "#middle"},
+        "down": {"uv": [0, 0, 3, 16], "texture": "#middle"}
+      }
+    },
+    {
+      "from": [0, 10.666667, 0],
+      "to": [3, 16, 16],
+      "faces": {
+        "north": {"uv": [0, 0, 3, 16], "texture": "#upper"},
+        "south": {"uv": [0, 0, 3, 16], "texture": "#upper"},
+        "west": {"uv": [0, 0, 16, 16], "texture": "#upper"},
+        "east": {"uv": [0, 0, 16, 16], "texture": "#upper"},
+        "up": {"uv": [0, 0, 3, 16], "texture": "#upper"},
+        "down": {"uv": [0, 0, 3, 16], "texture": "#upper"}
+      }
+    }
+  ]
 }
