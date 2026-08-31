@@ -594,8 +594,10 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         drawRowAt(g, panelX, y, "Current Price:", price, VALUE_COLOR);
         y += ROW_HEIGHT;
         if (quote.valid()) {
-            drawRowAt(g, panelX, y, "Projected:", format(quote.projectedMidRate()), GOLD_COLOR);
-            y += ROW_HEIGHT;
+            if (!fixedTrade) {
+                drawRowAt(g, panelX, y, "Projected:", format(quote.projectedMidRate()), GOLD_COLOR);
+                y += ROW_HEIGHT;
+            }
             String valueLabel = marketDonate ? "Opinion gain:"
                     : (quote.side() == TradeSide.BUY ? "Cost:" : "Payout:");
             int valueColor = marketDonate ? GOLD_COLOR
@@ -603,12 +605,16 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             drawRowAt(g, panelX, y, valueLabel,
                     quote.emeraldAmount() + (marketDonate ? " opinion" : " emeralds"), valueColor);
             y += ROW_HEIGHT;
-            drawRowAt(g, panelX, y, "Effective:", format(quote.effectiveRate()) + " items/emerald", LABEL_COLOR);
+            if (!fixedTrade) {
+                drawRowAt(g, panelX, y, "Effective:", format(quote.effectiveRate()) + " items/emerald", LABEL_COLOR);
+                y += ROW_HEIGHT;
+            }
         } else {
             g.drawString(font, marketUnavailable ? "Unavailable" : marketError, panelX, y,
                     marketUnavailable ? LABEL_COLOR : WARN_COLOR);
+            y += ROW_HEIGHT;
         }
-        y += ROW_HEIGHT + 5;
+        y += 5;
         String positionLabel = entry.config().metric() == MarketMetric.TARGET_RATIO
                 ? "Target position" : "Supply position";
         g.drawString(font, positionLabel, panelX, y, LABEL_COLOR);
@@ -1061,7 +1067,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
                 marketDemandContext(entry));
         TradeSide side = entry.config().tradeType() == MarketTradeType.FIXED
-                && !entry.config().supportsFixedBuy() ? TradeSide.SELL : TradeSide.BUY;
+                && entry.config().supportsFixedBuy() ? TradeSide.BUY : TradeSide.SELL;
         return marketQuote(entry, batch, side);
     }
 
@@ -1102,7 +1108,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private boolean isMarketUnavailableForBank(BankMenu.MarketEntry entry) {
         MarketTradeQuote displayedQuote = marketOfferQuote(entry);
-        if (!displayedQuote.valid()) {
+        // A zero-emerald offer is rendered as "Bank has too few ..." and is not actionable.
+        if (!displayedQuote.valid() || displayedQuote.emeraldAmount() <= 0) {
             return true;
         }
 

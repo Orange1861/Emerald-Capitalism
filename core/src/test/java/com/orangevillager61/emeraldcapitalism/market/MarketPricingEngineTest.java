@@ -60,6 +60,14 @@ class MarketPricingEngineTest {
     }
 
     @Test
+    void lowValueBreadOfferHasNoEmeraldPayout() {
+        MarketTradeQuote quote = MarketPricingEngine.quote(BREAD, 0, POPULATION_TEN, 1, TradeSide.SELL);
+
+        assertTrue(quote.valid());
+        assertEquals(0, quote.emeraldAmount());
+    }
+
+    @Test
     void fixedBuyCosts128EmeraldsAndConsumesOneStockedMap() {
         MarketTradeQuote quote = MarketPricingEngine.quote(
                 VAULT_MAP_FIXED_BUY, 1, POPULATION_TEN, 1, TradeSide.BUY);
