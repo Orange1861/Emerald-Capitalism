@@ -36,4 +36,13 @@ class BankPresentationTest {
 
         assertEquals(List.of("affordable", "too-expensive", "no-stock", "low-opinion"), sorted);
     }
+
+    @Test
+    void putsLowOpinionMapAfterEveryOtherMarketEntry() {
+        List<String> sorted = BankPresentation.sortMarketEntriesByPriority(
+                List.of("affordable", "too-expensive", "no-stock", "low-opinion-map"),
+                entry -> entry.equals("low-opinion-map") ? 2 : entry.equals("no-stock") ? 1 : 0);
+
+        assertEquals(List.of("affordable", "too-expensive", "no-stock", "low-opinion-map"), sorted);
+    }
 }

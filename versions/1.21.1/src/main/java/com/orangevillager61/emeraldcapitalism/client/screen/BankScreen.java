@@ -714,8 +714,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private void refreshMarketList() {
         if (marketList == null) return;
         String selectedId = selectedMarketEntry() == null ? null : selectedMarketEntry().id();
-        displayedMarketEntries = BankPresentation.sortMarketEntries(
-                menu.getMarketEntries(), this::isMarketUnavailableForBank);
+        displayedMarketEntries = BankPresentation.sortMarketEntriesByPriority(
+                menu.getMarketEntries(), this::marketSortPriority);
         if (selectedId != null) {
             int selectedPosition = indexOfMarketEntry(selectedId);
             if (selectedPosition >= 0) {
@@ -812,7 +812,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             marketNotice = "Executes " + quote.quantity() + "; "
                     + (parseMarketQuantity() - quote.quantity()) + " remains.";
         }
-        if (quote.valid() && marketBuy && isMapTrade(entry) && !hasMapSalePermission(entry)) {
+        if (marketBuy && isMapTrade(entry) && !hasMapSalePermission(entry)) {
             marketError = mapSalePermissionMessage();
         } else if (quote.valid() && minecraft != null && minecraft.player != null) {
             int quantity = quote.quantity();
@@ -1062,6 +1062,10 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 marketDemandContext(entry));
         TradeSide side = entry.config().tradeType() == MarketTradeType.FIXED
                 && entry.config().supportsFixedBuy() ? TradeSide.BUY : TradeSide.SELL;
+        return marketQuote(entry, batch, side);
+    }
+
+    private MarketTradeQuote marketQuote(BankMenu.MarketEntry entry, int batch, TradeSide side) {
         return MarketPricingEngine.quote(entry.config(), entry.stock(),
                 marketDemandContext(entry), batch, side);
     }
@@ -1097,8 +1101,27 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     }
 
     private boolean isMarketUnavailableForBank(BankMenu.MarketEntry entry) {
-        MarketTradeQuote quote = marketOfferQuote(entry);
-        return !quote.valid() || (isMapTrade(entry) && !hasMapSalePermission(entry));
+        MarketTradeQuote displayedQuote = marketOfferQuote(entry);
+        if (!displayedQuote.valid()) {
+            return true;
+        }
+
+        boolean bankCanSell = entry.config().tradeType() != MarketTradeType.FIXED
+                || entry.config().supportsFixedBuy();
+        if (!bankCanSell) {
+            return false;
+        }
+
+        int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
+                marketDemandContext(entry));
+        return !marketQuote(entry, batch, TradeSide.BUY).valid();
+    }
+
+    private int marketSortPriority(BankMenu.MarketEntry entry) {
+        if (isMapTrade(entry) && !hasMapSalePermission(entry)) {
+            return 2;
+        }
+        return isMarketUnavailableForBank(entry) ? 1 : 0;
     }
 
     private boolean isMapTrade(BankMenu.MarketEntry entry) {
@@ -1122,16 +1145,17 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private String fixedPriceLabel(BankMenu.MarketEntry entry) {
         int batch = entry.config().minimumTradeSize();
         StringBuilder label = new StringBuilder();
-        if (entry.config().supportsFixedSell()) {
-            label.append("Buy: ").append(batch).append(" item -> ")
-                    .append(entry.config().fixedEmeraldAmount(TradeSide.SELL)).append(" emeralds");
-        }
         if (entry.config().supportsFixedBuy()) {
+            label.append("Buy: ").append(entry.config().fixedEmeraldAmount(TradeSide.BUY))
+                    .append(" emeralds -> ").append(batch).append(" ").append(entry.displayName());
+        }
+        if (entry.config().supportsFixedSell()) {
             if (label.length() > 0) {
                 label.append("; ");
             }
-            label.append("Sell: ").append(batch).append(" item -> ")
-                    .append(entry.config().fixedEmeraldAmount(TradeSide.BUY)).append(" emeralds");
+            label.append("Sell: ").append(batch).append(" ").append(entry.displayName())
+                    .append(" -> ").append(entry.config().fixedEmeraldAmount(TradeSide.SELL))
+                    .append(" emeralds");
         }
         return label.toString();
     }

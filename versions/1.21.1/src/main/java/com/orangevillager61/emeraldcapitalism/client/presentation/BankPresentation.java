@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 
 /** Pure preparation for bank account and linked-chest display rows. */
 public final class BankPresentation {
@@ -35,6 +36,14 @@ public final class BankPresentation {
                                                 Predicate<T> unavailableForBank) {
         List<T> sorted = new ArrayList<>(entries);
         sorted.sort(Comparator.comparingInt(entry -> unavailableForBank.test(entry) ? 1 : 0));
+        return List.copyOf(sorted);
+    }
+
+    /** Sorts market entries by priority while preserving the original order within each priority. */
+    public static <T> List<T> sortMarketEntriesByPriority(List<T> entries,
+                                                          ToIntFunction<T> priority) {
+        List<T> sorted = new ArrayList<>(entries);
+        sorted.sort(Comparator.comparingInt(priority));
         return List.copyOf(sorted);
     }
 
