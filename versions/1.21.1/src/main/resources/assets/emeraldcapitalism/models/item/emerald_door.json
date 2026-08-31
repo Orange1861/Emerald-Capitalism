@@ -1,6 +1,3 @@
 {
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "emeraldcapitalism:item/emerald_door"
-  }
+  "parent": "emeraldcapitalism:block/emerald_door_bottom"
 }
