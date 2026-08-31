@@ -106,14 +106,34 @@ public final class MarketPricingEngine {
     /** Returns the whole-item batch that best represents one emerald at the current rate. */
     public static int tradeBatchSize(MarketItemConfig config, double stock,
                                      MarketDemandContext context) {
+        return tradeBatchSize(config, stock, context, TradeSide.SELL);
+    }
+
+    /**
+     * Returns a whole-item batch near one emerald in the requested direction at
+     * the current rate. The spread makes DAYS-market buy and sell batches
+     * intentionally different.
+     */
+    public static int tradeBatchSize(MarketItemConfig config, double stock,
+                                     MarketDemandContext context, TradeSide side) {
+        if (side == null) {
+            throw new IllegalArgumentException("Trade side must not be null");
+        }
         if (config.tradeType() == MarketTradeType.FIXED) {
             return config.minimumTradeSize();
         }
-        if (config.metric() != MarketMetric.TARGET_RATIO) {
-            return config.minimumTradeSize();
-        }
         double rate = midRate(config, stock, context);
-        return rate < 1.0 ? 1 : Math.max(1, (int) Math.round(rate));
+        if (config.metric() == MarketMetric.TARGET_RATIO) {
+            return Math.max(config.minimumTradeSize(),
+                    rate < 1.0 ? 1 : Math.max(1, (int) Math.round(rate)));
+        }
+        double itemsPerEmerald = side == TradeSide.BUY
+                ? rate / (1.0 + config.bidAskSpread())
+                : rate * (1.0 + config.bidAskSpread());
+        int batch = side == TradeSide.BUY
+                ? (int) Math.floor(itemsPerEmerald + 1.0e-9)
+                : (int) Math.ceil(itemsPerEmerald - 1.0e-9);
+        return Math.max(config.minimumTradeSize(), Math.max(1, batch));
     }
 
     /**
@@ -128,7 +148,7 @@ public final class MarketPricingEngine {
             return config.minimumTradeSize();
         }
         if (config.metric() != MarketMetric.TARGET_RATIO) {
-            return config.minimumTradeSize();
+            return tradeBatchSize(config, stock, context, side);
         }
         double runningStock = Math.floor(Math.max(0.0, stock));
         int consumed = 0;
@@ -156,8 +176,13 @@ public final class MarketPricingEngine {
             int step = config.minimumTradeSize();
             return direction < 0 ? Math.max(0, current - step) : current + step;
         }
-        if (direction == 0 || config.metric() != MarketMetric.TARGET_RATIO) {
+        if (direction == 0) {
             return Math.max(0, quantity);
+        }
+        if (config.metric() != MarketMetric.TARGET_RATIO) {
+            int current = Math.max(0, quantity);
+            int step = tradeBatchSize(config, stock, context, side);
+            return direction < 0 ? Math.max(0, current - step) : current + step;
         }
         int current = Math.max(0, quantity);
         if (direction < 0 && current == 0) {
@@ -236,6 +261,8 @@ public final class MarketPricingEngine {
      * Prices a trade against the stock level immediately before each unit or
      * dynamic batch is exchanged. Target-ratio batches settle independently;
      * an incomplete trailing batch is left untraded after earlier batches settle.
+     * A dynamic sell must settle for at least one emerald so the bank cannot
+     * accept a free item when whole-emerald accounting rounds its payout down.
      */
     public static MarketTradeQuote quote(MarketItemConfig config, double stock,
                                          MarketDemandContext context, int quantity, TradeSide side) {
@@ -320,6 +347,10 @@ public final class MarketPricingEngine {
 
         if (config.metric() == MarketMetric.TARGET_RATIO && emeralds <= 0) {
             emeralds = 1;
+        }
+        if (side == TradeSide.SELL && emeralds <= 0) {
+            return MarketTradeQuote.invalid("trade_batch_size", quantity, side,
+                    currentMid, safeStock);
         }
         double effectiveRate = emeralds == 0 ? 0.0 : executedQuantity / (double) emeralds;
         return new MarketTradeQuote(executedQuantity, side, currentMid,

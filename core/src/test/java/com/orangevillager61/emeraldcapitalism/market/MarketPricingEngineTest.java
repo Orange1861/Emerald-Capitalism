@@ -60,11 +60,29 @@ class MarketPricingEngineTest {
     }
 
     @Test
-    void lowValueBreadOfferHasNoEmeraldPayout() {
-        MarketTradeQuote quote = MarketPricingEngine.quote(BREAD, 0, POPULATION_TEN, 1, TradeSide.SELL);
+    void breadUsesEmeraldSizedBidAndAskBatches() {
+        assertEquals(1, MarketPricingEngine.tradeBatchSize(
+                BREAD, 0, POPULATION_TEN, TradeSide.BUY));
+        assertEquals(3, MarketPricingEngine.tradeBatchSize(
+                BREAD, 0, POPULATION_TEN, TradeSide.SELL));
+        assertEquals(5, MarketPricingEngine.tradeBatchSize(
+                BREAD, 390, POPULATION_TEN, TradeSide.BUY));
+        assertEquals(7, MarketPricingEngine.tradeBatchSize(
+                BREAD, 390, POPULATION_TEN, TradeSide.SELL));
 
-        assertTrue(quote.valid());
-        assertEquals(0, quote.emeraldAmount());
+        MarketTradeQuote tooSmall = MarketPricingEngine.quote(
+                BREAD, 390, POPULATION_TEN, 1, TradeSide.SELL);
+        MarketTradeQuote buy = MarketPricingEngine.quote(
+                BREAD, 390, POPULATION_TEN, 5, TradeSide.BUY);
+        MarketTradeQuote sell = MarketPricingEngine.quote(
+                BREAD, 390, POPULATION_TEN, 7, TradeSide.SELL);
+
+        assertFalse(tooSmall.valid());
+        assertEquals("trade_batch_size", tooSmall.invalidReason());
+        assertTrue(buy.valid());
+        assertEquals(1, buy.emeraldAmount());
+        assertTrue(sell.valid());
+        assertEquals(1, sell.emeraldAmount());
     }
 
     @Test

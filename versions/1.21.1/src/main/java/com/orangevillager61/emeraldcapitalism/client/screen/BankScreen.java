@@ -688,10 +688,12 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         BankMenu.MarketEntry initialEntry = selectedMarketEntry();
         marketQuantityBox.setValue(initialEntry == null ? "1" : String.valueOf(
                 MarketPricingEngine.tradeBatchSize(initialEntry.config(), initialEntry.stock(),
-                        marketDemandContext(initialEntry))));
+                        marketDemandContext(initialEntry), TradeSide.BUY)));
         marketQuantityBox.setMaxLength(6);
         marketDirectionBtn = addRenderableWidget(Button.builder(Component.literal("Buy"), btn -> {
             marketBuy = !marketBuy;
+            marketDonate = false;
+            resetMarketQuantityToBatch();
             updateMarketControls();
             refreshMarketList();
         }).bounds(x, controlsY - 24, 58, 20).build());
@@ -700,6 +702,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             if (marketDonate) {
                 marketBuy = false;
             }
+            resetMarketQuantityToBatch();
             updateMarketControls();
             refreshMarketList();
         }).bounds(x + 60, controlsY - 24, 58, 20).build());
@@ -1048,9 +1051,10 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
                 selectedMarketIndex = marketList.children().indexOf(this);
                 marketList.setSelected(this);
-                marketQuantityBox.setValue(String.valueOf(MarketPricingEngine.tradeBatchSize(
-                marketEntry.config(), marketEntry.stock(), marketDemandContext(marketEntry))));
                 marketDonate = false;
+                marketQuantityBox.setValue(String.valueOf(MarketPricingEngine.tradeBatchSize(
+                        marketEntry.config(), marketEntry.stock(), marketDemandContext(marketEntry),
+                        marketSide(marketEntry))));
                 updateMarketControls();
                 refreshMarketList();
                 return true;
@@ -1073,11 +1077,20 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     }
 
     private MarketTradeQuote marketOfferQuote(BankMenu.MarketEntry entry) {
-        int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
-                marketDemandContext(entry));
         TradeSide side = entry.config().tradeType() == MarketTradeType.FIXED
                 && entry.config().supportsFixedBuy() ? TradeSide.BUY : TradeSide.SELL;
+        int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
+                marketDemandContext(entry), side);
         return marketQuote(entry, batch, side);
+    }
+
+    private void resetMarketQuantityToBatch() {
+        BankMenu.MarketEntry entry = selectedMarketEntry();
+        if (marketQuantityBox == null || entry == null) {
+            return;
+        }
+        marketQuantityBox.setValue(String.valueOf(MarketPricingEngine.tradeBatchSize(
+                entry.config(), entry.stock(), marketDemandContext(entry), marketSide(entry))));
     }
 
     private MarketTradeQuote marketQuote(BankMenu.MarketEntry entry, int batch, TradeSide side) {
@@ -1118,7 +1131,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private boolean isMarketUnavailableForBank(BankMenu.MarketEntry entry) {
         TradeSide side = marketAvailabilitySide(entry);
         int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
-                marketDemandContext(entry));
+                marketDemandContext(entry), side);
         MarketTradeQuote quote = marketQuote(entry, batch, side);
         // Keep zero-payout sell offers visually marked as unavailable in the market list.
         return !quote.valid() || (side == TradeSide.SELL && quote.emeraldAmount() <= 0);
