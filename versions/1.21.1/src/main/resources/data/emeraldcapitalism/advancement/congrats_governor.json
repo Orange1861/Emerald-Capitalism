@@ -1,0 +1,22 @@
+{
+  "display": {
+    "icon": {
+      "id": "emeraldcapitalism:emerald_chest"
+    },
+    "title": {
+      "translate": "advancements.emeraldcapitalism.congrats_governor.title"
+    },
+    "description": {
+      "translate": "advancements.emeraldcapitalism.congrats_governor.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "became_governor": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

@@ -217,6 +217,8 @@
   "advancements.emeraldcapitalism.zombie_plague.description": "Become infected with Zombkolaps for the first time.",
   "advancements.emeraldcapitalism.turned_into_zombie.title": "Too late to see a doctor",
   "advancements.emeraldcapitalism.turned_into_zombie.description": "Die from Zombkolaps and rise as a zombie.",
+  "advancements.emeraldcapitalism.congrats_governor.title": "Congrats Governor",
+  "advancements.emeraldcapitalism.congrats_governor.description": "Become a Governor after defeating or taking control of a bank.",
   "death.attack.zombie_plague": "%1$s became a zombie",
 
   "entity.minecraft.villager.emeraldcapitalism.mayor": "Mayor",
