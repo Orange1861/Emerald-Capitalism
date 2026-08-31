@@ -19,11 +19,22 @@ class VillageRelationshipTest {
                 UUID.randomUUID(), BlockPos.ZERO, new AABB(-2, -2, -2, 2, 2, 2));
         UUID governor = UUID.randomUUID();
         UUID candidate = UUID.randomUUID();
+        BlockPos bankPos = new BlockPos(10, 1, 10);
+        UUID mayor = UUID.randomUUID();
 
         assertTrue(original.setGovernor(governor));
         assertTrue(original.becomeGovernorCandidate(candidate, 100, 40L));
-        assertFalse(original.isGovernorCandidateAttackGraceElapsed(1_039L));
-        assertTrue(original.isGovernorCandidateAttackGraceElapsed(1_040L));
+        assertTrue(original.bindGovernorCandidateAttackGrace(bankPos, mayor));
+        assertFalse(original.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, mayor, 1_039L));
+        assertTrue(original.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, mayor, 1_040L));
+        assertFalse(original.isGovernorCandidateAttackGraceElapsed(
+                new BlockPos(11, 1, 10), candidate, mayor, 1_040L));
+        assertFalse(original.isGovernorCandidateAttackGraceElapsed(
+                bankPos, UUID.randomUUID(), mayor, 1_040L));
+        assertFalse(original.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, UUID.randomUUID(), 1_040L));
         assertFalse(original.becomeGovernorCandidate(governor, 100, 40L));
 
         VillageRecord restored = VillageRecord.CODEC.parse(NbtOps.INSTANCE,
@@ -33,8 +44,10 @@ class VillageRelationshipTest {
         assertTrue(restored.isGovernor(governor));
         assertTrue(restored.isGovernorCandidate(candidate));
         assertFalse(restored.isGovernorCandidate(governor));
-        assertFalse(restored.isGovernorCandidateAttackGraceElapsed(1_039L));
-        assertTrue(restored.isGovernorCandidateAttackGraceElapsed(1_040L));
+        assertFalse(restored.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, mayor, 1_039L));
+        assertTrue(restored.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, mayor, 1_040L));
     }
 
     @Test
@@ -42,12 +55,19 @@ class VillageRelationshipTest {
         VillageRecord village = new VillageRecord(
                 UUID.randomUUID(), BlockPos.ZERO, new AABB(-2, -2, -2, 2, 2, 2));
         UUID candidate = UUID.randomUUID();
+        BlockPos bankPos = BlockPos.ZERO;
+        UUID mayor = UUID.randomUUID();
 
         assertTrue(village.becomeGovernorCandidate(candidate, 100, 40L));
-        assertFalse(village.isGovernorCandidateAttackGraceElapsed(40L));
-        assertTrue(village.endGovernorCandidateAttackGrace(candidate));
-        assertTrue(village.isGovernorCandidateAttackGraceElapsed(40L));
-        assertFalse(village.endGovernorCandidateAttackGrace(candidate));
+        assertTrue(village.bindGovernorCandidateAttackGrace(bankPos, mayor));
+        assertFalse(village.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, mayor, 40L));
+        assertFalse(village.endGovernorCandidateAttackGrace(
+                new BlockPos(1, 0, 0), candidate, mayor));
+        assertTrue(village.endGovernorCandidateAttackGrace(bankPos, candidate, mayor));
+        assertTrue(village.isGovernorCandidateAttackGraceElapsed(
+                bankPos, candidate, mayor, 40L));
+        assertFalse(village.endGovernorCandidateAttackGrace(bankPos, candidate, mayor));
     }
 
     @Test

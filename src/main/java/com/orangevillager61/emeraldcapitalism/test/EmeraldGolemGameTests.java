@@ -17,6 +17,7 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -505,10 +506,14 @@ public final class EmeraldGolemGameTests {
                 villageId, bankPos, new net.minecraft.world.phys.AABB(bankPos).inflate(8.0D));
         bank.setVillageId(villageId);
         VillageRegistryData.get(level).registerBankPosition(villageId, bankPos);
+        var mayor = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.VILLAGER, 5, 1, 1);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
         helper.assertTrue(village.becomeGovernorCandidate(
                         candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
                         level.getGameTime()),
                 "could not establish the contested governor candidate");
+        helper.assertTrue(VillageGovernance.bindGovernorCandidateAttackGrace(level, village),
+                "could not bind the contested candidate to its bank and Mayor");
 
         EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
         if (golem == null) {
@@ -575,6 +580,8 @@ public final class EmeraldGolemGameTests {
         helper.assertTrue(village.becomeGovernorCandidate(
                         candidateId, Config.governorCandidateOpinionThreshold + 1, level.getGameTime()),
                 "could not establish a governor candidate for the mayor-target test");
+        helper.assertTrue(VillageGovernance.bindGovernorCandidateAttackGrace(level, village),
+                "could not bind the mayor-target candidate to its bank and Mayor");
 
         EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
         EmeraldSkrimisher skrimisher = ECAPEntityTypes.EMERALD_SKRIMISHER.get().create(level);
