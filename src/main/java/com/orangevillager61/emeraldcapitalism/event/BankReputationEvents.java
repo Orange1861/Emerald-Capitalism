@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEnti
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.server.level.ServerLevel;
@@ -45,8 +46,15 @@ public final class BankReputationEvents {
         if (event.isCanceled()
                 || event.getEntity().level().isClientSide()
                 || !(event.getEntity().level() instanceof ServerLevel level)
-                || !(event.getSource().getEntity() instanceof Player player)
-                || !isBankEmployee(level, event.getEntity())) {
+                || !(event.getSource().getEntity() instanceof Player player)) {
+            return;
+        }
+
+        if (event.getEntity() instanceof EmeraldGolem) {
+            VillageGovernance.endGovernorCandidateAttackGrace(level, player.getUUID());
+        }
+
+        if (!isBankEmployee(level, event.getEntity())) {
             return;
         }
 

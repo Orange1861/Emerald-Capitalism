@@ -70,7 +70,7 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
 
         VillageRecord village = VillageRegistryData.get(level).getVillages().get(bank.getVillageId());
         return village != null
-                && VillageGovernance.isContestedGovernor(level, village, player.getUUID());
+                && VillageGovernance.isContestedGovernorAttackAllowed(level, village, player.getUUID());
     }
 
     @Override

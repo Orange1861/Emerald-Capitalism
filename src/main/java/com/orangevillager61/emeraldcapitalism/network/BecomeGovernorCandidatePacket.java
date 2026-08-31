@@ -100,7 +100,7 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
                 return;
             }
 
-            if (!village.becomeGovernorCandidate(player.getUUID(), opinion)) {
+            if (!village.becomeGovernorCandidate(player.getUUID(), opinion, level.getGameTime())) {
                 sendLedgerRefresh(player, village, level);
                 return;
             }

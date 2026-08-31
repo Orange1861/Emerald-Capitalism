@@ -82,6 +82,7 @@ public final class VillageHostility {
                 && mayorVillage != null
                 && residentVillage.getVillageId().equals(mayorVillage.getVillageId())
                 && mayorVillage.getGovernorCandidateId() != null
+                && mayorVillage.isGovernorCandidateAttackGraceElapsed(level.getGameTime())
                 && VillageGovernance.findBank(level, mayorVillage) instanceof BankBlockEntity bank
                 && bank.isBankIndependent();
     }

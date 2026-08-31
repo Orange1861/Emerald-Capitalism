@@ -36,7 +36,8 @@ public final class MayorGovernorCandidateGameTests {
         ServerPlayer candidate = createCandidate(level, mayor.blockPosition().above(20));
         VillageRecord village = createVillage(level, mayor.blockPosition());
         helper.assertTrue(village.becomeGovernorCandidate(
-                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1),
+                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
+                        level.getGameTime()),
                 "could not start the governor candidate process for the unreachable-path test");
 
         MayorFollowGovernorCandidateGoal goal = new MayorFollowGovernorCandidateGoal(mayor, candidate);
@@ -59,7 +60,8 @@ public final class MayorGovernorCandidateGameTests {
         ServerPlayer candidate = createCandidate(level, mayor.blockPosition());
         VillageRecord village = createVillage(level, mayor.blockPosition());
         helper.assertTrue(village.becomeGovernorCandidate(
-                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1),
+                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
+                        level.getGameTime()),
                 "could not start the governor claim reputation test");
 
         helper.assertTrue(VillageGovernance.refresh(level, village),

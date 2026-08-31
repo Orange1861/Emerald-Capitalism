@@ -161,7 +161,7 @@ public final class BankReputationDamageGameTests {
         VillageRecord village = registry.getOrCreateVillage(villageId, bankPos,
                 new AABB(bankPos).inflate(8.0D));
         registry.registerBankPosition(villageId, bankPos);
-        if (!village.becomeGovernorCandidate(candidateId, 100)) {
+        if (!village.becomeGovernorCandidate(candidateId, 100, level.getGameTime())) {
             throw new IllegalStateException("could not establish contested governor candidate");
         }
         return village;

@@ -173,6 +173,31 @@ public final class VillageGovernance {
                 && (bank == null || !bank.isControlledBy(playerId));
     }
 
+    /** Returns whether a contested candidate may currently be targeted by the bank. */
+    public static boolean isContestedGovernorAttackAllowed(ServerLevel level,
+                                                            VillageRecord village,
+                                                            UUID playerId) {
+        return isContestedGovernor(level, village, playerId)
+                && village.isGovernorCandidateAttackGraceElapsed(level.getGameTime());
+    }
+
+    /** Ends the candidate's bank attack grace period for a qualifying player action. */
+    public static boolean endGovernorCandidateAttackGrace(ServerLevel level, UUID playerId) {
+        if (playerId == null) {
+            return false;
+        }
+
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        boolean ended = false;
+        for (VillageRecord village : registry.getVillages().values()) {
+            ended |= village.endGovernorCandidateAttackGrace(playerId);
+        }
+        if (ended) {
+            registry.setDirty();
+        }
+        return ended;
+    }
+
     /**
      * Applies candidate invalidation, Mayor-loss penalties, and promotion. This is
      * intentionally server-only and should be called after governance-affecting events.

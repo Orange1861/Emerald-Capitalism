@@ -3,10 +3,12 @@ package com.orangevillager61.emeraldcapitalism.block;
 import com.mojang.serialization.MapCodec;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.util.DoorPairingUtils;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.Mob;
@@ -125,6 +127,9 @@ public class EmeraldDoorTopBlock extends Block {
 
         boolean open = !lowerState.getValue(BlockStateProperties.OPEN);
         DoorPairingUtils.setDoorAndPairedOpen(level, lowerDoorPos, open, Block.UPDATE_ALL);
+        if (open && level instanceof ServerLevel serverLevel) {
+            VillageGovernance.endGovernorCandidateAttackGrace(serverLevel, player.getUUID());
+        }
         level.playSound(player, lowerDoorPos, open ? SoundEvents.WOODEN_DOOR_OPEN : SoundEvents.WOODEN_DOOR_CLOSE,
                 SoundSource.BLOCKS, 1.0F, 0.9F);
         return InteractionResult.sidedSuccess(level.isClientSide);

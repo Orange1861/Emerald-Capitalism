@@ -47,6 +47,8 @@ public class VillageRecord {
 
     /** Default welcome message shown when a player enters the village. */
     public static final String DEFAULT_WELCOME_MESSAGE = "Welcome to our village!";
+    /** Number of ticks banks wait before reacting to a newly registered candidate. */
+    public static final long GOVERNOR_CANDIDATE_ATTACK_GRACE_TICKS = 1_000L;
     static final int MAX_PERSISTED_MEMBERS = 4_096;
     static final int MAX_PERSISTED_OPINION_MODIFIERS = 4_096;
     static final int MAX_PERSISTED_GOVERNOR_CANDIDATES = 1;
@@ -245,7 +247,10 @@ public class VillageRecord {
                                         ops.createBoolean(input.farmlandRepairEnabled)))
                                 .flatMap(withFarmlandSetting -> ops.mergeToMap(withFarmlandSetting,
                                         ops.createString("door_repair_enabled"),
-                                        ops.createBoolean(input.doorRepairEnabled)));
+                                        ops.createBoolean(input.doorRepairEnabled)))
+                                .flatMap(withDoorSetting -> ops.mergeToMap(withDoorSetting,
+                                        ops.createString("governor_candidate_attack_grace_until"),
+                                        ops.createLong(input.governorCandidateAttackGraceUntil)));
                     });
                 }
             },
@@ -266,13 +271,20 @@ public class VillageRecord {
                                         readOptionalBoolean(ops, map, "farmland_repair_enabled",
                                                 decoded.getFirst().farmlandRepairEnabled).flatMap(farmlandEnabled ->
                                                 readOptionalBoolean(ops, map, "door_repair_enabled",
-                                                        decoded.getFirst().doorRepairEnabled).map(doorEnabled -> {
+                                                        decoded.getFirst().doorRepairEnabled).flatMap(doorEnabled ->
+                                                        readOptionalLong(ops, map,
+                                                                "governor_candidate_attack_grace_until",
+                                                                decoded.getFirst().governorCandidateAttackGraceUntil)
+                                                                .map(graceUntil -> {
                                                     decoded.getFirst().doorRegistry.addAll(doors);
                                                     decoded.getFirst().missingDoorRegistry.addAll(missingDoors);
                                                     decoded.getFirst().missingDoorRegistry.removeAll(
                                                             decoded.getFirst().doorRegistry);
                                                     decoded.getFirst().farmlandRepairEnabled = farmlandEnabled;
                                                     decoded.getFirst().doorRepairEnabled = doorEnabled;
+                                                    decoded.getFirst().governorCandidateAttackGraceUntil =
+                                                            decoded.getFirst().governorCandidateId == null
+                                                                    ? 0L : graceUntil;
                                                     return decoded;
                                                 }))));
                             }));
@@ -307,6 +319,8 @@ public class VillageRecord {
     /** The one player currently standing as governor candidate, if any. */
     @Nullable
     private UUID governorCandidateId;
+    /** Absolute game-time tick at which bank hostility toward the candidate may begin. */
+    private long governorCandidateAttackGraceUntil;
 
     /** True when this village was generated from vanilla's zombie/abandoned pools. */
     private boolean abandonedVillage;
@@ -889,6 +903,18 @@ public class VillageRecord {
         return Codec.BOOL.parse(ops, encoded);
     }
 
+    private static <T> DataResult<Long> readOptionalLong(DynamicOps<T> ops, MapLike<T> map,
+                                                         String key, long fallback) {
+        T encoded = map.get(ops.createString(key));
+        if (encoded == null) {
+            return DataResult.success(fallback);
+        }
+        return Codec.LONG.validate(value -> value >= 0L
+                ? DataResult.success(value)
+                : DataResult.error(() -> key + " cannot be negative"))
+                .parse(ops, encoded);
+    }
+
     /** Returns whether this player is the village's appointed governor. */
     public boolean isGovernor(UUID playerId) {
         return playerId != null && playerId.equals(governorId);
@@ -913,20 +939,28 @@ public class VillageRecord {
         if (playerId != null) {
             if (playerId.equals(governorCandidateId)) {
                 governorCandidateId = null;
+                governorCandidateAttackGraceUntil = 0L;
             }
         }
         return true;
     }
 
-    /** Registers a player as a candidate after the server has checked current opinion. */
-    public boolean becomeGovernorCandidate(UUID playerId, int opinion) {
+    /** Registers a player as a candidate and starts the bank's attack grace period. */
+    public boolean becomeGovernorCandidate(UUID playerId, int opinion, long gameTime) {
         if (playerId == null || governorCandidateId != null
                 || !VillageRelationship.canBecomeGovernorCandidate(
                 opinion, Config.governorCandidateOpinionThreshold)
                 || isGovernor(playerId)) {
             return false;
         }
+        if (gameTime < 0L) {
+            throw new IllegalArgumentException("Game time cannot be negative");
+        }
         governorCandidateId = playerId;
+        governorCandidateAttackGraceUntil = gameTime > Long.MAX_VALUE
+                - GOVERNOR_CANDIDATE_ATTACK_GRACE_TICKS
+                ? Long.MAX_VALUE
+                : gameTime + GOVERNOR_CANDIDATE_ATTACK_GRACE_TICKS;
         return true;
     }
 
@@ -936,6 +970,21 @@ public class VillageRecord {
             return false;
         }
         governorCandidateId = null;
+        governorCandidateAttackGraceUntil = 0L;
+        return true;
+    }
+
+    /** Returns whether the bank's grace period has elapsed for the current candidate. */
+    public boolean isGovernorCandidateAttackGraceElapsed(long gameTime) {
+        return governorCandidateId == null || gameTime >= governorCandidateAttackGraceUntil;
+    }
+
+    /** Ends the bank's grace period when the current candidate takes hostile action. */
+    public boolean endGovernorCandidateAttackGrace(UUID playerId) {
+        if (!isGovernorCandidate(playerId) || governorCandidateAttackGraceUntil == 0L) {
+            return false;
+        }
+        governorCandidateAttackGraceUntil = 0L;
         return true;
     }
 
