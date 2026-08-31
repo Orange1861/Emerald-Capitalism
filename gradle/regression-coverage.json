@@ -103,6 +103,7 @@
         "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",
         "mixinauditinvariantgametests.villagerbirthusescustomcooldownandbookkeeping",
         "mixinauditinvariantgametests.villagerpathincludesverticalladdernodes",
+        "mixinauditinvariantgametests.villagerkeepsladderpathwhilewaitingforanotherclimber",
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
         "villagertradeaccountinggametests.eachcompletedtradeappliesonceformultipleplayers",
         "villagerreputationdamagegametests.canceleddamagedoesnotleakintolatergossip"
