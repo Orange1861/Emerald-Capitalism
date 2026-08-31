@@ -32,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Comparator;
 
 /**
  * GUI screen for the Bank block.
@@ -721,7 +722,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         if (marketList == null) return;
         String selectedId = selectedMarketEntry() == null ? null : selectedMarketEntry().id();
         displayedMarketEntries = BankPresentation.sortMarketEntriesByPriority(
-                menu.getMarketEntries(), this::marketSortPriority);
+                menu.getMarketEntries(), this::marketSortPriority,
+                Comparator.comparing(BankMenu.MarketEntry::id));
         if (selectedId != null) {
             int selectedPosition = indexOfMarketEntry(selectedId);
             if (selectedPosition >= 0) {

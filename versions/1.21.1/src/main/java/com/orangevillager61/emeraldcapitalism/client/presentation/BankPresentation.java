@@ -42,8 +42,15 @@ public final class BankPresentation {
     /** Sorts market entries by priority while preserving the original order within each priority. */
     public static <T> List<T> sortMarketEntriesByPriority(List<T> entries,
                                                           ToIntFunction<T> priority) {
+        return sortMarketEntriesByPriority(entries, priority, (left, right) -> 0);
+    }
+
+    /** Sorts market entries by priority with a deterministic tie-breaker. */
+    public static <T> List<T> sortMarketEntriesByPriority(List<T> entries,
+                                                          ToIntFunction<T> priority,
+                                                          Comparator<T> tieBreaker) {
         List<T> sorted = new ArrayList<>(entries);
-        sorted.sort(Comparator.comparingInt(priority));
+        sorted.sort(Comparator.comparingInt(priority).thenComparing(tieBreaker));
         return List.copyOf(sorted);
     }
 
