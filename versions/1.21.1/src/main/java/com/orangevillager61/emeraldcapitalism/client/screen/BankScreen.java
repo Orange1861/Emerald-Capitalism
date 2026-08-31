@@ -1044,8 +1044,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 marketList.setSelected(this);
                 marketQuantityBox.setValue(String.valueOf(MarketPricingEngine.tradeBatchSize(
                 marketEntry.config(), marketEntry.stock(), marketDemandContext(marketEntry))));
-                marketBuy = marketEntry.config().tradeType() != MarketTradeType.FIXED
-                        || marketEntry.config().supportsFixedBuy();
                 marketDonate = false;
                 updateMarketControls();
                 refreshMarketList();
@@ -1088,7 +1086,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         if (!quote.valid()) {
             return "Unavailable";
         }
-        if (quote.emeraldAmount() == 0) {
+        if (quote.side() == TradeSide.BUY && quote.emeraldAmount() == 0) {
             return "Bank has too few " + pluralMarketItemName(entry.displayName());
         }
         String emeraldLabel = quote.emeraldAmount() == 1 ? "Emerald" : "Emeralds";
@@ -1116,7 +1114,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         int batch = MarketPricingEngine.tradeBatchSize(entry.config(), entry.stock(),
                 marketDemandContext(entry));
         MarketTradeQuote quote = marketQuote(entry, batch, side);
-        // A zero-emerald sell offer is rendered as "Bank has too few ..." and is not actionable.
+        // Keep zero-payout sell offers visually marked as unavailable in the market list.
         return !quote.valid() || (side == TradeSide.SELL && quote.emeraldAmount() <= 0);
     }
 
