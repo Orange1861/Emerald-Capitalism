@@ -54,11 +54,20 @@ public final class VillagerInventoryPolicy {
         }
 
         if (profession == ECAPVillagerProfessions.LUMBERJACK.get()) {
-            // Saplings are replanted by the lumberjack; coal/charcoal is a
-            // temporary furnace input used by its production loop.
-            return stack.is(ItemTags.SAPLINGS) || stack.is(ItemTags.COALS);
+            // Saplings are replanted by the lumberjack. Coal and charcoal are
+            // saleable outputs; active furnace work is protected by the goal
+            // scheduler instead of permanently reserving every fuel stack.
+            return stack.is(ItemTags.SAPLINGS);
         }
 
         return false;
+    }
+
+    /** Returns whether a stack is a profession output accepted for pickup. */
+    public static boolean isProfessionWorkItem(Villager villager, ItemStack stack) {
+        return !stack.isEmpty()
+                && villager.getVillagerData().getProfession()
+                == ECAPVillagerProfessions.LUMBERJACK.get()
+                && stack.is(ItemTags.LOGS);
     }
 }

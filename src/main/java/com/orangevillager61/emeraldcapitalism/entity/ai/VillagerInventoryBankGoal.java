@@ -2,6 +2,8 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
+import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
+import com.orangevillager61.emeraldcapitalism.attachments.LumberjackProductionAttachment;
 import com.orangevillager61.emeraldcapitalism.market.MarketDemandContext;
 import com.orangevillager61.emeraldcapitalism.market.MarketItem;
 import com.orangevillager61.emeraldcapitalism.market.MarketPricingEngine;
@@ -13,6 +15,7 @@ import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerInventoryPolicy;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
+import com.orangevillager61.emeraldcapitalism.world.forestry.CharcoalProductionPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
@@ -22,6 +25,7 @@ import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.EnumSet;
 
@@ -57,6 +61,7 @@ public final class VillagerInventoryBankGoal extends Goal {
                 || villager.isSleeping()
                 || villager.isTrading()
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                || LumberjackGoal.isRunning(villager)
                 || level.getGameTime() < nextActionTick) {
             return false;
         }
@@ -67,7 +72,7 @@ public final class VillagerInventoryBankGoal extends Goal {
             return false;
         }
         BankAccountData.get(level).openAccount(villager.getUUID());
-        return hasLiquidatableItems();
+        return hasLiquidatableItems(level);
     }
 
     @Override
@@ -108,6 +113,7 @@ public final class VillagerInventoryBankGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                && !LumberjackGoal.isRunning(villager)
                 && !bank.isRemoved()
                 && bank.isVillagerDeliveriesEnabled()
                 && isDeliveryModeEnabled();
@@ -153,20 +159,40 @@ public final class VillagerInventoryBankGoal extends Goal {
 
     private boolean liquidateInventory(ServerLevel level) {
         boolean transferred = false;
+        int logsToReserve = logsReservedForCharcoal();
+        int charcoalToReserve = charcoalReservedForProduction();
         for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
             ItemStack held = villager.getInventory().getItem(slot);
             if (held.isEmpty() || !isDeliverableItem(held)) {
                 continue;
             }
 
-            while (!held.isEmpty()) {
+            int transferableCount = held.getCount();
+            if (held.is(ItemTags.LOGS)) {
+                int protectedLogs = Math.min(transferableCount, logsToReserve);
+                logsToReserve -= protectedLogs;
+                transferableCount -= protectedLogs;
+                if (transferableCount <= 0) {
+                    continue;
+                }
+            }
+            if (held.is(Items.CHARCOAL)) {
+                int protectedCharcoal = Math.min(transferableCount, charcoalToReserve);
+                charcoalToReserve -= protectedCharcoal;
+                transferableCount -= protectedCharcoal;
+                if (transferableCount <= 0) {
+                    continue;
+                }
+            }
+
+            while (!held.isEmpty() && transferableCount > 0) {
                 MarketItem market = findMarketItem(held);
                 int capacity = bank.getItemStorageCapacity(level, held);
                 if (capacity <= 0) {
                     break;
                 }
 
-                int requested = Math.min(held.getCount(), capacity);
+                int requested = Math.min(transferableCount, capacity);
                 int quantity = requested;
                 MarketTradeQuote quote = null;
                 if (market != null) {
@@ -187,6 +213,7 @@ public final class VillagerInventoryBankGoal extends Goal {
 
                 held.shrink(quantity);
                 villager.getInventory().setItem(slot, held.isEmpty() ? ItemStack.EMPTY : held);
+                transferableCount -= quantity;
                 if (quote != null) {
                     // A priced item is a sale; an unpriced item is a donation
                     // and therefore does not create an account credit.
@@ -223,14 +250,100 @@ public final class VillagerInventoryBankGoal extends Goal {
         return quote != null && quote.valid() && quote.quantity() > 0;
     }
 
-    private boolean hasLiquidatableItems() {
+    private boolean hasLiquidatableItems(ServerLevel level) {
+        int logsToReserve = logsReservedForCharcoal();
+        int charcoalToReserve = charcoalReservedForProduction();
         for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
             ItemStack stack = villager.getInventory().getItem(slot);
-            if (!stack.isEmpty() && isDeliverableItem(stack)) {
+            if (stack.isEmpty() || !isDeliverableItem(stack)) {
+                continue;
+            }
+
+            int transferableCount = stack.getCount();
+            if (stack.is(ItemTags.LOGS)) {
+                int protectedLogs = Math.min(transferableCount, logsToReserve);
+                logsToReserve -= protectedLogs;
+                transferableCount -= protectedLogs;
+            }
+            if (stack.is(Items.CHARCOAL)) {
+                int protectedCharcoal = Math.min(transferableCount, charcoalToReserve);
+                charcoalToReserve -= protectedCharcoal;
+                transferableCount -= protectedCharcoal;
+            }
+            if (transferableCount > 0
+                    && hasTransferableQuantity(level, stack, transferableCount)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean hasTransferableQuantity(ServerLevel level, ItemStack stack, int availableQuantity) {
+        int capacity = bank.getItemStorageCapacity(level, stack);
+        if (capacity <= 0) {
+            return false;
+        }
+
+        MarketItem market = findMarketItem(stack);
+        if (market == null) {
+            return true;
+        }
+
+        int requested = Math.min(availableQuantity, capacity);
+        return isValidQuote(quote(level, market, requested));
+    }
+
+    private int logsReservedForCharcoal() {
+        if (!isLumberjackDelivery()) {
+            return 0;
+        }
+
+        int availableLogs = countInventoryItem(ItemTags.LOGS);
+        int conversions = pendingCharcoalConversions(availableLogs);
+        if (conversions <= 0) {
+            return 0;
+        }
+
+        int availableCharcoalFuel = countInventoryItem(Items.CHARCOAL);
+        int logFuelConversions = Math.max(0, conversions - availableCharcoalFuel);
+        return conversions + logFuelConversions;
+    }
+
+    private int charcoalReservedForProduction() {
+        if (!isLumberjackDelivery()) {
+            return 0;
+        }
+        return Math.min(pendingCharcoalConversions(countInventoryItem(ItemTags.LOGS)),
+                countInventoryItem(Items.CHARCOAL));
+    }
+
+    private int pendingCharcoalConversions(int availableLogs) {
+        LumberjackProductionAttachment production = villager.getData(
+                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION);
+        return CharcoalProductionPolicy.wholeConversions(
+                production.getCharcoalQuota(), availableLogs);
+    }
+
+    private int countInventoryItem(net.minecraft.tags.TagKey<Item> tag) {
+        int count = 0;
+        for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = villager.getInventory().getItem(slot);
+            if (stack.is(tag)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    private int countInventoryItem(Item item) {
+        int count = 0;
+        for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = villager.getInventory().getItem(slot);
+            if (stack.is(item)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
     }
 
     private boolean isDeliveryModeEnabled() {

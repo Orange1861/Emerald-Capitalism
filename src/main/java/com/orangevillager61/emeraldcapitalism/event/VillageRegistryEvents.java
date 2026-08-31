@@ -393,9 +393,9 @@ public class VillageRegistryEvents {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof BankMorningTradeGoal);
         if (!hasGoal) {
-            // Morning trades take precedence over ordinary work, but not over
-            // panic or other higher-priority vanilla goals.
-            villager.goalSelector.addGoal(2, new BankMorningTradeGoal(villager));
+            // Morning trades wait for active profession work, including a
+            // lumberjack's tree harvest or furnace conversion.
+            villager.goalSelector.addGoal(5, new BankMorningTradeGoal(villager));
         }
     }
 
@@ -404,9 +404,9 @@ public class VillageRegistryEvents {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof VillagerInventoryBankGoal);
         if (!hasGoal) {
-            // Full-inventory cleanup should win over ordinary work, while panic,
-            // election following, and other priority-one goals still take precedence.
-            villager.goalSelector.addGoal(2, new VillagerInventoryBankGoal(villager));
+            // Full-inventory cleanup waits for active profession work so it
+            // cannot interrupt a multi-block harvest.
+            villager.goalSelector.addGoal(5, new VillagerInventoryBankGoal(villager));
         }
     }
 

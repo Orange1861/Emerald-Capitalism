@@ -124,7 +124,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private boolean villagerDeliveriesEnabled = true;
     private boolean randomDeliveriesEnabled = true;
     private boolean breadDeliveriesEnabled = true;
-    private boolean lumberjackDeliveriesEnabled;
+    private boolean lumberjackDeliveriesEnabled = true;
     private boolean attackAllPlayers;
 
     /**
@@ -247,7 +247,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             this(villageId, true, Optional.empty(), bankName, employeeIds, jobEmployeeIds,
                     emeraldGolemEmployeeIds, List.of(), 0, composterPos, golemConstructionPos,
                     Optional.empty(), 0L, false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS,
-                    true, true, true, false, false);
+                    true, true, true, true, false);
         }
 
         PersistedState(Optional<UUID> villageId, boolean bankIndependent, Optional<UUID> controllerId,
@@ -258,7 +258,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             this(villageId, bankIndependent, controllerId, bankName, employeeIds, jobEmployeeIds,
                     emeraldGolemEmployeeIds, List.of(), 0, composterPos, golemConstructionPos,
                     takeoverLockPlayer, takeoverLockUntil, false, 0, 0,
-                    BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false, false);
+                    BankTargets.INTERNAL_BREAD_DAYS, true, true, true, true, false);
         }
 
         private static final Codec<String> BANK_NAME_CODEC = Codec.STRING.validate(name ->
@@ -364,7 +364,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                                 .forGetter(ControlSettingsState::randomDeliveriesEnabled),
                         Codec.BOOL.optionalFieldOf("bread_deliveries_enabled", true)
                                 .forGetter(ControlSettingsState::breadDeliveriesEnabled),
-                        Codec.BOOL.optionalFieldOf("lumberjack_deliveries_enabled", false)
+                        Codec.BOOL.optionalFieldOf("lumberjack_deliveries_enabled", true)
                                 .forGetter(ControlSettingsState::lumberjackDeliveriesEnabled),
                         Codec.BOOL.optionalFieldOf("attack_all_players", false)
                                 .forGetter(ControlSettingsState::attackAllPlayers)
@@ -909,7 +909,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return;
         }
         BankDepositGoal goal = new BankDepositGoal(villager, getBlockPos(), this);
-        villager.goalSelector.addGoal(2, goal);
+        // Deposits wait behind active profession work. The goal itself also
+        // pauses safely if another higher-priority task starts first.
+        villager.goalSelector.addGoal(5, goal);
         activeGoal = goal;
     }
 

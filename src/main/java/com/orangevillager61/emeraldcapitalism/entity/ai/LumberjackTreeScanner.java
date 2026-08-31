@@ -24,15 +24,16 @@ import java.util.Set;
 /** Finds bounded, harvestable tree snapshots for a lumberjack goal. */
 final class LumberjackTreeScanner {
 
-    private static final int SEARCH_RANGE = 24;
-    private static final int VERTICAL_SEARCH_RANGE = 10;
+    static final int INITIAL_SEARCH_RANGE = 24;
+    static final int MAX_SEARCH_RANGE = 72;
+    static final int SEARCH_RANGE_INCREMENT = 24;
+    private static final int VERTICAL_SEARCH_RANGE = 16;
     private static final int MIN_LOGS = 3;
     private static final int MIN_LEAVES = 4;
     private static final int MAX_LOGS = 96;
     private static final int MAX_LEAVES = 160;
     private static final int CANOPY_HORIZONTAL_PADDING = 4;
     private static final int CANOPY_VERTICAL_PADDING = 4;
-    private static final int MAX_TREE_DISTANCE_SQ = SEARCH_RANGE * SEARCH_RANGE;
 
     private final Villager villager;
 
@@ -42,18 +43,21 @@ final class LumberjackTreeScanner {
 
     @Nullable
     TreeSnapshot findNearestTree(ServerLevel level) {
+        return findCandidateTrees(level, INITIAL_SEARCH_RANGE).stream().findFirst().orElse(null);
+    }
+
+    List<TreeSnapshot> findCandidateTrees(ServerLevel level, int requestedSearchRange) {
+        int searchRange = Math.max(INITIAL_SEARCH_RANGE,
+                Math.min(MAX_SEARCH_RANGE, requestedSearchRange));
         BlockPos origin = villager.blockPosition();
-        TreeSnapshot nearest = null;
-        double nearestDistanceSq = Double.MAX_VALUE;
+        List<TreeSnapshot> candidates = new ArrayList<>();
         Set<BlockPos> examinedLogs = new HashSet<>();
         BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
 
-        // Expand horizontally from the villager. Once a valid tree is found,
-        // shells farther away than that tree cannot improve the result.
-        for (int shell = 0; shell <= SEARCH_RANGE; shell++) {
-            if (nearest != null && shell * shell > nearestDistanceSq) {
-                break;
-            }
+        // Search the complete requested radius and return every valid tree. The
+        // goal can then discard unreachable trees and try the next nearest one
+        // instead of treating the first pathfinding failure as a failed search.
+        for (int shell = 0; shell <= searchRange; shell++) {
             for (int x = -shell; x <= shell; x++) {
                 for (int z = -shell; z <= shell; z++) {
                     if (shell > 0 && Math.abs(x) != shell && Math.abs(z) != shell) {
@@ -71,21 +75,21 @@ final class LumberjackTreeScanner {
                         }
 
                         double distanceSq = origin.distSqr(immutableCandidate);
-                        if (distanceSq >= nearestDistanceSq || distanceSq > MAX_TREE_DISTANCE_SQ) {
+                        if (distanceSq > (double) searchRange * searchRange) {
                             continue;
                         }
 
                         TreeSnapshot found = scanTree(level, immutableCandidate, examinedLogs);
                         if (found != null && !LumberjackTreeReservations.isReservedByOther(
                                 level, villager.getUUID(), found.logs())) {
-                            nearest = found;
-                            nearestDistanceSq = distanceSq;
+                            candidates.add(found);
                         }
                     }
                 }
             }
         }
-        return nearest;
+        candidates.sort(Comparator.comparingDouble(tree -> origin.distSqr(tree.base())));
+        return List.copyOf(candidates);
     }
 
     boolean isNaturalLeaf(BlockState state) {

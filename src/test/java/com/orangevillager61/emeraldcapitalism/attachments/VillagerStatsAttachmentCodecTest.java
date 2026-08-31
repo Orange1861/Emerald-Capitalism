@@ -156,10 +156,11 @@ class VillagerStatsAttachmentCodecTest {
     @Test
     void transientEatingAndInventoryStateResetsAfterDecode() throws ReflectiveOperationException {
         VillagerStatsAttachment source = new VillagerStatsAttachment();
-        setPrivate(source, "isEating", true);
-        setPrivate(source, "eatingTicksRemaining", 32);
-        setPrivate(source, "eatingSlot", 3);
-        setPrivate(source, "eatingNutrition", 6);
+        Object hungerState = getPrivate(source, "hungerState");
+        setPrivate(hungerState, "eating", true);
+        setPrivate(hungerState, "eatingTicksRemaining", 32);
+        setPrivate(hungerState, "eatingSlot", 3);
+        setPrivate(hungerState, "eatingNutrition", 6);
         source.setCachedFoodSlot(3);
         setPrivate(source, "cachedEmeraldCount", 4);
         setPrivate(source, "cachedWheatCount", 9);
@@ -320,17 +321,17 @@ class VillagerStatsAttachmentCodecTest {
         return VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, tag).result().orElseThrow();
     }
 
-    private static void setPrivate(VillagerStatsAttachment attachment, String fieldName, Object value)
+    private static void setPrivate(Object target, String fieldName, Object value)
             throws ReflectiveOperationException {
-        var field = VillagerStatsAttachment.class.getDeclaredField(fieldName);
+        var field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
-        field.set(attachment, value);
+        field.set(target, value);
     }
 
-    private static Object getPrivate(VillagerStatsAttachment attachment, String fieldName)
+    private static Object getPrivate(Object target, String fieldName)
             throws ReflectiveOperationException {
-        var field = VillagerStatsAttachment.class.getDeclaredField(fieldName);
+        var field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
-        return field.get(attachment);
+        return field.get(target);
     }
 }

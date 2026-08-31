@@ -57,6 +57,7 @@ public final class BankMorningTradeGoal extends Goal {
                 || villager.isSleeping()
                 || villager.isTrading()
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                || LumberjackGoal.isRunning(villager)
                 || level.getGameTime() < nextActionTick) {
             return false;
         }
@@ -67,16 +68,18 @@ public final class BankMorningTradeGoal extends Goal {
             return false;
         }
 
-        // Record the check before resolving trades so an empty morning still
-        // remains a single check rather than retrying every AI tick.
-        lastMorningDay = day;
         BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
         if (bank == null) {
+            lastMorningDay = day;
             return false;
         }
 
         BankAccountData.get(level).openAccount(villager.getUUID());
-        return hasPendingTrade(level, bank);
+        boolean pendingTrade = hasPendingTrade(level, bank);
+        if (!pendingTrade) {
+            lastMorningDay = day;
+        }
+        return pendingTrade;
     }
 
     @Override
@@ -124,6 +127,7 @@ public final class BankMorningTradeGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                && !LumberjackGoal.isRunning(villager)
                 && context.bank().isVillagerDeliveriesEnabled()
                 && !context.bank().isRemoved();
     }
@@ -225,6 +229,7 @@ public final class BankMorningTradeGoal extends Goal {
             }
         }
 
+        lastMorningDay = level.getDayTime() / DAY_LENGTH_TICKS;
         nextActionTick = level.getGameTime() + (traded ? SUCCESS_COOLDOWN : FAILURE_COOLDOWN);
     }
 

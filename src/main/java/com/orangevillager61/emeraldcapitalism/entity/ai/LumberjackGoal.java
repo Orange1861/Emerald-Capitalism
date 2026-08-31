@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.market.MarketDemandContext;
 import com.orangevillager61.emeraldcapitalism.market.MarketItem;
 import com.orangevillager61.emeraldcapitalism.market.MarketPricingEngine;
 import com.orangevillager61.emeraldcapitalism.market.MarketRegistry;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
@@ -76,6 +77,9 @@ public final class LumberjackGoal extends Goal {
     private long nextFurnaceSearchTick;
     private long nextNavigationRetryTick;
     private int navigationFailures;
+    private List<LumberjackTreeScanner.TreeSnapshot> candidateTrees = List.of();
+    private int nextCandidateIndex;
+    private int searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
     private boolean furnaceInputInserted;
     private boolean returningToJobSite;
@@ -87,6 +91,12 @@ public final class LumberjackGoal extends Goal {
         this.villager = villager;
         this.treeScanner = new LumberjackTreeScanner(villager);
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+    }
+
+    /** Returns whether this villager currently has the lumberjack goal running. */
+    public static boolean isRunning(Villager villager) {
+        return villager.goalSelector.getRunningGoals()
+                .anyMatch(goal -> goal.getGoal() instanceof LumberjackGoal);
     }
 
     @Override
@@ -131,22 +141,104 @@ public final class LumberjackGoal extends Goal {
             return false;
         }
 
-        LumberjackTreeScanner.TreeSnapshot selectedTree = PerformanceTimingCounters.measure(
+        List<LumberjackTreeScanner.TreeSnapshot> candidates = PerformanceTimingCounters.measure(
                 PerformanceTimingCounters.Operation.LUMBERJACK_SEARCH,
-                () -> treeScanner.findNearestTree(level));
-        nextSearchTick = level.getGameTime()
-                + (selectedTree == null ? EMPTY_SEARCH_INTERVAL_TICKS : SEARCH_INTERVAL_TICKS);
-        if (selectedTree == null
-                || !LumberjackTreeReservations.tryReserve(level, villager.getUUID(), selectedTree.logs())) {
-            tree = null;
-            return false;
+                () -> treeScanner.findCandidateTrees(level, searchRange));
+        if (selectTreeFromCandidates(level, candidates)) {
+            searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
+            nextSearchTick = level.getGameTime() + SEARCH_INTERVAL_TICKS;
+            return true;
         }
-        tree = selectedTree;
+
+        searchRange = nextSearchRange();
+        nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
+        candidateTrees = List.of();
+        nextCandidateIndex = 0;
+        return false;
+    }
+
+    private int nextSearchRange() {
+        if (searchRange >= LumberjackTreeScanner.MAX_SEARCH_RANGE) {
+            return LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
+        }
+        return Math.min(LumberjackTreeScanner.MAX_SEARCH_RANGE,
+                searchRange + LumberjackTreeScanner.SEARCH_RANGE_INCREMENT);
+    }
+
+    private boolean selectTreeFromCandidates(ServerLevel level,
+                                             List<LumberjackTreeScanner.TreeSnapshot> candidates) {
+        candidateTrees = candidates;
+        nextCandidateIndex = 0;
+        return selectNextTree(level);
+    }
+
+    private boolean selectNextTree(ServerLevel level) {
+        while (nextCandidateIndex < candidateTrees.size()) {
+            LumberjackTreeScanner.TreeSnapshot candidate = candidateTrees.get(nextCandidateIndex++);
+            if (LumberjackTreeReservations.isReservedByOther(
+                    level, villager.getUUID(), candidate.logs())) {
+                continue;
+            }
+
+            BlockPos approach = findReachableTreeApproach(level, candidate);
+            if (approach == null
+                    || !LumberjackTreeReservations.tryReserve(
+                    level, villager.getUUID(), candidate.logs())) {
+                continue;
+            }
+
+            tree = candidate;
+            navigationTarget = approach;
+            nextLogIndex = 0;
+            breakTicks = 0;
+            logsCollectedThisTree = 0;
+            navigationFailures = 0;
+            failed = false;
+            return true;
+        }
+        tree = null;
+        navigationTarget = null;
+        return false;
+    }
+
+    @Nullable
+    private BlockPos findReachableTreeApproach(ServerLevel level,
+                                               LumberjackTreeScanner.TreeSnapshot candidate) {
+        BlockPos approach = VillagerNavigationTargets.findReachableTarget(
+                villager, candidate.base(), 2,
+                position -> level.getBlockState(position)
+                        .isPathfindable(PathComputationType.LAND));
+        if (approach != null) {
+            return approach;
+        }
+
+        // A supported trunk base is the normal standing point. The fallback
+        // handles unusual trees whose base is enclosed but whose upper trunk
+        // still has a reachable approach.
+        for (int index = 1; index < candidate.logs().size(); index++) {
+            BlockPos log = candidate.logs().get(index);
+            approach = VillagerNavigationTargets.findReachableTarget(
+                    villager, log, 2,
+                    position -> level.getBlockState(position)
+                            .isPathfindable(PathComputationType.LAND));
+            if (approach != null) {
+                return approach;
+            }
+        }
+        return null;
+    }
+
+    private boolean selectNextTreeAfterNavigationFailure(ServerLevel level) {
+        clearBreakingProgress(level);
+        allocateCharcoalQuota(level, logsCollectedThisTree);
+        releaseTreeReservation();
+        tree = null;
+        navigationTarget = null;
         nextLogIndex = 0;
         breakTicks = 0;
         logsCollectedThisTree = 0;
-        navigationFailures = 0;
-        return tree != null;
+        navigationWatchdog.reset();
+        return selectNextTree(level);
     }
 
     @Override
@@ -229,7 +321,9 @@ public final class LumberjackGoal extends Goal {
                 }
             } else if (navigationTarget != null
                     && navigationWatchdog.isStuck(villager, navigationTarget)) {
-                failed = true;
+                navigationTarget = null;
+                navigationWatchdog.reset();
+                recordNavigationFailure(level);
                 villager.getNavigation().stop();
             } else if (villager.getNavigation().isDone()
                     && level.getGameTime() >= nextNavigationRetryTick) {
@@ -325,6 +419,8 @@ public final class LumberjackGoal extends Goal {
         navigationWatchdog.reset();
         nextNavigationRetryTick = 0L;
         navigationFailures = 0;
+        candidateTrees = List.of();
+        nextCandidateIndex = 0;
         failed = false;
     }
 
@@ -335,6 +431,7 @@ public final class LumberjackGoal extends Goal {
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
                 && (lumberjackCuttingEnabled(level) || hasTrackedCharcoalProduction())
+                && (!isDepositPending(level) || hasActiveWork())
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
     }
 
@@ -349,6 +446,10 @@ public final class LumberjackGoal extends Goal {
         return bank != null && bank.isQueued(villager.getUUID());
     }
 
+    private boolean hasActiveWork() {
+        return returningToJobSite || tree != null || productionFurnace != null;
+    }
+
     private boolean prepareJobSiteReturn(ServerLevel level) {
         BlockPos jobSite = getJobSite(level);
         if (jobSite == null || isWithinWorkReach(jobSite)) {
@@ -357,7 +458,8 @@ public final class LumberjackGoal extends Goal {
 
         jobSiteTarget = VillagerNavigationTargets.findReachableTarget(villager, jobSite, 2);
         if (jobSiteTarget == null) {
-            nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
+            // A stale or obstructed job site must not prevent the lumberjack
+            // from scanning from its current position.
             return false;
         }
 
@@ -397,6 +499,7 @@ public final class LumberjackGoal extends Goal {
         return villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
                 .filter(globalPos -> globalPos.dimension().equals(level.dimension()))
                 .map(GlobalPos::pos)
+                .filter(pos -> level.getBlockState(pos).is(ECAPBlocks.SAWMILL.get()))
                 .orElse(null);
     }
 
@@ -467,8 +570,13 @@ public final class LumberjackGoal extends Goal {
         navigationFailures++;
         nextNavigationRetryTick = level.getGameTime() + NAVIGATION_RETRY_INTERVAL_TICKS;
         if (navigationFailures >= MAX_NAVIGATION_FAILURES) {
-            failed = true;
-            villager.getNavigation().stop();
+            navigationFailures = 0;
+            if (!selectNextTreeAfterNavigationFailure(level)) {
+                searchRange = nextSearchRange();
+                nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
+                failed = true;
+                villager.getNavigation().stop();
+            }
         }
     }
 
@@ -594,6 +702,11 @@ public final class LumberjackGoal extends Goal {
         int collectedLogs = 0;
         for (ItemStack drop : drops) {
             ItemStack offered = drop.copy();
+            if (!villager.wantsToPickUp(offered)) {
+                villager.spawnAtLocation(offered);
+                continue;
+            }
+
             int offeredLogCount = offered.is(ItemTags.LOGS) ? offered.getCount() : 0;
             ItemStack remainder = villager.getInventory().addItem(offered);
             if (!remainder.isEmpty()) {

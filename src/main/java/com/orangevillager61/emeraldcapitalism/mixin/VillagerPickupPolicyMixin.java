@@ -23,7 +23,8 @@ public class VillagerPickupPolicyMixin {
         Villager villager = (Villager) (Object) this;
         SimpleContainer inventory = villager.getInventory();
         if (!VillagerSkrimisherItemPool.contains(stack)
-                && !VillagerInventoryPolicy.isReservedForVillager(villager, stack)) {
+                && !VillagerInventoryPolicy.isReservedForVillager(villager, stack)
+                && !VillagerInventoryPolicy.isProfessionWorkItem(villager, stack)) {
             cir.setReturnValue(false);
             return;
         }

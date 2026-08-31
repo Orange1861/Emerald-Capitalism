@@ -236,6 +236,8 @@ public final class LumberjackGameTests {
 
         helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.OAK_SAPLING)),
                 "lumberjack did not accept a sapling when its work inventory had space");
+        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.OAK_LOG)),
+                "lumberjack did not accept a harvested log when its work inventory had space");
         helper.succeed();
     }
 

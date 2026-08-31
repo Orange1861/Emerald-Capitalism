@@ -55,6 +55,7 @@ public class BankDepositGoal extends Goal {
     @Override
     public boolean canUse() {
         if (skipped || VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                || LumberjackGoal.isRunning(villager)
                 || !villager.level().isDay()
                 || !bank.isCurrentDepositor(villager.getUUID())) return false;
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
@@ -77,6 +78,7 @@ public class BankDepositGoal extends Goal {
     public boolean canContinueToUse() {
         if (skipped || VillagerBreedingSessions.shouldYieldCustomWork(villager)) return false;
         if (!villager.level().isDay()) return false;
+        if (LumberjackGoal.isRunning(villager)) return false;
         if (isAtBank()) return false;
         // Stop if the bank externally cleared the queue (currentDepositor became null)
         return bank.isCurrentDepositor(villager.getUUID());
@@ -120,6 +122,14 @@ public class BankDepositGoal extends Goal {
         // Breeding temporarily owns movement. Keep this goal registered and leave
         // the bank queue untouched so the deposit can resume after the session.
         if (VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
+            return;
+        }
+
+        if (LumberjackGoal.isRunning(villager)) {
+            if (bank.isCurrentDepositor(villager.getUUID())) {
+                bank.pauseCurrentDepositor();
+            }
+            bank.scheduleGoalRemoval(this);
             return;
         }
 
