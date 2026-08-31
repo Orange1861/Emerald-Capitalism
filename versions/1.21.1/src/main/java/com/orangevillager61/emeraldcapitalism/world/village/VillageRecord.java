@@ -943,7 +943,7 @@ public class VillageRecord {
     public VillageRelationship getPlayerRelationship(ServerLevel level, Player player) {
         int opinion = getVillageOpinion(level, player);
         return VillageRelationship.resolve(opinion, Config.governorHostileOpinionThreshold,
-                isGovernor(player.getUUID()),
+                Config.governorCandidateOpinionThreshold, isGovernor(player.getUUID()),
                 isGovernorCandidate(player.getUUID()));
     }
 

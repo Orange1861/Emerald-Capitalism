@@ -126,7 +126,8 @@ public record VillagePOIDynamicDataPacket(
                 villageOpinion,
                 relationship,
                 village.getGovernorCandidateId() == null
-                        && relationship == VillageRelationship.NEUTRAL
+                        && (relationship == VillageRelationship.NEUTRAL
+                            || relationship == VillageRelationship.FRIENDLY)
                         && VillageRelationship.canBecomeGovernorCandidate(
                         villageOpinion,
                         Config.governorCandidateOpinionThreshold)

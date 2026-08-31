@@ -5,7 +5,8 @@ public enum VillageRelationship {
     GOVERNOR("Governor"),
     GOVERNOR_CANDIDATE("Governor Candidate"),
     NEUTRAL("Neutral"),
-    HOSTILE("Hostile");
+    HOSTILE("Hostile"),
+    FRIENDLY("Friendly");
 
     public static final int DEFAULT_HOSTILE_THRESHOLD = -100;
     public static final int DEFAULT_GOVERNOR_CANDIDATE_THRESHOLD = 99;
@@ -21,11 +22,19 @@ public enum VillageRelationship {
     }
 
     public static VillageRelationship resolve(int opinion, boolean governor, boolean candidate) {
-        return resolve(opinion, DEFAULT_HOSTILE_THRESHOLD, governor, candidate);
+        return resolve(opinion, DEFAULT_HOSTILE_THRESHOLD, DEFAULT_GOVERNOR_CANDIDATE_THRESHOLD,
+                governor, candidate);
     }
 
     public static VillageRelationship resolve(int opinion, int hostileThreshold,
                                               boolean governor, boolean candidate) {
+        return resolve(opinion, hostileThreshold, DEFAULT_GOVERNOR_CANDIDATE_THRESHOLD,
+                governor, candidate);
+    }
+
+    public static VillageRelationship resolve(int opinion, int hostileThreshold,
+                                              int candidateThreshold, boolean governor,
+                                              boolean candidate) {
         if (opinion <= hostileThreshold) {
             return HOSTILE;
         }
@@ -34,6 +43,9 @@ public enum VillageRelationship {
         }
         if (candidate) {
             return GOVERNOR_CANDIDATE;
+        }
+        if (canBecomeGovernorCandidate(opinion, candidateThreshold)) {
+            return FRIENDLY;
         }
         return NEUTRAL;
     }

@@ -884,7 +884,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 DeliverySetting.BREAD);
         lumberjackDeliveriesBtn = addDeliveryButton(sliderX + 194, deliveryY + 28,
                 "Lumberjack deliveries", DeliverySetting.LUMBERJACK);
-        attackAllPlayersBtn = addRenderableWidget(Button.builder(Component.literal("Attack all players"),
+        attackAllPlayersBtn = addRenderableWidget(Button.builder(Component.literal("Attack Other Players"),
                 btn -> toggleAttackAllPlayers())
                 .bounds(sliderX, deliveryY, 258, 20).build());
 
@@ -957,7 +957,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 settings.breadDeliveriesEnabled()));
         lumberjackDeliveriesBtn.setMessage(deliveryMessage("Lumberjack deliveries",
                 settings.lumberjackDeliveriesEnabled()));
-        attackAllPlayersBtn.setMessage(deliveryMessage("Attack all players", settings.attackAllPlayers()));
+        attackAllPlayersBtn.setMessage(deliveryMessage("Attack Other Players", settings.attackAllPlayers()));
         villagerDeliveriesBtn.active = editable;
         randomDeliveriesBtn.active = editable;
         breadDeliveriesBtn.active = editable;

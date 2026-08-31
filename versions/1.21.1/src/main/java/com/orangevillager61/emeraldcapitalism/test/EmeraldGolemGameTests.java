@@ -32,8 +32,6 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.pathfinder.Node;
@@ -387,8 +385,8 @@ public final class EmeraldGolemGameTests {
             return;
         }
 
-        Player controller = helper.makeMockPlayer(GameType.SURVIVAL);
-        Player otherPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        ServerPlayer controller = helper.makeMockServerPlayerInLevel();
+        ServerPlayer otherPlayer = helper.makeMockServerPlayerInLevel();
         controller.moveTo(bankPos.getX() + 2.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
         otherPlayer.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
         bank.setController(controller.getUUID());
@@ -424,6 +422,7 @@ public final class EmeraldGolemGameTests {
         helper.assertTrue(golem.getTarget() == otherPlayer,
                 "enabled bank attack setting targeted the controller instead of another player");
         goal.stop();
+        golem.setTarget(null);
 
         bank.setControlSettings(new BankMenuOpenData.ControlSettings(
                 current.manualTargets(), current.emeraldGolemTarget(),
@@ -432,6 +431,66 @@ public final class EmeraldGolemGameTests {
                 current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(), false));
         helper.assertFalse(goal.canUse(),
                 "disabled bank attack setting still targeted a neutral player");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void vaultGolemTargetsContestedGovernorCandidate(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
+            helper.fail("Could not create the bank for the contested-governor test");
+            return;
+        }
+
+        ServerPlayer candidate = helper.makeMockServerPlayerInLevel();
+        candidate.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        UUID villageId = UUID.randomUUID();
+        VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
+                villageId, bankPos, new net.minecraft.world.phys.AABB(bankPos).inflate(8.0D));
+        bank.setVillageId(villageId);
+        VillageRegistryData.get(level).registerBankPosition(villageId, bankPos);
+        helper.assertTrue(village.becomeGovernorCandidate(
+                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1),
+                "could not establish the contested governor candidate");
+
+        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        if (golem == null) {
+            helper.fail("Could not create the vault golem for the contested-governor test");
+            return;
+        }
+        golem.setBankEmployeePos(bankPos);
+        VaultGolemGoals.markAsVaultGuard(golem);
+        golem.moveTo(bankPos.getX() + 0.5D, bankPos.getY(), bankPos.getZ() + 0.5D,
+                0.0F, 0.0F);
+        if (!level.addFreshEntity(golem)) {
+            helper.fail("Could not add the vault golem for the contested-governor test");
+            return;
+        }
+
+        HostileVillagePlayerTargetGoal goal = findHostilePlayerGoal(golem);
+        helper.assertTrue(goal != null,
+                "vault golem did not receive its hostile-player target goal");
+        if (goal == null) {
+            return;
+        }
+
+        boolean foundCandidate = false;
+        for (int attempt = 0; attempt < 100 && !foundCandidate; attempt++) {
+            foundCandidate = goal.canUse();
+        }
+        helper.assertTrue(foundCandidate,
+                "vault golem did not target the player contested by its bank");
+        goal.start();
+        helper.assertTrue(golem.getTarget() == candidate,
+                "vault golem targeted the wrong player during the contested takeover");
+
+        goal.stop();
+        golem.setTarget(null);
+        bank.setController(candidate.getUUID());
+        helper.assertFalse(goal.canUse(),
+                "vault golem remained hostile after the bank began supporting its candidate");
         helper.succeed();
     }
 

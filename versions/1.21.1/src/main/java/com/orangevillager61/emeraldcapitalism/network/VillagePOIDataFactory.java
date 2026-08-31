@@ -78,7 +78,8 @@ public final class VillagePOIDataFactory {
                 ? VillageRelationship.NEUTRAL
                 : village.getPlayerRelationship(level, requester);
         boolean canBecomeGovernorCandidate = requester != null
-                && relationship == VillageRelationship.NEUTRAL
+                && (relationship == VillageRelationship.NEUTRAL
+                    || relationship == VillageRelationship.FRIENDLY)
                 && village.getGovernorCandidateId() == null
                 && VillageRelationship.canBecomeGovernorCandidate(
                 villageOpinionOfPlayer, Config.governorCandidateOpinionThreshold)

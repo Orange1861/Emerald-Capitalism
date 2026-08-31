@@ -725,6 +725,7 @@ public class VillagePOIScreen extends Screen {
             case GOVERNOR_CANDIDATE -> 0xFFFF55;
             case HOSTILE -> 0xFF5555;
             case NEUTRAL -> 0xAAAAAA;
+            case FRIENDLY -> 0x55FF55;
         };
     }
 

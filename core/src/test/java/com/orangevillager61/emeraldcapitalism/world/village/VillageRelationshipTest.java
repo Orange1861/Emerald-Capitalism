@@ -16,6 +16,9 @@ class VillageRelationshipTest {
                 VillageRelationship.resolve(-101, true, true));
         assertEquals(VillageRelationship.NEUTRAL,
                 VillageRelationship.resolve(0, false, false));
+        assertEquals(VillageRelationship.FRIENDLY,
+                VillageRelationship.resolve(100, false, false));
+        assertEquals("Friendly", VillageRelationship.FRIENDLY.displayName());
         assertEquals(VillageRelationship.NEUTRAL,
                 VillageRelationship.resolve(99, false, false));
         assertEquals(VillageRelationship.GOVERNOR_CANDIDATE,
@@ -26,6 +29,8 @@ class VillageRelationshipTest {
         assertTrue(VillageRelationship.canBecomeGovernorCandidate(100));
         assertEquals(VillageRelationship.HOSTILE,
                 VillageRelationship.resolve(-25, -25, false, false));
+        assertEquals(VillageRelationship.FRIENDLY,
+                VillageRelationship.resolve(81, -25, 80, false, false));
         assertTrue(VillageRelationship.canBecomeGovernorCandidate(81, 80));
         assertFalse(VillageRelationship.canBecomeGovernorCandidate(80, 80));
     }

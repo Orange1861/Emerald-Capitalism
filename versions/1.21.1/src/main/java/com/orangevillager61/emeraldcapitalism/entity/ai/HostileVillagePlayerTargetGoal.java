@@ -2,7 +2,10 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
@@ -10,7 +13,8 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
-/** Makes iron golems attack visible players hostile to their village or bank. */
+/** Makes iron golems attack visible players hostile to their village or bank,
+ * including contested candidates. */
 public final class HostileVillagePlayerTargetGoal extends NearestAttackableTargetGoal<ServerPlayer> {
 
     private final IronGolem golem;
@@ -30,6 +34,9 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
             return player.isAlive() && !player.isSpectator()
                     && !bank.isControlledBy(player.getUUID());
         }
+        if (isContestedGovernorCandidate(golem, player)) {
+            return true;
+        }
         if (VillageHostility.isHostilePlayer(golem, player)) {
             return true;
         }
@@ -39,6 +46,21 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
                 && golem.level() instanceof ServerLevel level
                 && BankReputationData.get(level).getReputation(player.getUUID())
                         <= BankReputationData.HOSTILITY_THRESHOLD;
+    }
+
+    private static boolean isContestedGovernorCandidate(IronGolem golem, Player player) {
+        if (!VaultGolemGoals.isVaultGuard(golem)
+                || !player.isAlive()
+                || player.isSpectator()
+                || !(golem.level() instanceof ServerLevel level)
+                || !(BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank)
+                || bank.getVillageId() == null) {
+            return false;
+        }
+
+        VillageRecord village = VillageRegistryData.get(level).getVillages().get(bank.getVillageId());
+        return village != null
+                && VillageGovernance.isContestedGovernor(level, village, player.getUUID());
     }
 
     @Override
