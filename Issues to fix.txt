@@ -42,5 +42,7 @@ Build for 1.21.1, test to see if works
 Create branches for 1.21.4, 1.21.11, 26.1
 Stonecutter?
 
+Complete Villagerspeak language support and re-enable it
+
 Write description by hand
 Take pics
