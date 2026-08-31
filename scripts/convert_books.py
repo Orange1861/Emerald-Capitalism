@@ -25,8 +25,9 @@ to author while still validating an explicit rarity when one is supplied.
 Usage:
 
     python scripts/convert_books.py
+    python scripts/convert_books.py  # also works from the repository root
     python scripts/convert_books.py --input docs/lore/books --output \
-        src/main/resources/data/emeraldcapitalism/library_books
+        versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books
 """
 
 from __future__ import annotations
@@ -42,9 +43,10 @@ from typing import Iterable
 from xml.etree import ElementTree
 
 
-DEFAULT_INPUT = Path("docs/lore/books")
-DEFAULT_OUTPUT = Path(
-    "src/main/resources/data/emeraldcapitalism/library_books"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_INPUT = REPOSITORY_ROOT / "docs/lore/books"
+DEFAULT_OUTPUT = REPOSITORY_ROOT / (
+    "versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books"
 )
 
 RARITY_ALIASES = {
@@ -92,7 +94,21 @@ FIELD_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PAGE_PATTERN = re.compile(
-    r"^\s*Page\s+\[?(\d+)\]?\s*(?::|[-–—])?\s*(.*?)\s*$",
+    r"^\s*Page\s+\[?(\d+|"
+    r"twenty[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"thirty[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"forty[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"fifty[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"sixty[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"seventy[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"eighty[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"ninety[- ](?:one|two|three|four|five|six|seven|eight|nine)|"
+    r"one hundred|"
+    r"one|two|three|four|five|six|seven|eight|nine|ten|"
+    r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|"
+    r"eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|"
+    r"eighty|ninety)\]?"
+    r"\s*(?::|[-–—])?\s*(.*?)\s*$",
     re.IGNORECASE,
 )
 
@@ -354,10 +370,9 @@ def parse_books(paragraphs: Iterable[str], folder_rarity: str) -> list[BookDefin
 
 def _write_definition(definition: BookDefinition, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(
-        json.dumps(definition.as_json(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    with destination.open("w", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(definition.as_json(), indent=2, ensure_ascii=False))
+        stream.write("\n")
 
 
 def convert_file(source: Path, destination: Path, folder_rarity: str) -> BookDefinition:
@@ -393,10 +408,25 @@ def _source_files(input_root: Path) -> list[tuple[Path, str]]:
     return files
 
 
+def _validate_output_location(input_root: Path, output_root: Path) -> None:
+    input_path = input_root.resolve()
+    output_path = output_root.resolve()
+    if (
+        input_path == output_path
+        or input_path in output_path.parents
+        or output_path in input_path.parents
+    ):
+        raise BookParseError(
+            "book input and generated output directories must not overlap; "
+            "source books are never deleted"
+        )
+
+
 def convert_all(input_root: Path = DEFAULT_INPUT, output_root: Path = DEFAULT_OUTPUT) -> int:
+    _validate_output_location(input_root, output_root)
     files = _source_files(input_root)
     seen_outputs: set[Path] = set()
-    converted = 0
+    planned: list[tuple[Path, Path, BookDefinition]] = []
     for source, folder_rarity in files:
         definitions = parse_books(read_source(source), folder_rarity)
         multi_book = len(definitions) > 1
@@ -411,15 +441,36 @@ def convert_all(input_root: Path = DEFAULT_INPUT, output_root: Path = DEFAULT_OU
             if output in seen_outputs:
                 raise BookParseError(f"two source books produce the same output: {output}")
             seen_outputs.add(output)
-            _write_definition(definition, output)
-            print(
-                f"Converted {source} -> {output} "
-                f"({definition.rarity}, {len(definition.pages)} pages)"
-            )
-            converted += 1
+            planned.append((source, output, definition))
+
     if not files:
         print(f"No .txt or .docx books found under {input_root}")
-    return converted
+        return 0
+
+    expected_outputs = {output for _, output, _ in planned}
+    stale_outputs = [
+        path
+        for path in output_root.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() == ".json"
+        and path not in expected_outputs
+    ]
+
+    # Parse every source before changing output so one invalid book cannot
+    # leave the generated directory partially refreshed.
+    for source, output, definition in planned:
+        _write_definition(definition, output)
+        print(
+            f"Converted {source} -> {output} "
+            f"({definition.rarity}, {len(definition.pages)} pages)"
+        )
+
+    # The output tree is generated data. Remove JSON files whose source was
+    # renamed or deleted, such as the old id for a renamed authored book.
+    for stale_output in stale_outputs:
+        stale_output.unlink()
+
+    return len(planned)
 
 
 def main(argv: list[str] | None = None) -> int:

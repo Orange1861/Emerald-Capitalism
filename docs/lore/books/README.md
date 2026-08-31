@@ -26,9 +26,12 @@ Page 1: The first page of the book.
 Page 2: The second page of the book.
 ```
 
-`Title` and `Author` are required. `Rarity` may be omitted when the source
-folder supplies it. `Pages:` may be used as a section heading. `Page N`
-markers delimit pages; lines before the first marker are skipped, and later
+`Title` and `Author` are required. Titles may be at most 32 characters and
+authors may be at most 128 characters, including spaces and punctuation.
+`Rarity` may be omitted when the source folder supplies it. `Pages:` may be
+used as a section heading. `Page N`
+markers delimit pages; `N` may be a digit or a written number such as `One`,
+`one`, or `Twenty-One`. Lines before the first marker are skipped, and later
 unmarked lines continue the current page. Each book must contain at least one
 page marker. In a multi-book file, every new `Title` field ends the current
 book and starts the next one. Books generated from a multi-book source receive
@@ -43,14 +46,31 @@ book is opened again after the grave target becomes available.
 Run the converter from the repository root:
 
 ```text
-python scripts/convert_books.py
+py scripts/convert_books.py
 ```
 
+The same command also works from the `scripts` directory:
+
+```text
+py convert_books.py
+```
+
+The converter resolves its default input and output paths from the repository
+location, not from the current working directory.
+
 Generated JSON is written to
-`src/main/resources/data/emeraldcapitalism/library_books/`. The library
+`versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books/`.
+The converter scans every `.txt` and `.docx` source, rewrites all matching
+JSON definitions, and removes stale generated JSON files after all sources
+parse successfully. Treat the output directory as generated data. To target a
+different version, pass its output directory with `--output`. The library
 generator uses the 70/23/6/1 pool for Common, Uncommon, Rare, and Legendary
 books. Bank Rule and Village Manager books are loaded as deterministic special
 books and are not selected by the random library pool.
+
+The converter never deletes source books. It rejects an input and output path
+that overlap before doing any work, so do not set `--output` to `docs/lore/books`
+or to the repository root.
 
 The `Enable Books in Creative Tab` setting is disabled by default. When enabled,
 all loaded authored books are added to the mod's creative tab. The recommended

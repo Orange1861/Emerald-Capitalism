@@ -35,6 +35,53 @@ class ConvertBooksTest(unittest.TestCase):
         self.assertEqual("village_manager", definition.rarity)
         self.assertEqual(("First page", "Second page"), definition.pages)
 
+    def test_written_page_numbers_are_case_insensitive(self) -> None:
+        definition = parse_book(
+            [
+                "Title: A Test Book",
+                "Author: Ada",
+                "Page One: First page",
+                "Page one: Second page",
+                "Page THREE: Third page",
+                "Page Twenty-One: Fourth page",
+            ],
+            "common",
+        )
+        self.assertEqual(
+            ("First page", "Second page", "Third page", "Fourth page"),
+            definition.pages,
+        )
+
+    def test_title_and_author_limits_are_enforced(self) -> None:
+        with self.assertRaisesRegex(BookParseError, "Title is longer than 32"):
+            parse_book(
+                [
+                    "Title: " + ("T" * 33),
+                    "Author: Ada",
+                    "Page 1: Content",
+                ],
+                "common",
+            )
+        with self.assertRaisesRegex(BookParseError, "Author is longer than 128"):
+            parse_book(
+                [
+                    "Title: Book",
+                    "Author: " + ("A" * 129),
+                    "Page 1: Content",
+                ],
+                "common",
+            )
+
+    def test_default_paths_are_relative_to_repository(self) -> None:
+        from scripts.convert_books import DEFAULT_INPUT, DEFAULT_OUTPUT, REPOSITORY_ROOT
+
+        self.assertEqual(REPOSITORY_ROOT / "docs/lore/books", DEFAULT_INPUT)
+        self.assertEqual(
+            REPOSITORY_ROOT
+            / "versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books",
+            DEFAULT_OUTPUT,
+        )
+
     def test_unmarked_paragraphs_are_skipped_instead_of_pages(self) -> None:
         with self.assertRaisesRegex(BookParseError, "no pages were found"):
             parse_book(
@@ -127,6 +174,59 @@ class ConvertBooksTest(unittest.TestCase):
                 "Second Book",
                 json.loads(generated[1].read_text(encoding="utf-8"))["title"],
             )
+
+    def test_rerun_refreshes_books_and_removes_stale_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_root = root / "books"
+            source = input_root / "legendary" / "ANSWERS.txt"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "Title: ANSWERS\n"
+                "Author: Sairviv\n"
+                "Page 1: Original answer.\n",
+                encoding="utf-8",
+            )
+            output_root = root / "generated"
+            old_output = output_root / "legendary" / "a_message_from_sairviv.json"
+            old_output.parent.mkdir(parents=True)
+            old_output.write_text("{}\n", encoding="utf-8")
+
+            self.assertEqual(1, convert_all(input_root, output_root))
+            generated = output_root / "legendary" / "answers.json"
+            self.assertEqual(
+                "ANSWERS",
+                json.loads(generated.read_text(encoding="utf-8"))["title"],
+            )
+            self.assertFalse(old_output.exists())
+
+            source.write_text(
+                "Title: ANSWERS\n"
+                "Author: Sairviv\n"
+                "Page 1: Updated answer.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(1, convert_all(input_root, output_root))
+            self.assertEqual(
+                ["Updated answer."],
+                json.loads(generated.read_text(encoding="utf-8"))["pages"],
+            )
+
+    def test_input_and_output_overlap_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_root = root / "books"
+            source = input_root / "common" / "book.txt"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "Title: Book\nAuthor: Ada\nPage 1: Content\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(BookParseError, "must not overlap"):
+                convert_all(input_root, input_root / "generated")
+            with self.assertRaisesRegex(BookParseError, "must not overlap"):
+                convert_all(input_root, root)
 
     def test_docx_is_converted_without_python_docx(self) -> None:
         document_xml = (
