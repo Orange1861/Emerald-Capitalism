@@ -28,7 +28,7 @@ public final class ECAPNetworking {
                 VillagePOIDataPacket::handle
         );
 
-        // The open ledger refreshes only live health/opinion/golem values.
+        // The open ledger refreshes live health, opinion, relationship, and golem values.
         registrar.playToServer(
                 RequestVillagePOIDynamicDataPacket.TYPE,
                 RequestVillagePOIDynamicDataPacket.STREAM_CODEC,

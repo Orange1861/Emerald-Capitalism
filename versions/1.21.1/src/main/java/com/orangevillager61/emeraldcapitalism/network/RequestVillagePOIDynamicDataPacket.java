@@ -9,6 +9,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerLevel;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,7 +48,7 @@ public record RequestVillagePOIDynamicDataPacket(
             ServerLevel level = PacketHandlerUtil.serverLevel(player);
             VillageRecord village = VillageRegistryData.get(level).getVillages().get(packet.villageId());
             if (village == null || !VillagePOIAccessPolicy.isLocalContextValid(player, level, village)) {
-                context.reply(VillagePOIDynamicDataPacket.empty());
+                PacketDistributor.sendToPlayer(player, VillagePOIDynamicDataPacket.empty());
                 return;
             }
 
@@ -55,11 +56,12 @@ public record RequestVillagePOIDynamicDataPacket(
             // A screen opened before its first full scan needs one new static
             // snapshot at the completion transition, then returns to deltas.
             if (!packet.clientHasCompletedScan() && village.isCacheInitialized()) {
-                context.reply(VillagePOIDataCache.getOrBuild(level, village, isOp, player));
+                PacketDistributor.sendToPlayer(player,
+                        VillagePOIDataCache.getOrBuild(level, village, isOp, player));
                 return;
             }
 
-            context.reply(PerformanceTimingCounters.measure(
+            PacketDistributor.sendToPlayer(player, PerformanceTimingCounters.measure(
                     PerformanceTimingCounters.Operation.POI_DYNAMIC_REFRESH,
                     () -> VillagePOIDynamicDataPacket.build(village, level, player, isOp)));
         });

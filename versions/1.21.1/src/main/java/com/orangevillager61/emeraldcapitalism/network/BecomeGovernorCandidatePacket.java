@@ -16,8 +16,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
@@ -58,6 +60,7 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
             if (!VillageGovernance.hasLivingMayor(level, village)) {
                 player.sendSystemMessage(Component.literal(
                         "[ECAP] A village must have a living Mayor before a governor candidate can be chosen."));
+                sendLedgerRefresh(player, village, level);
                 return;
             }
 
@@ -67,19 +70,20 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
                 player.sendSystemMessage(Component.literal("[ECAP] You need a village opinion above "
                         + Config.governorCandidateOpinionThreshold
                         + " to become a governor candidate."));
-                context.reply(VillagePOIDataFactory.build(village, level,
-                        player.hasPermissions(Config.villageCommandPermissionLevel), player));
+                sendLedgerRefresh(player, village, level);
                 return;
             }
 
             if (village.isGovernorCandidate(player.getUUID())) {
                 player.sendSystemMessage(Component.literal("[ECAP] You are already a governor candidate."));
+                sendLedgerRefresh(player, village, level);
                 return;
             }
 
             if (village.getGovernorCandidateId() != null) {
                 player.sendSystemMessage(Component.literal(
                         "[ECAP] This village already has a governor candidate."));
+                sendLedgerRefresh(player, village, level);
                 return;
             }
 
@@ -92,10 +96,12 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
                         "[ECAP] Cannot complete governor claim: no Village Manager book is loaded.");
                 player.sendSystemMessage(Component.literal(
                         "[ECAP] The Village Manager book is unavailable; try again after resources reload."));
+                sendLedgerRefresh(player, village, level);
                 return;
             }
 
             if (!village.becomeGovernorCandidate(player.getUUID(), opinion)) {
+                sendLedgerRefresh(player, village, level);
                 return;
             }
             boolean promoted = VillageGovernance.refresh(level, village);
@@ -108,8 +114,13 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
             player.sendSystemMessage(Component.literal(promoted
                     ? "[ECAP] You are now the village Governor."
                     : "[ECAP] You are now a governor candidate."));
-            context.reply(VillagePOIDataFactory.build(village, level,
-                    player.hasPermissions(Config.villageCommandPermissionLevel), player));
+            sendLedgerRefresh(player, village, level);
         });
+    }
+
+    /** Pushes the post-action state so an open ledger cannot keep a stale relationship. */
+    private static void sendLedgerRefresh(ServerPlayer player, VillageRecord village, ServerLevel level) {
+        PacketDistributor.sendToPlayer(player, VillagePOIDataFactory.build(village, level,
+                player.hasPermissions(Config.villageCommandPermissionLevel), player));
     }
 }

@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.network;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRelationship;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,7 @@ class VillagePOIDynamicPacketTest {
         VillagePOIDynamicDataPacket source = new VillagePOIDynamicDataPacket(
                 true, VILLAGE_ID, false, true,
                 List.of(new VillagePOIDynamicDataPacket.VillagerState(VILLAGER_ID, 17.5F, -12)),
-                2, 1, 3, -25);
+                2, 1, 3, -25, VillageRelationship.GOVERNOR_CANDIDATE, true);
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
         try {
             VillagePOIDynamicDataPacket.STREAM_CODEC.encode(buffer, source);
@@ -43,6 +44,8 @@ class VillagePOIDynamicPacketTest {
                     VillagePOIDynamicDataPacket.STREAM_CODEC.decode(buffer);
             assertEquals(source, decoded);
             assertTrue(decoded.hasCompletedScan());
+            assertEquals(VillageRelationship.GOVERNOR_CANDIDATE, decoded.relationship());
+            assertTrue(decoded.canBecomeGovernorCandidate());
         } finally {
             buffer.release();
         }
