@@ -61,6 +61,9 @@ public final class WanderingTraderEvents {
 
     @SubscribeEvent
     public static void onLeaveLevel(EntityLeaveLevelEvent event) {
+        if (event.getLevel().isClientSide()) {
+            return;
+        }
         if (event.getEntity() instanceof WanderingTrader trader) {
             LADDER_DIRECTIONS.remove(trader.getUUID());
             LADDER_PATH_CACHE.remove(trader.getUUID());

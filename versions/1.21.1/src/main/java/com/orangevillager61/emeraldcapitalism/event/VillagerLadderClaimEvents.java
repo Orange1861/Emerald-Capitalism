@@ -15,6 +15,9 @@ public final class VillagerLadderClaimEvents {
 
     @SubscribeEvent
     public static void onLeaveLevel(EntityLeaveLevelEvent event) {
+        if (event.getLevel().isClientSide()) {
+            return;
+        }
         if (event.getEntity() instanceof Villager villager) {
             VillagerLadderClaims.releaseAll(villager.getUUID());
         }
