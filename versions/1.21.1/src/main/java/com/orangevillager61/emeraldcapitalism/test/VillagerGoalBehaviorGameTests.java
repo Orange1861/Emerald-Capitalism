@@ -8,13 +8,19 @@ import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachmen
 import com.orangevillager61.emeraldcapitalism.behavior.AvoidBoatBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.AvoidZombiePlagueBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.BegForFoodBehavior;
+import com.orangevillager61.emeraldcapitalism.behavior.BankAwareAssignProfessionFromJobSite;
+import com.orangevillager61.emeraldcapitalism.behavior.BankAwarePotentialJobSiteBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.FleeHostileVillagePlayerBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.UseZombieSmellBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.VillagerGoalPackageIntegration;
+import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
@@ -115,6 +121,49 @@ public final class VillagerGoalBehaviorGameTests {
 
         assertRepresentativeWorkPackage(helper, VillagerProfession.FARMER);
         assertRepresentativeWorkPackage(helper, VillagerProfession.LIBRARIAN);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void bankerJobSiteUsesWorkSideBeforeAssignment(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(10, 1, 10));
+        helper.setBlock(new BlockPos(10, 1, 10), ECAPBlocks.BANK.get().defaultBlockState()
+                .setValue(BankBlock.FACING, Direction.NORTH));
+
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 10, 1, 9);
+        villager.getBrain().setMemory(MemoryModuleType.POTENTIAL_JOB_SITE,
+                GlobalPos.of(level.dimension(), bankPos));
+
+        List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> core =
+                VillagerGoalPackages.getCorePackage(VillagerProfession.NONE, 0.5F);
+        BehaviorControl<Villager> goToPotentialJobSite = findBehavior(
+                core, BankAwarePotentialJobSiteBehavior.class);
+        BehaviorControl<Villager> assignProfession = findBehavior(
+                core, BankAwareAssignProfessionFromJobSite.class);
+        long gameTime = level.getGameTime();
+
+        helper.assertTrue(goToPotentialJobSite.tryStart(level, villager, gameTime),
+                "bank potential-job-site behavior did not start");
+        goToPotentialJobSite.tickOrStop(level, villager, gameTime + 1L);
+
+        BlockPos workPos = BankBlock.getBankerWorkPos(level.getBlockState(bankPos), bankPos);
+        WalkTarget walkTarget = villager.getBrain()
+                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        helper.assertTrue(walkTarget != null,
+                "bank potential-job-site behavior did not install a walk target");
+        helper.assertValueEqual(walkTarget.getTarget().currentBlockPosition(), workPos,
+                "bank candidate was routed to the deposit side instead of the banker work side");
+        helper.assertFalse(assignProfession.tryStart(level, villager, gameTime + 2L),
+                "bank candidate was assigned while standing on the deposit side");
+
+        villager.moveTo(workPos.getX() + 0.5D, workPos.getY(), workPos.getZ() + 0.5D,
+                0.0F, 0.0F);
+        helper.assertTrue(assignProfession.tryStart(level, villager, gameTime + 3L),
+                "bank candidate could not be assigned from the banker work side");
+        helper.assertValueEqual(villager.getVillagerData().getProfession(),
+                com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions.BANKER.get(),
+                "bank candidate did not receive the banker profession");
         helper.succeed();
     }
 

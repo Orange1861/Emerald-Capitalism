@@ -78,6 +78,7 @@
       "mixins": ["VillagerGoalPackagesMixin"],
       "tests": [
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
+        "villagergoalbehaviorgametests.bankerjobsiteusesworksidebeforeassignment",
         "villagergoalbehaviorgametests.starvingvillagerbegsandreceivesfood",
         "villagergoalbehaviorgametests.fencegatebehavioropensandclosesthepathgate",
         "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat"

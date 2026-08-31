@@ -2,14 +2,19 @@ package com.orangevillager61.emeraldcapitalism.mixin;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
+import com.orangevillager61.emeraldcapitalism.behavior.BankAwareAssignProfessionFromJobSite;
+import com.orangevillager61.emeraldcapitalism.behavior.BankAwarePotentialJobSiteBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.VillagerGoalPackageIntegration;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
+import net.minecraft.world.entity.ai.behavior.AssignProfessionFromJobSite;
+import net.minecraft.world.entity.ai.behavior.GoToPotentialJobSite;
 import net.minecraft.world.entity.ai.behavior.VillagerGoalPackages;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -44,6 +49,26 @@ public class VillagerGoalPackagesMixin {
             CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir
     ) {
         cir.setReturnValue(VillagerGoalPackageIntegration.addCoreBehaviors(cir.getReturnValue()));
+    }
+
+    /** Routes potential bank job sites through the bank-aware work-side behavior. */
+    @Redirect(
+            method = "getCorePackage",
+            at = @At(value = "NEW",
+                    target = "Lnet/minecraft/world/entity/ai/behavior/GoToPotentialJobSite;")
+    )
+    private static GoToPotentialJobSite useBankAwarePotentialJobSite(float speedModifier) {
+        return new BankAwarePotentialJobSiteBehavior(speedModifier);
+    }
+
+    /** Prevents a bank POI from assigning its profession on the deposit side. */
+    @Redirect(
+            method = "getCorePackage",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/world/entity/ai/behavior/AssignProfessionFromJobSite;create()Lnet/minecraft/world/entity/ai/behavior/BehaviorControl;")
+    )
+    private static BehaviorControl<Villager> useBankAwareProfessionAssignment() {
+        return new BankAwareAssignProfessionFromJobSite();
     }
 
     @Inject(

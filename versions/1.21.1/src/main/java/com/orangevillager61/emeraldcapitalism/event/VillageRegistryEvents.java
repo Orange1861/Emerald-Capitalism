@@ -73,7 +73,7 @@ public class VillageRegistryEvents {
     /** Tracks which village each player is currently inside (by village UUID). */
     private static final Map<UUID, UUID> PLAYER_VILLAGE_MAP = new ConcurrentHashMap<>();
 
-    private static final int BED_PLACED_OPINION_DELTA = 5;
+    private static final int BED_PLACED_OPINION_DELTA = 3;
     private static final int BED_DESTROYED_OPINION_DELTA = -5;
     private static final int EMERALD_GOLEM_KILLED_OPINION_DELTA = -25;
     private static final int IRON_GOLEM_KILLED_OPINION_DELTA = -50;
@@ -561,7 +561,7 @@ public class VillageRegistryEvents {
                 data.setDirty();
             }
             if (isBed && event.getEntity() instanceof Player player) {
-                // Placing a bed in a village improves that player's village opinion by 5.
+                // Placing a bed in a village improves that player's village opinion by 3.
                 village.adjustOpinionModifier(player.getUUID(), BED_PLACED_OPINION_DELTA);
                 data.setDirty();
             }
