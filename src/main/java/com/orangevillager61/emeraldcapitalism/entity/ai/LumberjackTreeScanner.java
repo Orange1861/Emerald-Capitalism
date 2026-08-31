@@ -2,16 +2,22 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
@@ -28,6 +34,13 @@ final class LumberjackTreeScanner {
     static final int MAX_SEARCH_RANGE = 72;
     static final int SEARCH_RANGE_INCREMENT = 24;
     private static final int VERTICAL_SEARCH_RANGE = 16;
+    private static final int HOME_PROTECTION_HORIZONTAL_RADIUS = 8;
+    private static final int HOME_PROTECTION_VERTICAL_RADIUS = 6;
+    private static final int JOB_SITE_PROTECTION_HORIZONTAL_RADIUS = 14;
+    private static final int JOB_SITE_PROTECTION_VERTICAL_RADIUS = 8;
+    private static final TagKey<Structure> VILLAGE_STRUCTURE_TAG = TagKey.create(
+            Registries.STRUCTURE,
+            ResourceLocation.fromNamespaceAndPath("minecraft", "village"));
     private static final int MIN_LOGS = 3;
     private static final int MIN_LEAVES = 4;
     private static final int MAX_LOGS = 96;
@@ -106,6 +119,9 @@ final class LumberjackTreeScanner {
     private TreeSnapshot scanTree(ServerLevel level, BlockPos seed, Set<BlockPos> examinedLogs) {
         Set<BlockPos> logs = connectedBlocks(level, seed, BlockTags.LOGS, MAX_LOGS);
         examinedLogs.addAll(logs);
+        if (logs.stream().anyMatch(pos -> isProtectedBuildingLog(level, pos))) {
+            return null;
+        }
         if (logs.stream().anyMatch(pos -> isCherryLog(level.getBlockState(pos)))) {
             return null;
         }
@@ -174,6 +190,35 @@ final class LumberjackTreeScanner {
                 .thenComparingLong(pos -> pos.getX())
                 .thenComparingLong(pos -> pos.getZ()));
         return new TreeSnapshot(orderedLogs, leaves, base.immutable(), sapling);
+    }
+
+    /**
+     * Village structure pieces are authoritative for generated houses. The home
+     * and job-site bounds cover custom/player-built housing that has no structure
+     * metadata, including the custom lumbermill template.
+     */
+    private boolean isProtectedBuildingLog(ServerLevel level, BlockPos pos) {
+        StructureStart villageStructure = level.structureManager()
+                .getStructureWithPieceAt(pos, VILLAGE_STRUCTURE_TAG);
+        if (villageStructure != null && villageStructure.isValid()) {
+            return true;
+        }
+        return isNearMemory(level, pos, MemoryModuleType.HOME,
+                HOME_PROTECTION_HORIZONTAL_RADIUS, HOME_PROTECTION_VERTICAL_RADIUS)
+                || isNearMemory(level, pos, MemoryModuleType.JOB_SITE,
+                JOB_SITE_PROTECTION_HORIZONTAL_RADIUS, JOB_SITE_PROTECTION_VERTICAL_RADIUS);
+    }
+
+    private boolean isNearMemory(ServerLevel level, BlockPos pos,
+                                 MemoryModuleType<GlobalPos> memoryType,
+                                 int horizontalRadius, int verticalRadius) {
+        return villager.getBrain().getMemory(memoryType)
+                .filter(globalPos -> globalPos.dimension().equals(level.dimension()))
+                .map(GlobalPos::pos)
+                .stream()
+                .anyMatch(anchor -> Math.abs(pos.getX() - anchor.getX()) <= horizontalRadius
+                        && Math.abs(pos.getY() - anchor.getY()) <= verticalRadius
+                        && Math.abs(pos.getZ() - anchor.getZ()) <= horizontalRadius);
     }
 
     private Set<BlockPos> connectedBlocks(ServerLevel level, BlockPos seed,

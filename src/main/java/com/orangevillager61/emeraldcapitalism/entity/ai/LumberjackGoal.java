@@ -95,8 +95,9 @@ public final class LumberjackGoal extends Goal {
 
     /** Returns whether this villager currently has the lumberjack goal running. */
     public static boolean isRunning(Villager villager) {
-        return villager.goalSelector.getRunningGoals()
-                .anyMatch(goal -> goal.getGoal() instanceof LumberjackGoal);
+        return villager.goalSelector.getAvailableGoals().stream()
+                .anyMatch(goal -> goal.isRunning()
+                        && goal.getGoal() instanceof LumberjackGoal);
     }
 
     @Override

@@ -4,8 +4,10 @@ import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttac
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
@@ -238,6 +240,22 @@ public final class LumberjackGameTests {
                 "lumberjack did not accept a sapling when its work inventory had space");
         helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.OAK_LOG)),
                 "lumberjack did not accept a harvested log when its work inventory had space");
+        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.STICK)),
+                "lumberjack did not accept sticks from harvested leaves when its work inventory had space");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void lumberjackDoesNotSelectLogsInsideItsHomeArea(GameTestHelper helper) {
+        Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        lumberjack.setVillagerData(lumberjack.getVillagerData()
+                .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.getBrain().setMemory(MemoryModuleType.HOME,
+                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(new BlockPos(1, 1, 1))));
+        installSmallTree(helper);
+
+        helper.assertFalse(new LumberjackGoal(lumberjack).canUse(),
+                "lumberjack selected logs inside its protected home area");
         helper.succeed();
     }
 
