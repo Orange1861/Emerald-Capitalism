@@ -47,6 +47,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     private static final int MAX_ATTEMPTS = 3;
     private static final int SUCCESS_COOLDOWN = 20;
     private static final int FAILURE_COOLDOWN = 100;
+    private static final int BANK_AVAILABILITY_CHECK_INTERVAL_TICKS = BankBlockEntity.VERIFY_INTERVAL;
     private static final int DIAGNOSTIC_INTERVAL_TICKS = 200;
     private static final int BLOCK_PLACEMENT_INTERVAL_TICKS = 30;
 
@@ -62,6 +63,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     private int attempts;
     private boolean finished;
     private long nextActionTick;
+    private long nextAvailabilityCheckTick;
     private long nextPlacementTick;
     private int nextPlacementIndex;
     private Formation activeFormation;
@@ -95,10 +97,17 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             logDiagnostic(level, "blocked: breeding session or BREED_TARGET memory");
             return false;
         }
-        if (level.getGameTime() < nextActionTick) {
+        long gameTime = level.getGameTime();
+        if (gameTime < nextActionTick) {
             logDiagnostic(level, "blocked: cooldown until tick " + nextActionTick);
             return false;
         }
+        if (gameTime < nextAvailabilityCheckTick) {
+            return false;
+        }
+        // The bank's cached inventory state is verified on this same cadence;
+        // rechecking between refreshes cannot observe most stock changes sooner.
+        nextAvailabilityCheckTick = gameTime + BANK_AVAILABILITY_CHECK_INTERVAL_TICKS;
 
         WorkContext resolved = resolveContext(level);
         if (resolved == null) {

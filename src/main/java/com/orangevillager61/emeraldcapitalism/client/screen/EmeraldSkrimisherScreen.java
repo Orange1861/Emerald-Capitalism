@@ -13,10 +13,16 @@ public final class EmeraldSkrimisherScreen extends AbstractContainerScreen<Emera
 
     private static final ResourceLocation BACKGROUND_TEXTURE =
             ModIds.id("textures/gui/villager_stats.png");
+    private static final ResourceLocation SLOT_TEXTURE =
+            ModIds.id("textures/gui/villager_inv.png");
     private static final int LABEL_X = 8;
     private static final int TITLE_Y = 7;
     private static final int ENTITY_INVENTORY_LABEL_Y = 18;
     private static final int PLAYER_INVENTORY_LABEL_Y = 126;
+    private static final int SLOT_BACKGROUND_X = 7;
+    private static final int SLOT_BACKGROUND_Y = 30;
+    private static final int SLOT_ROW_WIDTH = 162;
+    private static final int SLOT_ROW_HEIGHT = 18;
 
     public EmeraldSkrimisherScreen(EmeraldSkrimisherMenu menu, Inventory playerInventory,
                                    Component title) {
@@ -33,6 +39,10 @@ public final class EmeraldSkrimisherScreen extends AbstractContainerScreen<Emera
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         guiGraphics.blit(BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0, 0,
                 this.imageWidth, this.imageHeight, this.imageWidth, this.imageHeight);
+        guiGraphics.blit(SLOT_TEXTURE,
+                this.leftPos + SLOT_BACKGROUND_X, this.topPos + SLOT_BACKGROUND_Y,
+                SLOT_BACKGROUND_X, SLOT_BACKGROUND_Y,
+                SLOT_ROW_WIDTH, SLOT_ROW_HEIGHT, this.imageWidth, this.imageHeight);
     }
 
     @Override
