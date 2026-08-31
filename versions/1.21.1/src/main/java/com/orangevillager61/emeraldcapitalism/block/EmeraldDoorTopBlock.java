@@ -14,6 +14,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -62,6 +64,20 @@ public class EmeraldDoorTopBlock extends Block {
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING, OPEN, HINGE);
+    }
+
+    /** Keeps the standalone third segment aligned when a structure rotates it. */
+    @Override
+    protected @NotNull BlockState rotate(@NotNull BlockState state, @NotNull Rotation rotation) {
+        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
+    }
+
+    /** Mirrors both the panel direction and the hinge side like a vanilla door. */
+    @Override
+    protected @NotNull BlockState mirror(@NotNull BlockState state, @NotNull Mirror mirror) {
+        return mirror == Mirror.NONE
+                ? state
+                : state.rotate(mirror.getRotation(state.getValue(FACING))).cycle(HINGE);
     }
 
     /**
