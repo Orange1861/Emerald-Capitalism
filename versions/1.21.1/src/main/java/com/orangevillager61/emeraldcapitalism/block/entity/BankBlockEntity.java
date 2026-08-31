@@ -121,6 +121,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private boolean randomDeliveriesEnabled = true;
     private boolean breadDeliveriesEnabled = true;
     private boolean lumberjackDeliveriesEnabled;
+    private boolean attackAllPlayers;
 
     /**
      * Cached emerald-chest positions inside the search volume, in insertion order.
@@ -233,7 +234,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             boolean villagerDeliveriesEnabled,
             boolean randomDeliveriesEnabled,
             boolean breadDeliveriesEnabled,
-            boolean lumberjackDeliveriesEnabled
+            boolean lumberjackDeliveriesEnabled,
+            boolean attackAllPlayers
     ) {
         PersistedState(Optional<UUID> villageId, String bankName, List<UUID> employeeIds,
                        List<UUID> jobEmployeeIds, List<UUID> emeraldGolemEmployeeIds,
@@ -241,7 +243,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             this(villageId, true, Optional.empty(), bankName, employeeIds, jobEmployeeIds,
                     emeraldGolemEmployeeIds, List.of(), 0, composterPos, golemConstructionPos,
                     Optional.empty(), 0L, false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS,
-                    true, true, true, false);
+                    true, true, true, false, false);
         }
 
         PersistedState(Optional<UUID> villageId, boolean bankIndependent, Optional<UUID> controllerId,
@@ -252,7 +254,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             this(villageId, bankIndependent, controllerId, bankName, employeeIds, jobEmployeeIds,
                     emeraldGolemEmployeeIds, List.of(), 0, composterPos, golemConstructionPos,
                     takeoverLockPlayer, takeoverLockUntil, false, 0, 0,
-                    BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false);
+                    BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false, false);
         }
 
         private static final Codec<String> BANK_NAME_CODEC = Codec.STRING.validate(name ->
@@ -313,7 +315,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 Codec.BOOL.optionalFieldOf("bread_deliveries_enabled", true)
                         .forGetter(PersistedState::breadDeliveriesEnabled),
                 Codec.BOOL.optionalFieldOf("lumberjack_deliveries_enabled", false)
-                        .forGetter(PersistedState::lumberjackDeliveriesEnabled)
+                        .forGetter(PersistedState::lumberjackDeliveriesEnabled),
+                Codec.BOOL.optionalFieldOf("attack_all_players", false)
+                        .forGetter(PersistedState::attackAllPlayers)
         ).apply(instance, PersistedState::new));
 
         PersistedState {
@@ -366,7 +370,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return new PersistedState(
                     Optional.empty(), true, Optional.empty(), "", List.of(), List.of(), List.of(),
                     List.of(), 0, Optional.empty(), Optional.empty(), Optional.empty(), 0L,
-                    false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false);
+                    false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS, true, true, true, false, false);
         }
 
         static PersistedState from(BankBlockEntity bank) {
@@ -386,7 +390,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     bank.takeoverLockUntil, bank.manualTargets,
                     bank.emeraldGolemTarget, bank.emeraldSkrimisherTarget, bank.foodDays,
                     bank.villagerDeliveriesEnabled, bank.randomDeliveriesEnabled,
-                    bank.breadDeliveriesEnabled, bank.lumberjackDeliveriesEnabled);
+                    bank.breadDeliveriesEnabled, bank.lumberjackDeliveriesEnabled,
+                    bank.attackAllPlayers);
         }
 
         void applyTo(BankBlockEntity bank) {
@@ -415,6 +420,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             bank.randomDeliveriesEnabled = randomDeliveriesEnabled;
             bank.breadDeliveriesEnabled = breadDeliveriesEnabled;
             bank.lumberjackDeliveriesEnabled = lumberjackDeliveriesEnabled;
+            bank.attackAllPlayers = attackAllPlayers;
         }
 
         private static <T> List<T> copyUniqueAtMost(List<T> values, int maxSize) {
@@ -1559,11 +1565,17 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return lumberjackDeliveriesEnabled;
     }
 
+    /** Returns whether this bank's golems attack every non-controller player on sight. */
+    public boolean isAttackAllPlayersEnabled() {
+        return attackAllPlayers;
+    }
+
     /** Returns the validated control settings shown by the bank screen. */
     public BankMenuOpenData.ControlSettings getControlSettings() {
         return new BankMenuOpenData.ControlSettings(manualTargets, emeraldGolemTarget,
                 emeraldSkrimisherTarget, foodDays, villagerDeliveriesEnabled,
-                randomDeliveriesEnabled, breadDeliveriesEnabled, lumberjackDeliveriesEnabled);
+                randomDeliveriesEnabled, breadDeliveriesEnabled, lumberjackDeliveriesEnabled,
+                attackAllPlayers);
     }
 
     /** Applies server-validated player settings and marks the block entity dirty. */
@@ -1576,7 +1588,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 && villagerDeliveriesEnabled == settings.villagerDeliveriesEnabled()
                 && randomDeliveriesEnabled == settings.randomDeliveriesEnabled()
                 && breadDeliveriesEnabled == settings.breadDeliveriesEnabled()
-                && lumberjackDeliveriesEnabled == settings.lumberjackDeliveriesEnabled()) {
+                && lumberjackDeliveriesEnabled == settings.lumberjackDeliveriesEnabled()
+                && attackAllPlayers == settings.attackAllPlayers()) {
             return false;
         }
         manualTargets = settings.manualTargets();
@@ -1587,6 +1600,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         randomDeliveriesEnabled = settings.randomDeliveriesEnabled();
         breadDeliveriesEnabled = settings.breadDeliveriesEnabled();
         lumberjackDeliveriesEnabled = settings.lumberjackDeliveriesEnabled();
+        attackAllPlayers = settings.attackAllPlayers();
         setChanged();
         return true;
     }

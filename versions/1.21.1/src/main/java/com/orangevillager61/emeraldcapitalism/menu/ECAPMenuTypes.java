@@ -23,6 +23,11 @@ public final class ECAPMenuTypes {
                     IMenuTypeExtension.create(VillagerStatsMenu::new)
             );
 
+    public static final Supplier<MenuType<EmeraldSkrimisherMenu>> EMERALD_SKRIMISHER_MENU =
+            MENU_TYPES.register("emerald_skrimisher", () ->
+                    IMenuTypeExtension.create(EmeraldSkrimisherMenu::new)
+            );
+
     public static final Supplier<MenuType<VillageManagerMenu>> VILLAGE_MANAGER_MENU =
             MENU_TYPES.register("village_manager", () ->
                     IMenuTypeExtension.create(VillageManagerMenu::new)

@@ -64,7 +64,7 @@ public class Config {
             .define("ai.villagerAI.enableFenceGateInteraction", true);
 
     private static final ModConfigSpec.BooleanValue ENABLE_VILLAGER_STATS_SHIFT_CLICK = BUILDER
-            .comment("If true, shift-right-clicking a villager opens the villager statistics screen.")
+            .comment("If true, shift-right-clicking a villager or Emerald Skrimisher opens its read-only information screen.")
             .translation("emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick")
             .define("ai.villagerAI.enableVillagerStatsShiftClick", true);
 

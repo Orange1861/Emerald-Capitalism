@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HostileVillageMayorTargetGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
@@ -306,11 +307,21 @@ public class EmeraldGolem extends IronGolem {
         this.targetSelector.addGoal(1, new HostileVillageMayorTargetGoal(this));
         this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true,
                 player -> !this.isPlayerCreated()
-                        && this.bankEmployeePos != null
-                        && this.level() instanceof ServerLevel serverLevel
-                        && BankReputationData.get(serverLevel).getReputation(player.getUUID())
-                                <= BankReputationData.HOSTILITY_THRESHOLD));
+                        && shouldAttackBankPlayer(player)));
         this.goalSelector.addGoal(8, new RandomStrollGoal(this, 0.6D));
+    }
+
+    private boolean shouldAttackBankPlayer(Player player) {
+        if (bankEmployeePos == null || !(level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+
+        if (serverLevel.getBlockEntity(bankEmployeePos) instanceof BankBlockEntity bank
+                && bank.isAttackAllPlayersEnabled()) {
+            return !bank.isControlledBy(player.getUUID());
+        }
+        return BankReputationData.get(serverLevel).getReputation(player.getUUID())
+                <= BankReputationData.HOSTILITY_THRESHOLD;
     }
 
     // Synched data

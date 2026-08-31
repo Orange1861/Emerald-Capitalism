@@ -45,7 +45,7 @@ import java.util.UUID;
  *   <li><b>Overview</b>: chest count, emerald totals, deposit queue, scrollable chest list</li>
  *   <li><b>Accounts</b>: scrollable list of villager accounts (name + balance)</li>
  *   <li><b>Employees</b>: registered bank employees and their professions</li>
- *   <li><b>Control</b>: bank targets and villager delivery settings</li>
+ *   <li><b>Control</b>: bank targets, delivery settings, and guard behavior</li>
  * </ul>
  * A rename button at the top-right allows renaming the bank.
  */
@@ -81,7 +81,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private enum Tab { OVERVIEW, ACCOUNTS, EMPLOYEES, INVENTORY, CONTROL, MARKET }
     private Tab activeTab = Tab.OVERVIEW;
-    private enum ControlTab { TARGETS, DELIVERIES }
+    private enum ControlTab { TARGETS, DELIVERIES, SECURITY }
     private ControlTab activeControlTab = ControlTab.TARGETS;
 
     /** Mutable bank name shown in title / rename box, updated optimistically on save. */
@@ -127,6 +127,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     // Control tab
     private Button targetTabBtn;
     private Button deliveriesTabBtn;
+    private Button securityTabBtn;
     private Button targetModeBtn;
     private Button targetSaveBtn;
     private EditBox emeraldGolemTargetBox;
@@ -139,6 +140,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private Button randomDeliveriesBtn;
     private Button breadDeliveriesBtn;
     private Button lumberjackDeliveriesBtn;
+    private Button attackAllPlayersBtn;
 
     // Cached content-top relative to panel top-left (computed in init)
     private int contentTopRel;
@@ -614,10 +616,16 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                     + "; food days: 0-" + BankTargets.MAX_FOOD_DAYS + ".",
                     LABEL_X, y + 146, LABEL_COLOR);
         } else {
-            g.drawString(font, "Random deliveries cover ordinary market items.",
-                    LABEL_X, y + 92, LABEL_COLOR);
-            g.drawString(font, "Lumberjack deliveries also disable tree cutting.",
-                    LABEL_X, y + 105, LABEL_COLOR);
+            if (activeControlTab == ControlTab.DELIVERIES) {
+                g.drawString(font, "Random deliveries cover ordinary market items.",
+                        LABEL_X, y + 92, LABEL_COLOR);
+                g.drawString(font, "Lumberjack deliveries also disable tree cutting.",
+                        LABEL_X, y + 105, LABEL_COLOR);
+            } else {
+                g.drawString(font, "Bank golems attack every player except the controller",
+                        LABEL_X, y + 58, LABEL_COLOR);
+                g.drawString(font, "when this setting is enabled.", LABEL_X, y + 71, LABEL_COLOR);
+            }
         }
         if (!canEditControl()) {
             g.drawString(font, "Only the bank controller can change these settings.",
@@ -838,6 +846,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         deliveriesTabBtn = addRenderableWidget(Button.builder(Component.literal("Deliveries"),
                 btn -> switchControlTab(ControlTab.DELIVERIES))
                 .bounds(sliderX + 72, contentTop, 82, TAB_H).build());
+        securityTabBtn = addRenderableWidget(Button.builder(Component.literal("Security"),
+                btn -> switchControlTab(ControlTab.SECURITY))
+                .bounds(sliderX + 158, contentTop, 82, TAB_H).build());
         controlBtn = addRenderableWidget(Button.builder(Component.literal("Claim Bank"),
                 btn -> onControlToggle())
                 .bounds(right - controlActionWidth, contentTop, controlActionWidth, TAB_H).build());
@@ -873,6 +884,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 DeliverySetting.BREAD);
         lumberjackDeliveriesBtn = addDeliveryButton(sliderX + 194, deliveryY + 28,
                 "Lumberjack deliveries", DeliverySetting.LUMBERJACK);
+        attackAllPlayersBtn = addRenderableWidget(Button.builder(Component.literal("Attack all players"),
+                btn -> toggleAttackAllPlayers())
+                .bounds(sliderX, deliveryY, 258, 20).build());
 
         syncTargetControls();
         updateControlWidgets();
@@ -902,11 +916,13 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         boolean controlVisible = activeTab == Tab.CONTROL;
         boolean targetsVisible = controlVisible && activeControlTab == ControlTab.TARGETS;
         boolean deliveriesVisible = controlVisible && activeControlTab == ControlTab.DELIVERIES;
+        boolean securityVisible = controlVisible && activeControlTab == ControlTab.SECURITY;
         boolean editable = canEditControl();
         BankMenuOpenData.ControlSettings settings = menu.getControlSettings();
 
         targetTabBtn.visible = controlVisible;
         deliveriesTabBtn.visible = controlVisible;
+        securityTabBtn.visible = controlVisible;
         controlBtn.visible = controlVisible;
         targetModeBtn.visible = targetsVisible;
         targetSaveBtn.visible = targetsVisible;
@@ -920,6 +936,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         randomDeliveriesBtn.visible = deliveriesVisible;
         breadDeliveriesBtn.visible = deliveriesVisible;
         lumberjackDeliveriesBtn.visible = deliveriesVisible;
+        attackAllPlayersBtn.visible = securityVisible;
 
         targetModeBtn.setMessage(Component.literal(settings.manualTargets()
                 ? "Manual targets" : "Automatic targets"));
@@ -940,10 +957,12 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 settings.breadDeliveriesEnabled()));
         lumberjackDeliveriesBtn.setMessage(deliveryMessage("Lumberjack deliveries",
                 settings.lumberjackDeliveriesEnabled()));
+        attackAllPlayersBtn.setMessage(deliveryMessage("Attack all players", settings.attackAllPlayers()));
         villagerDeliveriesBtn.active = editable;
         randomDeliveriesBtn.active = editable;
         breadDeliveriesBtn.active = editable;
         lumberjackDeliveriesBtn.active = editable;
+        attackAllPlayersBtn.active = editable;
     }
 
     private Component deliveryMessage(String label, boolean enabled) {
@@ -972,7 +991,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         submitControlSettings(new BankMenuOpenData.ControlSettings(manual, golemTarget,
                 skrimisherTarget, current.foodDays(), current.villagerDeliveriesEnabled(),
                 current.randomDeliveriesEnabled(), current.breadDeliveriesEnabled(),
-                current.lumberjackDeliveriesEnabled()));
+                current.lumberjackDeliveriesEnabled(), current.attackAllPlayers()));
     }
 
     private void onTargetSave() {
@@ -988,7 +1007,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         submitControlSettings(new BankMenuOpenData.ControlSettings(true, golemTarget,
                 skrimisherTarget, foodDays, current.villagerDeliveriesEnabled(),
                 current.randomDeliveriesEnabled(), current.breadDeliveriesEnabled(),
-                current.lumberjackDeliveriesEnabled()));
+                current.lumberjackDeliveriesEnabled(), current.attackAllPlayers()));
     }
 
     private int parseTarget(EditBox box, int fallback, int max) {
@@ -1019,7 +1038,20 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 setting == DeliverySetting.VILLAGER ? value : current.villagerDeliveriesEnabled(),
                 setting == DeliverySetting.RANDOM ? value : current.randomDeliveriesEnabled(),
                 setting == DeliverySetting.BREAD ? value : current.breadDeliveriesEnabled(),
-                setting == DeliverySetting.LUMBERJACK ? value : current.lumberjackDeliveriesEnabled()));
+                setting == DeliverySetting.LUMBERJACK ? value : current.lumberjackDeliveriesEnabled(),
+                current.attackAllPlayers()));
+    }
+
+    private void toggleAttackAllPlayers() {
+        if (!canEditControl()) {
+            return;
+        }
+        BankMenuOpenData.ControlSettings current = menu.getControlSettings();
+        submitControlSettings(new BankMenuOpenData.ControlSettings(current.manualTargets(),
+                current.emeraldGolemTarget(), current.emeraldSkrimisherTarget(), current.foodDays(),
+                current.villagerDeliveriesEnabled(), current.randomDeliveriesEnabled(),
+                current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(),
+                !current.attackAllPlayers()));
     }
 
     private void submitControlSettings(BankMenuOpenData.ControlSettings settings) {

@@ -35,8 +35,7 @@ import java.util.Comparator;
 
 /**
  * A lightweight emerald golem variant that scavenges useful village supplies.
- * The inventory is deliberately kept as a plain nine-slot carrier until a
- * dedicated interaction menu is added.
+ * The inventory is exposed through a dedicated read-only interaction menu.
  */
 public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier {
 

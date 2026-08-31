@@ -31,7 +31,7 @@ class BankMenuOpenDataCodecTest {
                 new BankMenuOpenData.EntityCounts(2, 3, 1, 4),
                 new BankMenuOpenData.Targets(5, 6, 7, 8),
                 new BankMenuOpenData.ControlSettings(true, 12, 7, 9,
-                        true, false, true, true),
+                        true, false, true, true, true),
                 new BankMenuOpenData.Totals(9, 10, 11, 12, 13, 14, 15, 16), 4,
                 List.of(new BlockPos(1, 2, 3), new BlockPos(-4, 5, 6)),
                 List.of(new BankMenu.AccountEntry("Alice", 42, 0),
@@ -60,7 +60,7 @@ class BankMenuOpenDataCodecTest {
                 new BankMenuOpenData.EntityCounts(0, 0, 0, 0),
                 new BankMenuOpenData.Targets(0, 0, 0, 0),
                 new BankMenuOpenData.ControlSettings(false, 0, 0, 5,
-                        true, true, true, false),
+                        true, true, true, false, false),
                 new BankMenuOpenData.Totals(0, 0, 0, 0, 0, 0, 0, 0), 0,
                 List.of(), List.of(), List.of(), List.of());
 
@@ -173,6 +173,7 @@ class BankMenuOpenDataCodecTest {
         buffer.writeBoolean(true);
         buffer.writeBoolean(true);
         buffer.writeBoolean(true);
+        buffer.writeBoolean(false);
         buffer.writeBoolean(false);
         for (int i = 0; i < 8; i++) {
             buffer.writeVarInt(0);

@@ -13,7 +13,7 @@
   "item.emeraldcapitalism.second_abandoned_vault_map": "Second Abandoned Vault Map",
   "item.emeraldcapitalism.village_map": "Village Map",
   "item.emeraldcapitalism.compacted_rotten_flesh": "Compacted Rotten Flesh",
-  "item.emeraldcapitalism.rotten_flesh_cover": "Rotten Flesh Cover",
+  "item.emeraldcapitalism.rotten_flesh_cover": "Rotten Flesh Coated Wool",
   "item.emeraldcapitalism.village_map.not_found": "No village could be found within the map's search range.",
 
   "emeraldcapitalism.configuration.title": "Emerald Capitalism Configs",
@@ -39,8 +39,8 @@
   "emeraldcapitalism.configuration.ai.villagerAI.enableFenceGateInteraction": "Enable Fence Gate Interaction",
   "emeraldcapitalism.configuration.ai.villagerAI.enableFenceGateInteraction.tooltip": "If true, villagers can open and close fence gates during pathfinding.",
 
-  "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick": "Enable Villager Stats Shift-Click",
-  "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick.tooltip": "If true, shift-right-clicking a villager opens the villager statistics screen.",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick": "Enable Villager/Skrimisher Stats Shift-Click",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick.tooltip": "If true, shift-right-clicking a villager or Emerald Skrimisher opens its read-only information screen.",
 
   "emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance": "Enable Boat Avoidance",
   "emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance.tooltip": "If true, villagers will avoid nearby boats and try to keep a few blocks away.",

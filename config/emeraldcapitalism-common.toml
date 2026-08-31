@@ -16,7 +16,7 @@ redactNonOpPoiDetails = true
 		enableFarmlandRepair = true
 		#If true, villagers can open and close fence gates during pathfinding.
 		enableFenceGateInteraction = true
-		#If true, shift-right-clicking a villager opens the villager statistics screen.
+		#If true, shift-right-clicking a villager or Emerald Skrimisher opens its read-only information screen.
 		enableVillagerStatsShiftClick = true
 		#If true, villagers will avoid nearby boats and try to keep a few blocks away.
 		enableBoatAvoidance = true

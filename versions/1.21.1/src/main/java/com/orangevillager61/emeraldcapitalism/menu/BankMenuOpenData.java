@@ -56,7 +56,7 @@ public record BankMenuOpenData(
         return new BankMenuOpenData(blockPos, "", null, "", true, null, 0,
                 new EntityCounts(0, 0, 0, 0), new Targets(0, 0, 0, 0),
                 new ControlSettings(false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS,
-                        true, true, true, false),
+                        true, true, true, false, false),
                 new Totals(0, 0, 0, 0, 0, 0, 0, 0), 0,
                 List.of(), List.of(), List.of(), List.of());
     }
@@ -156,11 +156,13 @@ public record BankMenuOpenData(
         buf.writeBoolean(settings.randomDeliveriesEnabled());
         buf.writeBoolean(settings.breadDeliveriesEnabled());
         buf.writeBoolean(settings.lumberjackDeliveriesEnabled());
+        buf.writeBoolean(settings.attackAllPlayers());
     }
 
     public static ControlSettings readControlSettings(FriendlyByteBuf buf) {
         return new ControlSettings(buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
-                buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean());
+                buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
+                buf.readBoolean(), buf.readBoolean());
     }
 
     public static void writeMarketEntry(FriendlyByteBuf buf,
@@ -311,7 +313,8 @@ public record BankMenuOpenData(
                                   boolean villagerDeliveriesEnabled,
                                   boolean randomDeliveriesEnabled,
                                   boolean breadDeliveriesEnabled,
-                                  boolean lumberjackDeliveriesEnabled) {
+                                  boolean lumberjackDeliveriesEnabled,
+                                  boolean attackAllPlayers) {
         public ControlSettings {
             if (emeraldGolemTarget < 0 || emeraldGolemTarget > 4096
                     || emeraldSkrimisherTarget < 0 || emeraldSkrimisherTarget > 4096

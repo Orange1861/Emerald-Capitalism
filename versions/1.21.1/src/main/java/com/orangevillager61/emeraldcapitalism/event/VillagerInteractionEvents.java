@@ -4,6 +4,8 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
+import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
+import com.orangevillager61.emeraldcapitalism.menu.EmeraldSkrimisherMenu;
 import com.orangevillager61.emeraldcapitalism.menu.VillagerStatsMenu;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
@@ -23,6 +25,20 @@ public class VillagerInteractionEvents {
     public static void onPlayerInteractWithVillager(PlayerInteractEvent.EntityInteract event) {
         // Only on server side
         if (event.isCanceled() || event.getLevel().isClientSide) {
+            return;
+        }
+
+        if (event.getTarget() instanceof EmeraldSkrimisher skrimisher) {
+            if (Config.enableVillagerStatsShiftClick
+                    && event.getEntity().isShiftKeyDown()
+                    && event.getEntity() instanceof ServerPlayer serverPlayer) {
+                serverPlayer.openMenu(new SimpleMenuProvider(
+                        (id, playerInventory, player) ->
+                                new EmeraldSkrimisherMenu(id, playerInventory, skrimisher),
+                        skrimisher.getDisplayName()
+                ), buf -> buf.writeInt(skrimisher.getId()));
+                event.setCanceled(true);
+            }
             return;
         }
 

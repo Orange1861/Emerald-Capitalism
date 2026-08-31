@@ -130,7 +130,7 @@ class BankPersistedStateCodecTest {
                 Optional.empty(), false, Optional.of(TAKEOVER_KILLER), "Bank",
                 List.of(), List.of(), List.of(), List.of(), 0,
                 Optional.empty(), Optional.empty(), Optional.empty(), 0L,
-                true, 12, 8, 17, false, false, false, true);
+                true, 12, 8, 17, false, false, false, true, true);
 
         BankBlockEntity.PersistedState decoded = roundTrip(source);
         assertTrue(decoded.manualTargets());
@@ -141,6 +141,7 @@ class BankPersistedStateCodecTest {
         assertFalse(decoded.randomDeliveriesEnabled());
         assertFalse(decoded.breadDeliveriesEnabled());
         assertTrue(decoded.lumberjackDeliveriesEnabled());
+        assertTrue(decoded.attackAllPlayers());
     }
 
     @Test

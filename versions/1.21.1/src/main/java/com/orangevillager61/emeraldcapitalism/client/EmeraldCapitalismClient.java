@@ -13,6 +13,7 @@ import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldSkrimisherR
 import com.orangevillager61.emeraldcapitalism.client.renderer.VillagePOIOverlayRenderer;
 import com.orangevillager61.emeraldcapitalism.client.screen.BankScreen;
 import com.orangevillager61.emeraldcapitalism.client.screen.EmeraldOreProcessorScreen;
+import com.orangevillager61.emeraldcapitalism.client.screen.EmeraldSkrimisherScreen;
 import com.orangevillager61.emeraldcapitalism.client.screen.VillageManagerScreen;
 import com.orangevillager61.emeraldcapitalism.client.screen.VillagePOIScreen;
 import com.orangevillager61.emeraldcapitalism.client.screen.VillagerStatsScreen;
@@ -89,6 +90,7 @@ public class EmeraldCapitalismClient {
 
     private void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ECAPMenuTypes.VILLAGER_STATS_MENU.get(), VillagerStatsScreen::new);
+        event.register(ECAPMenuTypes.EMERALD_SKRIMISHER_MENU.get(), EmeraldSkrimisherScreen::new);
         event.register(ECAPMenuTypes.VILLAGE_MANAGER_MENU.get(), VillageManagerScreen::new);
         event.register(ECAPMenuTypes.EMERALD_ORE_PROCESSOR_MENU.get(), EmeraldOreProcessorScreen::new);
         event.register(ECAPMenuTypes.BANK_MENU.get(), BankScreen::new);
