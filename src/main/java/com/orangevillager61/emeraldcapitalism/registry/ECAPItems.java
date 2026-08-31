@@ -44,8 +44,8 @@ public final class ECAPItems {
             "emerald_skrimisher_spawn_egg",
             () -> new DeferredSpawnEggItem(
                     ECAPEntityTypes.EMERALD_SKRIMISHER,
-                    0xB87333,
-                    0x6E3F25,
+                    0xFFFFFF,
+                    0xFFFFFF,
                     new Item.Properties()
             )
     );

@@ -16,6 +16,7 @@ import com.orangevillager61.emeraldcapitalism.market.TradeSide;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
@@ -450,6 +451,42 @@ public final class BankGameplayGameTests {
                 "the bank did not accept unpriced string as a donation");
         helper.assertValueEqual(countItem(chest, Items.BONE), 3,
                 "the bank did not accept unpriced bone as a donation");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void lumberjackDonatesSticksToBank(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        setupMarketBank(helper, Items.EMERALD_ORE, 0);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                helper.absolutePos(new BlockPos(1, 1, 2)));
+        if (chest == null) {
+            helper.fail("lumberjack donation chest was not created");
+            return;
+        }
+
+        Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        lumberjack.setVillagerData(lumberjack.getVillagerData()
+                .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
+        for (int slot = 1; slot < lumberjack.getInventory().getContainerSize(); slot++) {
+            lumberjack.getInventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(lumberjack);
+        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.STICK)),
+                "lumberjack pickup policy rejected sticks");
+        helper.assertTrue(goal.canUse(), "lumberjack with sticks did not select bank cleanup");
+        goal.start();
+        goal.tick();
+        goal.stop();
+
+        helper.assertValueEqual(countItem(lumberjack, Items.STICK), 0,
+                "lumberjack kept sticks instead of donating them");
+        helper.assertValueEqual(countItem(chest, Items.STICK), 8,
+                "bank did not store donated lumberjack sticks");
+        helper.assertValueEqual(BankAccountData.get(level).getBalance(lumberjack.getUUID()), 0,
+                "stick donation incorrectly credited the lumberjack account");
         helper.succeed();
     }
 

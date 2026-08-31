@@ -410,7 +410,7 @@ public class VillageRegistryEvents {
         }
     }
 
-    /** Adds the once-per-morning missing-door repair task to villagers when needed. */
+    /** Adds the post-sleep missing-door repair task to mayors when needed. */
     private static void injectMayorDoorRepairGoal(Villager villager) {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof MayorDoorRepairGoal);

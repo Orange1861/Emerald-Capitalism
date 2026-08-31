@@ -366,7 +366,8 @@ public final class VillagerInventoryBankGoal extends Goal {
         if (bank.isRandomDeliveriesEnabled()) {
             return true;
         }
-        return isLumberjackDelivery() && (stack.is(ItemTags.LOGS) || stack.is(ItemTags.COALS));
+        return isLumberjackDelivery()
+                && (stack.is(ItemTags.LOGS) || stack.is(ItemTags.COALS) || stack.is(Items.STICK));
     }
 
     private boolean isInventoryFull() {

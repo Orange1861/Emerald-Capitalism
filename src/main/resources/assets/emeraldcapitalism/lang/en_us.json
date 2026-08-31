@@ -181,6 +181,11 @@
   "emeraldcapitalism.configuration.books.tooltip": "Settings for authored books.",
   "emeraldcapitalism.configuration.books.enableBooksInCreativeTab": "Enable Books in Creative Tab",
   "emeraldcapitalism.configuration.books.enableBooksInCreativeTab.tooltip": "Adds all authored books to the Emerald Capitalism creative tab. Warning: The mod author recommends exploring the world to find the books.",
+  "item.emeraldcapitalism.book.rarity": "Rarity: %s",
+  "item.emeraldcapitalism.book.rarity.common": "Common",
+  "item.emeraldcapitalism.book.rarity.uncommon": "Uncommon",
+  "item.emeraldcapitalism.book.rarity.rare": "Rare",
+  "item.emeraldcapitalism.book.rarity.legendary": "Legendary",
 
   "key.categories.emeraldcapitalism": "Emerald Capitalism",
   "key.emeraldcapitalism.toggle_poi_overlay": "Village POI Screen",

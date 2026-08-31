@@ -117,9 +117,8 @@ public abstract class VillagerClimbMixin {
 
         // Check ladder occupancy: wait if another villager is climbing this column
         if (!emeraldcapitalism$tryClaimLadder(villager, pos)) {
-            // Stop the villager from moving into the occupied ladder
+            // Hold position without cancelling the route, so it can retry when the ladder is free.
             villager.setDeltaMovement(0, villager.getDeltaMovement().y, 0);
-            villager.getNavigation().stop();
             return;
         }
 

@@ -26,11 +26,17 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlockEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPRecipeTypes;
+import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRarity;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.RecipeBookCategories;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -49,8 +55,9 @@ import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 @Mod(value = EmeraldCapitalism.MODID, dist = Dist.CLIENT)
 public class EmeraldCapitalismClient {
@@ -149,6 +156,42 @@ public class EmeraldCapitalismClient {
                 mc.player.sendSystemMessage(Component.literal("[ECAP] Requesting nearest village POI data..."));
                 mc.setScreen(new VillagePOIScreen());
             }
+        }
+
+        @SubscribeEvent
+        public static void onItemTooltip(ItemTooltipEvent event) {
+            ItemStack stack = event.getItemStack();
+            if (!stack.is(Items.WRITTEN_BOOK)
+                    || stack.get(DataComponents.WRITTEN_BOOK_CONTENT) == null) {
+                return;
+            }
+
+            CustomData metadata = stack.get(DataComponents.CUSTOM_DATA);
+            if (metadata == null) {
+                return;
+            }
+
+            LibraryBookRarity rarity = LibraryBookRarity.fromId(
+                    metadata.copyTag().getString("book_rarity")).orElse(null);
+            if (rarity == null) {
+                return;
+            }
+
+            ChatFormatting color = switch (rarity) {
+                case COMMON -> ChatFormatting.WHITE;
+                case UNCOMMON -> ChatFormatting.DARK_GREEN;
+                case RARE -> ChatFormatting.GOLD;
+                case LEGENDARY -> ChatFormatting.DARK_PURPLE;
+                case BANK_RULE, VILLAGE_MANAGER -> null;
+            };
+            if (color == null) {
+                return;
+            }
+
+            event.getToolTip().add(Component.translatable(
+                    "item.emeraldcapitalism.book.rarity",
+                    Component.translatable("item.emeraldcapitalism.book.rarity." + rarity.id()))
+                    .withStyle(color));
         }
 
         @SubscribeEvent

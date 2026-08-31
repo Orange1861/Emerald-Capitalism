@@ -68,6 +68,6 @@ public final class VillagerInventoryPolicy {
         return !stack.isEmpty()
                 && villager.getVillagerData().getProfession()
                 == ECAPVillagerProfessions.LUMBERJACK.get()
-                && stack.is(ItemTags.LOGS);
+                && (stack.is(ItemTags.LOGS) || stack.is(Items.STICK));
     }
 }
