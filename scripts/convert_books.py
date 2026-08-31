@@ -27,7 +27,7 @@ Usage:
     python scripts/convert_books.py
     python scripts/convert_books.py  # also works from the repository root
     python scripts/convert_books.py --input docs/lore/books --output \
-        versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books
+        src/main/resources/data/emeraldcapitalism/library_books
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ from xml.etree import ElementTree
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = REPOSITORY_ROOT / "docs/lore/books"
 DEFAULT_OUTPUT = REPOSITORY_ROOT / (
-    "versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books"
+    "src/main/resources/data/emeraldcapitalism/library_books"
 )
 
 RARITY_ALIASES = {

@@ -78,7 +78,7 @@ class ConvertBooksTest(unittest.TestCase):
         self.assertEqual(REPOSITORY_ROOT / "docs/lore/books", DEFAULT_INPUT)
         self.assertEqual(
             REPOSITORY_ROOT
-            / "versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books",
+            / "src/main/resources/data/emeraldcapitalism/library_books",
             DEFAULT_OUTPUT,
         )
 

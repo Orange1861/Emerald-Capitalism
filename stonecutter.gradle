@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 plugins {
     id 'dev.kikugie.stonecutter'
     // Resolve ModDevGradle once so every Stonecutter subproject shares the
@@ -17,4 +19,215 @@ tasks.named('wrapper', Wrapper).configure {
     // file size for Gradle. If you do switch this to ALL, run the Gradle wrapper task twice afterwards.
     // (Verify by checking gradle/wrapper/gradle-wrapper.properties to see if distributionUrl now points to `-all`)
     distributionType = Wrapper.DistributionType.BIN
+}
+
+def readPortingJson = { File path ->
+    if (!path.isFile()) {
+        throw new GradleException("Required porting manifest is missing: ${path}")
+    }
+    new JsonSlurper().parse(path) as Map
+}
+
+def relativePath = { File path ->
+    file('.').toPath().relativize(path.toPath()).toString().replace('\\', '/')
+}
+
+def discoverGameTests = { File sourceRoot ->
+    Set<String> tests = new TreeSet<>()
+    if (!sourceRoot.isDirectory()) {
+        return tests
+    }
+    sourceRoot.eachFileRecurse { File sourceFile ->
+        if (!sourceFile.isFile() || !sourceFile.name.endsWith('.java')) {
+            return
+        }
+        String source = sourceFile.getText('UTF-8')
+        if (!source.contains('@GameTestHolder')) {
+            return
+        }
+        String className = sourceFile.name.substring(0, sourceFile.name.length() - '.java'.length())
+                .toLowerCase(Locale.ROOT)
+        def matcher = source =~ /(?s)@GameTest\s*\([^)]*\)\s*public\s+static\s+void\s+([A-Za-z0-9_]+)\s*\(/
+        matcher.each { match -> tests.add("${className}.${match[1].toLowerCase(Locale.ROOT)}") }
+    }
+    tests
+}
+
+tasks.register('verifySharedSourceLayout') {
+    group = 'verification'
+    description = 'Enforces one shared source tree and allowlisted version-only overrides.'
+
+    doLast {
+        File sharedJava = file('src/main/java')
+        File sharedResources = file('src/main/resources')
+        if (!sharedJava.isDirectory() || !sharedResources.isDirectory()) {
+            throw new GradleException('The shared src/main/java and src/main/resources trees are required')
+        }
+
+        Map manifest = readPortingJson(file('gradle/porting-overrides.json'))
+        if (manifest.schemaVersion != 1 || manifest.sharedSource != 'src') {
+            throw new GradleException('gradle/porting-overrides.json does not describe the shared src/ layout')
+        }
+        File versionsRoot = file('versions')
+        Set<String> targets = versionsRoot.listFiles()
+                .findAll { it.isDirectory() }
+                .collect { it.name }
+                .toSet()
+        Set<String> manifestTargets = ((manifest.targets ?: [:]) as Map).keySet() as Set<String>
+        if (targets != manifestTargets) {
+            throw new GradleException("Version folders and porting-overrides targets differ: folders=${targets}, manifest=${manifestTargets}")
+        }
+
+        List<String> errors = []
+        targets.each { String targetName ->
+            File targetRoot = new File(versionsRoot, targetName)
+            if (!new File(targetRoot, 'gradle.properties').isFile()) {
+                errors.add("${targetName} is missing gradle.properties")
+            }
+            Map targetManifest = (manifest.targets[targetName] ?: [:]) as Map
+            Set<String> allowed = ((targetManifest.overrides ?: []) as List<String>)
+                    .collect { it.replace('\\', '/') } as Set<String>
+            File targetSource = new File(targetRoot, 'src')
+            if (targetSource.isDirectory()) {
+                targetSource.eachFileRecurse { File sourceFile ->
+                    if (!sourceFile.isFile()) {
+                        return
+                    }
+                    String relative = targetRoot.toPath().relativize(sourceFile.toPath()).toString()
+                            .replace('\\', '/')
+                    // Data generation writes target-local output here. It is a
+                    // build product, not a second hand-maintained source tree.
+                    if (relative.startsWith('src/generated/')) {
+                        return
+                    }
+                    if (!allowed.contains(relative)) {
+                        errors.add("${targetName}/${relative} is not an allowlisted API/resource override")
+                    }
+                }
+            }
+            allowed.each { String relative ->
+                if (!new File(targetRoot, relative).isFile()) {
+                    errors.add("${targetName}/${relative} is listed as an override but does not exist")
+                }
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new GradleException('Shared source layout validation failed:\n' + errors.join('\n'))
+        }
+
+        int sharedJavaCount = fileTree(sharedJava).matching { include '**/*.java' }.files.size()
+        int sharedResourceCount = fileTree(sharedResources).files.size()
+        logger.lifecycle("Verified shared source layout: ${sharedJavaCount} Java files and ${sharedResourceCount} resources are single-source; no target copies are present.")
+    }
+}
+
+tasks.register('verifyClientSmokeManifest') {
+    group = 'verification'
+    description = 'Checks that every custom renderer, renderer layer, and screen has a manual smoke entry.'
+
+    doLast {
+        Map manifest = readPortingJson(file('gradle/client-smoke.json'))
+        if (manifest.schemaVersion != 1) {
+            throw new GradleException('gradle/client-smoke.json must use schemaVersion 1')
+        }
+        List<Map> entries = ((manifest.renderers ?: []) + (manifest.screens ?: []) + (manifest.checks ?: [])) as List<Map>
+        Set<String> ids = new HashSet<>()
+        List<String> errors = []
+        entries.each { Map entry ->
+            String id = entry.id as String
+            String path = (entry.path ?: entry.owner) as String
+            if (!id || !ids.add(id)) {
+                errors.add("duplicate or empty client smoke id: ${id}")
+            }
+            if (!path || !file(path).isFile()) {
+                errors.add("client smoke entry ${id} points to missing file ${path}")
+            }
+            if (!((entry.checks as String)?.trim())) {
+                errors.add("client smoke entry ${id} has no manual check description")
+            }
+        }
+
+        Set<String> listedRendererPaths = (manifest.renderers ?: []).collect { it.path as String } as Set<String>
+        Set<String> actualRendererPaths = fileTree('src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer')
+                .matching { include '**/*.java' }.files.collect { relativePath(it) } as Set<String>
+        Set<String> listedScreenPaths = (manifest.screens ?: []).collect { it.path as String } as Set<String>
+        Set<String> actualScreenPaths = fileTree('src/main/java/com/orangevillager61/emeraldcapitalism/client/screen')
+                .matching { include '**/*.java' }.files.collect { relativePath(it) } as Set<String>
+        Set<String> missing = new TreeSet<>()
+        missing.addAll(actualRendererPaths - listedRendererPaths)
+        missing.addAll(actualScreenPaths - listedScreenPaths)
+        if (!missing.isEmpty()) {
+            errors.addAll(missing.collect { "unlisted client renderer/screen: ${it}" })
+        }
+
+        if (!errors.isEmpty()) {
+            throw new GradleException('Client smoke manifest validation failed:\n' + errors.join('\n'))
+        }
+        logger.lifecycle("Verified client smoke manifest: ${actualRendererPaths.size()} renderer files and ${actualScreenPaths.size()} screen files are covered.")
+    }
+}
+
+tasks.register('verifyRegressionCoverage') {
+    group = 'verification'
+    description = 'Validates the focused unit, GameTest, and manual regression coverage manifest.'
+
+    doLast {
+        Map manifest = readPortingJson(file('gradle/regression-coverage.json'))
+        if (manifest.schemaVersion != 1) {
+            throw new GradleException('gradle/regression-coverage.json must use schemaVersion 1')
+        }
+        List<Map> entries = (manifest.entries ?: []) as List<Map>
+        Set<String> ids = new HashSet<>()
+        Set<String> required = [
+                'persistence-bank', 'persistence-village', 'persistence-block-entities',
+                'persistence-entities', 'networking-and-menus', 'villager-gameplay',
+                'client-presentation'
+        ] as Set<String>
+        Set<String> discovered = discoverGameTests(file('src/main/java'))
+        Set<String> smokeIds = [] as Set<String>
+        Map smoke = readPortingJson(file('gradle/client-smoke.json'))
+        ((smoke.renderers ?: []) + (smoke.screens ?: []) + (smoke.checks ?: [])).each {
+            smokeIds.add("client-smoke.${it.id}")
+        }
+        List<String> errors = []
+        entries.each { Map entry ->
+            String id = entry.id as String
+            if (!id || !ids.add(id)) {
+                errors.add("duplicate or empty regression coverage id: ${id}")
+            }
+            if (!((entry.boundary as String)?.trim())) {
+                errors.add("${id} has no boundary description")
+            }
+            ((entry.unitTests ?: []) as List<String>).each { String path ->
+                if (!file(path).isFile()) {
+                    errors.add("${id} references missing unit test ${path}")
+                }
+            }
+            ((entry.gameTests ?: []) as List<String>).each { String test ->
+                if (!discovered.contains(test.toLowerCase(Locale.ROOT))) {
+                    errors.add("${id} references unknown GameTest ${test}")
+                }
+            }
+            ((entry.manualChecks ?: []) as List<String>).each { String check ->
+                if (!smokeIds.contains(check)) {
+                    errors.add("${id} references unknown manual check ${check}")
+                }
+            }
+        }
+        Set<String> missing = required - ids
+        if (!missing.isEmpty()) {
+            errors.addAll(missing.collect { "missing required regression boundary ${it}" })
+        }
+        if (!errors.isEmpty()) {
+            throw new GradleException('Regression coverage validation failed:\n' + errors.join('\n'))
+        }
+        logger.lifecycle("Verified regression coverage manifest: ${entries.size()} risk boundaries and ${discovered.size()} GameTests discovered.")
+    }
+}
+
+tasks.register('verifyPortSetup') {
+    group = 'verification'
+    description = 'Verifies shared-source policy, target mapping/toolchain readiness, and regression manifests.'
+    dependsOn 'verifySharedSourceLayout', 'verifyClientSmokeManifest', 'verifyRegressionCoverage'
+    dependsOn ':1.21.4:verifyTargetSetup', ':26.1:verifyTargetSetup'
 }

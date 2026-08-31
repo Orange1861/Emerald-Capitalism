@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "persistence-bank",
+      "boundary": "Bank SavedData/block-entity durable identity, employees, positions, bounded fields, dirty notifications, and transient-cache rebuild.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/block/entity/BankPersistedStateCodecTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/world/bank/BankAccountDataCodecTest.java"
+      ],
+      "gameTests": [
+        "bankgameplaygametests.durablebankstatesurvivesreloadandcachesrebuild",
+        "bankgameplaygametests.malformedbankstatedefaultswithoutcrashing",
+        "bankgameplaygametests.durablebankmutationsmarkchunkchanged"
+      ],
+      "manualChecks": []
+    },
+    {
+      "id": "persistence-village",
+      "boundary": "Village registry and manager links round-trip, isolate missing/corrupt optional fields, and mark durable mutations dirty.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/world/village/VillageRegistryDataCodecTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/world/village/VillageRelationshipTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/world/village/VillageOwnershipSettingsTest.java"
+      ],
+      "gameTests": [
+        "villagemanagerpersistencegametests.linkedmanagersurvivesrealblockentitysavereload",
+        "villagemanagerpersistencegametests.malformedormissinglinksdefaultwithoutcrashing",
+        "villagemanagerpersistencegametests.durablelinkandunlinkmutationsmarkchunkchanged",
+        "saveddatapersistencegametests.saveddatafactoriesreloadthroughdimensionstorage"
+      ],
+      "manualChecks": []
+    },
+    {
+      "id": "persistence-block-entities",
+      "boundary": "Processor and manager block entities preserve inventory/timers/links across reload and reject malformed state without losing valid inventory.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/block/entity/EmeraldOreProcessorPersistedStateCodecTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/block/entity/VillageManagerPersistedStateCodecTest.java"
+      ],
+      "gameTests": [
+        "emeraldoreprocessorgametests.processorinventoryandtimerssurviverealblockentityreload",
+        "emeraldoreprocessorgametests.malformedprocessortimersdefaultwithoutdiscardinginventory",
+        "emeraldoreprocessorgametests.processordurablemutationsmarkthechunkchanged",
+        "villagemanagerpersistencegametests.linkedmanagersurvivesrealblockentitysavereload"
+      ],
+      "manualChecks": [
+        "client-smoke.emerald-ore-processor",
+        "client-smoke.village-manager"
+      ]
+    },
+    {
+      "id": "persistence-entities",
+      "boundary": "Entity attachments and emerald-golem assignments survive entity save/load without retaining invalid UUIDs, positions, or live references.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/entity/EmeraldGolemPersistedStateCodecTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/attachments/VillagerStatsAttachmentCodecTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/attachments/LumberjackProductionAttachmentCodecTest.java"
+      ],
+      "gameTests": [
+        "emeraldgolemgametests.emeraldgolemassignmentsurvivesentitysavereload",
+        "emeraldgolemgametests.malformedormissingbankemployeestatedefaultstounassigned",
+        "emeraldskrimishergametests.emeraldskrimisherinventorysurvivessavereload",
+        "attachmentpersistencegametests.registeredattachmentsurvivesentitysaveload"
+      ],
+      "manualChecks": [
+        "client-smoke.emerald-golem",
+        "client-smoke.emerald-skrimisher"
+      ]
+    },
+    {
+      "id": "networking-and-menus",
+      "boundary": "Packet codecs and menu open data are bounded, while dedicated-server handlers validate sender, active menu, dimension, range, permissions, and authoritative state.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/network/TogglePOIOverlayPacketTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/network/VillagePOIDataPacketTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/network/VillagePOIDynamicPacketTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/menu/BankMenuOpenDataCodecTest.java",
+        "src/test/java/com/orangevillager61/emeraldcapitalism/client/ClientBoundaryTest.java"
+      ],
+      "gameTests": [
+        "registrationgametests.serverlevelboundaryfollowstheserverplayer",
+        "registrationgametests.spectatorscannotmutatevillagepoistate",
+        "clientboundarygametests.poioverlaysubscriptionisremovedwhenplayerdisconnects"
+      ],
+      "manualChecks": [
+        "client-smoke.bank",
+        "client-smoke.village-poi",
+        "client-smoke.villager-stats"
+      ]
+    },
+    {
+      "id": "villager-gameplay",
+      "boundary": "Villager AI, trades, breeding, food/inventory policy, reputation, navigation, and conversion preserve server-authoritative invariants.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/entity/ai/ZombieDoorBreakingPolicyTest.java",
+        "core/src/test/java/com/orangevillager61/emeraldcapitalism/villager/HungerPolicyTest.java",
+        "core/src/test/java/com/orangevillager61/emeraldcapitalism/villager/HungerStateTest.java"
+      ],
+      "gameTests": [
+        "mixinauditinvariantgametests.villagerinventoryhaseighteenslots",
+        "mixinauditinvariantgametests.villagerbreedingusescustomhungerthreshold",
+        "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",
+        "mixinauditinvariantgametests.villagerbirthusescustomcooldownandbookkeeping",
+        "mixinauditinvariantgametests.villagerpathincludesverticalladdernodes",
+        "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
+        "villagertradeaccountinggametests.eachcompletedtradeappliesonceformultipleplayers",
+        "villagerreputationdamagegametests.canceleddamagedoesnotleakintolatergossip"
+      ],
+      "manualChecks": []
+    },
+    {
+      "id": "client-presentation",
+      "boundary": "Every custom renderer, renderer layer, and screen remains reachable and displays server state without client-only code leaking into common startup.",
+      "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/client/ClientBoundaryTest.java"
+      ],
+      "gameTests": [
+        "clientboundarygametests.dedicatedserverinitializesgameplayregistrationswithoutclientcode"
+      ],
+      "manualChecks": [
+        "client-smoke.emerald-chest-block",
+        "client-smoke.emerald-chest-item",
+        "client-smoke.emerald-green-bed-block",
+        "client-smoke.emerald-green-bed-item",
+        "client-smoke.emerald-golem",
+        "client-smoke.emerald-golem-cracks",
+        "client-smoke.emerald-golem-flower",
+        "client-smoke.emerald-skrimisher",
+        "client-smoke.village-poi-overlay",
+        "client-smoke.bank",
+        "client-smoke.emerald-ore-processor",
+        "client-smoke.emerald-skrimisher-screen",
+        "client-smoke.sawmill",
+        "client-smoke.village-manager",
+        "client-smoke.village-poi",
+        "client-smoke.villager-stats",
+        "client-smoke.welcome-message",
+        "client-smoke.profession-texture-overrides"
+      ]
+    }
+  ]
+}

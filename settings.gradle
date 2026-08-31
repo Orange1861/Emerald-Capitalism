@@ -12,6 +12,8 @@ plugins {
 }
 
 stonecutter.create(rootProject) {
+    // One shared src/ tree is compiled for every target. versions/<target>/
+    // contains metadata and only explicitly allowlisted API/resource overrides.
     // Java 21, Parchment mappings still required.
     versions('1.21.1', '1.21.4', '1.21.11')
         .buildscript('build-legacy.gradle')

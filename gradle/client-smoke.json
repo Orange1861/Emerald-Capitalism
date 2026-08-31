@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "renderers": [
+    {
+      "id": "emerald-chest-block",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/EmeraldChestRenderer.java",
+      "checks": "Closed, opening, open, both horizontal orientations, lighting, shadow, and no missing texture."
+    },
+    {
+      "id": "emerald-chest-item",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/EmeraldChestItemRenderer.java",
+      "checks": "First-person, third-person, dropped item, item frame, and creative inventory forms."
+    },
+    {
+      "id": "emerald-green-bed-block",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/EmeraldGreenBedRenderer.java",
+      "checks": "All facings, both bed halves, placement, breaking, sleeping, and particles."
+    },
+    {
+      "id": "emerald-green-bed-item",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/EmeraldGreenBedItemRenderer.java",
+      "checks": "First-person, third-person, dropped item, item frame, and creative inventory forms."
+    },
+    {
+      "id": "emerald-golem",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/EmeraldGolemRenderer.java",
+      "checks": "Idle, walking, attacking, damaged crack levels, flower, all sides, distances, and shadows."
+    },
+    {
+      "id": "emerald-golem-cracks",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/layer/EmeraldGolemCrackLayer.java",
+      "checks": "Low, medium, and high crack states track the server-side health state without flicker."
+    },
+    {
+      "id": "emerald-golem-flower",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/layer/EmeraldGolemFlowerLayer.java",
+      "checks": "Held flower transform, visibility, lighting, and state changes."
+    },
+    {
+      "id": "emerald-skrimisher",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/EmeraldSkrimisherRenderer.java",
+      "checks": "Idle, walking, attacking, held items, lighting, shadow, and no missing texture."
+    },
+    {
+      "id": "village-poi-overlay",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/VillagePOIOverlayRenderer.java",
+      "checks": "Markers track server data, clear on dimension/disconnect, and do not request stale data repeatedly."
+    }
+  ],
+  "screens": [
+    {
+      "id": "bank",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/BankScreen.java",
+      "checks": "Open through a bank, click every tab/control, rename, resize, close, reopen, and verify live values."
+    },
+    {
+      "id": "emerald-ore-processor",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/EmeraldOreProcessorScreen.java",
+      "checks": "Insert emerald, emerald ore, emerald chest, and coal; verify 20-second progress and output."
+    },
+    {
+      "id": "emerald-skrimisher-screen",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/EmeraldSkrimisherScreen.java",
+      "checks": "Open the real menu path, inspect inventory/state, resize, close, and reopen."
+    },
+    {
+      "id": "sawmill",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/SawmillScreen.java",
+      "checks": "Open the real menu path, process supported wood inputs, resize, close, and reopen."
+    },
+    {
+      "id": "village-manager",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/VillageManagerScreen.java",
+      "checks": "Open linked and unlinked managers, follow village navigation, resize, close, and reopen."
+    },
+    {
+      "id": "village-poi",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/VillagePOIScreen.java",
+      "checks": "Open near a village, use tabs/buttons, overlay controls, welcome-message navigation, resize, and reopen."
+    },
+    {
+      "id": "villager-stats",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/VillagerStatsScreen.java",
+      "checks": "Open by shift-right-click, inspect inventory/stats, resize, close, and reopen after server changes."
+    },
+    {
+      "id": "welcome-message",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/screen/WelcomeMessageScreen.java",
+      "checks": "Open from Village POI, edit every field, submit, cancel, resize, close, and reopen."
+    }
+  ],
+  "checks": [
+    {
+      "id": "profession-texture-overrides",
+      "owner": "src/main/java/com/orangevillager61/emeraldcapitalism/client/mixin/VillagerProfessionLayerMixin.java",
+      "checks": "Render banker, mayor, emeraldsmith, lumberjack, and an unrelated vanilla profession; compare screenshots for texture, path, lighting, and no layer regression."
+    }
+  ]
+}

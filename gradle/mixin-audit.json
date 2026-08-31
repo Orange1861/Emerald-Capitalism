@@ -1,131 +1,269 @@
 {
-  "schemaVersion": 1,
-  "mixinConfig": "src/main/resources/emeraldcapitalism.mixins.json",
+  "schemaVersion": 2,
+  "mixinConfigs": [
+    {
+      "path": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "entryKey": "mixins"
+    },
+    {
+      "path": "src/main/resources/emeraldcapitalism.client.mixins.json",
+      "side": "client",
+      "entryKey": "client"
+    }
+  ],
   "units": [
     {
       "id": "spawn-egg-parenting",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["SpawnEggItemMixin"],
+      "invariant": "A villager spawned through the direct spawn-egg offspring path receives a stable name and exactly one authoritative parent assignment only after the spawn succeeds.",
       "tests": [
         "villagerspawninggametests.villageroffspringreceivesnamesandexactparentonce"
-      ]
+      ],
+      "target": "net.minecraft.world.item.SpawnEggItem#spawnOffspringFromSpawnEgg",
+      "injectionPoint": "RETURN; inspect Optional<Mob> result and the parent parameter",
+      "supportedEventAlternative": "No 1.21.1 supported event exposes both the exact interacted parent and the successfully returned child; re-check the target spawn API before replacing this hook."
     },
     {
       "id": "villager-inventory-size",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerInventoryMixin"],
+      "invariant": "Villagers have 18 inventory slots while wandering traders retain their vanilla inventory size.",
       "tests": [
         "mixinauditinvariantgametests.villagerinventoryhaseighteenslots",
         "mixinauditinvariantgametests.wanderingtraderkeepsvanillainventorysize"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.AbstractVillager#<init>",
+      "injectionPoint": "TAIL; replace the constructed SimpleContainer only when the instance is a Villager",
+      "supportedEventAlternative": "No supported entity-construction event can replace the private inventory field before all vanilla users observe it."
     },
     {
       "id": "villager-name-refresh",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerNameRefreshMixin"],
+      "invariant": "Profession changes and age-boundary transitions schedule exactly the derived-name refreshes that affect villager presentation and persistence.",
       "tests": [
         "villagernamerefreshgametests.professionmutationrefreshesderivedname",
         "villagernamerefreshgametests.villagerenamerefreshesonlythroughoriginindex",
         "villagernamerefreshgametests.ageboundaryrefreshesderivedname"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.Villager#setVillagerData and #ageBoundaryReached",
+      "injectionPoint": "HEAD of setVillagerData after a profession comparison; TAIL of ageBoundaryReached",
+      "supportedEventAlternative": "No single supported event covers both direct VillagerData mutation and the private age-boundary callback."
     },
     {
       "id": "villager-pickup-policy",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerPickupPolicyMixin"],
+      "invariant": "Villager pickup accepts only recognized food, emerald value, farming inputs, lumberjack saplings, and supported profession inputs while preserving the three reserved food slots.",
       "tests": [
         "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",
         "emeraldskrimishergametests.villagersandskrimishersusethesameholdablepool"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.Villager#wantsToPickUp",
+      "injectionPoint": "HEAD; cancel the return value for unrecognized or non-reservable stacks",
+      "supportedEventAlternative": "No supported pickup event runs at the same preflight decision point with the villager inventory available."
     },
     {
       "id": "villager-breeding-eligibility",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerBreedingEligibilityMixin"],
+      "invariant": "Villager canBreed requires adulthood, wakefulness, and the configured custom-hunger threshold.",
       "tests": [
         "mixinauditinvariantgametests.villagerbreedingusescustomhungerthreshold"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.Villager#canBreed",
+      "injectionPoint": "HEAD; replace the boolean result from the public eligibility query",
+      "supportedEventAlternative": "No supported event can change this synchronous eligibility query without changing every vanilla caller."
     },
     {
       "id": "villager-pickup-accounting",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerPickupAccountingMixin"],
+      "invariant": "A successful villager emerald pickup credits exactly the accepted inventory delta once, including block value, without charging failed or client-side attempts.",
       "tests": [
         "mixinauditinvariantgametests.villagerpickupcreditsinsertedemeralds"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.Villager#pickUpItem",
+      "injectionPoint": "HEAD and TAIL; capture the pre-pickup value and credit only the post-pickup delta",
+      "supportedEventAlternative": "No supported event exposes both the villager's pre-pickup inventory value and the accepted post-pickup delta."
     },
     {
       "id": "villager-drop-accounting",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerDropAccountingMixin"],
+      "invariant": "Emerald value dropped by a villager debits the linked account once for the spawned stack, including direct callers of the ItemStack-and-offset overload.",
       "tests": [
         "villagertradeaccountinggametests.villageremeralddropdebitsbalanceonce"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.Entity#spawnAtLocation(ItemStack,float)",
+      "injectionPoint": "RETURN; account the returned ItemEntity path only for server-side Villager instances",
+      "supportedEventAlternative": "No supported drop event has the required guarantee that every direct spawnAtLocation caller is observed exactly once."
     },
     {
       "id": "villager-reputation",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerReputationMixin"],
+      "invariant": "Player-caused villager reputation loss uses accepted damage proportionally, while non-player, ineffective, cancelled, and disabled-config paths preserve their existing policy without leaking capture state.",
       "tests": [
         "villagerreputationdamagegametests.playerdamageusesoriginalamountbeforereputation",
         "villagerreputationdamagegametests.nonplayerandenvironmentaldamagedonotarmplayerpath",
         "villagerreputationdamagegametests.canceleddamagedoesnotleakintolatergossip",
         "villagerreputationdamagegametests.ineffectivedamagepreservesexistingreputationpolicy",
         "villagerreputationdamagegametests.disabledconfigpreservesvanillareputation"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.Villager#setLastHurtByMob and #onReputationEventFrom",
+      "injectionPoint": "RETURN of setLastHurtByMob; MODIFY_ARGS at GossipContainer#add inside onReputationEventFrom",
+      "supportedEventAlternative": "LivingDamageEvent can capture accepted damage, but no supported event rewrites only the matching GossipContainer mutation; keep the narrow gossip hook unless equivalent ordering is proven."
     },
     {
       "id": "villager-breeding",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerMakeLoveMixin"],
+      "invariant": "Breeding reserves a valid bed and hunger decision, suppresses vanilla food charging, cleans up interruption, and applies cooldown, family links, and hunger costs only after one successful birth.",
       "tests": [
         "mixinauditinvariantgametests.villagerbirthusescustomcooldownandbookkeeping"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.ai.behavior.VillagerMakeLove#checkExtraStartConditions, #tick, #takeVacantBed, #stop, and #breed",
+      "injectionPoint": "HEAD/RETURN hooks and one INVOKE redirect for Villager#eatAndDigestFood",
+      "supportedEventAlternative": "BabyEntitySpawnEvent does not cover the 1.21.1 VillagerMakeLove birth path; no supported event owns the reservation transaction."
     },
     {
       "id": "villager-goal-packages",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerGoalPackagesMixin"],
+      "invariant": "Core, idle, and meet goal packages contain the mod behaviors exactly once, preserve vanilla ordering, and route banker job-site work through the bank-aware behavior.",
       "tests": [
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
         "villagergoalbehaviorgametests.bankerjobsiteusesworksidebeforeassignment",
         "villagergoalbehaviorgametests.starvingvillagerbegsandreceivesfood",
         "villagergoalbehaviorgametests.fencegatebehavioropensandclosesthepathgate",
         "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.ai.behavior.VillagerGoalPackages#getCorePackage, #getIdlePackage, and #getMeetPackage",
+      "injectionPoint": "RETURN injections plus NEW/INVOKE redirects inside getCorePackage",
+      "supportedEventAlternative": "NeoForge 21.1.219 exposes no public goal-package construction event; preserve composition in VillagerGoalPackageIntegration and keep this adapter narrow."
     },
     {
       "id": "path-node-openables",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["WalkNodeOpenablesMixin"],
+      "invariant": "Villager and wandering-trader path evaluation treats supported fence gates as door-like, while emerald golems retain their openable path behavior and unrelated mobs are unchanged.",
       "tests": [
         "mixinauditinvariantgametests.villagerpathtreatsfencegateasdoor"
-      ]
+      ],
+      "target": "net.minecraft.world.level.pathfinder.WalkNodeEvaluator#getPathType",
+      "injectionPoint": "RETURN; adjust the path type after vanilla block-state evaluation",
+      "supportedEventAlternative": "No supported path-evaluation event provides the current mob and cached block state at this decision point."
     },
     {
       "id": "path-node-ladders",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["WalkNodeLadderMixin"],
+      "invariant": "Villagers, wandering traders, and emerald golems receive safe vertical ladder nodes without changing unrelated mob path evaluation.",
       "tests": [
         "mixinauditinvariantgametests.villagerpathincludesverticalladdernodes"
-      ]
+      ],
+      "target": "net.minecraft.world.level.pathfinder.WalkNodeEvaluator#getPathTypeOfMob and #getNeighbors",
+      "injectionPoint": "RETURN of both path-type and neighbor enumeration methods",
+      "supportedEventAlternative": "No supported event exposes WalkNodeEvaluator's current context and mutable neighbor array."
     },
     {
       "id": "villager-ladder-movement",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["VillagerClimbMixin"],
+      "invariant": "A villager follows the vertical direction required by its ladder path, claims one ladder column at a time, and releases the claim when traversal ends or is disabled.",
       "tests": [
         "mixinauditinvariantgametests.villagerclimbsinstalledladderpath"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.npc.Villager#customServerAiStep",
+      "injectionPoint": "TAIL; apply climb velocity and ladder-claim lifecycle after the brain AI tick",
+      "supportedEventAlternative": "No supported event runs after this private villager AI step with access to the current path and entity movement."
     },
     {
       "id": "iron-golem-melee-reach",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["MobMeleeReachMixin"],
+      "invariant": "Iron golems may hit targets within the configured vertical reach above their head without changing horizontal reach or other mob melee checks.",
       "tests": [
         "emeraldgolemgametests.irongolemreachestargetsaboveitshead"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.Mob#isWithinMeleeAttackRange",
+      "injectionPoint": "RETURN; only widen a false result for IronGolem instances",
+      "supportedEventAlternative": "No supported attack event can change the synchronous range predicate before the goal consumes it."
     },
     {
       "id": "zombie-door-breaking",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["ZombieDoorBreakingMixin"],
+      "invariant": "Zombie door-breaking chance follows the configured difficulty rule at construction time and remains stable for the zombie's lifetime.",
       "tests": [
         "zombiedoorbreakinggametests.doorbreakingusesconfigureddifficultyrule"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.monster.Zombie#<init>",
+      "injectionPoint": "MODIFY_ARG of BreakDoorGoal predicate construction",
+      "supportedEventAlternative": "No supported goal-construction event replaces the predicate before the zombie stores it."
     },
     {
       "id": "zombie-villager-conversion",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
       "mixins": ["ZombieVillagerConversionMixin"],
+      "invariant": "Villager conversion follows the configured difficulty and peaceful boundary while preserving vanilla conversion side effects.",
       "tests": [
         "mixinauditinvariantgametests.easydifficultyconvertskilledvillager",
         "mixinauditinvariantgametests.villagerconversionhonorsconfigandpeacefulboundary"
-      ]
+      ],
+      "target": "net.minecraft.world.entity.monster.Zombie#killedEntity",
+      "injectionPoint": "REDIRECT of ServerLevel#getDifficulty used by the conversion branch",
+      "supportedEventAlternative": "LivingConversionEvent.Post observes the outcome after conversion and cannot replace the pre-conversion difficulty gate."
+    },
+    {
+      "id": "client-profession-texture",
+      "config": "src/main/resources/emeraldcapitalism.client.mixins.json",
+      "side": "client",
+      "auditMode": "manual-client",
+      "mixins": ["VillagerProfessionLayerMixin"],
+      "invariant": "Custom professions render with their intended temporary vanilla profession layer textures without changing unrelated villager layers.",
+      "tests": [
+        "clientboundarygametests.dedicatedserverinitializesgameplayregistrationswithoutclientcode"
+      ],
+      "manualChecks": ["client-smoke.profession-texture-overrides"],
+      "target": "net.minecraft.client.renderer.entity.layers.VillagerProfessionLayer#getResourceLocation",
+      "injectionPoint": "RETURN; replace only profession-folder locations present in the override map",
+      "supportedEventAlternative": "No supported client render-layer event exposes the resolved profession texture at this point; verify the target layer API during the client port."
     }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "sharedSource": "src",
+  "rule": "Shared gameplay, tests, resources, and client code live under src/. versions/<target>/ may contain only target properties and explicitly listed API/resource overrides.",
+  "targets": {
+    "1.21.1": { "overrides": [] },
+    "1.21.4": { "overrides": [] },
+    "1.21.11": { "overrides": [] },
+    "26.1": { "overrides": [] },
+    "26.2": { "overrides": [] }
+  }
+}

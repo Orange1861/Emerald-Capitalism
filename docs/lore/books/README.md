@@ -59,7 +59,7 @@ The converter resolves its default input and output paths from the repository
 location, not from the current working directory.
 
 Generated JSON is written to
-`versions/1.21.1/src/main/resources/data/emeraldcapitalism/library_books/`.
+`src/main/resources/data/emeraldcapitalism/library_books/`.
 The converter scans every `.txt` and `.docx` source, rewrites all matching
 JSON definitions, and removes stale generated JSON files after all sources
 parse successfully. Treat the output directory as generated data. To target a

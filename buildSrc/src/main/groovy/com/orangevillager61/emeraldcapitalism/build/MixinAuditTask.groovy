@@ -70,12 +70,13 @@ abstract class MixinAuditTask extends DefaultTask {
         Files.createDirectories(reportRoot)
 
         Map manifest = readJson(manifestFile.get().asFile.toPath())
-        Map mixinConfig = readJson(mixinConfigFile.get().asFile.toPath())
+        List<Map> mixinConfigs = readMixinConfigs(repository, manifest, mixinConfigFile.get().asFile.toPath())
+        Set<String> configuredMixins = mixinConfigs.collectMany { it.names as List<String> } as Set<String>
         List<Map> units = (manifest.units ?: []) as List<Map>
         Set<String> discoveredTests = discoverGameTests(repository.resolve('src/main/java'))
-        validateManifest(repository, manifest, mixinConfig, units, discoveredTests)
+        validateManifest(repository, manifest, mixinConfigs, configuredMixins, units, discoveredTests)
 
-        List<String> classpath = buildClasspath(repository)
+        List<String> classpath = buildClasspath(repository, buildRoot)
         List<Map> results = []
         Map baseline = runVariant(repository, auditRoot, 'baseline', [], classpath)
         baseline.classification = baseline.completed && baseline.allRequiredPassed && baseline.exitCode == 0
@@ -83,7 +84,7 @@ abstract class MixinAuditTask extends DefaultTask {
         results.add(baseline)
 
         if (baseline.classification == 'BASELINE_PASSED') {
-            units.each { Map unit ->
+            units.findAll { (it.auditMode ?: 'gametest') == 'gametest' }.each { Map unit ->
                 Map result = runVariant(repository, auditRoot, unit.id as String,
                         (unit.mixins as List).collect { it as String }, classpath)
                 Set<String> mappedTests = (unit.tests as List).collect { (it as String).toLowerCase(Locale.ROOT) } as Set
@@ -115,11 +116,21 @@ abstract class MixinAuditTask extends DefaultTask {
             }
         }
 
+        units.findAll { (it.auditMode ?: 'gametest') == 'manual-client' }.each { Map unit ->
+            results.add([
+                    unit           : unit.id,
+                    disabledMixins : (unit.mixins as List).collect { it as String },
+                    classification : 'MANUAL_CLIENT',
+                    reason         : 'Run the manifest-linked client smoke checks before porting this client hook.',
+                    manualChecks   : (unit.manualChecks as List).collect { it as String }
+            ])
+        }
+
         Map report = [
                 schemaVersion   : 1,
                 generatedAt     : new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX"),
-                mixinConfig      : manifest.mixinConfig,
-                configuredMixins : mixinConfig.mixins,
+                mixinConfigs    : mixinConfigs.collect { [path: it.path, side: it.side, entryKey: it.entryKey] },
+                configuredMixins : configuredMixins.toList().sort(),
                 discoveredTests  : discoveredTests.toList().sort(),
                 results          : results
         ]
@@ -148,16 +159,56 @@ abstract class MixinAuditTask extends DefaultTask {
         return new JsonSlurper().parse(path.toFile(), StandardCharsets.UTF_8.name()) as Map
     }
 
-    private static void validateManifest(Path repository, Map manifest, Map mixinConfig, List<Map> units,
+    private static List<Map> readMixinConfigs(Path repository, Map manifest, Path fallbackConfig) {
+        List<Map> entries = (manifest.mixinConfigs ?: [[
+                path: manifest.mixinConfig ?: repository.relativize(fallbackConfig).toString(),
+                side: 'server',
+                entryKey: 'mixins'
+        ]]) as List<Map>
+        if (entries.isEmpty()) {
+            throw new GradleException('Mixin audit manifest must declare at least one mixin config')
+        }
+
+        List<Map> configs = []
+        Set<String> configPaths = new HashSet<>()
+        entries.each { Map entry ->
+            String relativePath = (entry.path as String)?.replace('\\', '/')
+            String side = entry.side as String
+            String entryKey = (entry.entryKey as String) ?: (side == 'client' ? 'client' : 'mixins')
+            if (!relativePath || !(side in ['server', 'client']) || !(entryKey in ['mixins', 'client'])) {
+                throw new GradleException("Invalid mixin config declaration: ${entry}")
+            }
+            if (!configPaths.add(relativePath)) {
+                throw new GradleException("Mixin config is declared more than once: ${relativePath}")
+            }
+            Path configPath = repository.resolve(relativePath).normalize()
+            if (!configPath.startsWith(repository) || !Files.isRegularFile(configPath)) {
+                throw new GradleException("Mixin config is missing or outside the repository: ${relativePath}")
+            }
+            Map config = readJson(configPath)
+            List<String> names = (config[entryKey] ?: []) as List<String>
+            if (names.isEmpty()) {
+                throw new GradleException("Mixin config ${relativePath} has no ${entryKey} entries")
+            }
+            if (names.any { !(it instanceof String) } || names.size() != names.toSet().size()) {
+                throw new GradleException("Mixin config ${relativePath} must contain unique string mixin names")
+            }
+            configs << [path: relativePath, side: side, entryKey: entryKey, names: names]
+        }
+        return configs
+    }
+
+    private static void validateManifest(Path repository, Map manifest, List<Map> mixinConfigs,
+                                         Set<String> configuredMixins, List<Map> units,
                                          Set<String> discoveredTests) {
-        if (manifest.schemaVersion != 1) {
-            throw new GradleException('gradle/mixin-audit.json must use schemaVersion 1')
+        if (manifest.schemaVersion != 2) {
+            throw new GradleException('gradle/mixin-audit.json must use schemaVersion 2')
         }
         if (units.isEmpty()) {
             throw new GradleException('Mixin audit manifest must declare at least one unit')
         }
 
-        Set<String> configured = new LinkedHashSet<>((mixinConfig.mixins ?: []) as List<String>)
+        Map<String, Map> configsByPath = mixinConfigs.collectEntries { [(it.path as String): it] }
         List<String> assigned = []
         Set<String> unitIds = new HashSet<>()
         units.each { Map unit ->
@@ -173,6 +224,34 @@ abstract class MixinAuditTask extends DefaultTask {
             if (mixins.isEmpty() || tests.isEmpty()) {
                 throw new GradleException("Mixin audit unit ${id} must declare mixins and invariant tests")
             }
+            String configPath = (unit.config as String)?.replace('\\', '/')
+            Map config = configsByPath[configPath]
+            if (config == null) {
+                throw new GradleException("Mixin audit unit ${id} references unknown mixin config ${unit.config}")
+            }
+            if ((unit.side as String) != (config.side as String)) {
+                throw new GradleException("Mixin audit unit ${id} side does not match ${configPath}")
+            }
+            String auditMode = (unit.auditMode as String) ?: 'gametest'
+            if (!(auditMode in ['gametest', 'manual-client'])) {
+                throw new GradleException("Mixin audit unit ${id} has unknown auditMode ${auditMode}")
+            }
+            if (auditMode == 'gametest' && config.side != 'server') {
+                throw new GradleException("Client mixin unit ${id} must use auditMode=manual-client")
+            }
+            if (auditMode == 'manual-client' && ((unit.manualChecks ?: []) as List).isEmpty()) {
+                throw new GradleException("Client mixin unit ${id} must declare manualChecks")
+            }
+            ['invariant', 'target', 'injectionPoint', 'supportedEventAlternative'].each { String field ->
+                if (!((unit[field] as String)?.trim())) {
+                    throw new GradleException("Mixin audit unit ${id} must declare ${field}")
+                }
+            }
+            Set<String> unknownUnitMixins = new LinkedHashSet<>(mixins)
+            unknownUnitMixins.removeAll(config.names as Set<String>)
+            if (!unknownUnitMixins.isEmpty()) {
+                throw new GradleException("Mixin audit unit ${id} names mixins outside ${configPath}: ${unknownUnitMixins}")
+            }
             assigned.addAll(mixins)
             tests.each { String test ->
                 String normalized = test.toLowerCase(Locale.ROOT)
@@ -183,6 +262,7 @@ abstract class MixinAuditTask extends DefaultTask {
         }
 
         Set<String> assignedSet = new LinkedHashSet<>(assigned)
+        Set<String> configured = new LinkedHashSet<>(configuredMixins)
         Set<String> missing = new LinkedHashSet<>(configured)
         missing.removeAll(assignedSet)
         Set<String> unknown = new LinkedHashSet<>(assignedSet)
@@ -193,18 +273,28 @@ abstract class MixinAuditTask extends DefaultTask {
                     "Mixin audit assignments must match the live config exactly; missing=${missing}, unknown=${unknown}, duplicates=${duplicates}")
         }
 
-        Path mixinSource = repository.resolve('src/main/java/com/orangevillager61/emeraldcapitalism/mixin')
+        List<Path> mixinSources = [
+                repository.resolve('src/main/java/com/orangevillager61/emeraldcapitalism/mixin'),
+                repository.resolve('src/main/java/com/orangevillager61/emeraldcapitalism/client/mixin')
+        ]
         List<String> optionalHooks = []
-        Files.walk(mixinSource).withCloseable { stream ->
-            stream.filter { Files.isRegularFile(it) && it.fileName.toString().endsWith('.java') }.forEach { Path file ->
-                String source = Files.readString(file)
-                if (source =~ /require\s*=\s*0/) {
-                    optionalHooks.add(repository.relativize(file).toString())
+        mixinSources.findAll { Files.isDirectory(it) }.each { Path mixinSource ->
+            Files.walk(mixinSource).withCloseable { stream ->
+                stream.filter { Files.isRegularFile(it) && it.fileName.toString().endsWith('.java') }.forEach { Path file ->
+                    String source = Files.readString(file)
+                    if (source =~ /require\s*=\s*0/) {
+                        optionalHooks.add(repository.relativize(file).toString())
+                    }
                 }
             }
         }
         if (!optionalHooks.isEmpty()) {
-            throw new GradleException("Optional mixin hooks require an explicit fallback audit: ${optionalHooks}")
+            Set<String> fallbackTests = units.collectMany {
+                ((it.optionalFallback?.diagnosticTests ?: []) as List).collect { it as String }
+            } as Set<String>
+            if (fallbackTests.isEmpty() || !fallbackTests.every { discoveredTests.contains(it.toLowerCase(Locale.ROOT)) }) {
+                throw new GradleException("Optional mixin hooks require a documented fallback and diagnostic GameTest: ${optionalHooks}")
+            }
         }
     }
 
@@ -230,11 +320,11 @@ abstract class MixinAuditTask extends DefaultTask {
         return tests
     }
 
-    private List<String> buildClasspath(Path repository) {
+    private List<String> buildClasspath(Path repository, Path buildRoot) {
         List<String> classpath = [
-                repository.resolve('build/classes/java/main').toString(),
+                buildRoot.resolve('classes/java/main').toString(),
                 repository.resolve('core/build/classes/java/main').toString(),
-                repository.resolve('build/resources/main').toString(),
+                buildRoot.resolve('resources/main').toString(),
                 repository.resolve('core/build/resources/main').toString(),
                 repository.resolve('src/main/resources').toString(),
                 mergedMinecraftJar.get().asFile.toPath().toAbsolutePath().toString()
@@ -251,8 +341,8 @@ abstract class MixinAuditTask extends DefaultTask {
         Path consoleLog = variantDirectory.resolve('console.log')
 
         String modFolders = [
-                repository.resolve('build/classes/java/main'),
-                repository.resolve('build/resources/main'),
+                buildOutputDirectory.get().asFile.toPath().resolve('classes/java/main'),
+                buildOutputDirectory.get().asFile.toPath().resolve('resources/main'),
                 repository.resolve('core/build/classes/java/main'),
                 repository.resolve('core/build/resources/main')
         ].collect { "emeraldcapitalism%%${it}" }.join(File.pathSeparator)
