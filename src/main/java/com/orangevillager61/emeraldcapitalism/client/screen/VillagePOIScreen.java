@@ -247,13 +247,15 @@ public class VillagePOIScreen extends Screen {
         doorRepairBtn = addRenderableWidget(Button.builder(
                 Component.literal("Repair"),
                 btn -> toggleVillageRepair(SetVillageRepairPacket.DOORS))
-                .bounds(tableLeft + REPAIR_BUTTON_X, repairRowOneY + ROW_HEIGHT,
+                .bounds(tableLeft + REPAIR_BUTTON_X,
+                        repairRowOneY + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP,
                         REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
         doorResetBtn = addRenderableWidget(Button.builder(
                 Component.literal("Reset List"),
                 btn -> resetVillageCache(SetVillageRepairPacket.DOORS))
-                .bounds(tableLeft + RESET_CACHE_BUTTON_X, repairRowOneY + ROW_HEIGHT,
+                .bounds(tableLeft + RESET_CACHE_BUTTON_X,
+                        repairRowOneY + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP,
                         REPAIR_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
                 .build());
 
@@ -732,7 +734,7 @@ public class VillagePOIScreen extends Screen {
     private void renderOwnershipTab(GuiGraphics graphics) {
         int ownershipDetailsY = contentTop + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
         int rowOneY = ownershipDetailsY + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
-        int rowTwoY = rowOneY + ROW_HEIGHT;
+        int rowTwoY = rowOneY + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
         graphics.drawString(font, "Ownership controls", tableLeft, contentTop - ROW_HEIGHT,
                 relationshipColor(VillagePOIClientCache.getRelationship()));
         graphics.drawString(font, "Farmland", tableLeft, rowOneY + 5, 0xFFFFFF);

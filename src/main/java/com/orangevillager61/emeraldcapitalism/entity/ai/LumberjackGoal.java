@@ -63,6 +63,9 @@ public final class LumberjackGoal extends Goal {
     private LumberjackTreeScanner.TreeSnapshot tree;
     @Nullable
     private BlockPos navigationTarget;
+    /** Standing position reserved with the tree, even while navigationTarget is cleared at work. */
+    @Nullable
+    private BlockPos reservedWorkPosition;
     @Nullable
     private BlockPos breakingPos;
     @Nullable
@@ -142,6 +145,12 @@ public final class LumberjackGoal extends Goal {
             return false;
         }
 
+        if (selectTrackedSaplingTree(level)) {
+            searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
+            nextSearchTick = level.getGameTime() + SEARCH_INTERVAL_TICKS;
+            return true;
+        }
+
         List<LumberjackTreeScanner.TreeSnapshot> candidates = PerformanceTimingCounters.measure(
                 PerformanceTimingCounters.Operation.LUMBERJACK_SEARCH,
                 () -> treeScanner.findCandidateTrees(level, searchRange));
@@ -155,6 +164,32 @@ public final class LumberjackGoal extends Goal {
         nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
         candidateTrees = List.of();
         nextCandidateIndex = 0;
+        return false;
+    }
+
+    /**
+     * Checks only saplings this lumberjack planted and shared lumbermill
+     * saplings before entering the broad tree scan. The exact tree validator
+     * remains authoritative, so a cache hit cannot select an invalid tree.
+     */
+    private boolean selectTrackedSaplingTree(ServerLevel level) {
+        List<LumberjackSaplingCache.Candidate> grownSaplings =
+                LumberjackSaplingCache.findGrownSaplings(
+                        level, villager.getUUID(), villager.blockPosition(), searchRange, 16);
+        for (LumberjackSaplingCache.Candidate sapling : grownSaplings) {
+            if (LumberjackTreeReservations.isLogReservedByOther(
+                    level, villager.getUUID(), List.of(sapling.position()))) {
+                continue;
+            }
+            LumberjackTreeScanner.TreeSnapshot candidate = treeScanner.findCandidateTreeAt(
+                    level, sapling.position());
+            if (candidate == null) {
+                continue;
+            }
+            if (selectTreeFromCandidates(level, List.of(candidate))) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -184,12 +219,13 @@ public final class LumberjackGoal extends Goal {
             BlockPos approach = findReachableTreeApproach(level, candidate);
             if (approach == null
                     || !LumberjackTreeReservations.tryReserve(
-                    level, villager.getUUID(), candidate.logs())) {
+                    level, villager.getUUID(), candidate.logs(), approach)) {
                 continue;
             }
 
             tree = candidate;
             navigationTarget = approach;
+            reservedWorkPosition = approach.immutable();
             nextLogIndex = 0;
             breakTicks = 0;
             logsCollectedThisTree = 0;
@@ -199,6 +235,7 @@ public final class LumberjackGoal extends Goal {
         }
         tree = null;
         navigationTarget = null;
+        reservedWorkPosition = null;
         return false;
     }
 
@@ -349,8 +386,16 @@ public final class LumberjackGoal extends Goal {
         BlockState state = level.getBlockState(target);
         if (!treeScanner.isLumberjackLog(state)) {
             clearBreakingProgress(level);
-            nextLogIndex++;
+            // The selected tree changed outside this goal. Abandon the stale
+            // snapshot instead of walking the remaining positions and
+            // replanting over another actor's work.
+            releaseTreeReservation();
+            tree = null;
+            navigationTarget = null;
+            nextLogIndex = 0;
             breakTicks = 0;
+            logsCollectedThisTree = 0;
+            nextSearchTick = level.getGameTime() + SEARCH_INTERVAL_TICKS;
             return;
         }
 
@@ -408,6 +453,7 @@ public final class LumberjackGoal extends Goal {
         }
         tree = null;
         navigationTarget = null;
+        reservedWorkPosition = null;
         productionFurnace = null;
         jobSiteTarget = null;
         furnaceInputInserted = false;
@@ -688,6 +734,9 @@ public final class LumberjackGoal extends Goal {
                     collectDrops(drops);
                 }
             }
+        }
+        for (BlockPos log : tree.logs()) {
+            LumberjackSaplingCache.forget(level, villager.getUUID(), log);
         }
         replant(level, tree.base(), tree.sapling());
         allocateCharcoalQuota(level, logsCollectedThisTree);
@@ -1193,7 +1242,10 @@ public final class LumberjackGoal extends Goal {
                 continue;
             }
 
-            level.setBlock(base, saplingState, 3);
+            if (!level.setBlock(base, saplingState, 3)) {
+                continue;
+            }
+            LumberjackSaplingCache.trackPlaced(level, villager.getUUID(), base, saplingBlock);
             stack.shrink(1);
             villager.getInventory().setItem(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
             return;
@@ -1202,8 +1254,9 @@ public final class LumberjackGoal extends Goal {
 
     private void releaseTreeReservation() {
         if (tree != null && villager.level() instanceof ServerLevel level) {
-            LumberjackTreeReservations.release(level, villager.getUUID(), tree.logs());
+            LumberjackTreeReservations.release(level, villager.getUUID(), tree.logs(), reservedWorkPosition);
         }
+        reservedWorkPosition = null;
     }
 
 }

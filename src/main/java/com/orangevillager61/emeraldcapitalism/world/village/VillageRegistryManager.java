@@ -148,9 +148,19 @@ public class VillageRegistryManager {
 
     /** Rechecks the one candidate against live opinion, Mayor presence, and bank control. */
     private void refreshVillageGovernance() {
+        boolean periodicMayorAudit = tickCounter % 200 == 0;
         for (VillageRecord village : registryData.getVillages().values()) {
             boolean changed = VillageGovernance.refresh(level, village);
-            changed |= VillageGovernance.refreshMayorIfVacant(level, village);
+            // A normal village already has a recorded Mayor and receives
+            // immediate succession checks from villager-death events. Keep a
+            // slower reconciliation pass for chunk unloads or missed events,
+            // but do not run a bounding-box entity query for every village
+            // every second.
+            boolean noRecordedMayor = village.getMembers().values().stream()
+                    .noneMatch(member -> "MAYOR".equals(member.getProfession()));
+            if (periodicMayorAudit || noRecordedMayor) {
+                changed |= VillageGovernance.refreshMayorIfVacant(level, village);
+            }
             if (changed) {
                 registryData.setDirty();
                 VillagePOIDataCache.invalidateVillage(village.getVillageId());

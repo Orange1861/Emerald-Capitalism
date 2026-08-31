@@ -201,16 +201,13 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
      */
     @Nullable
     public BlockPos findNearbyBank(ServerLevel level) {
-        BlockPos origin = getBlockPos();
-        int r = BANK_SEARCH_RADIUS;
-        for (BlockPos candidate : BlockPos.betweenClosed(
-                origin.offset(-r, -r, -r),
-                origin.offset(r, r, r))) {
-            if (level.getBlockState(candidate).is(ECAPBlocks.BANK.get())) {
-                return candidate.immutable();
-            }
+        BankBlockEntity bank = BankBlockEntity.findNearestLoadedBank(level, getBlockPos());
+        if (bank == null
+                || bank.getBlockPos().distSqr(getBlockPos())
+                > (double) BANK_SEARCH_RADIUS * BANK_SEARCH_RADIUS) {
+            return null;
         }
-        return null;
+        return bank.getBlockPos().immutable();
     }
 
     // Deposit queue population

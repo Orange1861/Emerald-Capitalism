@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.util.LoadedChunkComposition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
@@ -63,6 +64,19 @@ final class LumberjackTreeScanner {
         int searchRange = Math.max(INITIAL_SEARCH_RANGE,
                 Math.min(MAX_SEARCH_RANGE, requestedSearchRange));
         BlockPos origin = villager.blockPosition();
+        LoadedChunkComposition composition = LoadedChunkComposition.find(
+                level,
+                origin.getX() - searchRange, origin.getX() + searchRange,
+                origin.getY() - VERTICAL_SEARCH_RANGE, origin.getY() + VERTICAL_SEARCH_RANGE,
+                origin.getZ() - searchRange, origin.getZ() + searchRange,
+                this::isLumberjackLog);
+        if (composition.isEmpty()) {
+            return List.of();
+        }
+
+        // Remove disconnected/dead lumberjacks once for the whole search. The
+        // old implementation performed this cleanup for every candidate tree.
+        LumberjackTreeReservations.prune(level);
         List<TreeSnapshot> candidates = new ArrayList<>();
         Set<BlockPos> examinedLogs = new HashSet<>();
         BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
@@ -78,12 +92,20 @@ final class LumberjackTreeScanner {
                     }
                     for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
                         candidate.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                        if (!isLumberjackLog(level.getBlockState(candidate))) {
+                        if (!composition.mayContain(candidate)) {
+                            continue;
+                        }
+                        BlockState candidateState = composition.getBlockStateIfLoaded(candidate);
+                        if (!isLumberjackLog(candidateState)) {
                             continue;
                         }
 
                         BlockPos immutableCandidate = candidate.immutable();
                         if (examinedLogs.contains(immutableCandidate)) {
+                            continue;
+                        }
+                        if (LumberjackTreeReservations.isLogReservedByOther(
+                                level, villager.getUUID(), immutableCandidate)) {
                             continue;
                         }
 
@@ -93,7 +115,7 @@ final class LumberjackTreeScanner {
                         }
 
                         TreeSnapshot found = scanTree(level, immutableCandidate, examinedLogs);
-                        if (found != null && !LumberjackTreeReservations.isReservedByOther(
+                        if (found != null && !LumberjackTreeReservations.isLogReservedByOther(
                                 level, villager.getUUID(), found.logs())) {
                             candidates.add(found);
                         }
@@ -105,14 +127,23 @@ final class LumberjackTreeScanner {
         return List.copyOf(candidates);
     }
 
+    @Nullable
+    TreeSnapshot findCandidateTreeAt(ServerLevel level, BlockPos seed) {
+        BlockState state = getLoadedBlockState(level, seed);
+        if (!isLumberjackLog(state)) {
+            return null;
+        }
+        return scanTree(level, seed.immutable(), new HashSet<>());
+    }
+
     boolean isNaturalLeaf(BlockState state) {
-        return state.is(BlockTags.LEAVES)
+        return state != null && state.is(BlockTags.LEAVES)
                 && (!state.hasProperty(LeavesBlock.PERSISTENT)
                 || !state.getValue(LeavesBlock.PERSISTENT));
     }
 
     boolean isLumberjackLog(BlockState state) {
-        return state.is(BlockTags.LOGS) && !isCherryLog(state);
+        return state != null && state.is(BlockTags.LOGS) && !isCherryLog(state);
     }
 
     @Nullable
@@ -122,7 +153,10 @@ final class LumberjackTreeScanner {
         if (logs.stream().anyMatch(pos -> isProtectedBuildingLog(level, pos))) {
             return null;
         }
-        if (logs.stream().anyMatch(pos -> isCherryLog(level.getBlockState(pos)))) {
+        if (logs.stream().anyMatch(pos -> {
+            BlockState state = getLoadedBlockState(level, pos);
+            return state == null || isCherryLog(state);
+        })) {
             return null;
         }
         if (logs.size() < MIN_LOGS || logs.size() >= MAX_LOGS) {
@@ -131,7 +165,11 @@ final class LumberjackTreeScanner {
 
         Item sapling = null;
         for (BlockPos log : logs) {
-            Item logSapling = saplingForLog(level.getBlockState(log).getBlock());
+            BlockState logState = getLoadedBlockState(level, log);
+            if (logState == null) {
+                return null;
+            }
+            Item logSapling = saplingForLog(logState.getBlock());
             if (logSapling == null) {
                 return null;
             }
@@ -151,7 +189,8 @@ final class LumberjackTreeScanner {
                             continue;
                         }
                         BlockPos adjacent = log.offset(dx, dy, dz);
-                        if (isNaturalLeaf(level.getBlockState(adjacent))) {
+                        BlockState adjacentState = getLoadedBlockState(level, adjacent);
+                        if (adjacentState != null && isNaturalLeaf(adjacentState)) {
                             directLeaves.add(adjacent.immutable());
                         }
                     }
@@ -169,7 +208,11 @@ final class LumberjackTreeScanner {
         }
 
         BlockPos base = logs.stream()
-                .filter(pos -> level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP))
+                .filter(pos -> {
+                    BlockPos below = pos.below();
+                    BlockState belowState = getLoadedBlockState(level, below);
+                    return belowState != null && belowState.isFaceSturdy(level, below, Direction.UP);
+                })
                 .min(Comparator.comparingInt(BlockPos::getY))
                 .orElse(null);
         if (base == null) {
@@ -231,7 +274,8 @@ final class LumberjackTreeScanner {
         Set<BlockPos> found = new HashSet<>();
         ArrayDeque<BlockPos> queue = new ArrayDeque<>();
         for (BlockPos seed : seeds) {
-            if (level.getBlockState(seed).is(tag) && found.add(seed.immutable())) {
+            BlockState seedState = getLoadedBlockState(level, seed);
+            if (seedState != null && seedState.is(tag) && found.add(seed.immutable())) {
                 queue.add(seed.immutable());
             }
         }
@@ -240,7 +284,8 @@ final class LumberjackTreeScanner {
             BlockPos current = queue.removeFirst();
             for (Direction direction : Direction.values()) {
                 BlockPos next = current.relative(direction);
-                if (level.getBlockState(next).is(tag) && found.add(next.immutable())) {
+                BlockState nextState = getLoadedBlockState(level, next);
+                if (nextState != null && nextState.is(tag) && found.add(next.immutable())) {
                     queue.addLast(next.immutable());
                     if (found.size() >= limit) {
                         break;
@@ -256,7 +301,8 @@ final class LumberjackTreeScanner {
         Set<BlockPos> found = new HashSet<>();
         ArrayDeque<BlockPos> queue = new ArrayDeque<>();
         for (BlockPos seed : seeds) {
-            if (isNaturalLeaf(level.getBlockState(seed))
+            BlockState seedState = getLoadedBlockState(level, seed);
+            if (seedState != null && isNaturalLeaf(seedState)
                     && logBounds.contains(seed, CANOPY_HORIZONTAL_PADDING, CANOPY_VERTICAL_PADDING)
                     && found.add(seed.immutable())) {
                 queue.add(seed.immutable());
@@ -267,7 +313,8 @@ final class LumberjackTreeScanner {
             BlockPos current = queue.removeFirst();
             for (Direction direction : Direction.values()) {
                 BlockPos next = current.relative(direction);
-                if (isNaturalLeaf(level.getBlockState(next))
+                BlockState nextState = getLoadedBlockState(level, next);
+                if (nextState != null && isNaturalLeaf(nextState)
                         && logBounds.contains(next, CANOPY_HORIZONTAL_PADDING, CANOPY_VERTICAL_PADDING)
                         && found.add(next.immutable())) {
                     queue.addLast(next.immutable());
@@ -278,6 +325,14 @@ final class LumberjackTreeScanner {
             }
         }
         return found;
+    }
+
+    @Nullable
+    private BlockState getLoadedBlockState(ServerLevel level, BlockPos pos) {
+        if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            return null;
+        }
+        return level.getBlockState(pos);
     }
 
     private boolean isCherryLog(BlockState state) {

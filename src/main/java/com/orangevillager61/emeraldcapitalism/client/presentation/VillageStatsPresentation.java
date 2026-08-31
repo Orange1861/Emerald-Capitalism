@@ -31,8 +31,6 @@ public final class VillageStatsPresentation {
         List<StatLine> lines = new ArrayList<>();
         lines.add(new StatLine("Village Opinion of You", String.valueOf(snapshot.villageOpinion()),
                 VillagePOIPresentation.opinionStyle(snapshot.villageOpinion()), false));
-        lines.add(new StatLine("Village ID", snapshot.villageId(), PresentationStyle.NEUTRAL, false));
-        lines.add(new StatLine("Bell Position", snapshot.bellPosition(), PresentationStyle.POSITIVE, false));
         lines.add(separator());
 
         lines.add(new StatLine("Villagers", String.valueOf(snapshot.villagers()), PresentationStyle.NEUTRAL, false));
@@ -70,12 +68,11 @@ public final class VillageStatsPresentation {
         lines.add(new StatLine("Iron Golem Capacity", String.valueOf(snapshot.ironGolemCapacity()), PresentationStyle.NEUTRAL, false));
         lines.add(new StatLine("Emerald Golems", String.valueOf(snapshot.emeraldGolemsPresent()), PresentationStyle.NEUTRAL, false));
         lines.add(new StatLine("Emerald Golem Capacity", String.valueOf(snapshot.emeraldGolemCapacity()), PresentationStyle.NEUTRAL, false));
-        lines.add(new StatLine(golemDifference > 0 ? "Iron Golem Room" : golemDifference < 0
-                        ? "Iron Golem Over Capacity" : "Iron Golem Status",
-                golemDifference > 0 ? "+" + golemDifference : golemDifference < 0
-                        ? String.valueOf(golemDifference) : "At capacity",
-                golemDifference > 0 ? PresentationStyle.POSITIVE
-                        : golemDifference < 0 ? PresentationStyle.NEGATIVE : PresentationStyle.WARNING, false));
+        if (golemDifference >= 0) {
+            lines.add(new StatLine(golemDifference > 0 ? "Iron Golem Room" : "Iron Golem Status",
+                    golemDifference > 0 ? "+" + golemDifference : "At capacity",
+                    golemDifference > 0 ? PresentationStyle.POSITIVE : PresentationStyle.WARNING, false));
+        }
         lines.add(separator());
 
         boolean hasBank = !snapshot.bankName().isEmpty();

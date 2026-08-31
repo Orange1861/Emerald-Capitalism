@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.client.presentation;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class VillageStatsPresentationTest {
     @Test
@@ -33,6 +34,17 @@ class VillageStatsPresentationTest {
 
         assertEquals("7", lines.stream()
                 .filter(line -> line.label().equals("Doors")).findFirst().orElseThrow().value());
+    }
+
+    @Test
+    void hidesVillageIdentityAndIronGolemOverCapacityRows() {
+        var lines = VillageStatsPresentation.lines(new VillageStatsPresentation.Snapshot(
+                0, "hidden-id", "hidden-bell", 12, 12, 12, 4, 0,
+                1, 2, 0, 0, 0, ""));
+
+        assertFalse(lines.stream().anyMatch(line -> line.label().equals("Village ID")));
+        assertFalse(lines.stream().anyMatch(line -> line.label().equals("Bell Position")));
+        assertFalse(lines.stream().anyMatch(line -> line.label().equals("Iron Golem Over Capacity")));
     }
 
     @Test

@@ -65,6 +65,8 @@ public final class POIOverlaySubscriptions {
             return;
         }
 
+        VillagePOIDataCache.evictExpired(level.dimension(), level.getGameTime(), 256);
+
         if (SUBSCRIPTIONS.isEmpty()) {
             return;
         }
@@ -107,11 +109,15 @@ public final class POIOverlaySubscriptions {
                 data.setDirty();
             }
 
+            VillagePOIDataFactory.SharedSnapshot sharedSnapshot =
+                    VillagePOIDataFactory.snapshotSharedState(village, level);
+
             for (ServerPlayer player : entry.getValue()) {
                 boolean isOp = player.hasPermissions(com.orangevillager61.emeraldcapitalism.Config.villageCommandPermissionLevel);
                 // Reputation and village opinion are viewer-specific, so each
                 // subscriber receives a packet built for that player.
-                VillagePOIDataPacket packet = VillagePOIDataCache.getOrBuild(level, village, isOp, player);
+                VillagePOIDataPacket packet = VillagePOIDataCache.getOrBuild(
+                        level, village, isOp, player, sharedSnapshot);
                 PacketDistributor.sendToPlayer(player, packet);
             }
         }

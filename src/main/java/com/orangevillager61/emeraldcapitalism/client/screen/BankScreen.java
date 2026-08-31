@@ -42,7 +42,7 @@ import java.util.UUID;
  * <p>
  * Main tabs cover:
  * <ul>
- *   <li><b>Overview</b>: chest count, emerald totals, deposit queue, scrollable chest list</li>
+ *   <li><b>Overview</b>: tracked chest stats and emerald totals</li>
  *   <li><b>Accounts</b>: scrollable list of villager accounts (name + balance)</li>
  *   <li><b>Employees</b>: registered bank employees and their professions</li>
  *   <li><b>Control</b>: bank targets, delivery settings, and guard behavior</li>
@@ -91,13 +91,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private EditBox renameBox;
     private Button renameBtn;
     private Button controlBtn;
+    private Button craftingTabBtn;
     private boolean renameMode = false;
     private boolean canRename;
-
-    // Overview tab
-    private List<String> chestLines = List.of();
-    private int overviewScrollOffset = 0;
-    private int maxVisibleRows;
 
     // Accounts tab
     private int accountScrollOffset = 0;
@@ -196,7 +192,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 .bounds(leftPos + PADDING + (TAB_W + 4) * 4, tabRowY, TAB_W, TAB_H)
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Crafting"),
+        craftingTabBtn = addRenderableWidget(Button.builder(Component.literal("Crafting"),
                 btn -> switchTab(Tab.CRAFTING))
                 .bounds(leftPos + PADDING + (TAB_W + 4) * 5, tabRowY, TAB_W, TAB_H)
                 .build());
@@ -229,21 +225,19 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             renameBox.setValue(displayBankName);
         }
 
-        buildChestLines();
         buildAccountDisplayItems();
         buildMarketWidgets();
         buildControlWidgets();
         updateControlButton();
-
-        int contentAbsTop = topPos + contentTopRel;
-        int contentBottom = topPos + imageHeight - PADDING;
-        maxVisibleRows = Math.max(1, (contentBottom - contentAbsTop) / ROW_HEIGHT);
+        updateCraftingTabVisibility();
     }
 
     private void switchTab(Tab tab) {
+        if (tab == Tab.CRAFTING && !canEditControl()) {
+            tab = Tab.OVERVIEW;
+        }
         this.activeTab = tab;
         menu.setCraftingVisible(tab == Tab.CRAFTING);
-        overviewScrollOffset = 0;
         accountScrollOffset = 0;
         employeeScrollOffset = 0;
         boolean marketVisible = tab == Tab.MARKET;
@@ -318,6 +312,17 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         }
     }
 
+    private void updateCraftingTabVisibility() {
+        if (craftingTabBtn == null) {
+            return;
+        }
+        boolean visible = canEditControl();
+        craftingTabBtn.visible = visible;
+        if (!visible && activeTab == Tab.CRAFTING) {
+            switchTab(Tab.OVERVIEW);
+        }
+    }
+
     // Rendering
 
     @Override
@@ -389,6 +394,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     public void render(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         refreshMarketSnapshot();
         updateControlButton();
+        updateCraftingTabVisibility();
         updateControlWidgets();
         updateMarketControls();
         super.render(g, mouseX, mouseY, partialTick);
@@ -445,12 +451,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 emeraldGolemCapacity > 0 ? VALUE_COLOR : LABEL_COLOR);
         y += ROW_HEIGHT;
 
-        // Deposit queue
-        int queueSize = m.getDepositQueueSize();
-        int queueColor = queueSize > 0 ? QUEUE_COLOR : LABEL_COLOR;
-        drawRow(g, y, "Deposit queue:", queueSize + " awaiting", queueColor);
-        y += ROW_HEIGHT;
-
         // Separator
         g.fill(LABEL_X, y, VALUE_X + 100, y + 1, SEP_COLOR);
         y += 5;
@@ -478,47 +478,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         drawRow(g, y, "Total emerald ore:", String.valueOf(emeraldOre), emeraldOreColor);
         y += ROW_HEIGHT;
 
-        int fullInterval   = BankBlockEntity.FULL_SCAN_INTERVAL / 20;
-        int verifyInterval = BankBlockEntity.VERIFY_INTERVAL / 20;
-        drawRow(g, y, "Rescan every:", fullInterval + " s  (verify " + verifyInterval + " s)", LABEL_COLOR);
-        y += ROW_HEIGHT;
-
-        // Chest position list
-        if (chestLines.isEmpty()) {
-            g.drawString(font, "No chests in range.", LABEL_X, y + 4, LABEL_COLOR);
-            return;
-        }
-
-        g.fill(LABEL_X, y + 2, VALUE_X + 100, y + 3, SEP_COLOR);
-        y += 6;
-        g.drawString(font, "Chest positions:", LABEL_X, y, DARK_GREEN);
-        y += ROW_HEIGHT;
-
-        int visibleCount = Math.min(maxVisibleRows - /* rows above list */ 0, chestLines.size() - overviewScrollOffset);
-        // Clamp to available vertical space
-        int panelBottom = imageHeight - PADDING;
-        int maxFromSpace = (panelBottom - y) / ROW_HEIGHT;
-        visibleCount = Math.min(visibleCount, maxFromSpace);
-
-        for (int i = 0; i < visibleCount; i++) {
-            int rowY = y + i * ROW_HEIGHT;
-            if (i % 2 == 0) {
-                g.fill(LABEL_X - 2, rowY - 1, LABEL_X + imageWidth - PADDING * 2 + 2, rowY + ROW_HEIGHT - 2, 0x20FFFFFF);
-            }
-            g.drawString(font, chestLines.get(overviewScrollOffset + i), LABEL_X + 4, rowY, 0xCCCCCC);
-        }
-
-        // Scrollbar for chest list
-        if (chestLines.size() > visibleCount) {
-            int barX      = imageWidth - PADDING - 4;
-            int barTop    = y;
-            int barHeight = visibleCount * ROW_HEIGHT;
-            int thumbH    = Math.max(8, barHeight * visibleCount / chestLines.size());
-            int thumbY    = barTop + (barHeight - thumbH) * overviewScrollOffset
-                    / Math.max(1, chestLines.size() - visibleCount);
-            g.fill(barX, barTop, barX + 3, barTop + barHeight, 0x40FFFFFF);
-            g.fill(barX, thumbY, barX + 3, thumbY + thumbH, 0xAAFFFFFF);
-        }
     }
 
     // Accounts tab
@@ -1022,6 +981,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private boolean canEditControl() {
         return minecraft != null && minecraft.player != null && !minecraft.player.isSpectator()
+                && !menu.isBankIndependent()
                 && menu.getControllerId() != null
                 && menu.getControllerId().equals(minecraft.player.getUUID());
     }
@@ -1417,11 +1377,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         if (activeTab == Tab.MARKET && marketList != null && marketList.isMouseOver(mouseX, mouseY)) {
             return marketList.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         }
-        if (activeTab == Tab.OVERVIEW && !chestLines.isEmpty()) {
-            overviewScrollOffset = Math.max(0,
-                    Math.min(overviewScrollOffset - (int) scrollY, chestLines.size() - 1));
-            return true;
-        }
         if (activeTab == Tab.ACCOUNTS && !accountDisplayItems.isEmpty()) {
             accountScrollOffset = Math.max(0,
                     Math.min(accountScrollOffset - (int) scrollY, accountDisplayItems.size() - 1));
@@ -1460,13 +1415,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 .map(entry -> new BankPresentation.AccountSnapshot(
                         entry.name(), entry.balance(), entry.isQueued(), entry.queuePosition()))
                 .toList());
-    }
-
-    private void buildChestLines() {
-        List<BankPresentation.ChestPosition> positions = menu.getChestPositions().stream()
-                .map(pos -> new BankPresentation.ChestPosition(pos.getX(), pos.getY(), pos.getZ()))
-                .toList();
-        chestLines = BankPresentation.chestLines(positions, BankMenuOpenData.MAX_CHEST_POSITIONS, menu.getChestCount());
     }
 
     private final class MarketItemList extends ObjectSelectionList<MarketItemList.Entry> {

@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
+import com.orangevillager61.emeraldcapitalism.util.LoadedChunkComposition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -161,11 +162,21 @@ public final class VillageManagerPlacement {
         BlockPos closest = null;
         double closestDist = Double.MAX_VALUE;
         int yLimit = Math.min(radius, 16);
+        LoadedChunkComposition composition = LoadedChunkComposition.find(
+                level,
+                center.getX() - radius, center.getX() + radius,
+                center.getY() - yLimit, center.getY() + yLimit,
+                center.getZ() - radius, center.getZ() + radius,
+                state -> state.is(Blocks.BELL));
+        if (composition.isEmpty()) {
+            return null;
+        }
 
         for (BlockPos pos : BlockPos.betweenClosed(
                 center.offset(-radius, -yLimit, -radius),
                 center.offset(radius, yLimit, radius))) {
-            if (level.getBlockState(pos).is(Blocks.BELL)) {
+            BlockState state = composition.getBlockStateIfLoaded(pos);
+            if (composition.mayContain(pos) && state != null && state.is(Blocks.BELL)) {
                 double dist = center.distSqr(pos);
                 if (dist < closestDist) {
                     closestDist = dist;

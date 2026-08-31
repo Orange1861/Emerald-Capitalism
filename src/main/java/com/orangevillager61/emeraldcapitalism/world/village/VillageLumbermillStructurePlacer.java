@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -277,6 +278,7 @@ public final class VillageLumbermillStructurePlacer {
                 replaceJigsawBlocks(level, plan.placementBox(), origin.getY(),
                         plan.template().getSize().getY(), plan.rotation());
                 correctEntranceStairFacing(level, plan);
+                LumberjackSaplingCache.trackLumbermillSaplings(level, plan.placementBox());
                 EmeraldCapitalism.LOGGER.info(
                         "[ECAP] Placed mandatory village lumbermill {} at {}",
                         plan.templateLocation(), origin);

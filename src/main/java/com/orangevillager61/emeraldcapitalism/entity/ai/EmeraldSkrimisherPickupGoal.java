@@ -11,11 +11,13 @@ import java.util.EnumSet;
 public final class EmeraldSkrimisherPickupGoal extends Goal {
 
     private static final double SEARCH_RADIUS = 16.0D;
+    private static final int SEARCH_INTERVAL_TICKS = 5;
     private static final double PICKUP_DISTANCE_SQR = 4.0D;
     private static final double SPEED = 0.7D;
 
     private final EmeraldSkrimisher skrimisher;
     private ItemEntity targetItem;
+    private long nextSearchTick;
 
     public EmeraldSkrimisherPickupGoal(EmeraldSkrimisher skrimisher) {
         this.skrimisher = skrimisher;
@@ -27,6 +29,11 @@ public final class EmeraldSkrimisherPickupGoal extends Goal {
         if (skrimisher.level().isClientSide() || skrimisher.getTarget() != null) {
             return false;
         }
+        long gameTime = skrimisher.level().getGameTime();
+        if (gameTime < nextSearchTick) {
+            return false;
+        }
+        nextSearchTick = gameTime + SEARCH_INTERVAL_TICKS;
         targetItem = findNearestWantedItem();
         return targetItem != null;
     }

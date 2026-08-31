@@ -54,14 +54,12 @@ public final class VillagePOIDataFactory {
     /** Builds a viewer-specific snapshot for a ledger/overlay requester. */
     public static VillagePOIDataPacket build(VillageRecord village, ServerLevel level, boolean isOp,
                                              @Nullable ServerPlayer requester) {
-        boolean includeDetailedCoordinates = isOp || !Config.redactNonOpVillagePoiDetails;
-        Map<UUID, VillagerPOIRecord> snapshot = village.getMembersSnapshot();
-        List<VillagerPOIRecord> records = includeDetailedCoordinates
-                ? withViewerOpinions(snapshot, village, level, requester)
-                : List.of();
+        return build(village, level, isOp, requester, null);
+    }
+
+    /** Shared live values used to avoid repeating village-wide entity queries per viewer. */
+    static SharedSnapshot snapshotSharedState(VillageRecord village, ServerLevel level) {
         int[] beds = village.countBeds(level);
-        int villagerCount = snapshot.size();
-        int ironGolemCapacity = villagerCount / 10;
         int ironGolemsPresent = level.getEntitiesOfClass(
                 IronGolem.class,
                 village.getBoundingBox(),
@@ -69,6 +67,34 @@ public final class VillagePOIDataFactory {
         ).size();
         int emeraldGolemsPresent = level.getEntitiesOfClass(
                 EmeraldGolem.class, village.getBoundingBox(), EmeraldGolem::isAlive).size();
+        return new SharedSnapshot(
+                beds[0], beds[1], ironGolemsPresent, emeraldGolemsPresent,
+                VillageGovernance.hasLivingMayor(level, village));
+    }
+
+    static VillagePOIDataPacket build(VillageRecord village, ServerLevel level, boolean isOp,
+                                      @Nullable ServerPlayer requester,
+                                      @Nullable SharedSnapshot sharedSnapshot) {
+        boolean includeDetailedCoordinates = isOp || !Config.redactNonOpVillagePoiDetails;
+        Map<UUID, VillagerPOIRecord> snapshot = village.getMembersSnapshot();
+        List<VillagerPOIRecord> records = includeDetailedCoordinates
+                ? withViewerOpinions(snapshot, village, level, requester)
+                : List.of();
+        int[] beds = sharedSnapshot == null ? village.countBeds(level) : null;
+        int occupiedBeds = sharedSnapshot == null ? beds[0] : sharedSnapshot.occupiedBeds();
+        int totalBeds = sharedSnapshot == null ? beds[1] : sharedSnapshot.totalBeds();
+        int villagerCount = snapshot.size();
+        int ironGolemCapacity = villagerCount / 10;
+        int ironGolemsPresent = sharedSnapshot == null
+                ? level.getEntitiesOfClass(
+                IronGolem.class,
+                village.getBoundingBox(),
+                golem -> golem.isAlive() && !(golem instanceof EmeraldGolem)
+        ).size() : sharedSnapshot.ironGolemsPresent();
+        int emeraldGolemsPresent = sharedSnapshot == null
+                ? level.getEntitiesOfClass(
+                EmeraldGolem.class, village.getBoundingBox(), EmeraldGolem::isAlive).size()
+                : sharedSnapshot.emeraldGolemsPresent();
         BankBlockEntity bank = resolveBank(village, level);
         int emeraldGolemCapacity = bank == null
                 ? 0
@@ -83,7 +109,9 @@ public final class VillagePOIDataFactory {
                 && village.getGovernorCandidateId() == null
                 && VillageRelationship.canBecomeGovernorCandidate(
                 villageOpinionOfPlayer, Config.governorCandidateOpinionThreshold)
-                && VillageGovernance.hasLivingMayor(level, village);
+                && (sharedSnapshot == null
+                ? VillageGovernance.hasLivingMayor(level, village)
+                : sharedSnapshot.hasLivingMayor());
         AABB box = village.getBoundingBox();
 
         // Reuse the bank resolved above instead of repeating the manager/block-entity lookup.
@@ -98,7 +126,7 @@ public final class VillagePOIDataFactory {
                         includeDetailedCoordinates ? village.getBellPosition() : BlockPos.ZERO),
                 records,
                 new VillagePOIDataPacket.Totals(
-                        beds[0], beds[1],
+                        occupiedBeds, totalBeds,
                         includeDetailedCoordinates ? village.getJobSites() : List.of(),
                         includeDetailedCoordinates ? village.getBedPositions() : List.of()),
                 new VillagePOIDataPacket.RepairData(
@@ -119,6 +147,10 @@ public final class VillagePOIDataFactory {
                         includeDetailedCoordinates ? box.maxY : 0,
                         includeDetailedCoordinates ? box.maxZ : 0),
                 new VillagePOIDataPacket.Messages(village.getWelcomeMessage(), bankName));
+    }
+
+    record SharedSnapshot(int occupiedBeds, int totalBeds, int ironGolemsPresent,
+                          int emeraldGolemsPresent, boolean hasLivingMayor) {
     }
 
     private static List<VillagerPOIRecord> withViewerOpinions(Map<UUID, VillagerPOIRecord> snapshot,

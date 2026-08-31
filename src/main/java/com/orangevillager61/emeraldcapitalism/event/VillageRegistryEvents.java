@@ -15,10 +15,13 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithProcessorGoa
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithGolemConstructionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
+import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackTreeReservations;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorDoorRepairGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorFollowGovernorCandidateGoal;
 import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBehavior;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
+import com.orangevillager61.emeraldcapitalism.network.VillagePOIDataCache;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.DuplicateVillageBlocksPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestExpandBoundsPacket;
@@ -59,6 +62,7 @@ import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -112,6 +116,9 @@ public class VillageRegistryEvents {
                 manager.shutdown();
             }
             BankBlockEntity.clearLoadedBanks(serverLevel);
+            LumberjackSaplingCache.clear(serverLevel);
+            LumberjackTreeReservations.clear(serverLevel);
+            VillagePOIDataCache.invalidateDimension(serverLevel.dimension());
             InteractWithFenceGateBehavior.clearGateUseCache();
             VillageHostility.clearLookupCache();
             VillageOpinionCache.clearAll();
@@ -259,15 +266,18 @@ public class VillageRegistryEvents {
 
         for (VillageRecord village : data.getVillages().values()) {
             AABB searchArea = village.getBoundingBox().inflate(BANK_GOLEM_CONNECTION_RADIUS);
+            List<ServerPlayer> nearbyPlayers = level.players().stream()
+                    .filter(player -> !player.isSpectator()
+                            && searchArea.contains(player.getX(), player.getY(), player.getZ()))
+                    .toList();
+            if (nearbyPlayers.isEmpty()) {
+                continue;
+            }
             // Emerald golems extend IronGolem, so this single query covers both
             // types without processing emerald golems twice.
             var golems = level.getEntitiesOfClass(IronGolem.class, searchArea, IronGolem::isAlive);
 
-            for (ServerPlayer player : level.players()) {
-                if (player.isSpectator()
-                        || !searchArea.contains(player.getX(), player.getY(), player.getZ())) {
-                    continue;
-                }
+            for (ServerPlayer player : nearbyPlayers) {
                 boolean villageHostile = village.getVillageOpinion(level, player) <= GOLEM_HOSTILITY_THRESHOLD;
 
                 for (IronGolem golem : golems) {
@@ -345,6 +355,11 @@ public class VillageRegistryEvents {
 
         if (!(event.getEntity() instanceof Villager villager)) {
             return;
+        }
+
+        if (villager.getVillagerData().getProfession()
+                == ECAPVillagerProfessions.LUMBERJACK.get()) {
+            LumberjackSaplingCache.clearOwner(serverLevel, villager.getUUID());
         }
 
         VillageRegistryManager manager = MANAGERS.get(serverLevel);
@@ -509,6 +524,7 @@ public class VillageRegistryEvents {
             RequestExpandBoundsPacket.onPlayerDisconnect(player.getUUID());
             DuplicateVillageBlocksPacket.onPlayerDisconnect(player.getUUID());
             BankReputationEvents.clearPlayer(player.getUUID());
+            VillagePOIDataCache.invalidateViewer(player.getUUID());
             PLAYER_VILLAGE_MAP.remove(player.getUUID());
         }
     }
@@ -524,6 +540,7 @@ public class VillageRegistryEvents {
             RequestFullScanPacket.onPlayerDisconnect(player.getUUID());
             RequestExpandBoundsPacket.onPlayerDisconnect(player.getUUID());
             BankReputationEvents.clearPlayer(player.getUUID());
+            VillagePOIDataCache.invalidateViewer(player.getUUID());
             PLAYER_VILLAGE_MAP.remove(player.getUUID());
         }
     }

@@ -178,7 +178,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                 navigationTarget, context.constructionPos());
 
         stage = Stage.PROCESSOR;
-        EmeraldCapitalism.LOGGER.info(
+        EmeraldCapitalism.LOGGER.debug(
                 "[EmeraldsmithGolem] START villager={} uuid={} bank={} processor={} construction={} type={}",
                 villager.getName().getString(), villager.getUUID(), context.bank().getBlockPos(),
                 context.processorPos(), context.constructionPos(), constructionType);
@@ -221,7 +221,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             nextPlacementTick = level.getGameTime();
             villager.getNavigation().stop();
             villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-            EmeraldCapitalism.LOGGER.info(
+            EmeraldCapitalism.LOGGER.debug(
                     "[EmeraldsmithGolem] STAGE villager={} carved pumpkin at processor={}; constructing at marker={}",
                     villager.getName().getString(), context.processorPos(), context.constructionPos());
             return;
@@ -231,7 +231,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         if (constructionResult == ConstructionResult.SUCCESS) {
             finished = true;
             nextActionTick = level.getGameTime() + SUCCESS_COOLDOWN;
-            EmeraldCapitalism.LOGGER.info(
+            EmeraldCapitalism.LOGGER.debug(
                     "[EmeraldsmithGolem] SUCCESS villager={} bank={} registeredGolems={} capacity={}",
                     villager.getName().getString(), context.bank().getBlockPos(),
                     context.bank().getRegisteredEmeraldGolemCount(),
@@ -248,7 +248,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
         if (villager.level() instanceof ServerLevel level && context != null) {
             if (!finished) {
-                EmeraldCapitalism.LOGGER.warn(
+                EmeraldCapitalism.LOGGER.debug(
                         "[EmeraldsmithGolem] INTERRUPTED villager={} uuid={} stage={} sleeping={} trading={} breeding={}",
                         villager.getName().getString(), villager.getUUID(), stage,
                         villager.isSleeping(), villager.isTrading(),
@@ -286,7 +286,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     }
 
     private void finishWithFailure(ServerLevel level) {
-        EmeraldCapitalism.LOGGER.warn(
+        EmeraldCapitalism.LOGGER.debug(
                 "[EmeraldsmithGolem] FAILED villager={} uuid={} stage={} reason={}",
                 villager.getName().getString(), villager.getUUID(), stage, failureReason);
         finished = true;

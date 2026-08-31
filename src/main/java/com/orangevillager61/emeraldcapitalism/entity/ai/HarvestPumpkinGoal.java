@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
+import com.orangevillager61.emeraldcapitalism.util.LoadedChunkComposition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -118,6 +119,16 @@ public class HarvestPumpkinGoal extends Goal {
     @Nullable
     private BlockPos findNearestAttachedPumpkin(ServerLevel level) {
         BlockPos origin = villager.blockPosition();
+        LoadedChunkComposition composition = LoadedChunkComposition.find(
+                level,
+                origin.getX() - SEARCH_RANGE, origin.getX() + SEARCH_RANGE,
+                origin.getY() - VERTICAL_SEARCH_RANGE, origin.getY() + VERTICAL_SEARCH_RANGE,
+                origin.getZ() - SEARCH_RANGE, origin.getZ() + SEARCH_RANGE,
+                state -> state.is(Blocks.PUMPKIN));
+        if (composition.isEmpty()) {
+            return null;
+        }
+
         BlockPos nearest = null;
         double nearestDistanceSq = Double.MAX_VALUE;
 
@@ -125,7 +136,8 @@ public class HarvestPumpkinGoal extends Goal {
             for (int z = -SEARCH_RANGE; z <= SEARCH_RANGE; z++) {
                 for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
                     BlockPos candidate = origin.offset(x, y, z);
-                    if (!isAttachedPumpkin(level, candidate)) {
+                    if (!composition.mayContain(candidate)
+                            || !isAttachedPumpkin(composition, candidate)) {
                         continue;
                     }
                     double distanceSq = origin.distSqr(candidate);
@@ -140,13 +152,37 @@ public class HarvestPumpkinGoal extends Goal {
     }
 
     private boolean isAttachedPumpkin(ServerLevel level, BlockPos pumpkinPos) {
-        if (!level.getBlockState(pumpkinPos).is(Blocks.PUMPKIN)) {
+        if (!level.hasChunk(pumpkinPos.getX() >> 4, pumpkinPos.getZ() >> 4)) {
+            return false;
+        }
+        BlockState pumpkinState = level.getBlockState(pumpkinPos);
+        if (!pumpkinState.is(Blocks.PUMPKIN)) {
             return false;
         }
 
         for (Direction direction : Direction.Plane.HORIZONTAL) {
-            BlockState stemState = level.getBlockState(pumpkinPos.relative(direction));
+            BlockPos stemPos = pumpkinPos.relative(direction);
+            if (!level.hasChunk(stemPos.getX() >> 4, stemPos.getZ() >> 4)) {
+                continue;
+            }
+            BlockState stemState = level.getBlockState(stemPos);
             if (stemState.is(Blocks.ATTACHED_PUMPKIN_STEM)
+                    && stemState.getValue(HorizontalDirectionalBlock.FACING) == direction.getOpposite()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isAttachedPumpkin(LoadedChunkComposition composition, BlockPos pumpkinPos) {
+        BlockState pumpkinState = composition.getBlockStateIfLoaded(pumpkinPos);
+        if (pumpkinState == null || !pumpkinState.is(Blocks.PUMPKIN)) {
+            return false;
+        }
+
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockState stemState = composition.getBlockStateIfLoaded(pumpkinPos.relative(direction));
+            if (stemState != null && stemState.is(Blocks.ATTACHED_PUMPKIN_STEM)
                     && stemState.getValue(HorizontalDirectionalBlock.FACING) == direction.getOpposite()) {
                 return true;
             }
