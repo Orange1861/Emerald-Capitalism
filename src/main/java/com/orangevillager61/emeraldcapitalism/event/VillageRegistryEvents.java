@@ -20,6 +20,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MayorFollowGovernorCandi
 import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBehavior;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
+import com.orangevillager61.emeraldcapitalism.network.DuplicateVillageBlocksPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestExpandBoundsPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestFullScanPacket;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
@@ -506,6 +507,7 @@ public class VillageRegistryEvents {
             POIOverlaySubscriptions.onPlayerDisconnect(player.getUUID());
             RequestFullScanPacket.onPlayerDisconnect(player.getUUID());
             RequestExpandBoundsPacket.onPlayerDisconnect(player.getUUID());
+            DuplicateVillageBlocksPacket.onPlayerDisconnect(player.getUUID());
             BankReputationEvents.clearPlayer(player.getUUID());
             PLAYER_VILLAGE_MAP.remove(player.getUUID());
         }

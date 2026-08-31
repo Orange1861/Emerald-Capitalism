@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.client.presentation.VillagePOIPres
 import com.orangevillager61.emeraldcapitalism.client.presentation.VillageStatsPresentation;
 import com.orangevillager61.emeraldcapitalism.network.RenameVillagePacket;
 import com.orangevillager61.emeraldcapitalism.network.BecomeGovernorCandidatePacket;
+import com.orangevillager61.emeraldcapitalism.network.DuplicateVillageBlocksPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestExpandBoundsPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestFullScanPacket;
 import com.orangevillager61.emeraldcapitalism.network.ResetVillageCachePacket;
@@ -87,6 +88,7 @@ public class VillagePOIScreen extends Screen {
     private Button renameBtn;
     private Button welcomeBtn;
     private Button claimOwnershipBtn;
+    private Button duplicateBlocksBtn;
     private Button farmlandRepairBtn;
     private Button farmlandResetBtn;
     private Button doorRepairBtn;
@@ -199,6 +201,11 @@ public class VillagePOIScreen extends Screen {
                 Component.literal("Claim Village Ownership"),
                 btn -> claimVillageOwnership())
                 .bounds(tableLeft, contentTop, 170, TAB_BUTTON_HEIGHT)
+                .build());
+        duplicateBlocksBtn = addRenderableWidget(Button.builder(
+                Component.literal("Duplicate"),
+                btn -> duplicateVillageBlocks())
+                .bounds(tableLeft + 180, contentTop, 90, TAB_BUTTON_HEIGHT)
                 .build());
 
         int ownershipDetailsY = contentTop + TAB_BUTTON_HEIGHT + OWNERSHIP_ROW_GAP;
@@ -443,6 +450,11 @@ public class VillagePOIScreen extends Screen {
             claimOwnershipBtn.visible = activeTab == Tab.OWNERSHIP;
             claimOwnershipBtn.active = hasData && !scanInProgress;
         }
+        if (duplicateBlocksBtn != null) {
+            duplicateBlocksBtn.visible = activeTab == Tab.OWNERSHIP;
+            duplicateBlocksBtn.active = hasData && !scanInProgress
+                    && VillagePOIClientCache.getRelationship() == VillageRelationship.GOVERNOR;
+        }
         super.render(graphics, mouseX, mouseY, partialTick);
 
         long cacheTimestamp = VillagePOIClientCache.getUpdateTimestamp();
@@ -533,6 +545,19 @@ public class VillagePOIScreen extends Screen {
         }
         claimOwnershipBtn.active = false;
         PacketDistributor.sendToServer(new BecomeGovernorCandidatePacket(villageId));
+    }
+
+    private void duplicateVillageBlocks() {
+        if (duplicateBlocksBtn == null || !duplicateBlocksBtn.active
+                || !VillagePOIClientCache.hasData()
+                || !requireGovernor("duplicate village blocks")) {
+            return;
+        }
+        UUID villageId = VillagePOIClientCache.getVillageId();
+        if (villageId == null) {
+            return;
+        }
+        PacketDistributor.sendToServer(new DuplicateVillageBlocksPacket(villageId));
     }
 
     private void renderVillagersTab(GuiGraphics graphics, int mouseX, int mouseY) {

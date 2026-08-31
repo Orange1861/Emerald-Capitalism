@@ -96,6 +96,13 @@ public final class ECAPNetworking {
                 BecomeGovernorCandidatePacket::handle
         );
 
+        // Client → Server: request another Village Manager and Bank block
+        registrar.playToServer(
+                DuplicateVillageBlocksPacket.TYPE,
+                DuplicateVillageBlocksPacket.STREAM_CODEC,
+                DuplicateVillageBlocksPacket::handle
+        );
+
         // Client → Server: change the bank's independent/controller state
         registrar.playToServer(
                 SetBankControlPacket.TYPE,
