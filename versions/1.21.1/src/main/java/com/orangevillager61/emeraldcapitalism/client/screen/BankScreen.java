@@ -5,6 +5,7 @@ import com.orangevillager61.emeraldcapitalism.client.presentation.BankPresentati
 import com.orangevillager61.emeraldcapitalism.market.MarketPricingEngine;
 import com.orangevillager61.emeraldcapitalism.market.MarketDemandContext;
 import com.orangevillager61.emeraldcapitalism.market.MarketTradeQuote;
+import com.orangevillager61.emeraldcapitalism.market.MarketTradeService;
 import com.orangevillager61.emeraldcapitalism.market.TradeSide;
 import com.orangevillager61.emeraldcapitalism.market.MarketMetric;
 import com.orangevillager61.emeraldcapitalism.market.MarketTradeType;
@@ -14,6 +15,7 @@ import com.orangevillager61.emeraldcapitalism.network.MarketDataClientCache;
 import com.orangevillager61.emeraldcapitalism.network.MarketTradePacket;
 import com.orangevillager61.emeraldcapitalism.network.RenameBankPacket;
 import com.orangevillager61.emeraldcapitalism.network.SetBankControlPacket;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -109,6 +111,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private String marketNotice = "";
     private boolean marketUnavailable;
     private List<BankMenu.MarketEntry> lastMarketEntries = List.of();
+    private List<BankMenu.MarketEntry> displayedMarketEntries = List.of();
 
     // Cached content-top relative to panel top-left (computed in init)
     private int contentTopRel;
@@ -710,7 +713,16 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private void refreshMarketList() {
         if (marketList == null) return;
-        List<MarketItemList.Entry> entries = menu.getMarketEntries().stream()
+        String selectedId = selectedMarketEntry() == null ? null : selectedMarketEntry().id();
+        displayedMarketEntries = BankPresentation.sortMarketEntries(
+                menu.getMarketEntries(), this::isMarketUnavailableForBank);
+        if (selectedId != null) {
+            int selectedPosition = indexOfMarketEntry(selectedId);
+            if (selectedPosition >= 0) {
+                selectedMarketIndex = selectedPosition;
+            }
+        }
+        List<MarketItemList.Entry> entries = displayedMarketEntries.stream()
                 .map(entry -> marketList.new Entry(entry)).toList();
         if (selectedMarketIndex >= entries.size()) selectedMarketIndex = 0;
         marketList.setEntries(entries);
@@ -719,8 +731,17 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     }
 
     private BankMenu.MarketEntry selectedMarketEntry() {
-        List<BankMenu.MarketEntry> entries = menu.getMarketEntries();
+        List<BankMenu.MarketEntry> entries = displayedMarketEntries;
         return entries.isEmpty() ? null : entries.get(Math.min(selectedMarketIndex, entries.size() - 1));
+    }
+
+    private int indexOfMarketEntry(String id) {
+        for (int i = 0; i < displayedMarketEntries.size(); i++) {
+            if (displayedMarketEntries.get(i).id().equals(id)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private ItemStack marketStack(BankMenu.MarketEntry entry) {
@@ -791,7 +812,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             marketNotice = "Executes " + quote.quantity() + "; "
                     + (parseMarketQuantity() - quote.quantity()) + " remains.";
         }
-        if (quote.valid() && minecraft != null && minecraft.player != null) {
+        if (quote.valid() && marketBuy && isMapTrade(entry) && !hasMapSalePermission(entry)) {
+            marketError = mapSalePermissionMessage();
+        } else if (quote.valid() && minecraft != null && minecraft.player != null) {
             int quantity = quote.quantity();
             int held = countMarketItem(minecraft.player.getInventory(), entry);
             int emeralds = countPlayerItem(minecraft.player.getInventory(), net.minecraft.world.item.Items.EMERALD);
@@ -1001,7 +1024,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 g.drawString(font, name, left + 24, top + 1, TITLE_COLOR);
                 MarketTradeQuote offerQuote = marketOfferQuote(marketEntry);
                 String offer = fitMarketText(marketOfferLabel(marketEntry, offerQuote), width - 34);
-                g.drawString(font, offer, left + 24, top + 13, marketOfferColor(offerQuote));
+                g.drawString(font, offer, left + 24, top + 13, marketOfferColor(marketEntry, offerQuote));
                 drawSupplyBar(g, left + 24, top + 24, width - 30, marketEntry, marketEntry.stock(), false);
             }
 
@@ -1047,6 +1070,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         if (!quote.valid()) {
             return "Unavailable";
         }
+        if (isMapTrade(entry) && !hasMapSalePermission(entry)) {
+            return "Requires bank opinion +" + MarketTradeService.MAP_SALE_BANK_OPINION_THRESHOLD;
+        }
         if (quote.emeraldAmount() == 0) {
             return "Bank has too few " + pluralMarketItemName(entry.displayName());
         }
@@ -1065,8 +1091,28 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         return "bread".equals(itemName) ? itemName : itemName + "s";
     }
 
-    private int marketOfferColor(MarketTradeQuote quote) {
-        return quote.valid() && quote.emeraldAmount() == 0 ? WARN_COLOR : VALUE_COLOR;
+    private int marketOfferColor(BankMenu.MarketEntry entry, MarketTradeQuote quote) {
+        return !quote.valid() || (isMapTrade(entry) && !hasMapSalePermission(entry))
+                || quote.emeraldAmount() == 0 ? WARN_COLOR : VALUE_COLOR;
+    }
+
+    private boolean isMarketUnavailableForBank(BankMenu.MarketEntry entry) {
+        MarketTradeQuote quote = marketOfferQuote(entry);
+        return !quote.valid() || (isMapTrade(entry) && !hasMapSalePermission(entry));
+    }
+
+    private boolean isMapTrade(BankMenu.MarketEntry entry) {
+        return ECAPItems.ABANDONED_VAULT_MAP.getId().toString().equals(entry.itemId());
+    }
+
+    private boolean hasMapSalePermission(BankMenu.MarketEntry entry) {
+        return !isMapTrade(entry)
+                || menu.getBankOpinion() >= MarketTradeService.MAP_SALE_BANK_OPINION_THRESHOLD;
+    }
+
+    private String mapSalePermissionMessage() {
+        return "Requires bank opinion of at least +"
+                + MarketTradeService.MAP_SALE_BANK_OPINION_THRESHOLD + ".";
     }
 
     private boolean supportsBothFixedDirections(BankMenu.MarketEntry entry) {

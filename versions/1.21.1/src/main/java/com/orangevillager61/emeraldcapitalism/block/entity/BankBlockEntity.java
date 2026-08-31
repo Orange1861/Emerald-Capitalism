@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,9 @@ import java.util.function.Predicate;
  * passes keep the cache synchronized with the world.
  */
 public class BankBlockEntity extends BlockEntity implements MenuProvider {
+
+    /** Loaded banks indexed by level so chest/processor updates do not scan a block cube. */
+    private static final Map<ServerLevel, Set<BankBlockEntity>> LOADED_BANKS = new IdentityHashMap<>();
 
     // Scanning constants
 
@@ -441,27 +445,38 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Marks every loaded bank whose search cube contains a changed chest or processor. */
     public static void markChestCachesDirtyNear(ServerLevel level, BlockPos chestPos) {
-        // fullScan() checks [bank - SEARCH_RADIUS, bank + SEARCH_RADIUS + 1] on each axis.
-        // Invert that range so the event path reaches exactly the same banks.
-        int minX = chestPos.getX() - SEARCH_RADIUS - 1;
-        int minY = chestPos.getY() - SEARCH_RADIUS - 1;
-        int minZ = chestPos.getZ() - SEARCH_RADIUS - 1;
-        int maxX = chestPos.getX() + SEARCH_RADIUS;
-        int maxY = chestPos.getY() + SEARCH_RADIUS;
-        int maxZ = chestPos.getZ() + SEARCH_RADIUS;
-        BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    candidate.set(x, y, z);
-                    if (level.hasChunk(candidate.getX() >> 4, candidate.getZ() >> 4)
-                            && level.getBlockEntity(candidate) instanceof BankBlockEntity bank) {
-                        bank.chestCacheDirty = true;
-                        bank.processorCacheDirty = true;
-                    }
-                }
+        Set<BankBlockEntity> banks = LOADED_BANKS.get(level);
+        if (banks == null) {
+            return;
+        }
+
+        // Preserve the inclusive range used by the existing full-scan loop while
+        // checking only loaded banks rather than every block in the surrounding cube.
+        int minBankX = chestPos.getX() - SEARCH_RADIUS - 1;
+        int minBankY = chestPos.getY() - SEARCH_RADIUS - 1;
+        int minBankZ = chestPos.getZ() - SEARCH_RADIUS - 1;
+        int maxBankX = chestPos.getX() + SEARCH_RADIUS;
+        int maxBankY = chestPos.getY() + SEARCH_RADIUS;
+        int maxBankZ = chestPos.getZ() + SEARCH_RADIUS;
+        for (BankBlockEntity bank : banks) {
+            BlockPos bankPos = bank.getBlockPos();
+            if (bankPos.getX() >= minBankX && bankPos.getX() <= maxBankX
+                    && bankPos.getY() >= minBankY && bankPos.getY() <= maxBankY
+                    && bankPos.getZ() >= minBankZ && bankPos.getZ() <= maxBankZ) {
+                bank.chestCacheDirty = true;
+                bank.processorCacheDirty = true;
             }
         }
+    }
+
+    /** Clears the loaded-bank index at a server lifecycle boundary. */
+    public static void clearLoadedBanks() {
+        LOADED_BANKS.clear();
+    }
+
+    /** Removes one unloaded level from the loaded-bank index. */
+    public static void clearLoadedBanks(ServerLevel level) {
+        LOADED_BANKS.remove(level);
     }
 
     // Deposit queue
@@ -1582,20 +1597,22 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         int maxY = (int) Math.floor(searchBox.maxY);
         int maxZ = (int) Math.floor(searchBox.maxZ);
 
+        boolean trackedLocationsChanged = false;
         for (BlockPos candidate : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
-            if (level.getBlockState(candidate).is(ECAPBlocks.EMERALD_CHEST.get())) {
+            BlockState candidateState = level.getBlockState(candidate);
+            if (candidateState.is(ECAPBlocks.EMERALD_CHEST.get())) {
                 BlockEntity blockEntity = level.getBlockEntity(candidate);
                 if (blockEntity instanceof EmeraldChestBlockEntity chest) {
                     BlockPos immutablePos = candidate.immutable();
                     cachedChestPositions.add(immutablePos);
                     cachedChestTotals.put(immutablePos, chest.getStoredCounts());
                     if (trackedChestPositions.size() < MAX_TRACKED_CHEST_LOCATIONS) {
-                        trackedChestPositions.add(immutablePos);
+                        trackedLocationsChanged |= trackedChestPositions.add(immutablePos);
                     }
                     chest.linkBank(worldPosition);
                 }
             }
-            if (level.getBlockState(candidate).is(ECAPBlocks.EMERALD_ORE_PROCESSOR.get())) {
+            if (candidateState.is(ECAPBlocks.EMERALD_ORE_PROCESSOR.get())) {
                 double distance = candidate.distSqr(worldPosition);
                 if (distance < closestProcessorDistance) {
                     closestProcessor = candidate.immutable();
@@ -1606,7 +1623,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         closestEmeraldProcessorPos = closestProcessor;
 
         refreshInventoryTotals(level);
-        setChanged();
+        if (trackedLocationsChanged) {
+            setChanged();
+        }
 
         // Re-populate the deposit queue so newly eligible villagers don't have to wait
         // for the next VM periodic scan (which runs far less frequently).
@@ -1626,11 +1645,13 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         VillageRecord record = VillageRegistryData.get(overworld).getVillages().get(villageId);
         if (record == null) return;
 
-        List<Villager> villagers = level.getEntitiesOfClass(Villager.class, record.getBoundingBox());
-        for (Villager villager : villagers) {
-            UUID uuid = villager.getUUID();
-            if (!record.hasMember(uuid)) continue;
-            queueDepositIfEligible(villager);
+        AABB bounds = record.getBoundingBox();
+        for (UUID uuid : record.getMembers().keySet()) {
+            Entity entity = level.getEntity(uuid);
+            if (entity instanceof Villager villager
+                    && bounds.intersects(villager.getBoundingBox())) {
+                queueDepositIfEligible(villager);
+            }
         }
     }
 
@@ -1801,7 +1822,12 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     public void onLoad() {
         super.onLoad();
         Level level = getLevel();
-        if (!(level instanceof ServerLevel serverLevel) || level.isClientSide() || villageId == null) {
+        if (!(level instanceof ServerLevel serverLevel) || level.isClientSide()) {
+            return;
+        }
+        LOADED_BANKS.computeIfAbsent(serverLevel,
+                ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(this);
+        if (villageId == null) {
             return;
         }
         VillageRegistryData data = VillageRegistryData.get(serverLevel);
@@ -2243,6 +2269,13 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     @Override
     public void setRemoved() {
         if (level instanceof ServerLevel serverLevel) {
+            Set<BankBlockEntity> banks = LOADED_BANKS.get(serverLevel);
+            if (banks != null) {
+                banks.remove(this);
+                if (banks.isEmpty()) {
+                    LOADED_BANKS.remove(serverLevel);
+                }
+            }
             unlinkCachedChests(serverLevel);
         }
         super.setRemoved();

@@ -26,6 +26,7 @@ import java.util.UUID;
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class WanderingTraderEvents {
     private static final Map<UUID, Integer> LADDER_DIRECTIONS = new HashMap<>();
+    private static final Map<UUID, LadderPathCache> LADDER_PATH_CACHE = new HashMap<>();
 
     private WanderingTraderEvents() {
     }
@@ -62,12 +63,14 @@ public final class WanderingTraderEvents {
     public static void onLeaveLevel(EntityLeaveLevelEvent event) {
         if (event.getEntity() instanceof WanderingTrader trader) {
             LADDER_DIRECTIONS.remove(trader.getUUID());
+            LADDER_PATH_CACHE.remove(trader.getUUID());
         }
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         LADDER_DIRECTIONS.clear();
+        LADDER_PATH_CACHE.clear();
     }
 
     private static void tickLadderTraversal(WanderingTrader trader) {
@@ -77,6 +80,7 @@ public final class WanderingTraderEvents {
                 || trader.level().getBlockState(position.below()).is(BlockTags.CLIMBABLE);
         if (!Config.enableLadderTraversal || !onClimbable) {
             LADDER_DIRECTIONS.remove(trader.getUUID());
+            LADDER_PATH_CACHE.remove(trader.getUUID());
             return;
         }
 
@@ -84,16 +88,30 @@ public final class WanderingTraderEvents {
         PathNavigation navigation = trader.getNavigation();
         Path path = navigation.getPath();
         if (path != null) {
-            for (int index = Math.max(0, path.getNextNodeIndex() - 1);
-                 index < path.getNodeCount(); index++) {
-                Node node = path.getNode(index);
-                if (node.x == position.getX() && node.z == position.getZ()
-                        && node.y != position.getY()) {
-                    direction = node.y > position.getY() ? 1 : -1;
-                    LADDER_DIRECTIONS.put(trader.getUUID(), direction);
-                    break;
+            int nextNodeIndex = path.getNextNodeIndex();
+            LadderPathCache cached = LADDER_PATH_CACHE.get(trader.getUUID());
+            if (cached == null || cached.path != path || cached.nextNodeIndex != nextNodeIndex
+                    || cached.positionX != position.getX()
+                    || cached.positionY != position.getY()
+                    || cached.positionZ != position.getZ()) {
+                for (int index = Math.max(0, nextNodeIndex - 1);
+                     index < path.getNodeCount(); index++) {
+                    Node node = path.getNode(index);
+                    if (node.x == position.getX() && node.z == position.getZ()
+                            && node.y != position.getY()) {
+                        direction = node.y > position.getY() ? 1 : -1;
+                        LADDER_DIRECTIONS.put(trader.getUUID(), direction);
+                        break;
+                    }
                 }
+                LADDER_PATH_CACHE.put(trader.getUUID(),
+                        new LadderPathCache(path, nextNodeIndex,
+                                position.getX(), position.getY(), position.getZ(), direction));
+            } else {
+                direction = cached.direction;
             }
+        } else {
+            LADDER_PATH_CACHE.remove(trader.getUUID());
         }
         if (direction == 0) {
             return;
@@ -104,10 +122,15 @@ public final class WanderingTraderEvents {
                 : trader.level().getBlockState(position.below()).is(BlockTags.CLIMBABLE);
         if (!canContinue) {
             LADDER_DIRECTIONS.remove(trader.getUUID());
+            LADDER_PATH_CACHE.remove(trader.getUUID());
             return;
         }
         double pullX = (position.getX() + 0.5D - trader.getX()) * 0.2D;
         double pullZ = (position.getZ() + 0.5D - trader.getZ()) * 0.2D;
         trader.setDeltaMovement(pullX, direction > 0 ? 0.2D : -0.15D, pullZ);
+    }
+
+    private record LadderPathCache(Path path, int nextNodeIndex,
+                                   int positionX, int positionY, int positionZ, int direction) {
     }
 }

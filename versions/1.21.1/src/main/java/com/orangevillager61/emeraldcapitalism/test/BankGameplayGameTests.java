@@ -136,6 +136,38 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
+    public static void mapSaleUsesBankOpinionInsteadOfVillageOpinion(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BankBlockEntity bank = setupMarketBank(helper, ECAPItems.ABANDONED_VAULT_MAP.get(), 1);
+        ServerPlayer player = new ServerPlayer(
+                level.getServer(), level,
+                new GameProfile(UUID.randomUUID(), "ecap-map-sale-test"),
+                ClientInformation.createDefault());
+        player.getInventory().setItem(0, new ItemStack(Items.EMERALD, 128));
+
+        MarketItem marketItem = MarketRegistry.get("emeraldcapitalism:abandoned_vault_map").orElse(null);
+        if (marketItem == null) {
+            helper.fail("abandoned vault map market definition was not loaded");
+            return;
+        }
+
+        MarketTradeService.Result denied = MarketTradeService.execute(
+                player, bank, marketItem, 1, TradeSide.BUY);
+        helper.assertTrue(!denied.success() && denied.message().contains("bank opinion"),
+                "map sale did not reject low bank opinion: " + denied.message());
+
+        BankReputationData.get(level).adjustReputation(
+                player.getUUID(), MarketTradeService.MAP_SALE_BANK_OPINION_THRESHOLD);
+        MarketTradeService.Result approved = MarketTradeService.execute(
+                player, bank, marketItem, 1, TradeSide.BUY);
+        helper.assertTrue(approved.success(),
+                "map sale remained blocked despite sufficient bank opinion: " + approved.message());
+        helper.assertValueEqual(countPlayerItem(player, ECAPItems.ABANDONED_VAULT_MAP.get()), 1,
+                "approved map sale did not give the player the map");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
     public static void emeraldProcessorTurnsEmeraldChestIntoEightEmeralds(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos processorPos = helper.absolutePos(new BlockPos(1, 1, 1));

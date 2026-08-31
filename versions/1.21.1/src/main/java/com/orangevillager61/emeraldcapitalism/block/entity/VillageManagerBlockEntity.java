@@ -224,9 +224,11 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
                 villageBounds.maxZ + DEPOSIT_SCAN_HORIZONTAL_GRACE
         );
 
-        List<Villager> villagers = level.getEntitiesOfClass(Villager.class, depositScanBounds);
-        for (Villager villager : villagers) {
-            if (!village.hasMember(villager.getUUID())) continue;
+        for (UUID villagerUUID : village.getMembers().keySet()) {
+            if (!(level.getEntity(villagerUUID) instanceof Villager villager)
+                    || !depositScanBounds.intersects(villager.getBoundingBox())) {
+                continue;
+            }
             VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
             stats.refreshInventoryCounts(villager.getInventory());
             if (stats.getCachedEmeraldCount() > BankBlockEntity.MIN_EMERALDS_TO_DEPOSIT

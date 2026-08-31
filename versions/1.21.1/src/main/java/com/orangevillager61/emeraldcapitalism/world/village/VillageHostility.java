@@ -2,25 +2,49 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Server-side lookup helpers for village hostility-driven entity behavior. */
 public final class VillageHostility {
+
+    private static final Map<ResourceKey<Level>, LookupCache> LOOKUP_CACHES = new HashMap<>();
 
     private VillageHostility() {
     }
 
     @Nullable
     public static VillageRecord findVillage(ServerLevel level, BlockPos position) {
-        return VillageRegistryData.get(level).getVillageFor(position);
+        ResourceKey<Level> dimension = level.dimension();
+        LookupCache cache = LOOKUP_CACHES.computeIfAbsent(dimension, ignored -> new LookupCache());
+        long gameTime = level.getGameTime();
+        if (cache.tick != gameTime) {
+            cache.tick = gameTime;
+            cache.villagesByPosition.clear();
+        }
+
+        BlockPos immutablePosition = position.immutable();
+        if (!cache.villagesByPosition.containsKey(immutablePosition)) {
+            cache.villagesByPosition.put(immutablePosition,
+                    VillageRegistryData.get(level).getVillageFor(immutablePosition));
+        }
+        return cache.villagesByPosition.get(immutablePosition);
+    }
+
+    /** Clears live lookup results at a server lifecycle boundary. */
+    public static void clearLookupCache() {
+        LOOKUP_CACHES.clear();
     }
 
     public static boolean isHostilePlayer(ServerLevel level, VillageRecord village, Player player) {
@@ -74,5 +98,10 @@ public final class VillageHostility {
             }
         }
         return closest;
+    }
+
+    private static final class LookupCache {
+        private long tick = Long.MIN_VALUE;
+        private final Map<BlockPos, VillageRecord> villagesByPosition = new HashMap<>();
     }
 }

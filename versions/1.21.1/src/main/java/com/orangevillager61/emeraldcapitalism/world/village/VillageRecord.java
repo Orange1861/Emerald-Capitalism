@@ -805,6 +805,8 @@ public class VillageRecord {
     public void setBoundingBox(AABB newBox, ServerLevel level) {
         AABB oldBox = this.boundingBox;
         this.boundingBox = newBox;
+        VillageHostility.clearLookupCache();
+        VillageOpinionCache.invalidateVillage(villageId);
 
         if (!cacheInitialized) {
             return;
@@ -826,6 +828,8 @@ public class VillageRecord {
     /** Legacy setter without level: does not trigger delta scan. */
     public void setBoundingBox(AABB boundingBox) {
         this.boundingBox = boundingBox;
+        VillageHostility.clearLookupCache();
+        VillageOpinionCache.invalidateVillage(villageId);
     }
 
     public Map<UUID, VillagerPOIRecord> getMembers() {
@@ -871,6 +875,7 @@ public class VillageRecord {
         } else {
             opinionModifiers.put(playerId, updated);
         }
+        VillageOpinionCache.invalidateVillage(villageId);
         return updated;
     }
 
@@ -947,6 +952,11 @@ public class VillageRecord {
      * village-action modifier.
      */
     public int getVillageOpinion(ServerLevel level, Player player) {
+        return VillageOpinionCache.get(level, this, player);
+    }
+
+    /** Computes live opinion without entering the per-tick cache. */
+    int calculateVillageOpinion(ServerLevel level, Player player) {
         List<Villager> villagers = level.getEntitiesOfClass(
                 Villager.class, boundingBox,
                 villager -> villager.isAlive() && members.containsKey(villager.getUUID()));

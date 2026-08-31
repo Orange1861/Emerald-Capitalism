@@ -16,6 +16,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorDoorRepairGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorFollowGovernorCandidateGoal;
+import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBehavior;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.RequestExpandBoundsPacket;
@@ -23,8 +24,10 @@ import com.orangevillager61.emeraldcapitalism.network.RequestFullScanPacket;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryManager;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageOpinionCache;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -91,6 +94,10 @@ public class VillageRegistryEvents {
     public static void clearManagers() {
         MANAGERS.values().forEach(VillageRegistryManager::shutdown);
         MANAGERS.clear();
+        BankBlockEntity.clearLoadedBanks();
+        InteractWithFenceGateBehavior.clearGateUseCache();
+        VillageOpinionCache.clearAll();
+        VillageHostility.clearLookupCache();
         PLAYER_VILLAGE_MAP.clear();
         ManualVillageScanBudget.clearAll();
     }
@@ -102,6 +109,10 @@ public class VillageRegistryEvents {
             if (manager != null) {
                 manager.shutdown();
             }
+            BankBlockEntity.clearLoadedBanks(serverLevel);
+            InteractWithFenceGateBehavior.clearGateUseCache();
+            VillageHostility.clearLookupCache();
+            VillageOpinionCache.clearAll();
         }
     }
 

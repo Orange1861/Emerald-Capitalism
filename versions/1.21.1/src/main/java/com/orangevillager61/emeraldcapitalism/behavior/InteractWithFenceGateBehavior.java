@@ -20,10 +20,14 @@ import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,6 +58,9 @@ import java.util.Set;
  * @see net.minecraft.world.entity.ai.behavior.InteractWithDoor
  */
 public class InteractWithFenceGateBehavior extends Behavior<Mob> {
+
+    /** Reuses one nearby-mob query when several villagers inspect the same gate in one tick. */
+    private static final Map<ResourceKey<Level>, GateUseCache> GATE_USE_CACHES = new HashMap<>();
 
     /**
      * Squared distance threshold for closing a gate the villager has passed through.
@@ -205,15 +212,41 @@ public class InteractWithFenceGateBehavior extends Behavior<Mob> {
     /** Keeps a gate open while another mob is near it or has it on its path. */
     private static boolean isOpenableInUse(@Nonnull ServerLevel level, @Nonnull Mob owner,
                                            @Nonnull BlockPos gatePos) {
-        AABB area = new AABB(gatePos).inflate(6.0D);
-        for (Mob mob : level.getEntitiesOfClass(Mob.class, area,
-                candidate -> candidate != owner && candidate.isAlive())) {
+        for (Mob mob : nearbyMobs(level, gatePos)) {
+            if (mob == owner) {
+                continue;
+            }
             if (mob.blockPosition().distSqr(gatePos) <= CLOSE_DISTANCE_SQ
                     || pathContains(mob.getNavigation().getPath(), gatePos)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static List<Mob> nearbyMobs(ServerLevel level, BlockPos gatePos) {
+        ResourceKey<Level> dimension = level.dimension();
+        GateUseCache cache = GATE_USE_CACHES.computeIfAbsent(dimension, ignored -> new GateUseCache());
+        long gameTime = level.getGameTime();
+        if (cache.tick != gameTime) {
+            cache.tick = gameTime;
+            cache.mobsByGate.clear();
+        }
+        BlockPos immutableGatePos = gatePos.immutable();
+        return cache.mobsByGate.computeIfAbsent(immutableGatePos, pos -> {
+            AABB area = new AABB(pos).inflate(6.0D);
+            return List.copyOf(level.getEntitiesOfClass(Mob.class, area, Mob::isAlive));
+        });
+    }
+
+    /** Clears cached entity lists when a server or level lifecycle ends. */
+    public static void clearGateUseCache() {
+        GATE_USE_CACHES.clear();
+    }
+
+    private static final class GateUseCache {
+        private long tick = Long.MIN_VALUE;
+        private final Map<BlockPos, List<Mob>> mobsByGate = new HashMap<>();
     }
 
     private static boolean pathContains(@javax.annotation.Nullable Path path, BlockPos target) {

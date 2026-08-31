@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.client.presentation;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Predicate;
 
 /** Pure preparation for bank account and linked-chest display rows. */
 public final class BankPresentation {
@@ -27,6 +28,14 @@ public final class BankPresentation {
         public String toString() {
             return x + ", " + y + ", " + z;
         }
+    }
+
+    /** Keeps player-only affordability failures ahead of bank-blocked offers. */
+    public static <T> List<T> sortMarketEntries(List<T> entries,
+                                                Predicate<T> unavailableForBank) {
+        List<T> sorted = new ArrayList<>(entries);
+        sorted.sort(Comparator.comparingInt(entry -> unavailableForBank.test(entry) ? 1 : 0));
+        return List.copyOf(sorted);
     }
 
     public static List<AccountRow> accountRows(List<AccountSnapshot> accounts) {

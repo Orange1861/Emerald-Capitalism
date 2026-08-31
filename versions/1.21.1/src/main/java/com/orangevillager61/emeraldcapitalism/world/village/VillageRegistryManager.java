@@ -34,6 +34,9 @@ import java.util.*;
  */
 public class VillageRegistryManager {
 
+    /** Limits the entity-query portion of a scan to a small number of chunks per tick. */
+    private static final int ENTITY_QUERY_CHUNKS_PER_TICK = 2;
+
     private final ServerLevel level;
     private final InitialVillageScanChunkLoadPool initialScanChunkLoadPool;
     private VillageRegistryData registryData;
@@ -68,8 +71,21 @@ public class VillageRegistryManager {
     /** UUIDs of villagers we found in-world during this scan (to detect departures). */
     private final Set<UUID> foundInWorld = new HashSet<>();
 
-    /** Whether the entity query has been performed for the current village. */
+    /** Prevents villagers on chunk-query boundaries from being queued twice. */
+    private final Set<UUID> queuedEntityIds = new HashSet<>();
+
+    /** Whether all chunk-sized entity queries have completed for the current scan. */
     private boolean entityQueryDone;
+
+    private boolean entityScanInitialized;
+    private int scanMinChunkX;
+    private int scanMaxChunkX;
+    private int scanMinChunkZ;
+    private int scanMaxChunkZ;
+    private int nextScanChunkX;
+    private int nextScanChunkZ;
+    @Nullable
+    private AABB entityScanBox;
 
     /** Whether departure processing has been performed for the current village. */
     private boolean departuresDone;
@@ -165,7 +181,10 @@ public class VillageRegistryManager {
         currentVillageId = villageId;
         pendingEntities.clear();
         foundInWorld.clear();
+        queuedEntityIds.clear();
         entityQueryDone = false;
+        entityScanInitialized = false;
+        entityScanBox = null;
         departuresDone = false;
         // Processing begins on the next call to processScanBudget() from tick()
     }
@@ -182,12 +201,13 @@ public class VillageRegistryManager {
 
         int budget = Config.villageScanVillagerBudget;
 
-        // Step 1: Query entities (once per village scan)
+        // Step 1: Query entities in small chunks so a large village cannot create
+        // one unbudgeted entity-query spike.
         if (!entityQueryDone) {
-            AABB box = village.getBoundingBox();
-            List<Villager> found = level.getEntitiesOfClass(Villager.class, box);
-            pendingEntities.addAll(found);
-            entityQueryDone = true;
+            if (!entityScanInitialized) {
+                initializeEntityScan(village.getBoundingBox());
+            }
+            queryEntityChunks();
         }
 
         // Step 2: Process pending villagers up to budget
@@ -200,6 +220,12 @@ public class VillageRegistryManager {
 
         // If still have pending entities, wait for next tick
         if (!pendingEntities.isEmpty()) {
+            return;
+        }
+
+        // More chunks may still need to be queried even when the chunks processed
+        // this tick contained no villagers.
+        if (!entityQueryDone) {
             return;
         }
 
@@ -217,6 +243,8 @@ public class VillageRegistryManager {
         currentVillageId = null;
         pendingEntities.clear();
         foundInWorld.clear();
+        queuedEntityIds.clear();
+        entityScanBox = null;
 
         if (finishedVillageId != null && fullScanCompletionPending.remove(finishedVillageId)) {
             VillageRecord village = registryData.getVillages().get(finishedVillageId);
@@ -234,6 +262,54 @@ public class VillageRegistryManager {
         currentVillageId = null;
         pendingEntities.clear();
         foundInWorld.clear();
+        queuedEntityIds.clear();
+        entityScanBox = null;
+    }
+
+    private void initializeEntityScan(AABB box) {
+        entityScanBox = box;
+        scanMinChunkX = ((int) Math.floor(box.minX)) >> 4;
+        scanMaxChunkX = ((int) Math.floor(box.maxX)) >> 4;
+        scanMinChunkZ = ((int) Math.floor(box.minZ)) >> 4;
+        scanMaxChunkZ = ((int) Math.floor(box.maxZ)) >> 4;
+        nextScanChunkX = scanMinChunkX;
+        nextScanChunkZ = scanMinChunkZ;
+        entityScanInitialized = true;
+    }
+
+    private void queryEntityChunks() {
+        if (entityScanBox == null) {
+            entityQueryDone = true;
+            return;
+        }
+
+        int remaining = ENTITY_QUERY_CHUNKS_PER_TICK;
+        while (!entityQueryDone && remaining-- > 0) {
+            if (level.hasChunk(nextScanChunkX, nextScanChunkZ)) {
+                double minX = nextScanChunkX * 16.0D;
+                double minZ = nextScanChunkZ * 16.0D;
+                AABB chunkBox = new AABB(minX, entityScanBox.minY, minZ,
+                        minX + 16.0D, entityScanBox.maxY, minZ + 16.0D);
+                for (Villager villager : level.getEntitiesOfClass(Villager.class, chunkBox)) {
+                    if (entityScanBox.intersects(villager.getBoundingBox())
+                            && queuedEntityIds.add(villager.getUUID())) {
+                        pendingEntities.add(villager);
+                    }
+                }
+            }
+            advanceEntityScanCursor();
+        }
+    }
+
+    private void advanceEntityScanCursor() {
+        if (nextScanChunkX < scanMaxChunkX) {
+            nextScanChunkX++;
+        } else if (nextScanChunkZ < scanMaxChunkZ) {
+            nextScanChunkX = scanMinChunkX;
+            nextScanChunkZ++;
+        } else {
+            entityQueryDone = true;
+        }
     }
 
     private void processFullScanBudget() {

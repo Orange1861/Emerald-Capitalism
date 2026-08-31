@@ -42,6 +42,8 @@ public final class LumberjackGoal extends Goal {
     private static final int EMPTY_SEARCH_INTERVAL_TICKS = 200;
     private static final int FURNACE_SEARCH_RANGE = 16;
     private static final int FURNACE_VERTICAL_SEARCH_RANGE = 6;
+    private static final int FURNACE_SEARCH_INTERVAL_TICKS = 40;
+    private static final int EMPTY_FURNACE_SEARCH_INTERVAL_TICKS = 40;
     private static final double ARRIVAL_DISTANCE_SQ = 9.0D;
     private static final double MAX_VERTICAL_REACH_ABOVE_HEAD = 10.0D;
     private static final float SPEED_MODIFIER = 0.6F;
@@ -68,11 +70,14 @@ public final class LumberjackGoal extends Goal {
     private int logsCollectedThisTree;
     private int lastBreakingStage = -1;
     private long nextSearchTick;
+    private long nextFurnaceSearchTick;
     private long nextNavigationRetryTick;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
     private boolean furnaceInputInserted;
     private boolean returningToJobSite;
     private boolean failed;
+    @Nullable
+    private BlockPos cachedFurnaceSearchResult;
 
     public LumberjackGoal(Villager villager) {
         this.villager = villager;
@@ -92,7 +97,7 @@ public final class LumberjackGoal extends Goal {
         }
 
         if (hasPendingCharcoalProduction()) {
-            FurnaceBlockEntity furnace = findNearestUsableFurnace(level);
+            FurnaceBlockEntity furnace = findNearestUsableFurnaceCached(level);
             if (furnace != null) {
                 productionFurnace = furnace.getBlockPos().immutable();
                 furnaceInputInserted = false;
@@ -560,7 +565,7 @@ public final class LumberjackGoal extends Goal {
             return;
         }
 
-        FurnaceBlockEntity furnace = findNearestUsableFurnace(level);
+        FurnaceBlockEntity furnace = findNearestUsableFurnaceCached(level);
         if (furnace == null) {
             return;
         }
@@ -576,6 +581,37 @@ public final class LumberjackGoal extends Goal {
                 EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION);
         return CharcoalProductionPolicy.wholeConversions(
                 production.getCharcoalQuota(), countLogsInInventory()) > 0;
+    }
+
+    @Nullable
+    private FurnaceBlockEntity findNearestUsableFurnaceCached(ServerLevel level) {
+        long gameTime = level.getGameTime();
+        if (gameTime < nextFurnaceSearchTick && cachedFurnaceSearchResult != null) {
+            FurnaceBlockEntity cached = getUsableFurnace(level, cachedFurnaceSearchResult);
+            if (cached != null) {
+                return cached;
+            }
+            // The cached furnace became unavailable; immediately look for the
+            // next candidate rather than waiting for the normal refresh interval.
+            nextFurnaceSearchTick = gameTime;
+        } else if (gameTime < nextFurnaceSearchTick) {
+            return null;
+        }
+
+        FurnaceBlockEntity furnace = findNearestUsableFurnace(level);
+        cachedFurnaceSearchResult = furnace == null ? null : furnace.getBlockPos().immutable();
+        nextFurnaceSearchTick = gameTime + (furnace == null
+                ? EMPTY_FURNACE_SEARCH_INTERVAL_TICKS : FURNACE_SEARCH_INTERVAL_TICKS);
+        return furnace;
+    }
+
+    @Nullable
+    private FurnaceBlockEntity getUsableFurnace(ServerLevel level, @Nullable BlockPos pos) {
+        if (pos == null || !(level.getBlockEntity(pos) instanceof FurnaceBlockEntity furnace)) {
+            return null;
+        }
+        return furnace.getItem(FURNACE_INPUT_SLOT).isEmpty()
+                && furnace.getItem(FURNACE_RESULT_SLOT).isEmpty() ? furnace : null;
     }
 
     @Nullable

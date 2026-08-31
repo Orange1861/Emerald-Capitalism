@@ -110,6 +110,11 @@ public final class VillagePOIOverlayRenderer {
         // Collect claimed bed and job site positions from villager records
         Set<BlockPos> claimedBeds = new HashSet<>();
         Set<BlockPos> claimedJobSites = new HashSet<>();
+        List<JobSiteEntry> jobSites = VillagePOIClientCache.getJobSites();
+        Map<BlockPos, JobSiteEntry> jobSitesByPosition = new HashMap<>(jobSites.size());
+        for (JobSiteEntry entry : jobSites) {
+            jobSitesByPosition.putIfAbsent(entry.position(), entry);
+        }
         for (VillagerPOIRecord record : VillagePOIClientCache.getRecords()) {
             BlockPos bed = record.getBedPos();
             if (bed != null) {
@@ -122,8 +127,7 @@ public final class VillagePOIOverlayRenderer {
             if (job != null) {
                 claimedJobSites.add(job);
                 // Claimed job site: yellow for normal, dark green for infrastructure
-                JobSiteEntry claimedEntry = VillagePOIClientCache.getJobSites().stream()
-                        .filter(e -> e.position().equals(job)).findFirst().orElse(null);
+                JobSiteEntry claimedEntry = jobSitesByPosition.get(job);
                 boolean infra = claimedEntry != null && isInfrastructureType(claimedEntry.jobType());
                 if (infra) {
                     built.add(new MarkerBox(blockBox(job), 0.0f, 0.45f, 0.1f, 1.0f));
@@ -141,7 +145,7 @@ public final class VillagePOIOverlayRenderer {
         }
 
         // Unclaimed job sites: grey for normal, dark green for infrastructure (Bank / Village Ledger)
-        for (JobSiteEntry entry : VillagePOIClientCache.getJobSites()) {
+        for (JobSiteEntry entry : jobSites) {
             if (!claimedJobSites.contains(entry.position())) {
                 if (isInfrastructureType(entry.jobType())) {
                     built.add(new MarkerBox(blockBox(entry.position()), 0.0f, 0.45f, 0.1f, 1.0f));

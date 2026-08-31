@@ -48,29 +48,39 @@ final class LumberjackTreeScanner {
         Set<BlockPos> examinedLogs = new HashSet<>();
         BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
 
-        for (int x = -SEARCH_RANGE; x <= SEARCH_RANGE; x++) {
-            for (int z = -SEARCH_RANGE; z <= SEARCH_RANGE; z++) {
-                for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
-                    candidate.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                    if (!isLumberjackLog(level.getBlockState(candidate))) {
+        // Expand horizontally from the villager. Once a valid tree is found,
+        // shells farther away than that tree cannot improve the result.
+        for (int shell = 0; shell <= SEARCH_RANGE; shell++) {
+            if (nearest != null && shell * shell > nearestDistanceSq) {
+                break;
+            }
+            for (int x = -shell; x <= shell; x++) {
+                for (int z = -shell; z <= shell; z++) {
+                    if (shell > 0 && Math.abs(x) != shell && Math.abs(z) != shell) {
                         continue;
                     }
+                    for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
+                        candidate.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
+                        if (!isLumberjackLog(level.getBlockState(candidate))) {
+                            continue;
+                        }
 
-                    BlockPos immutableCandidate = candidate.immutable();
-                    if (examinedLogs.contains(immutableCandidate)) {
-                        continue;
-                    }
+                        BlockPos immutableCandidate = candidate.immutable();
+                        if (examinedLogs.contains(immutableCandidate)) {
+                            continue;
+                        }
 
-                    double distanceSq = origin.distSqr(immutableCandidate);
-                    if (distanceSq >= nearestDistanceSq || distanceSq > MAX_TREE_DISTANCE_SQ) {
-                        continue;
-                    }
+                        double distanceSq = origin.distSqr(immutableCandidate);
+                        if (distanceSq >= nearestDistanceSq || distanceSq > MAX_TREE_DISTANCE_SQ) {
+                            continue;
+                        }
 
-                    TreeSnapshot found = scanTree(level, immutableCandidate, examinedLogs);
-                    if (found != null && !LumberjackTreeReservations.isReservedByOther(
-                            level, villager.getUUID(), found.logs())) {
-                        nearest = found;
-                        nearestDistanceSq = distanceSq;
+                        TreeSnapshot found = scanTree(level, immutableCandidate, examinedLogs);
+                        if (found != null && !LumberjackTreeReservations.isReservedByOther(
+                                level, villager.getUUID(), found.logs())) {
+                            nearest = found;
+                            nearestDistanceSq = distanceSq;
+                        }
                     }
                 }
             }

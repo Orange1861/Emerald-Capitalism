@@ -29,15 +29,6 @@ public final class VillagePOIDataFactory {
 
     private VillagePOIDataFactory() {}
 
-    /**
-     * Resolves the bank name for a village by looking up its village manager and the
-     * bank registered with it. Returns an empty string if no bank is linked.
-     */
-    private static String resolveBankName(VillageRecord village, ServerLevel level) {
-        BankBlockEntity bank = resolveBank(village, level);
-        return bank == null ? "" : bank.getBankName();
-    }
-
     @Nullable
     static BankBlockEntity resolveBank(VillageRecord village, ServerLevel level) {
         BlockPos vmPos = VillageRegistryData.get(level).getVMPos(village.getVillageId());
@@ -86,8 +77,8 @@ public final class VillagePOIDataFactory {
                 && VillageGovernance.hasLivingMayor(level, village);
         AABB box = village.getBoundingBox();
 
-        // Look up bank name from the village manager's registered bank
-        String bankName = resolveBankName(village, level);
+        // Reuse the bank resolved above instead of repeating the manager/block-entity lookup.
+        String bankName = bank == null ? "" : bank.getBankName();
 
         return new VillagePOIDataPacket(
                 true,

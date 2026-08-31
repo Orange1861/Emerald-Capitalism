@@ -27,4 +27,13 @@ class BankPresentationTest {
         assertEquals(List.of("1, 2, 3", "... (showing 1 of 2)"),
                 BankPresentation.chestLines(List.of(new BankPresentation.ChestPosition(1, 2, 3)), 1, 2));
     }
+
+    @Test
+    void movesBankBlockedMarketEntriesAfterPlayerAffordabilityEntries() {
+        List<String> sorted = BankPresentation.sortMarketEntries(
+                List.of("affordable", "too-expensive", "no-stock", "low-opinion"),
+                entry -> entry.equals("no-stock") || entry.equals("low-opinion"));
+
+        assertEquals(List.of("affordable", "too-expensive", "no-stock", "low-opinion"), sorted);
+    }
 }

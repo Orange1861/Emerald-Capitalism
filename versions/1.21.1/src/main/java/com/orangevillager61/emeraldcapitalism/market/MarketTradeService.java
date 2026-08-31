@@ -3,8 +3,6 @@ package com.orangevillager61.emeraldcapitalism.market;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
@@ -16,6 +14,7 @@ import net.minecraft.world.item.Items;
 /** Server-side adapter that commits a quoted trade against player and chest inventories. */
 public final class MarketTradeService {
     public static final int MAX_TRADE_QUANTITY = 4096;
+    public static final int MAP_SALE_BANK_OPINION_THRESHOLD = 100;
 
     private MarketTradeService() {
     }
@@ -65,7 +64,7 @@ public final class MarketTradeService {
         }
         int tradeQuantity = quote.quantity();
         if (side == TradeSide.BUY) {
-            Result permission = checkMapSalePermission(player, bank, marketItem, level, side);
+            Result permission = checkMapSalePermission(player, marketItem, level, side);
             if (!permission.success()) {
                 return permission;
             }
@@ -77,20 +76,17 @@ public final class MarketTradeService {
         return sell(player, bank, marketItem.item(), tradeQuantity, quote.emeraldAmount(), level);
     }
 
-    private static Result checkMapSalePermission(ServerPlayer player, BankBlockEntity bank,
-                                                 MarketItem marketItem, ServerLevel level,
-                                                 TradeSide side) {
+    private static Result checkMapSalePermission(ServerPlayer player, MarketItem marketItem,
+                                                  ServerLevel level,
+                                                  TradeSide side) {
         if (side != TradeSide.BUY || marketItem.item() != ECAPItems.ABANDONED_VAULT_MAP.get()) {
             return Result.ok();
         }
-        if (bank.getVillageId() == null) {
-            return Result.failed("This bank is not linked to a village.");
-        }
-        VillageRecord village = VillageRegistryData.get(level).getVillages().get(bank.getVillageId());
-        int opinion = village == null ? Integer.MIN_VALUE : village.getVillageOpinion(level, player);
-        return opinion >= 100
+        int opinion = BankReputationData.get(level).getReputation(player.getUUID());
+        return opinion >= MAP_SALE_BANK_OPINION_THRESHOLD
                 ? Result.ok()
-                : Result.failed("The bank requires village opinion of at least +100 to sell this map.");
+                : Result.failed("The bank requires bank opinion of at least +"
+                + MAP_SALE_BANK_OPINION_THRESHOLD + " to sell this map.");
     }
 
     private static Result buy(ServerPlayer player, BankBlockEntity bank, Item item, int quantity,
