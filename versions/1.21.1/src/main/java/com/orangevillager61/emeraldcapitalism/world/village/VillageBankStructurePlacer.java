@@ -83,6 +83,7 @@ public final class VillageBankStructurePlacer {
     private static final int VAULT_HEIGHT = 9;
     private static final int VAULT_SIZE_Z = 10;
     private static final int VAULT_VILLAGER_COUNT = 3;
+    private static final int INITIAL_CHARCOAL_COUNT = 64;
     private static final int INITIAL_PLANK_COUNT = 96;
     private static final int TERRAIN_BLEND_RADIUS = 4;
     private static final int ABANDONED_VAULT_TOP_DEPTH = 8;
@@ -694,7 +695,7 @@ public final class VillageBankStructurePlacer {
                     for (int slot = 0; slot < chest.getContainerSize(); slot++) {
                         ItemStack existing = chest.getItem(slot);
                         if (existing.is(Items.COAL)) {
-                            chest.setItem(slot, new ItemStack(Items.CHARCOAL, existing.getCount()));
+                            chest.setItem(slot, new ItemStack(Items.CHARCOAL, INITIAL_CHARCOAL_COUNT));
                         }
                     }
                 }
