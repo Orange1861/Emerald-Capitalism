@@ -45,7 +45,7 @@ public final class ZombieVirusGameTests {
 
         helper.runAfterDelay(2, () -> {
             helper.assertValueEqual(ZombieVirusEvents.getPhase(villager), 2,
-                    "Zombie Plague did not enter phase two");
+                    "Zombkolaps did not enter phase two");
             MobEffectInstance wither = villager.getEffect(MobEffects.WITHER);
             helper.assertTrue(wither != null && wither.getAmplifier() == 2,
                     "phase two did not apply Wither III");
@@ -99,7 +99,7 @@ public final class ZombieVirusGameTests {
         helper.assertTrue(phaseOneEvent.isCanceled()
                         && phaseOneVillager.getEffect(ECAPEffects.ZOMBIE_VIRUS) == null
                         && player.getItemInHand(InteractionHand.MAIN_HAND).getCount() == 1,
-                "golden apple did not cure phase-one Zombie Plague or consume one apple");
+                "golden apple did not cure phase-one Zombkolaps or consume one apple");
 
         Villager phaseTwoVillager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         phaseTwoVillager.addEffect(new MobEffectInstance(
@@ -116,7 +116,7 @@ public final class ZombieVirusGameTests {
                         && phaseTwoVillager.getEffect(ECAPEffects.ZOMBIE_VIRUS) == null
                         && phaseTwoVillager.getEffect(MobEffects.WITHER) == null
                         && player.getItemInHand(InteractionHand.MAIN_HAND).isEmpty(),
-                "golden apple did not cure phase-two Zombie Plague or consume the second apple");
+                "golden apple did not cure phase-two Zombkolaps or consume the second apple");
         helper.succeed();
     }
 
@@ -137,7 +137,7 @@ public final class ZombieVirusGameTests {
 
         helper.assertTrue(player.getEffect(ECAPEffects.ZOMBIE_VIRUS) == null
                         && player.getEffect(MobEffects.WITHER) == null,
-                "eating a golden apple with Weakness did not cure the player's Zombie Plague");
+                "eating a golden apple with Weakness did not cure the player's Zombkolaps");
         helper.succeed();
     }
 
@@ -178,11 +178,11 @@ public final class ZombieVirusGameTests {
         int expected = Math.max(1, before - Config.zombieVirusHitTimeReductionSeconds * 20);
 
         helper.assertTrue(damaged, "the test player did not receive zombie damage");
-        helper.assertTrue(afterEffect != null, "the test player's Zombie Plague effect was removed");
+        helper.assertTrue(afterEffect != null, "the test player's Zombkolaps effect was removed");
         helper.assertValueEqual(ZombieVirusEvents.getPhase(player), 1,
-                "the test player's Zombie Plague left phase one");
+                "the test player's Zombkolaps left phase one");
         helper.assertValueEqual(afterEffect.getDuration(), expected,
-                "a zombie hit did not reduce a phase-one player's Zombie Plague time");
+                "a zombie hit did not reduce a phase-one player's Zombkolaps time");
         helper.succeed();
     }
 
@@ -198,7 +198,7 @@ public final class ZombieVirusGameTests {
 
         helper.assertTrue(player.getEffect(ECAPEffects.ZOMBIE_VIRUS) == null
                         && player.getEffect(MobEffects.WITHER) == null,
-                "milk did not remove the Zombie Plague and Wither effects");
+                "milk did not remove the Zombkolaps and Wither effects");
         helper.succeed();
     }
 
@@ -220,7 +220,7 @@ public final class ZombieVirusGameTests {
             helper.assertTrue(zombie != null
                             && zombie.getItemBySlot(EquipmentSlot.MAINHAND).is(Items.DIAMOND_SWORD)
                             && zombie.getItemBySlot(EquipmentSlot.HEAD).is(Items.DIAMOND_HELMET),
-                    "Zombie Plague conversion did not transfer the player's equipment");
+                    "Zombkolaps conversion did not transfer the player's equipment");
 
             helper.getLevel().getEntitiesOfClass(ItemEntity.class, zombie.getBoundingBox().inflate(2.0D))
                     .forEach(ItemEntity::discard);
@@ -235,7 +235,7 @@ public final class ZombieVirusGameTests {
                         ItemEntity.class, zombie.getBoundingBox().inflate(2.0D)).stream()
                         .anyMatch(item -> item.getItem().is(Items.DIAMOND_HELMET));
                 helper.assertTrue(droppedSword && droppedHelmet,
-                        "Zombie Plague conversion did not guarantee held-item and armor drops");
+                        "Zombkolaps conversion did not guarantee held-item and armor drops");
                 helper.succeed();
             });
         });
@@ -263,7 +263,7 @@ public final class ZombieVirusGameTests {
 
         helper.assertTrue(!villagerHurt && villager.getHealth() == villagerHealth
                         && !playerHurt && player.getHealth() == playerHealth,
-                "Zombie Plague carriers took poison damage");
+                "Zombkolaps carriers took poison damage");
         helper.succeed();
     }
 
@@ -284,7 +284,7 @@ public final class ZombieVirusGameTests {
                         && ZombieVirusEvents.getPhase(child) == 1
                         && !inherited.isInfiniteDuration()
                         && inherited.getDuration() > 0,
-                "infected villager parents did not pass phase-one Zombie Plague to their child");
+                "infected villager parents did not pass phase-one Zombkolaps to their child");
         helper.succeed();
     }
 
@@ -304,13 +304,13 @@ public final class ZombieVirusGameTests {
         helper.assertTrue(phaseOne.getEffect().equals(ECAPEffects.ZOMBIE_VIRUS)
                         && !phaseOne.isInfiniteDuration()
                         && phaseOne.getDuration() > 0,
-                "phase-one debug potion does not contain a finite Zombie Plague effect");
+                "phase-one debug potion does not contain a finite Zombkolaps effect");
         helper.assertTrue(phaseTwo.getEffect().equals(ECAPEffects.ZOMBIE_VIRUS)
                         && phaseTwo.isInfiniteDuration(),
-                "phase-two debug potion does not contain an infinite Zombie Plague effect");
+                "phase-two debug potion does not contain an infinite Zombkolaps effect");
         helper.assertTrue(phaseOneSplash.is(Items.SPLASH_POTION)
                         && phaseTwoSplash.is(Items.SPLASH_POTION),
-                "Zombie Plague debug potions did not produce splash potion variants");
+                "Zombkolaps debug potions did not produce splash potion variants");
         helper.assertTrue(phaseOnePotion.getDescriptionId().equals(
                                 "item.minecraft.potion.effect.zombie_virus_phase_one")
                         && phaseTwoPotion.getDescriptionId().equals(
@@ -319,7 +319,7 @@ public final class ZombieVirusGameTests {
                                 "item.minecraft.splash_potion.effect.zombie_virus_phase_one")
                         && phaseTwoSplash.getDescriptionId().equals(
                                 "item.minecraft.splash_potion.effect.zombie_virus_phase_two"),
-                "Zombie Plague potion names did not resolve to localized translation keys");
+                "Zombkolaps potion names did not resolve to localized translation keys");
         helper.succeed();
     }
 
@@ -339,14 +339,14 @@ public final class ZombieVirusGameTests {
         ItemStack phaseTwoSplashPotion = brewing.mix(compactedRottenFlesh, phaseOneSplashPotion);
 
         helper.assertTrue(hasPotion(phaseOnePotion, ECAPPotions.ZOMBIE_VIRUS_PHASE_ONE),
-                "Zombie Plague phase-one brewing failed: " + phaseOnePotion);
+                "Zombkolaps phase-one brewing failed: " + phaseOnePotion);
         helper.assertTrue(hasPotion(phaseTwoPotion, ECAPPotions.ZOMBIE_VIRUS_PHASE_TWO),
-                "Zombie Plague phase-two brewing failed: " + phaseTwoPotion);
+                "Zombkolaps phase-two brewing failed: " + phaseTwoPotion);
         helper.assertTrue(phaseOneSplashPotion.is(Items.SPLASH_POTION)
                         && phaseTwoSplashPotion.is(Items.SPLASH_POTION)
                         && hasPotion(phaseOneSplashPotion, ECAPPotions.ZOMBIE_VIRUS_PHASE_ONE)
                         && hasPotion(phaseTwoSplashPotion, ECAPPotions.ZOMBIE_VIRUS_PHASE_TWO),
-                "Zombie Plague splash potion brewing progression is missing");
+                "Zombkolaps splash potion brewing progression is missing");
         helper.succeed();
     }
 

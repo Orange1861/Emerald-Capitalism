@@ -9,6 +9,7 @@ import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.gossip.GossipType;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -28,10 +29,18 @@ public final class VillageGovernance {
     }
 
     public static boolean hasLivingMayor(ServerLevel level, VillageRecord village) {
-        return !level.getEntitiesOfClass(Villager.class, village.getBoundingBox(),
-                villager -> villager.isAlive()
-                        && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get())
-                .isEmpty();
+        return findLivingMayor(level, village) != null;
+    }
+
+    @Nullable
+    private static Villager findLivingMayor(ServerLevel level, VillageRecord village) {
+        return level.getEntitiesOfClass(Villager.class, village.getBoundingBox(),
+                        villager -> villager.isAlive()
+                                && villager.getVillagerData().getProfession()
+                                == ECAPVillagerProfessions.MAYOR.get())
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -193,8 +202,13 @@ public final class VillageGovernance {
         BlockPos bankPos = VillageRegistryData.get(level).getBankPos(village.getVillageId());
         BankBlockEntity bank = findBank(level, village);
         boolean bankQualifies = bankPos == null || (bank != null && bank.isControlledBy(candidateId));
-        if (bankQualifies) {
-            village.setGovernor(candidateId);
+        if (bankQualifies && village.setGovernor(candidateId)) {
+            Villager mayor = findLivingMayor(level, village);
+            if (mayor == null) {
+                throw new IllegalStateException("Governor promotion completed without a living Mayor");
+            }
+            // Vanilla gossip keeps the normal decay/transfer behavior; this target's weight and cap make this +100 reputation.
+            mayor.getGossips().add(candidateId, GossipType.MAJOR_POSITIVE, 100);
             return true;
         }
         return false;

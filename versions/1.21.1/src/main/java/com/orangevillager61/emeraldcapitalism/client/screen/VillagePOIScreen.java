@@ -406,7 +406,6 @@ public class VillagePOIScreen extends Screen {
 
         boolean scanInProgress = VillagePOIClientCache.isScanInProgress();
         boolean hasData = VillagePOIClientCache.hasData();
-        boolean canClaimOwnership = VillagePOIClientCache.canBecomeGovernorCandidate();
         if (expandBoundsBtn != null) expandBoundsBtn.active = hasData && !scanInProgress;
         if (fullScanBtn != null) fullScanBtn.active = hasData && !scanInProgress;
         if (renameBtn != null) {
@@ -442,7 +441,7 @@ public class VillagePOIScreen extends Screen {
         }
         if (claimOwnershipBtn != null) {
             claimOwnershipBtn.visible = activeTab == Tab.OWNERSHIP;
-            claimOwnershipBtn.active = hasData && !scanInProgress && canClaimOwnership;
+            claimOwnershipBtn.active = hasData && !scanInProgress;
         }
         super.render(graphics, mouseX, mouseY, partialTick);
 

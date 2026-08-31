@@ -60,7 +60,7 @@ public final class EmeraldLeadGameTests {
                 stack, player, infectedVillager, InteractionHand.MAIN_HAND);
         if (!infectedResult.consumesAction()
                 || infectedVillager.getLeashHolder() != player) {
-            helper.fail("Emerald Lead did not leash a villager with Zombie Plague");
+            helper.fail("Emerald Lead did not leash a villager with Zombkolaps");
             return;
         }
 

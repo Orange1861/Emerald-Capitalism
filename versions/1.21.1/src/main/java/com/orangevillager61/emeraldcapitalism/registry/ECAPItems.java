@@ -134,7 +134,7 @@ public final class ECAPItems {
             () -> new VillageMapItem(new Item.Properties().stacksTo(1))
     );
 
-    /** Icon item for the first-infection Zombie Plague advancement. */
+    /** Icon item for the first-infection Zombkolaps advancement. */
     public static final DeferredItem<Item> ZOMBIE_FACE = ITEMS.registerItem(
             "zombie_face",
             Item::new,

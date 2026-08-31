@@ -37,7 +37,7 @@ import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
-/** Server-authoritative infection, progression, and death conversion for Zombie Plague. */
+/** Server-authoritative infection, progression, and death conversion for Zombkolaps. */
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class ZombieVirusEvents {
 

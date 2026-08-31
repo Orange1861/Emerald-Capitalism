@@ -19,7 +19,7 @@ import net.minecraft.world.level.Level;
 import java.util.List;
 
 /**
- * A lead that can be attached to zombie villagers and villagers carrying Zombie Plague.
+ * A lead that can be attached to zombie villagers and villagers carrying Zombkolaps.
  */
 public class EmeraldLeadItem extends LeadItem {
 

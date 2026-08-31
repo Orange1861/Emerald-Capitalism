@@ -8,7 +8,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-/** Registration owner for debug potions used to apply specific Zombie Plague phases. */
+/** Registration owner for debug potions used to apply specific Zombkolaps phases. */
 public final class ECAPPotions {
 
     private static final int DEBUG_PHASE_ONE_DURATION_TICKS = 600 * 20;

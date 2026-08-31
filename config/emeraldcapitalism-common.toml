@@ -85,17 +85,17 @@ redactNonOpPoiDetails = true
 		zombieDoorBreakingChancePercent = 50
 
 	[illness.zombieVirus]
-		#How long Zombie Plague remains in phase one before phase two begins.
+		#How long Zombkolaps remains in phase one before phase two begins.
 		#Unit: seconds. Default: 600 seconds (10 minutes).
 		# Default: 600
 		# Range: 1 ~ 86400
 		phaseOneDurationSeconds = 600
-		#How much time a later Zombie hit removes from phase one of Zombie Plague.
+		#How much time a later Zombie hit removes from phase one of Zombkolaps.
 		#Unit: seconds. Default: 20 seconds.
 		# Default: 20
 		# Range: 1 ~ 3600
 		hitTimeReductionSeconds = 20
-		#Chance of contracting Zombie Plague when consuming rotten flesh.
+		#Chance of contracting Zombkolaps when consuming rotten flesh.
 		#Default: 2%. Range: 0% to 100%.
 		# Default: 2
 		# Range: 0 ~ 100

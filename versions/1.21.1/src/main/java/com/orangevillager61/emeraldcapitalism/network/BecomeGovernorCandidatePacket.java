@@ -67,8 +67,8 @@ public record BecomeGovernorCandidatePacket(UUID villageId) implements CustomPac
             int opinion = village.getVillageOpinion(level, player);
             if (!VillageRelationship.canBecomeGovernorCandidate(
                     opinion, Config.governorCandidateOpinionThreshold)) {
-                player.sendSystemMessage(Component.literal("[ECAP] You need a village opinion above "
-                        + Config.governorCandidateOpinionThreshold
+                player.sendSystemMessage(Component.literal("[ECAP] You need a village opinion of at least "
+                        + (Config.governorCandidateOpinionThreshold + 1)
                         + " to become a governor candidate."));
                 sendLedgerRefresh(player, village, level);
                 return;

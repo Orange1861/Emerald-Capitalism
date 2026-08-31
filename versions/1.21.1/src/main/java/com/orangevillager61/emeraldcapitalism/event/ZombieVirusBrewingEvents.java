@@ -10,7 +10,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.brewing.RegisterBrewingRecipesEvent;
 
-/** Registers the in-game brewing progression for Zombie Plague debug potions. */
+/** Registers the in-game brewing progression for Zombkolaps debug potions. */
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class ZombieVirusBrewingEvents {
 

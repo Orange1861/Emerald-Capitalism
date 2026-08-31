@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 import com.mojang.authlib.GameProfile;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
@@ -46,6 +47,27 @@ public final class MayorGovernorCandidateGameTests {
         helper.assertTrue(mayor.getNavigation().isDone(),
                 "Mayor navigation remained active after pathing failure");
         goal.stop();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void governorClaimRewardsMayorWithReputation(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+
+        ServerPlayer candidate = createCandidate(level, mayor.blockPosition());
+        VillageRecord village = createVillage(level, mayor.blockPosition());
+        helper.assertTrue(village.becomeGovernorCandidate(
+                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1),
+                "could not start the governor claim reputation test");
+
+        helper.assertTrue(VillageGovernance.refresh(level, village),
+                "governor claim did not promote the candidate");
+        helper.assertTrue(village.isGovernor(candidate.getUUID()),
+                "candidate was not appointed Governor");
+        helper.assertValueEqual(mayor.getPlayerReputation(candidate), 100,
+                "governor claim did not add 100 reputation to the Mayor");
         helper.succeed();
     }
 
