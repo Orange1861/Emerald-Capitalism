@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
@@ -42,6 +43,8 @@ public final class MayorDoorRepairGoal extends Goal {
     private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
     private static final int EMPTY_QUEUE_RETRY_TICKS = 100;
     private static final int NAVIGATION_RADIUS = 2;
+    private static final long ELIGIBILITY_LOG_INTERVAL_TICKS = 40L;
+    private static final long PROGRESS_LOG_INTERVAL_TICKS = 20L;
 
     private final Villager villager;
     @Nullable
@@ -59,6 +62,14 @@ public final class MayorDoorRepairGoal extends Goal {
     private boolean finished;
     private boolean carryingRepairDoor;
     private long nextDoorLookupTick;
+    @Nullable
+    private String lastEligibilityDiagnostic;
+    private long nextEligibilityDiagnosticTick;
+    private long nextProgressDiagnosticTick;
+    @Nullable
+    private Stage lastLoggedStage;
+    @Nullable
+    private BlockPos lastLoggedNavigationTarget;
 
     public MayorDoorRepairGoal(Villager villager) {
         this.villager = villager;
@@ -89,6 +100,7 @@ public final class MayorDoorRepairGoal extends Goal {
 
         BlockPos jobSite = findJobSite(level);
         if (jobSite == null || !isAt(jobSite)) {
+            nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
             return false;
         }
 
@@ -106,6 +118,7 @@ public final class MayorDoorRepairGoal extends Goal {
         if (resolved.bank().getTotalPlankCount() < PLANKS_PER_DOOR
                 || !canStore(Items.OAK_PLANKS, PLANKS_PER_DOOR)
                 || !canStore(Items.OAK_DOOR, 1)) {
+            nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
             return false;
         }
 

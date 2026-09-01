@@ -25,7 +25,20 @@ public final class BankAwarePotentialJobSiteBehavior extends GoToPotentialJobSit
     }
 
     @Override
+    protected void start(ServerLevel level, Villager owner, long gameTime) {
+        // GoToPotentialJobSite normally installs its walk target on the first
+        // tick. A bank is a full collision cube, so targeting its POI position
+        // for even one navigation pass can make the villager reject the path
+        // before the banker-side redirect runs.
+        setBankAwareWalkTarget(level, owner);
+    }
+
+    @Override
     protected void tick(ServerLevel level, Villager owner, long gameTime) {
+        setBankAwareWalkTarget(level, owner);
+    }
+
+    private void setBankAwareWalkTarget(ServerLevel level, Villager owner) {
         GlobalPos potentialJobSite = owner.getBrain()
                 .getMemory(MemoryModuleType.POTENTIAL_JOB_SITE)
                 .orElseThrow(() -> new IllegalStateException(

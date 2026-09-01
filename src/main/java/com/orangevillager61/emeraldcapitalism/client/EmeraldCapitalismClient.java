@@ -219,10 +219,9 @@ public class EmeraldCapitalismClient {
             }
 
             Minecraft minecraft = Minecraft.getInstance();
-            BankScreen bankScreen = minecraft.screen instanceof BankScreen openBankScreen
-                    && openBankScreen.isBankOwner() ? openBankScreen : null;
             boolean villageOverlayEnabled = VillagePOIOverlayRenderer.isEnabled();
-            if (!villageOverlayEnabled && bankScreen == null) {
+            boolean bankOverlayEnabled = BankOwnershipOverlayRenderer.hasOwnedBanks();
+            if (!villageOverlayEnabled && !bankOverlayEnabled) {
                 return;
             }
 
@@ -232,9 +231,8 @@ public class EmeraldCapitalismClient {
             if (villageOverlayEnabled) {
                 VillagePOIOverlayRenderer.render(event.getPoseStack(), bufferSource, cameraPos);
             }
-            if (bankScreen != null) {
-                BankOwnershipOverlayRenderer.render(event.getPoseStack(), bufferSource, cameraPos,
-                        bankScreen.getOwnershipOverlayBounds());
+            if (bankOverlayEnabled) {
+                BankOwnershipOverlayRenderer.render(event.getPoseStack(), bufferSource, cameraPos);
             }
 
             // Flush the line buffer so our lines actually appear
@@ -244,6 +242,7 @@ public class EmeraldCapitalismClient {
         private static void clearPoiClientState() {
             VillagePOIClientCache.clear();
             VillagePOIOverlayRenderer.clear();
+            BankOwnershipOverlayRenderer.clear();
             MarketDataClientCache.clear();
         }
 

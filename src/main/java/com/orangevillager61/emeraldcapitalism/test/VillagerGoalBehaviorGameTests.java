@@ -147,9 +147,15 @@ public final class VillagerGoalBehaviorGameTests {
 
         helper.assertTrue(goToPotentialJobSite.tryStart(level, villager, gameTime),
                 "bank potential-job-site behavior did not start");
+        BlockPos workPos = BankBlock.getBankerWorkPos(level.getBlockState(bankPos), bankPos);
+        WalkTarget initialWalkTarget = villager.getBrain()
+                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        helper.assertTrue(initialWalkTarget != null,
+                "bank potential-job-site behavior did not install a walk target on start");
+        helper.assertValueEqual(initialWalkTarget.getTarget().currentBlockPosition(), workPos,
+                "bank behavior targeted the solid bank block before its first tick");
         goToPotentialJobSite.tickOrStop(level, villager, gameTime + 1L);
 
-        BlockPos workPos = BankBlock.getBankerWorkPos(level.getBlockState(bankPos), bankPos);
         WalkTarget walkTarget = villager.getBrain()
                 .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
         helper.assertTrue(walkTarget != null,

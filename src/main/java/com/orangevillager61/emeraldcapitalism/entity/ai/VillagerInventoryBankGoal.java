@@ -66,9 +66,19 @@ public final class VillagerInventoryBankGoal extends Goal {
             return false;
         }
 
+        // This goal is installed on every villager. Avoid scanning every
+        // registered village for ordinary villagers that have no full
+        // inventory and are not lumberjacks eligible for delivery.
+        boolean inventoryFull = isInventoryFull();
+        boolean lumberjack = villager.getVillagerData().getProfession()
+                == ECAPVillagerProfessions.LUMBERJACK.get();
+        if (!inventoryFull && !lumberjack) {
+            return false;
+        }
+
         bank = BankEmployeeLookup.findVillageBank(level, villager);
         if (bank == null || !bank.isVillagerDeliveriesEnabled() || !isDeliveryModeEnabled()
-                || (!isInventoryFull() && !isLumberjackDelivery())) {
+                || (!inventoryFull && !isLumberjackDelivery())) {
             return false;
         }
         BankAccountData.get(level).openAccount(villager.getUUID());

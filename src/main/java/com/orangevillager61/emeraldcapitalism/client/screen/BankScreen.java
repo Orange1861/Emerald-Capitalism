@@ -31,7 +31,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
 
@@ -88,7 +87,8 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     /** Mutable bank name shown in title / rename box, updated optimistically on save. */
     private String displayBankName;
-    private final AABB ownershipOverlayBounds;
+    private boolean ownershipOverlayStateInitialized;
+    private boolean lastBankOwner;
 
     // Rename controls
     private EditBox renameBox;
@@ -151,7 +151,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         this.imageWidth  = 420;
         this.imageHeight = 260;
         this.displayBankName = menu.getBankName().isEmpty() ? "Village Bank" : menu.getBankName();
-        this.ownershipOverlayBounds = BankOwnershipOverlayRenderer.boundsFor(menu.getBlockPos());
     }
 
     @Override
@@ -166,6 +165,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 && !this.minecraft.player.isSpectator()
                 && menu.getControllerId() != null
                 && menu.getControllerId().equals(this.minecraft.player.getUUID());
+        refreshOwnershipOverlay();
 
         int tabRowY = topPos + PADDING + font.lineHeight + 4;
         contentTopRel = PADDING + font.lineHeight + 4 + TAB_H + 6 + 23;
@@ -398,6 +398,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     public void render(@NotNull GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         refreshMarketSnapshot();
         updateControlButton();
+        refreshOwnershipOverlay();
         updateCraftingTabVisibility();
         updateControlWidgets();
         updateMarketControls();
@@ -997,8 +998,14 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 && menu.getControllerId().equals(minecraft.player.getUUID());
     }
 
-    public AABB getOwnershipOverlayBounds() {
-        return ownershipOverlayBounds;
+    private void refreshOwnershipOverlay() {
+        boolean bankOwner = isBankOwner();
+        if (ownershipOverlayStateInitialized && lastBankOwner == bankOwner) {
+            return;
+        }
+        BankOwnershipOverlayRenderer.updateBank(menu.getBlockPos(), bankOwner);
+        lastBankOwner = bankOwner;
+        ownershipOverlayStateInitialized = true;
     }
 
     private void onTargetModeToggle() {
