@@ -10,10 +10,10 @@ class LibraryBookRarityTest {
 
     @Test
     void libraryPoolUsesTheConfiguredFourRarityWeights() {
-        assertEquals(60, LibraryBookRarity.COMMON.libraryPoolWeight());
-        assertEquals(30, LibraryBookRarity.UNCOMMON.libraryPoolWeight());
-        assertEquals(9, LibraryBookRarity.RARE.libraryPoolWeight());
-        assertEquals(1, LibraryBookRarity.LEGENDARY.libraryPoolWeight());
+        assertEquals(55, LibraryBookRarity.COMMON.libraryPoolWeight());
+        assertEquals(26, LibraryBookRarity.UNCOMMON.libraryPoolWeight());
+        assertEquals(16, LibraryBookRarity.RARE.libraryPoolWeight());
+        assertEquals(3, LibraryBookRarity.LEGENDARY.libraryPoolWeight());
         assertEquals(100, LibraryBookRarity.COMMON.libraryPoolWeight()
                 + LibraryBookRarity.UNCOMMON.libraryPoolWeight()
                 + LibraryBookRarity.RARE.libraryPoolWeight()
