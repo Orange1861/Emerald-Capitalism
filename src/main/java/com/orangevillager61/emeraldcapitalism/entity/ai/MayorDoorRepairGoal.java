@@ -9,7 +9,6 @@ import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -69,8 +68,6 @@ public final class MayorDoorRepairGoal extends Goal {
     @Nullable
     private BlockPos lastLoggedNavigationTarget;
     @Nullable
-    private BlockPos lastLoggedJobSite;
-    @Nullable
     private String finishReason;
 
     public MayorDoorRepairGoal(Villager villager) {
@@ -100,15 +97,6 @@ public final class MayorDoorRepairGoal extends Goal {
         }
         if (level.getGameTime() < nextDoorLookupTick) {
             return reject(level, "door lookup cooldown until gameTime " + nextDoorLookupTick);
-        }
-
-        BlockPos jobSite = findJobSite(level);
-        if (jobSite == null) {
-            return reject(level, "no valid JOB_SITE memory or POI for the mayor");
-        }
-        if (!isAt(jobSite)) {
-            return reject(level, "not at JOB_SITE " + jobSite + ", distanceSq="
-                    + distanceToCenterSq(jobSite));
         }
 
         WorkContext resolved = resolveContext(level);
@@ -334,7 +322,6 @@ public final class MayorDoorRepairGoal extends Goal {
         nextProgressDiagnosticTick = 0L;
         lastLoggedStage = null;
         lastLoggedNavigationTarget = null;
-        lastLoggedJobSite = null;
     }
 
     @Nullable
@@ -665,26 +652,6 @@ public final class MayorDoorRepairGoal extends Goal {
             villager.getInventory().setItem(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
         }
         return amount - remaining;
-    }
-
-    @Nullable
-    private BlockPos findJobSite(ServerLevel level) {
-        BlockPos jobSite = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
-                .filter(globalPos -> globalPos.dimension().equals(level.dimension()))
-                .map(GlobalPos::pos)
-                .filter(level::isLoaded)
-                .filter(pos -> level.getPoiManager().getType(pos).isPresent())
-                .orElse(null);
-        boolean changed = lastLoggedJobSite == null ? jobSite != null
-                : !lastLoggedJobSite.equals(jobSite);
-        if (changed || level.getGameTime() >= nextEligibilityDiagnosticTick) {
-            lastLoggedJobSite = jobSite == null ? null : jobSite.immutable();
-            EmeraldCapitalism.LOGGER.debug(
-                    "[ECAP][MayorRepair] JOB_SITE lookup mayor={} memoryPresent={} result={} gameTime={}",
-                    villager.getUUID(), villager.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE),
-                    jobSite, level.getGameTime());
-        }
-        return jobSite;
     }
 
     private void refundCarriedDoor(ServerLevel level) {

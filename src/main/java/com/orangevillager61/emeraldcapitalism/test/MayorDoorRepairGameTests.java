@@ -10,7 +10,6 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -69,7 +68,6 @@ public final class MayorDoorRepairGameTests {
 
         Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
         mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
-        mayor.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(level.dimension(), bankPos));
         MayorDoorRepairGoal goal = new MayorDoorRepairGoal(mayor);
         BlockPos bankApproach = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);
         mayor.startSleeping(mayor.blockPosition());
@@ -82,6 +80,19 @@ public final class MayorDoorRepairGameTests {
         goal.start();
         helper.assertTrue(village.getClaimedDoorPositions().contains(doorPos),
                 "Mayor did not claim the selected missing door");
+        helper.assertValueEqual(bank.getTotalPlankCount(), 6,
+                "Mayor withdrew wood before reaching the bank");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_PLANKS), 0,
+                "Mayor picked up wood before reaching the bank");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 0,
+                "Mayor crafted a door before reaching the bank");
+        var firstWalkTarget = mayor.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        helper.assertTrue(firstWalkTarget != null,
+                "Mayor did not receive a walk target for the bank approach");
+        if (firstWalkTarget != null) {
+            helper.assertValueEqual(firstWalkTarget.getTarget().currentBlockPosition(), bankApproach,
+                    "Mayor did not walk to the bank before the missing door");
+        }
         helper.assertTrue(mayor.getBrain().getMemory(MemoryModuleType.INTERACTION_TARGET).isEmpty(),
                 "Mayor kept a villager conversation target when repair started");
         helper.assertFalse(new MayorDoorRepairGoal(mayor).canUse(),
@@ -127,7 +138,6 @@ public final class MayorDoorRepairGameTests {
 
         Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
         mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
-        mayor.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(level.dimension(), bankPos));
         MayorDoorRepairGoal goal = new MayorDoorRepairGoal(mayor);
         BlockPos bankApproach = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);
         mayor.startSleeping(mayor.blockPosition());
