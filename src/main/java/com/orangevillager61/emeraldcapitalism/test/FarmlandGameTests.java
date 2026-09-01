@@ -124,7 +124,7 @@ public class FarmlandGameTests {
         VillageRecord record = new VillageRecord(
                 UUID.randomUUID(),
                 absoluteFarm,
-                new AABB(absoluteFarm).inflate(32)
+                new AABB(absoluteFarm)
         );
 
         record.fullScan(level);

@@ -15,6 +15,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.WorldlyContainer;
@@ -173,6 +174,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     public static void serverTick(Level level, BlockPos pos, BlockState state, EmeraldOreProcessorBlockEntity processor) {
         boolean wasLit = processor.isLit();
         boolean changed = false;
+        boolean inventoryChanged = false;
 
         if (processor.isLit()) {
             processor.burnTime--;
@@ -196,6 +198,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
                 processor.burnTime = processor.burnDuration;
                 fuel.shrink(1);
                 changed = true;
+                inventoryChanged = true;
             }
 
             if (processor.isLit()) {
@@ -212,6 +215,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
                         output.grow(processedOutputCount);
                     }
                     changed = true;
+                    inventoryChanged = true;
                 }
             } else {
                 // No fuel, reset progress
@@ -235,6 +239,9 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
 
         if (changed) {
             processor.setChanged();
+        }
+        if (inventoryChanged) {
+            processor.markNearbyBankCachesDirty();
         }
     }
 
@@ -302,13 +309,20 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     @Override
     public @NotNull ItemStack removeItem(int slot, int amount) {
         ItemStack result = ContainerHelper.removeItem(items, slot, amount);
-        if (!result.isEmpty()) setChanged();
+        if (!result.isEmpty()) {
+            setChanged();
+            markNearbyBankCachesDirty();
+        }
         return result;
     }
 
     @Override
     public @NotNull ItemStack removeItemNoUpdate(int slot) {
-        return ContainerHelper.takeItem(items, slot);
+        ItemStack result = ContainerHelper.takeItem(items, slot);
+        if (!result.isEmpty()) {
+            markNearbyBankCachesDirty();
+        }
+        return result;
     }
 
     @Override
@@ -318,6 +332,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
             stack.setCount(getMaxStackSize());
         }
         setChanged();
+        markNearbyBankCachesDirty();
     }
 
     @Override
@@ -338,6 +353,14 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
         }
         if (hadItems) {
             setChanged();
+            markNearbyBankCachesDirty();
+        }
+    }
+
+    /** Invalidates nearby bank processor scans after a server-side inventory mutation. */
+    private void markNearbyBankCachesDirty() {
+        if (level instanceof ServerLevel serverLevel) {
+            BankBlockEntity.markChestCachesDirtyNear(serverLevel, worldPosition);
         }
     }
 

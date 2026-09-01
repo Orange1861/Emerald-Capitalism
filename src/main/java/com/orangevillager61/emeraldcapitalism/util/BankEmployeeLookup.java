@@ -35,14 +35,32 @@ public final class BankEmployeeLookup {
             }
         }
 
-        // A newly spawned villager may not have been registered yet. Prefer the
-        // nearest containing village so overlapping bounds remain deterministic.
-        VillageRecord containingVillage = registry.getNearestVillage(villager.blockPosition());
-        if (containingVillage != null && containingVillage.getBoundingBox().contains(
-                villager.getX(), villager.getY(), villager.getZ())) {
-            return findBankAt(level, registry.getBankPos(containingVillage.getVillageId()));
+        // A newly spawned villager may not have been registered yet. Check every
+        // containing village because an automatically-created overlapping record
+        // can be nearer than the bank-backed village.
+        double x = villager.getX();
+        double y = villager.getY();
+        double z = villager.getZ();
+        BankBlockEntity nearestBank = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (VillageRecord village : registry.getVillages().values()) {
+            if (!village.getBoundingBox().contains(x, y, z)) {
+                continue;
+            }
+            BankBlockEntity bank = findBankAt(level, registry.getBankPos(village.getVillageId()));
+            if (bank == null) {
+                continue;
+            }
+            double distance = bank.getBlockPos().distSqr(villager.blockPosition());
+            if (distance < nearestDistance
+                    || (Double.compare(distance, nearestDistance) == 0
+                    && (nearestBank == null
+                    || bank.getBlockPos().asLong() < nearestBank.getBlockPos().asLong()))) {
+                nearestBank = bank;
+                nearestDistance = distance;
+            }
         }
-        return null;
+        return nearestBank;
     }
 
     /** Finds the village whose registered bank owns this employee, if any. */
@@ -70,10 +88,17 @@ public final class BankEmployeeLookup {
     @Nullable
     public static BankBlockEntity findEmployeeBank(ServerLevel level, Villager villager) {
         VillageRegistryData registry = VillageRegistryData.get(level);
-        VillageRecord containingVillage = registry.getVillageFor(villager.blockPosition());
-        if (containingVillage != null) {
+        // Employees may be inside an overlapping unbanked record. Check every
+        // containing record before falling back to employees outside their bounds.
+        double x = villager.getX();
+        double y = villager.getY();
+        double z = villager.getZ();
+        for (VillageRecord village : registry.getVillages().values()) {
+            if (!village.getBoundingBox().contains(x, y, z)) {
+                continue;
+            }
             BankBlockEntity bank = findEmployeeBankAt(level,
-                    registry.getBankPos(containingVillage.getVillageId()), villager);
+                    registry.getBankPos(village.getVillageId()), villager);
             if (bank != null) {
                 return bank;
             }
@@ -82,9 +107,6 @@ public final class BankEmployeeLookup {
         // Employees may temporarily be outside their village bounds. Check loaded
         // registered Banks as a fallback without forcing chunks to load.
         for (VillageRecord village : registry.getVillages().values()) {
-            if (containingVillage != null && village.getVillageId().equals(containingVillage.getVillageId())) {
-                continue;
-            }
             BankBlockEntity bank = findEmployeeBankAt(level,
                     registry.getBankPos(village.getVillageId()), villager);
             if (bank != null) {

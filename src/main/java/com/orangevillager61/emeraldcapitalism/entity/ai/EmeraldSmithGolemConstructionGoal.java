@@ -8,9 +8,8 @@ import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -640,23 +639,14 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     }
 
     private WorkContext resolveContext(ServerLevel level) {
-        VillageRecord village = VillageRegistryData.get(level).getVillageFor(villager.blockPosition());
-        if (village == null) {
-            logDiagnostic(level, "blocked: villager is outside every registered village; pos="
+        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+        if (bank == null) {
+            logDiagnostic(level, "blocked: no bank-backed village contains villager; pos="
                     + villager.blockPosition());
             return null;
         }
 
-        BlockPos bankPos = VillageRegistryData.get(level).getBankPos(village.getVillageId());
-        if (bankPos == null) {
-            logDiagnostic(level, "blocked: village " + village.getVillageId()
-                    + " has no registered bank position");
-            return null;
-        }
-        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
-            logDiagnostic(level, "blocked: registered bank block entity is unavailable at " + bankPos);
-            return null;
-        }
+        BlockPos bankPos = bank.getBlockPos();
 
         BlockPos processorPos = bank.getClosestEmeraldProcessorPos();
         if (processorPos == null) {

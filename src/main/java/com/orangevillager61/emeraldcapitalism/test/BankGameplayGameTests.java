@@ -841,7 +841,6 @@ public final class BankGameplayGameTests {
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT, new ItemStack(Items.EMERALD_ORE, 2));
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT,
                 new ItemStack(ECAPItems.EMERALD_GREEN_DYE.get(), 5));
-        BankBlockEntity.markChestCachesDirtyNear(level, processorPos);
         BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
 
         helper.assertValueEqual(bank.getTotalEmeraldOreCount(), 2,

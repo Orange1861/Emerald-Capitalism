@@ -1822,10 +1822,11 @@ public class VillageRecord {
     // Dynamic bounding box
 
     /**
-     * Shrinks the bounding box to tightly fit all discovered village blocks
-     * (beds, job sites, farmland, repair queue) and the bell position, plus
-     * {@link #BOUNDARY_MARGIN} blocks on each side. If no blocks were found
-     * the box is left unchanged.
+     * Adjusts the bounding box to fit all discovered village blocks (beds, job
+     * sites, farmland, repair queue) and the bell position, plus
+     * {@link #BOUNDARY_MARGIN} blocks on each side. The margin is allowed to
+     * extend past the previous scan box so edge blocks retain tracking space.
+     * If no blocks were found the box is left unchanged.
      */
     private void shrinkToFit() {
         // Collect all tracked positions
@@ -1864,31 +1865,27 @@ public class VillageRecord {
                 maxX + BOUNDARY_MARGIN, maxY + BOUNDARY_MARGIN, maxZ + BOUNDARY_MARGIN
         );
 
-        // Only shrink: never grow beyond the original scan area
-        AABB shrunk = new AABB(
-                Math.max(tightBox.minX, boundingBox.minX),
-                Math.max(tightBox.minY, boundingBox.minY),
-                Math.max(tightBox.minZ, boundingBox.minZ),
-                Math.min(tightBox.maxX, boundingBox.maxX),
-                Math.min(tightBox.maxY, boundingBox.maxY),
-                Math.min(tightBox.maxZ, boundingBox.maxZ)
-        );
+        // Keep the complete margin even when a tracked block is on the old
+        // boundary. The next scan must be able to observe newly placed blocks
+        // in that extra space instead of pruning it back to the old box.
+        AABB adjusted = tightBox;
 
-        // Only update if the box actually shrank meaningfully
-        if (shrunk.minX > boundingBox.minX || shrunk.minY > boundingBox.minY || shrunk.minZ > boundingBox.minZ
-                || shrunk.maxX < boundingBox.maxX || shrunk.maxY < boundingBox.maxY || shrunk.maxZ < boundingBox.maxZ) {
+        // Only update if the box actually changed meaningfully.
+        if (adjusted.minX != boundingBox.minX || adjusted.minY != boundingBox.minY
+                || adjusted.minZ != boundingBox.minZ || adjusted.maxX != boundingBox.maxX
+                || adjusted.maxY != boundingBox.maxY || adjusted.maxZ != boundingBox.maxZ) {
 
             EmeraldCapitalism.LOGGER.info(
-                    "[ECAP] Village {} bounding box shrunk from [({}, {}, {}) to ({}, {}, {})] "
+                    "[ECAP] Village {} bounding box adjusted from [({}, {}, {}) to ({}, {}, {})] "
                             + "to [({}, {}, {}) to ({}, {}, {})]",
                     villageId.toString().substring(0, 8),
                     (int) boundingBox.minX, (int) boundingBox.minY, (int) boundingBox.minZ,
                     (int) boundingBox.maxX, (int) boundingBox.maxY, (int) boundingBox.maxZ,
-                    (int) shrunk.minX, (int) shrunk.minY, (int) shrunk.minZ,
-                    (int) shrunk.maxX, (int) shrunk.maxY, (int) shrunk.maxZ
+                    (int) adjusted.minX, (int) adjusted.minY, (int) adjusted.minZ,
+                    (int) adjusted.maxX, (int) adjusted.maxY, (int) adjusted.maxZ
             );
 
-            this.boundingBox = shrunk;
+            this.boundingBox = adjusted;
         }
     }
 

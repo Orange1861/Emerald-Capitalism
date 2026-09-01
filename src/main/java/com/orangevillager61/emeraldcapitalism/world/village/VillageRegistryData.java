@@ -479,20 +479,41 @@ public class VillageRegistryData extends SavedData {
     }
 
     /**
-     * Returns the first village whose bounding box contains the given position,
-     * or null if no village contains it.
+     * Returns the nearest bank-backed village bell among the villages whose
+     * bounding boxes contain the given position. When an automatically-created
+     * record overlaps a bank-backed record, the bank-backed record owns the
+     * lookup; otherwise the nearest bell is used. Hash-map iteration order must
+     * not decide which village owns an overlapping position.
      */
     @Nullable
     public VillageRecord getVillageFor(BlockPos pos) {
         double x = pos.getX() + 0.5;
         double y = pos.getY() + 0.5;
         double z = pos.getZ() + 0.5;
+        VillageRecord nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        UUID nearestId = null;
+        boolean nearestHasBank = false;
         for (VillageRecord village : villages.values()) {
-            if (village.getBoundingBox().contains(x, y, z)) {
-                return village;
+            if (!village.getBoundingBox().contains(x, y, z)) {
+                continue;
+            }
+            boolean hasBank = bankPositions.containsKey(village.getVillageId());
+            double distance = village.getBellPosition().distSqr(pos);
+            UUID villageId = village.getVillageId();
+            if (nearest == null
+                    || (hasBank && !nearestHasBank)
+                    || (hasBank == nearestHasBank
+                    && (distance < nearestDistance
+                    || (Double.compare(distance, nearestDistance) == 0
+                    && (nearestId == null || villageId.toString().compareTo(nearestId.toString()) < 0))))) {
+                nearest = village;
+                nearestDistance = distance;
+                nearestId = villageId;
+                nearestHasBank = hasBank;
             }
         }
-        return null;
+        return nearest;
     }
 
     /**
@@ -520,19 +541,28 @@ public class VillageRegistryData extends SavedData {
             double dist = village.getBellPosition().distSqr(pos);
 
             if (village.getBoundingBox().contains(x, y, z)) {
-                if (dist < bestContainingDist) {
+                if (dist < bestContainingDist
+                        || (Double.compare(dist, bestContainingDist) == 0
+                        && isEarlierVillage(village, bestContaining))) {
                     bestContainingDist = dist;
                     bestContaining = village;
                 }
             }
 
-            if (dist < bestGlobalDist) {
+            if (dist < bestGlobalDist
+                    || (Double.compare(dist, bestGlobalDist) == 0
+                    && isEarlierVillage(village, bestGlobal))) {
                 bestGlobalDist = dist;
                 bestGlobal = village;
             }
         }
 
         return bestContaining != null ? bestContaining : bestGlobal;
+    }
+
+    private static boolean isEarlierVillage(VillageRecord candidate, @Nullable VillageRecord current) {
+        return current == null
+                || candidate.getVillageId().toString().compareTo(current.getVillageId().toString()) < 0;
     }
 
     /**
