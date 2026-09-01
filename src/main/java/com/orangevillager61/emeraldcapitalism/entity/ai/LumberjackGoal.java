@@ -42,6 +42,7 @@ public final class LumberjackGoal extends Goal {
 
     private static final int SEARCH_INTERVAL_TICKS = 40;
     private static final int EMPTY_SEARCH_INTERVAL_TICKS = 200;
+    private static final int SEARCH_SLICE_INTERVAL_TICKS = 1;
     private static final int FURNACE_SEARCH_RANGE = 16;
     private static final int FURNACE_VERTICAL_SEARCH_RANGE = 6;
     private static final int FURNACE_SEARCH_INTERVAL_TICKS = 40;
@@ -54,6 +55,7 @@ public final class LumberjackGoal extends Goal {
     private static final int JOB_SITE_SEARCH_RETRY_INTERVAL_TICKS = 100;
     private static final int BANK_LOOKUP_INTERVAL_TICKS = 20;
     private static final int MAX_NAVIGATION_FAILURES = 20;
+    private static final int MAX_UPPER_TRUNK_APPROACHES = 4;
     private static final int FURNACE_INPUT_SLOT = 0;
     private static final int FURNACE_FUEL_SLOT = 1;
     private static final int FURNACE_RESULT_SLOT = 2;
@@ -153,6 +155,7 @@ public final class LumberjackGoal extends Goal {
         }
 
         if (selectTrackedSaplingTree(level)) {
+            treeScanner.resetSearch();
             searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
             nextSearchTick = level.getGameTime() + SEARCH_INTERVAL_TICKS;
             return true;
@@ -161,12 +164,21 @@ public final class LumberjackGoal extends Goal {
         List<LumberjackTreeScanner.TreeSnapshot> candidates = PerformanceTimingCounters.measure(
                 PerformanceTimingCounters.Operation.LUMBERJACK_SEARCH,
                 () -> treeScanner.findCandidateTrees(level, searchRange));
+        if (!treeScanner.isSearchComplete()) {
+            // Tree discovery is resumable and uses a shared per-level budget.
+            // Keep the cursor alive and advance it on the next AI pass instead
+            // of turning an empty partial result into a failed search.
+            nextSearchTick = level.getGameTime() + SEARCH_SLICE_INTERVAL_TICKS;
+            return false;
+        }
         if (selectTreeFromCandidates(level, candidates)) {
+            treeScanner.resetSearch();
             searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
             nextSearchTick = level.getGameTime() + SEARCH_INTERVAL_TICKS;
             return true;
         }
 
+        treeScanner.resetSearch();
         searchRange = nextSearchRange();
         nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
         candidateTrees = List.of();
@@ -251,8 +263,10 @@ public final class LumberjackGoal extends Goal {
                                                LumberjackTreeScanner.TreeSnapshot candidate) {
         BlockPos approach = VillagerNavigationTargets.findReachableTarget(
                 villager, candidate.base(), 2,
-                position -> level.getBlockState(position)
-                        .isPathfindable(PathComputationType.LAND));
+                position -> {
+                    BlockState state = getLoadedBlockState(level, position);
+                    return state != null && state.isPathfindable(PathComputationType.LAND);
+                });
         if (approach != null) {
             return approach;
         }
@@ -260,12 +274,15 @@ public final class LumberjackGoal extends Goal {
         // A supported trunk base is the normal standing point. The fallback
         // handles unusual trees whose base is enclosed but whose upper trunk
         // still has a reachable approach.
-        for (int index = 1; index < candidate.logs().size(); index++) {
+        int maxIndex = Math.min(candidate.logs().size(), MAX_UPPER_TRUNK_APPROACHES + 1);
+        for (int index = 1; index < maxIndex; index++) {
             BlockPos log = candidate.logs().get(index);
             approach = VillagerNavigationTargets.findReachableTarget(
                     villager, log, 2,
-                    position -> level.getBlockState(position)
-                            .isPathfindable(PathComputationType.LAND));
+                    position -> {
+                        BlockState state = getLoadedBlockState(level, position);
+                        return state != null && state.isPathfindable(PathComputationType.LAND);
+                    });
             if (approach != null) {
                 return approach;
             }
@@ -397,7 +414,7 @@ public final class LumberjackGoal extends Goal {
         // while the block-breaking progress is still running.
         holdPositionWhileWorking();
 
-        BlockState state = level.getBlockState(target);
+        BlockState state = getLoadedBlockState(level, target);
         if (!treeScanner.isLumberjackLog(state)) {
             clearBreakingProgress(level);
             // The selected tree changed outside this goal. Abandon the stale
@@ -582,7 +599,10 @@ public final class LumberjackGoal extends Goal {
         return villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
                 .filter(globalPos -> globalPos.dimension().equals(level.dimension()))
                 .map(GlobalPos::pos)
-                .filter(pos -> level.getBlockState(pos).is(ECAPBlocks.SAWMILL.get()))
+                .filter(pos -> {
+                    BlockState state = getLoadedBlockState(level, pos);
+                    return state != null && state.is(ECAPBlocks.SAWMILL.get());
+                })
                 .orElse(null);
     }
 
@@ -630,8 +650,10 @@ public final class LumberjackGoal extends Goal {
         }
         if (navigationTarget == null) {
             navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, target, 2,
-                    candidate -> level.getBlockState(candidate)
-                            .isPathfindable(PathComputationType.LAND));
+                    candidate -> {
+                        BlockState state = getLoadedBlockState(level, candidate);
+                        return state != null && state.isPathfindable(PathComputationType.LAND);
+                    });
             if (navigationTarget == null) {
                 return false;
             }
@@ -693,7 +715,7 @@ public final class LumberjackGoal extends Goal {
                         continue;
                     }
 
-                    BlockState state = level.getBlockState(candidate);
+                    BlockState state = getLoadedBlockState(level, candidate);
                     if (!treeScanner.isNaturalLeaf(state)) {
                         continue;
                     }
@@ -763,8 +785,8 @@ public final class LumberjackGoal extends Goal {
         clearBreakingProgress(level);
 
         for (BlockPos leafPos : tree.leaves()) {
-            BlockState leafState = level.getBlockState(leafPos);
-            if (leafState.is(BlockTags.LEAVES)) {
+            BlockState leafState = getLoadedBlockState(level, leafPos);
+            if (leafState != null && leafState.is(BlockTags.LEAVES)) {
                 List<ItemStack> drops = Block.getDrops(leafState, level, leafPos, null, villager, ItemStack.EMPTY);
                 if (level.destroyBlock(leafPos, false, villager)) {
                     collectDrops(drops);
@@ -869,7 +891,8 @@ public final class LumberjackGoal extends Goal {
 
     @Nullable
     private FurnaceBlockEntity getUsableFurnace(ServerLevel level, @Nullable BlockPos pos) {
-        if (pos == null || !(level.getBlockEntity(pos) instanceof FurnaceBlockEntity furnace)) {
+        if (pos == null || !(BankEmployeeLookup.getLoadedBlockEntity(level, pos)
+                instanceof FurnaceBlockEntity furnace)) {
             return null;
         }
         return furnace.getItem(FURNACE_INPUT_SLOT).isEmpty()
@@ -887,8 +910,8 @@ public final class LumberjackGoal extends Goal {
             for (int z = -FURNACE_SEARCH_RANGE; z <= FURNACE_SEARCH_RANGE; z++) {
                 for (int y = -FURNACE_VERTICAL_SEARCH_RANGE; y <= FURNACE_VERTICAL_SEARCH_RANGE; y++) {
                     candidate.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                    if (!level.getBlockState(candidate).is(Blocks.FURNACE)
-                            || !(level.getBlockEntity(candidate) instanceof FurnaceBlockEntity furnace)
+                    if (!(BankEmployeeLookup.getLoadedBlockEntity(level, candidate)
+                            instanceof FurnaceBlockEntity furnace)
                             || !furnace.getItem(FURNACE_INPUT_SLOT).isEmpty()
                             || !furnace.getItem(FURNACE_RESULT_SLOT).isEmpty()) {
                         continue;
@@ -913,7 +936,8 @@ public final class LumberjackGoal extends Goal {
         if (!level.hasChunk(productionFurnace.getX() >> 4, productionFurnace.getZ() >> 4)) {
             return;
         }
-        if (!(level.getBlockEntity(productionFurnace) instanceof FurnaceBlockEntity furnace)) {
+        if (!(BankEmployeeLookup.getLoadedBlockEntity(level, productionFurnace)
+                instanceof FurnaceBlockEntity furnace)) {
             clearTrackedCharcoalProduction();
             finishCharcoalProduction();
             failed = true;
@@ -1069,7 +1093,8 @@ public final class LumberjackGoal extends Goal {
         if (!level.hasChunk(furnacePos.getX() >> 4, furnacePos.getZ() >> 4)) {
             return false;
         }
-        if (!(level.getBlockEntity(furnacePos) instanceof FurnaceBlockEntity furnace)) {
+        if (!(BankEmployeeLookup.getLoadedBlockEntity(level, furnacePos)
+                instanceof FurnaceBlockEntity furnace)) {
             clearTrackedCharcoalProduction();
             return false;
         }
@@ -1262,7 +1287,8 @@ public final class LumberjackGoal extends Goal {
     }
 
     private void replant(ServerLevel level, BlockPos base, Item preferredSapling) {
-        if (!level.getBlockState(base).isAir()) {
+        BlockState baseState = getLoadedBlockState(level, base);
+        if (baseState == null || !baseState.isAir()) {
             return;
         }
 
@@ -1286,6 +1312,11 @@ public final class LumberjackGoal extends Goal {
             villager.getInventory().setItem(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
             return;
         }
+    }
+
+    @Nullable
+    private static BlockState getLoadedBlockState(ServerLevel level, BlockPos pos) {
+        return BankEmployeeLookup.getLoadedBlockState(level, pos);
     }
 
     private void releaseTreeReservation() {

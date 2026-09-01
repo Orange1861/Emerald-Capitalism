@@ -11,6 +11,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.BankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.EmeraldConsolidationUtils;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.menu.BankMenu;
@@ -100,6 +101,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     /** Safety bound for the durable list of bank chest locations. */
     public static final int MAX_TRACKED_CHEST_LOCATIONS = 4096;
 
+    /** Bounds distinct item-component templates retained by the capacity memo. */
+    private static final int MAX_CAPACITY_CACHE_ENTRIES = 64;
+
     /** Vanilla chest recipe cost in plank-equivalents. */
     public static final int PLANKS_PER_VANILLA_CHEST = 8;
 
@@ -133,6 +137,16 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
      */
     private final LinkedHashSet<BlockPos> cachedChestPositions = new LinkedHashSet<>();
     private final Map<BlockPos, EmeraldChestBlockEntity.StoredCounts> cachedChestTotals = new HashMap<>();
+    /** Item-level chest totals used by AI and market queries without rescanning slots. */
+    private final Map<Item, Integer> cachedChestItemTotals = new HashMap<>();
+    private int cachedChestLogCount;
+    private int cachedChestCoalCount;
+    private int cachedChestEmeraldValue;
+    private long inventoryRevision;
+    private long capacityCacheRevision = Long.MIN_VALUE;
+    private final List<CapacityCacheEntry> capacityCache = new ArrayList<>();
+    private long missingChestCountTick = Long.MIN_VALUE;
+    private int cachedMissingChestCount;
     /** Durable chest locations retained when a bank chest is broken or missing. */
     private final LinkedHashSet<BlockPos> trackedChestPositions = new LinkedHashSet<>();
     /** Chests crafted by an Emeraldsmith and reserved for tracked missing locations. */
@@ -506,6 +520,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             bank.emeraldGolemEmployeeIds.addAll(emeraldGolemEmployeeIds);
             bank.trackedChestPositions.clear();
             bank.trackedChestPositions.addAll(trackedChestPositions);
+            bank.missingChestCountTick = Long.MIN_VALUE;
             bank.preparedEmeraldChestCount = preparedEmeraldChestCount;
             bank.composterPos = composterPos.orElse(null);
             bank.golemConstructionPos = golemConstructionPos.orElse(null);
@@ -629,6 +644,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     && bankPos.getZ() >= minBankZ && bankPos.getZ() <= maxBankZ) {
                 bank.chestCacheDirty = true;
                 bank.processorCacheDirty = true;
+                bank.missingChestCountTick = Long.MIN_VALUE;
             }
         }
     }
@@ -667,7 +683,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     public static BankBlockEntity findBankForGolem(ServerLevel level, IronGolem golem) {
         if (golem instanceof EmeraldGolem emeraldGolem
                 && emeraldGolem.getBankEmployeePos() != null) {
-            return level.getBlockEntity(emeraldGolem.getBankEmployeePos()) instanceof BankBlockEntity bank
+            return BankEmployeeLookup.getLoadedBlockEntity(level, emeraldGolem.getBankEmployeePos())
+                    instanceof BankBlockEntity bank
                     && !bank.isRemoved() ? bank : null;
         }
 
@@ -963,7 +980,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         int remaining = amount;
         for (BlockPos chestPos : cachedChestPositions) {
             if (remaining <= 0) break;
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (be instanceof EmeraldChestBlockEntity chest) {
                 remaining = addEmeraldsToChest(chest, remaining);
             }
@@ -980,7 +997,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private int getEmeraldStorageCapacity(ServerLevel level) {
         long capacity = 0;
         for (BlockPos chestPos : cachedChestPositions) {
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
@@ -1015,7 +1032,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         Map<BlockPos, Map<Integer, ItemStack>> originalSlots = new HashMap<>();
         for (BlockPos chestPos : cachedChestPositions) {
             if (remaining <= 0) break;
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (be instanceof EmeraldChestBlockEntity chest) {
                 ChestWithdrawal withdrawal = withdrawEmeraldsFromChest(
                         chest, remaining, chestPos, originalSlots);
@@ -1094,7 +1111,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             if (remaining <= 0) {
                 break;
             }
-            if (level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest) {
+            if (getLoadedBlockEntity(level, chestPos) instanceof EmeraldChestBlockEntity chest) {
                 remaining = addEmeraldsToChest(chest, remaining, chestPos, originalSlots);
             }
         }
@@ -1155,7 +1172,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private static void restoreChestSlots(ServerLevel level,
                                           Map<BlockPos, Map<Integer, ItemStack>> originalSlots) {
         for (Map.Entry<BlockPos, Map<Integer, ItemStack>> chestEntry : originalSlots.entrySet()) {
-            if (!(level.getBlockEntity(chestEntry.getKey()) instanceof EmeraldChestBlockEntity chest)) {
+            if (!(BankEmployeeLookup.getLoadedBlockEntity(level, chestEntry.getKey())
+                    instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
             for (Map.Entry<Integer, ItemStack> slotEntry : chestEntry.getValue().entrySet()) {
@@ -1196,7 +1214,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         int available = 0;
         for (BlockPos chestPos : cachedChestPositions) {
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
@@ -1223,7 +1241,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             if (remaining <= 0) {
                 break;
             }
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
@@ -1285,7 +1303,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private ItemStack withdrawEmeraldChestItems(ServerLevel level, int amount) {
         int available = 0;
         for (BlockPos chestPos : cachedChestPositions) {
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
+            if (!(getLoadedBlockEntity(level, chestPos) instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
             for (int slot = 0; slot < chest.getContainerSize(); slot++) {
@@ -1327,7 +1345,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         int available = 0;
         for (BlockPos chestPos : cachedChestPositions) {
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
+            if (!(getLoadedBlockEntity(level, chestPos) instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
             for (int slot = 0; slot < chest.getContainerSize(); slot++) {
@@ -1355,7 +1373,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             if (remaining <= 0) {
                 break;
             }
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
+            if (!(getLoadedBlockEntity(level, chestPos) instanceof EmeraldChestBlockEntity chest)) {
                 continue;
             }
             for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
@@ -1388,7 +1406,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                                                 Predicate<ItemStack> matches) {
         int available = 0;
         for (BlockPos chestPos : cachedChestPositions) {
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) continue;
             for (int slot = 0; slot < chest.getContainerSize(); slot++) {
                 ItemStack stack = chest.getItem(slot);
@@ -1406,7 +1424,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         int remaining = amount;
         for (BlockPos chestPos : cachedChestPositions) {
             if (remaining <= 0) break;
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) continue;
             for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
                 ItemStack stored = chest.getItem(slot);
@@ -1441,7 +1459,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         ItemStack extracted = ItemStack.EMPTY;
         for (BlockPos chestPos : cachedChestPositions) {
             if (remaining <= 0) break;
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) continue;
 
             for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
@@ -1482,7 +1500,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         Map<BlockPos, Map<Integer, ItemStack>> originalSlots = new HashMap<>();
         for (BlockPos chestPos : cachedChestPositions) {
             if (remaining <= 0) break;
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) continue;
 
             for (int slot = 0; slot < chest.getContainerSize() && remaining > 0; slot++) {
@@ -1522,9 +1540,21 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the live number of items that can be added for this stack type. */
     public int getItemStorageCapacity(ServerLevel level, ItemStack template) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(template, "template");
+        if (capacityCacheRevision != inventoryRevision) {
+            capacityCache.clear();
+            capacityCacheRevision = inventoryRevision;
+        }
+        for (CapacityCacheEntry entry : capacityCache) {
+            if (ItemStack.isSameItemSameComponents(entry.template(), template)) {
+                return entry.capacity();
+            }
+        }
+
         int capacity = 0;
         for (BlockPos chestPos : cachedChestPositions) {
-            BlockEntity be = level.getBlockEntity(chestPos);
+            BlockEntity be = getLoadedBlockEntity(level, chestPos);
             if (!(be instanceof EmeraldChestBlockEntity chest)) continue;
             for (int slot = 0; slot < chest.getContainerSize(); slot++) {
                 ItemStack stored = chest.getItem(slot);
@@ -1533,14 +1563,33 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 } else if (ItemStack.isSameItemSameComponents(stored, template)) {
                     capacity += stored.getMaxStackSize() - stored.getCount();
                 }
-                if (capacity >= template.getCount()) return capacity;
             }
+        }
+        if (capacityCache.size() < MAX_CAPACITY_CACHE_ENTRIES) {
+            capacityCache.add(new CapacityCacheEntry(template.copy(), capacity));
         }
         return capacity;
     }
 
+    @Nullable
+    private BlockEntity getLoadedBlockEntity(ServerLevel level, BlockPos pos) {
+        LevelChunk chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+        return chunk == null
+                ? null
+                : chunk.getBlockEntity(pos, LevelChunk.EntityCreationType.CHECK);
+    }
+
+    @Nullable
+    private BlockState getLoadedBlockState(ServerLevel level, BlockPos pos) {
+        LevelChunk chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+        return chunk == null ? null : chunk.getBlockState(pos);
+    }
+
     private void openChestForTransfer(ServerLevel level, BlockPos chestPos) {
-        BlockState state = level.getBlockState(chestPos);
+        BlockState state = getLoadedBlockState(level, chestPos);
+        if (state == null) {
+            return;
+        }
         level.blockEvent(chestPos, state.getBlock(), 1, 1);
         transferChestCloseTicks.merge(chestPos.immutable(), level.getGameTime() + 10L, Math::max);
     }
@@ -1549,7 +1598,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         transferChestCloseTicks.entrySet().removeIf(entry -> {
             if (gameTime < entry.getValue()) return false;
             BlockPos chestPos = entry.getKey();
-            BlockState state = level.getBlockState(chestPos);
+            BlockState state = getLoadedBlockState(level, chestPos);
+            if (state == null) {
+                return false;
+            }
             if (state.is(ECAPBlocks.EMERALD_CHEST.get())) {
                 level.blockEvent(chestPos, state.getBlock(), 1, 0);
             }
@@ -1829,17 +1881,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns whether a linked chest currently contains at least one matching item. */
     public boolean hasStoredItem(ServerLevel level, Item item) {
-        for (BlockPos chestPos : cachedChestPositions) {
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
-                continue;
-            }
-            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
-                if (chest.getItem(slot).is(item)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return cachedChestItemTotals.getOrDefault(item, 0) > 0;
     }
 
     public boolean isEmployee(UUID villagerId) {
@@ -1899,7 +1941,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return false;
         }
 
-        BlockState jobState = level.getBlockState(jobSitePos);
+        BlockState jobState = BankEmployeeLookup.getLoadedBlockState(level, jobSitePos);
+        if (jobState == null) {
+            return false;
+        }
         UUID villagerId = villager.getUUID();
         boolean changed = false;
 
@@ -1990,6 +2035,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         unlinkCachedChests(level);
         cachedChestPositions.clear();
         cachedChestTotals.clear();
+        missingChestCountTick = Long.MIN_VALUE;
         BlockPos closestProcessor = null;
         double closestProcessorDistance = Double.MAX_VALUE;
 
@@ -2003,9 +2049,12 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         boolean trackedLocationsChanged = false;
         for (BlockPos candidate : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
-            BlockState candidateState = level.getBlockState(candidate);
+            BlockState candidateState = getLoadedBlockState(level, candidate);
+            if (candidateState == null) {
+                continue;
+            }
             if (candidateState.is(ECAPBlocks.EMERALD_CHEST.get())) {
-                BlockEntity blockEntity = level.getBlockEntity(candidate);
+                BlockEntity blockEntity = getLoadedBlockEntity(level, candidate);
                 if (blockEntity instanceof EmeraldChestBlockEntity chest) {
                     BlockPos immutablePos = candidate.immutable();
                     cachedChestPositions.add(immutablePos);
@@ -2060,8 +2109,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     private void verifyCachedChests(ServerLevel level) {
+        missingChestCountTick = Long.MIN_VALUE;
         boolean removed = cachedChestPositions.removeIf(pos -> {
-            if (!level.isLoaded(pos) || level.getBlockState(pos).is(ECAPBlocks.EMERALD_CHEST.get())) {
+            BlockState state = getLoadedBlockState(level, pos);
+            if (state == null || state.is(ECAPBlocks.EMERALD_CHEST.get())) {
                 return false;
             }
             cachedChestTotals.remove(pos);
@@ -2070,13 +2121,16 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         if (removed) {
             refreshInventoryTotals(level);
         }
-        if (composterPos != null && level.hasChunk(composterPos.getX() >> 4, composterPos.getZ() >> 4)
-                && !level.getBlockState(composterPos).is(Blocks.COMPOSTER)) {
+        BlockState composterState = composterPos == null
+                ? null : BankEmployeeLookup.getLoadedBlockState(level, composterPos);
+        if (composterState != null && !composterState.is(Blocks.COMPOSTER)) {
             composterPos = null;
             setChanged();
         }
-        if (closestEmeraldProcessorPos != null
-                && !level.getBlockState(closestEmeraldProcessorPos).is(ECAPBlocks.EMERALD_ORE_PROCESSOR.get())) {
+        BlockState processorState = closestEmeraldProcessorPos == null
+                ? null : BankEmployeeLookup.getLoadedBlockState(level, closestEmeraldProcessorPos);
+        if (processorState != null
+                && !processorState.is(ECAPBlocks.EMERALD_ORE_PROCESSOR.get())) {
             closestEmeraldProcessorPos = null;
             processorCacheDirty = true;
         }
@@ -2091,12 +2145,26 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Aggregates cached chest totals and the nearest processor's live inventory. */
     private void refreshInventoryTotals(ServerLevel level) {
+        inventoryRevision++;
+        capacityCache.clear();
+        capacityCacheRevision = inventoryRevision;
+        cachedChestItemTotals.clear();
+        cachedChestLogCount = 0;
+        cachedChestCoalCount = 0;
+        cachedChestEmeraldValue = 0;
+
         InventoryTotals totals = new InventoryTotals();
         for (EmeraldChestBlockEntity.StoredCounts counts : cachedChestTotals.values()) {
             totals.add(counts);
+            cachedChestEmeraldValue = Math.addExact(cachedChestEmeraldValue, counts.emeraldValue());
+            cachedChestLogCount = Math.addExact(cachedChestLogCount, counts.logs());
+            cachedChestCoalCount = Math.addExact(cachedChestCoalCount, counts.coal());
+            for (Map.Entry<Item, Integer> entry : counts.itemCounts().entrySet()) {
+                cachedChestItemTotals.merge(entry.getKey(), entry.getValue(), Math::addExact);
+            }
         }
         if (closestEmeraldProcessorPos != null
-                && level.getBlockEntity(closestEmeraldProcessorPos)
+                && getLoadedBlockEntity(level, closestEmeraldProcessorPos)
                 instanceof EmeraldOreProcessorBlockEntity processor) {
             for (int slot = 0; slot < processor.getContainerSize(); slot++) {
                 totals.add(processor.getItem(slot));
@@ -2119,6 +2187,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             totalPlankCount = totals.plankEquivalent;
             setChanged();
         }
+    }
+
+    private record CapacityCacheEntry(ItemStack template, int capacity) {
     }
 
     /** Mutable accumulator used to combine chest snapshots with processor slots. */
@@ -2275,8 +2346,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     public List<BlockPos> getMissingChestPositions(ServerLevel level) {
         List<BlockPos> missing = new ArrayList<>();
         for (BlockPos chestPos : trackedChestPositions) {
-            if (level.isLoaded(chestPos)
-                    && !level.getBlockState(chestPos).is(ECAPBlocks.EMERALD_CHEST.get())) {
+            BlockState state = getLoadedBlockState(level, chestPos);
+            if (state != null && !state.is(ECAPBlocks.EMERALD_CHEST.get())) {
                 missing.add(chestPos);
             }
         }
@@ -2284,7 +2355,21 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     public int getMissingChestCount(ServerLevel level) {
-        return getMissingChestPositions(level).size();
+        long gameTime = level.getGameTime();
+        if (missingChestCountTick == gameTime) {
+            return cachedMissingChestCount;
+        }
+
+        int missing = 0;
+        for (BlockPos chestPos : trackedChestPositions) {
+            BlockState state = getLoadedBlockState(level, chestPos);
+            if (state != null && !state.is(ECAPBlocks.EMERALD_CHEST.get())) {
+                missing++;
+            }
+        }
+        missingChestCountTick = gameTime;
+        cachedMissingChestCount = missing;
+        return missing;
     }
 
     /** Returns repair chests prepared by an Emeraldsmith and awaiting placement. */
@@ -2357,13 +2442,16 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         if (preparedEmeraldChestCount <= 0) {
             return false;
         }
-        for (BlockPos chestPos : getMissingChestPositions(level)) {
-            BlockState state = level.getBlockState(chestPos);
+        for (BlockPos chestPos : trackedChestPositions) {
+            BlockState state = getLoadedBlockState(level, chestPos);
+            if (state == null || state.is(ECAPBlocks.EMERALD_CHEST.get())) {
+                continue;
+            }
             if (!state.isAir() || !level.setBlock(chestPos,
                     ECAPBlocks.EMERALD_CHEST.get().defaultBlockState(), 3)) {
                 continue;
             }
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
+            if (!(getLoadedBlockEntity(level, chestPos) instanceof EmeraldChestBlockEntity chest)) {
                 level.setBlock(chestPos, Blocks.AIR.defaultBlockState(), 3);
                 continue;
             }
@@ -2372,6 +2460,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             cachedChestTotals.put(immutablePos, chest.getStoredCounts());
             chest.linkBank(worldPosition);
             preparedEmeraldChestCount--;
+            missingChestCountTick = Long.MIN_VALUE;
             refreshInventoryTotals(level);
             setChanged();
             return true;
@@ -2431,22 +2520,15 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return totalPlankCount;
     }
 
-    /** Reads the current stock of one market item from the linked chests. */
+    /** Returns the event-driven cached stock of one market item in linked chests. */
     public int getMarketStock(ServerLevel level, Item item) {
-        int total = 0;
-        for (BlockPos chestPos : cachedChestPositions) {
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
-                continue;
-            }
-            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
-                ItemStack stack = chest.getItem(slot);
-                if (isLogMarketItem(item) ? stack.is(ItemTags.LOGS)
-                        : isCoalMarketItem(item) ? stack.is(ItemTags.COALS) : stack.is(item)) {
-                    total = Math.addExact(total, stack.getCount());
-                }
-            }
+        if (isLogMarketItem(item)) {
+            return cachedChestLogCount;
         }
-        return total;
+        if (isCoalMarketItem(item)) {
+            return cachedChestCoalCount;
+        }
+        return cachedChestItemTotals.getOrDefault(item, 0);
     }
 
     /** The canonical log market item represents all wood-log variants. */
@@ -2459,23 +2541,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return item == Items.COAL;
     }
 
-    /** Reads the current emerald value without relying on the periodic cache refresh. */
+    /** Returns the event-driven cached emerald value in linked chests. */
     public int getLiveEmeraldValue(ServerLevel level) {
-        int total = 0;
-        for (BlockPos chestPos : cachedChestPositions) {
-            if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)) {
-                continue;
-            }
-            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
-                ItemStack stack = chest.getItem(slot);
-                if (stack.is(Items.EMERALD)) {
-                    total = Math.addExact(total, stack.getCount());
-                } else if (stack.is(Items.EMERALD_BLOCK)) {
-                    total = Math.addExact(total, Math.multiplyExact(stack.getCount(), 9));
-                }
-            }
-        }
-        return total;
+        return cachedChestEmeraldValue;
     }
 
     /** Returns the population used by population-scaled market demand. */
@@ -2575,8 +2643,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     private void unlinkCachedChests(ServerLevel level) {
         for (BlockPos chestPos : cachedChestPositions) {
-            if (level.isLoaded(chestPos)
-                    && level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest) {
+            if (getLoadedBlockEntity(level, chestPos) instanceof EmeraldChestBlockEntity chest) {
                 chest.unlinkBank(worldPosition);
             }
         }

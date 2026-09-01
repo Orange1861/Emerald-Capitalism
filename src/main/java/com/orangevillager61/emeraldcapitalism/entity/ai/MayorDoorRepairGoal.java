@@ -29,13 +29,11 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
 
-/** Makes a mayor collect wood from the bank and rebuild one missing village door. */
+/** Makes a mayor collect wood from the bank and rebuild one missing village door during the day. */
 public final class MayorDoorRepairGoal extends Goal {
 
-    private static final String SLEPT_SINCE_JOB_SITE_VISIT_KEY =
-            "emeraldcapitalism_mayor_repair_slept_since_job_site_visit";
-    private static final String JOB_SITE_VISIT_CONSUMED_KEY =
-            "emeraldcapitalism_mayor_repair_job_site_visit_consumed";
+    /** Matches the priority used by ordinary farmland repair work. */
+    public static final int GOAL_PRIORITY = 4;
     private static final int PLANKS_PER_DOOR = 6;
     private static final double MAX_RANGE = 32.0D;
     private static final double ARRIVAL_DISTANCE_SQ = 2.25D;
@@ -86,10 +84,6 @@ public final class MayorDoorRepairGoal extends Goal {
             return false;
         }
         if (villager.isSleeping()) {
-            if (!villager.isBaby()
-                    && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()) {
-                observeSleep();
-            }
             return reject(level, "sleeping");
         }
         if (villager.isBaby()) {
@@ -103,12 +97,6 @@ public final class MayorDoorRepairGoal extends Goal {
         }
         if (villager.getVillagerData().getProfession() != ECAPVillagerProfessions.MAYOR.get()) {
             return reject(level, "profession is " + villager.getVillagerData().getProfession());
-        }
-        if (!hasSleptSinceJobSiteVisit()) {
-            return reject(level, "has not slept since the previous job-site visit");
-        }
-        if (hasConsumedJobSiteVisit()) {
-            return reject(level, "already consumed this job-site visit");
         }
         if (level.getGameTime() < nextDoorLookupTick) {
             return reject(level, "door lookup cooldown until gameTime " + nextDoorLookupTick);
@@ -155,10 +143,6 @@ public final class MayorDoorRepairGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         if (villager.isSleeping()) {
-            if (!villager.isBaby()
-                    && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()) {
-                observeSleep();
-            }
             return stopBecause("villager went to sleep");
         }
         if (failed) {
@@ -250,7 +234,6 @@ public final class MayorDoorRepairGoal extends Goal {
         // GoalSelector flags. Clear an interaction that was selected before the
         // repair goal started so it cannot keep the mayor facing another villager.
         clearSocialInteractionMemories();
-        markJobSiteVisitConsumed();
         setWalkTarget();
         EmeraldCapitalism.LOGGER.info(
                 "[ECAP][MayorRepair] STARTED mayor={} stage={} bankApproach={} navigationTarget={} doorTarget={}",
@@ -607,9 +590,9 @@ public final class MayorDoorRepairGoal extends Goal {
         lastEligibilityDiagnostic = reason;
         nextEligibilityDiagnosticTick = gameTime + ELIGIBILITY_LOG_INTERVAL_TICKS;
         EmeraldCapitalism.LOGGER.debug(
-                "[ECAP][MayorRepair] CHECK mayor={} gameTime={} pos={} reason={} sleptFlag={} consumedFlag={} jobSiteMemory={} interactionTarget={} breedTarget={} walkTarget={}",
-                villager.getUUID(), gameTime, villager.blockPosition(), reason,
-                hasSleptSinceJobSiteVisit(), hasConsumedJobSiteVisit(),
+                "[ECAP][MayorRepair] CHECK mayor={} profession={} gameTime={} pos={} reason={} sleeping={} jobSiteMemory={} interactionTarget={} breedTarget={} walkTarget={}",
+                villager.getUUID(), villager.getVillagerData().getProfession(), gameTime,
+                villager.blockPosition(), reason, villager.isSleeping(),
                 villager.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE),
                 villager.getBrain().hasMemoryValue(MemoryModuleType.INTERACTION_TARGET),
                 villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET),
@@ -682,31 +665,6 @@ public final class MayorDoorRepairGoal extends Goal {
             villager.getInventory().setItem(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
         }
         return amount - remaining;
-    }
-
-    private void observeSleep() {
-        if (!villager.getPersistentData().getBoolean(SLEPT_SINCE_JOB_SITE_VISIT_KEY)
-                || villager.getPersistentData().getBoolean(JOB_SITE_VISIT_CONSUMED_KEY)) {
-            villager.getPersistentData().putBoolean(SLEPT_SINCE_JOB_SITE_VISIT_KEY, true);
-            villager.getPersistentData().putBoolean(JOB_SITE_VISIT_CONSUMED_KEY, false);
-            EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] SLEEP observed mayor={} gameTime={}",
-                    villager.getUUID(), villager.level().getGameTime());
-        }
-    }
-
-    private boolean hasSleptSinceJobSiteVisit() {
-        return villager.getPersistentData().getBoolean(SLEPT_SINCE_JOB_SITE_VISIT_KEY);
-    }
-
-    private boolean hasConsumedJobSiteVisit() {
-        return villager.getPersistentData().getBoolean(JOB_SITE_VISIT_CONSUMED_KEY);
-    }
-
-    private void markJobSiteVisitConsumed() {
-        villager.getPersistentData().putBoolean(SLEPT_SINCE_JOB_SITE_VISIT_KEY, false);
-        villager.getPersistentData().putBoolean(JOB_SITE_VISIT_CONSUMED_KEY, true);
-        EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] SLEEP flag consumed mayor={} gameTime={}",
-                villager.getUUID(), villager.level().getGameTime());
     }
 
     @Nullable

@@ -653,7 +653,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             logDiagnostic(level, "blocked: bank has no cached Emerald Processor; bank=" + bankPos);
             return null;
         }
-        if (!(level.getBlockEntity(processorPos) instanceof EmeraldOreProcessorBlockEntity processor)) {
+        if (!(BankEmployeeLookup.getLoadedBlockEntity(level, processorPos)
+                instanceof EmeraldOreProcessorBlockEntity processor)) {
             logDiagnostic(level, "blocked: cached Emerald Processor block entity is unavailable at "
                     + processorPos);
             return null;

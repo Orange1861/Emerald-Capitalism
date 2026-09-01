@@ -26,7 +26,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 /** Finds bounded, harvestable tree snapshots for a lumberjack goal. */
 final class LumberjackTreeScanner {
@@ -48,8 +50,23 @@ final class LumberjackTreeScanner {
     private static final int MAX_LEAVES = 160;
     private static final int CANOPY_HORIZONTAL_PADDING = 4;
     private static final int CANOPY_VERTICAL_PADDING = 4;
+    private static final int MAX_SCAN_POSITIONS_PER_SERVER_TICK = 8192;
+    private static final int MAX_SCAN_POSITIONS_PER_SLICE = 4096;
+    private static final int SEARCH_ORIGIN_RESTART_DISTANCE_SQ = 256;
+    private static final Map<ServerLevel, ScanBudget> SCAN_BUDGETS = new WeakHashMap<>();
 
     private final Villager villager;
+    @Nullable
+    private ServerLevel activeSearchLevel;
+    @Nullable
+    private BlockPos activeSearchOrigin;
+    @Nullable
+    private LoadedChunkComposition activeComposition;
+    private Set<BlockPos> examinedLogs = Set.of();
+    private List<TreeSnapshot> candidates = List.of();
+    private int activeSearchRange = -1;
+    private int searchIndex;
+    private boolean searchComplete;
 
     LumberjackTreeScanner(Villager villager) {
         this.villager = villager;
@@ -64,67 +81,119 @@ final class LumberjackTreeScanner {
         int searchRange = Math.max(INITIAL_SEARCH_RANGE,
                 Math.min(MAX_SEARCH_RANGE, requestedSearchRange));
         BlockPos origin = villager.blockPosition();
+        if (activeSearchLevel != level
+                || activeSearchOrigin == null
+                || activeSearchOrigin.distSqr(origin) > SEARCH_ORIGIN_RESTART_DISTANCE_SQ
+                || activeSearchRange != searchRange
+                || activeComposition == null) {
+            beginSearch(level, origin, searchRange);
+        }
+
+        if (!searchComplete) {
+            int positionsToCheck = claimScanBudget(level, MAX_SCAN_POSITIONS_PER_SLICE);
+            BlockPos searchOrigin = activeSearchOrigin;
+            LoadedChunkComposition composition = activeComposition;
+            int side = activeSearchRange * 2 + 1;
+            int verticalSpan = VERTICAL_SEARCH_RANGE * 2 + 1;
+            int positionsPerX = side * verticalSpan;
+            int totalPositions = side * positionsPerX;
+            BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
+
+            while (positionsToCheck-- > 0 && searchIndex < totalPositions) {
+                int index = searchIndex++;
+                int xOffset = index / positionsPerX - activeSearchRange;
+                int zOffset = (index / verticalSpan) % side - activeSearchRange;
+                int yOffset = index % verticalSpan - VERTICAL_SEARCH_RANGE;
+                candidate.set(searchOrigin.getX() + xOffset,
+                        searchOrigin.getY() + yOffset,
+                        searchOrigin.getZ() + zOffset);
+                if (!composition.mayContain(candidate)) {
+                    continue;
+                }
+                BlockState candidateState = composition.getBlockStateIfLoaded(candidate);
+                if (!isLumberjackLog(candidateState)) {
+                    continue;
+                }
+
+                BlockPos immutableCandidate = candidate.immutable();
+                if (examinedLogs.contains(immutableCandidate)) {
+                    continue;
+                }
+                if (LumberjackTreeReservations.isLogReservedByOther(
+                        level, villager.getUUID(), immutableCandidate)) {
+                    continue;
+                }
+
+                double distanceSq = searchOrigin.distSqr(immutableCandidate);
+                if (distanceSq > (double) activeSearchRange * activeSearchRange) {
+                    continue;
+                }
+
+                TreeSnapshot found = scanTree(level, immutableCandidate, examinedLogs);
+                if (found != null && !LumberjackTreeReservations.isLogReservedByOther(
+                        level, villager.getUUID(), found.logs())) {
+                    candidates.add(found);
+                }
+            }
+            searchComplete = searchIndex >= totalPositions;
+        }
+
+        if (searchComplete) {
+            BlockPos sortOrigin = activeSearchOrigin;
+            candidates.sort(Comparator.comparingDouble(tree -> sortOrigin.distSqr(tree.base())));
+        }
+        return List.copyOf(candidates);
+    }
+
+    boolean isSearchComplete() {
+        return searchComplete;
+    }
+
+    void resetSearch() {
+        activeSearchLevel = null;
+        activeSearchOrigin = null;
+        activeComposition = null;
+        examinedLogs = Set.of();
+        candidates = List.of();
+        activeSearchRange = -1;
+        searchIndex = 0;
+        searchComplete = false;
+    }
+
+    private void beginSearch(ServerLevel level, BlockPos origin, int searchRange) {
         // Remove disconnected/dead lumberjacks once for the whole search. The
         // old implementation performed this cleanup for every candidate tree.
         LumberjackTreeReservations.prune(level);
-        LoadedChunkComposition composition = LoadedChunkComposition.find(
+        activeSearchLevel = level;
+        activeSearchOrigin = origin.immutable();
+        activeSearchRange = searchRange;
+        activeComposition = LoadedChunkComposition.find(
                 level,
                 origin.getX() - searchRange, origin.getX() + searchRange,
                 origin.getY() - VERTICAL_SEARCH_RANGE, origin.getY() + VERTICAL_SEARCH_RANGE,
                 origin.getZ() - searchRange, origin.getZ() + searchRange,
                 this::isLumberjackLog);
-        if (composition.isEmpty()) {
-            return List.of();
+        examinedLogs = new HashSet<>();
+        candidates = new ArrayList<>();
+        searchIndex = 0;
+        searchComplete = activeComposition.isEmpty();
+    }
+
+    private static int claimScanBudget(ServerLevel level, int requested) {
+        ScanBudget budget = SCAN_BUDGETS.computeIfAbsent(level, ignored -> new ScanBudget());
+        long gameTime = level.getGameTime();
+        if (budget.gameTime != gameTime) {
+            budget.gameTime = gameTime;
+            budget.remaining = MAX_SCAN_POSITIONS_PER_SERVER_TICK;
         }
+        int granted = Math.min(requested, budget.remaining);
+        budget.remaining -= granted;
+        return granted;
+    }
 
-        List<TreeSnapshot> candidates = new ArrayList<>();
-        Set<BlockPos> examinedLogs = new HashSet<>();
-        BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
-
-        // Search the complete requested radius and return every valid tree. The
-        // goal can then discard unreachable trees and try the next nearest one
-        // instead of treating the first pathfinding failure as a failed search.
-        for (int shell = 0; shell <= searchRange; shell++) {
-            for (int x = -shell; x <= shell; x++) {
-                for (int z = -shell; z <= shell; z++) {
-                    if (shell > 0 && Math.abs(x) != shell && Math.abs(z) != shell) {
-                        continue;
-                    }
-                    for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
-                        candidate.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                        if (!composition.mayContain(candidate)) {
-                            continue;
-                        }
-                        BlockState candidateState = composition.getBlockStateIfLoaded(candidate);
-                        if (!isLumberjackLog(candidateState)) {
-                            continue;
-                        }
-
-                        BlockPos immutableCandidate = candidate.immutable();
-                        if (examinedLogs.contains(immutableCandidate)) {
-                            continue;
-                        }
-                        if (LumberjackTreeReservations.isLogReservedByOther(
-                                level, villager.getUUID(), immutableCandidate)) {
-                            continue;
-                        }
-
-                        double distanceSq = origin.distSqr(immutableCandidate);
-                        if (distanceSq > (double) searchRange * searchRange) {
-                            continue;
-                        }
-
-                        TreeSnapshot found = scanTree(level, immutableCandidate, examinedLogs);
-                        if (found != null && !LumberjackTreeReservations.isLogReservedByOther(
-                                level, villager.getUUID(), found.logs())) {
-                            candidates.add(found);
-                        }
-                    }
-                }
-            }
-        }
-        candidates.sort(Comparator.comparingDouble(tree -> origin.distSqr(tree.base())));
-        return List.copyOf(candidates);
+    private static final class ScanBudget {
+        private long gameTime = Long.MIN_VALUE;
+        private int remaining;
     }
 
     @Nullable

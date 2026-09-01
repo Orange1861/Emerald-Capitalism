@@ -79,10 +79,15 @@ public final class VillagerInventoryBankGoal extends Goal {
         bank = BankEmployeeLookup.findVillageBank(level, villager);
         if (bank == null || !bank.isVillagerDeliveriesEnabled() || !isDeliveryModeEnabled()
                 || (!inventoryFull && !isLumberjackDelivery())) {
+            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return false;
         }
         BankAccountData.get(level).openAccount(villager.getUUID());
-        return hasLiquidatableItems(level);
+        boolean pending = hasLiquidatableItems(level);
+        if (!pending) {
+            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+        }
+        return pending;
     }
 
     @Override

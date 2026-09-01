@@ -425,15 +425,17 @@ public class VillageRegistryEvents {
         }
     }
 
-    /** Adds the post-sleep missing-door repair task to mayors when needed. */
+    /** Adds the daytime missing-door repair task to villagers when needed. */
     private static void injectMayorDoorRepairGoal(Villager villager) {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof MayorDoorRepairGoal);
         if (!hasGoal) {
-            villager.goalSelector.addGoal(2, new MayorDoorRepairGoal(villager));
+            villager.goalSelector.addGoal(MayorDoorRepairGoal.GOAL_PRIORITY,
+                    new MayorDoorRepairGoal(villager));
             EmeraldCapitalism.LOGGER.debug(
-                    "[ECAP][MayorRepair] INJECTED villager={} profession={} pos={} priority=2 flags=MOVE,LOOK",
-                    villager.getUUID(), villager.getVillagerData().getProfession(), villager.blockPosition());
+                    "[ECAP][MayorRepair] INJECTED villager={} profession={} pos={} priority={} flags=MOVE,LOOK",
+                    villager.getUUID(), villager.getVillagerData().getProfession(), villager.blockPosition(),
+                    MayorDoorRepairGoal.GOAL_PRIORITY);
         }
     }
 

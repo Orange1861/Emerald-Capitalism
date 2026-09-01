@@ -2,9 +2,8 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -55,11 +54,18 @@ public final class BankPumpkinDepositGoal extends Goal {
         }
 
         WorkContext resolved = resolveContext(level);
-        return resolved != null
-                && resolved.bank().isVillagerDeliveriesEnabled()
+        if (resolved == null) {
+            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+            return false;
+        }
+        boolean pending = resolved.bank().isVillagerDeliveriesEnabled()
                 && resolved.bank().isRandomDeliveriesEnabled()
                 && resolved.bank().getTotalPumpkinCount() < resolved.bank().getPumpkinTarget()
                 && hasPendingTask();
+        if (!pending) {
+            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+        }
+        return pending;
     }
 
     @Override
@@ -189,16 +195,11 @@ public final class BankPumpkinDepositGoal extends Goal {
     }
 
     private WorkContext resolveContext(ServerLevel level) {
-        VillageRecord village = VillageRegistryData.get(level).getVillageFor(villager.blockPosition());
-        if (village == null) {
+        BankBlockEntity bank = BankEmployeeLookup.findEmployeeBank(level, villager);
+        if (bank == null) {
             return null;
         }
-
-        BlockPos bankPos = VillageRegistryData.get(level).getBankPos(village.getVillageId());
-        if (bankPos == null || !(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)
-                || !bank.isEmployee(villager.getUUID())) {
-            return null;
-        }
+        BlockPos bankPos = bank.getBlockPos();
         BlockPos depositPos = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);
         return new WorkContext(bank, depositPos, null);
     }

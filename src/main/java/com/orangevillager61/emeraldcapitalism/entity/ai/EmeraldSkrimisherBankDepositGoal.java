@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
@@ -176,7 +177,9 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
         }
 
         BlockPos bankPos = VillageRegistryData.get(level).getBankPos(village.getVillageId());
-        if (bankPos == null || !(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
+        if (bankPos == null
+                || !(BankEmployeeLookup.getLoadedBlockEntity(level, bankPos)
+                instanceof BankBlockEntity bank)) {
             return null;
         }
         BlockPos depositPos = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);

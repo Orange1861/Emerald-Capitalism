@@ -96,7 +96,7 @@ public final class BankMorningTradeGoal extends Goal {
         context = resolveContext(level);
         if (context == null) {
             finished = true;
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+            markMorningAttemptFailed(level);
             return;
         }
 
@@ -109,13 +109,13 @@ public final class BankMorningTradeGoal extends Goal {
                 villager, context.depositPos(), 2);
         if (navigationTarget == null) {
             finished = true;
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+            markMorningAttemptFailed(level);
             return;
         }
         context = new WorkContext(context.bank(), context.depositPos(), navigationTarget);
         if (!moveToBank()) {
             finished = true;
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+            markMorningAttemptFailed(level);
         }
     }
 
@@ -174,6 +174,11 @@ public final class BankMorningTradeGoal extends Goal {
         BankAccountData.get(level).openAccount(villager.getUUID());
         BlockPos bankPos = bank.getBlockPos();
         return new WorkContext(bank, BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos), null);
+    }
+
+    private void markMorningAttemptFailed(ServerLevel level) {
+        lastMorningDay = level.getDayTime() / DAY_LENGTH_TICKS;
+        nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
     }
 
     private boolean hasPendingTrade(ServerLevel level, BankBlockEntity bank) {

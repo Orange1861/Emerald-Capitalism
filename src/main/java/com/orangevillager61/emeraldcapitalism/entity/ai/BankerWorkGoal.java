@@ -19,12 +19,14 @@ public final class BankerWorkGoal extends Goal {
     private static final float SPEED = 0.5F;
     private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
     private static final int FAILURE_RETRY_TICKS = 100;
+    private static final int REPAIR_ATTEMPT_INTERVAL_TICKS = 20;
 
     private final Villager villager;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
     private WorkContext context;
     private boolean failed;
     private long nextContextLookupTick;
+    private long nextRepairAttemptTick = Long.MIN_VALUE;
 
     public BankerWorkGoal(Villager villager) {
         this.villager = villager;
@@ -46,6 +48,7 @@ public final class BankerWorkGoal extends Goal {
 
     @Override
     public void start() {
+        nextRepairAttemptTick = Long.MIN_VALUE;
         if (context == null) {
             failed = true;
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
@@ -87,7 +90,12 @@ public final class BankerWorkGoal extends Goal {
                 new WalkTarget(context.navigationTarget(), SPEED, WALK_TARGET_CLOSE_ENOUGH));
         if (villager.distanceToSqr(context.workPos().getX() + 0.5D,
                 context.workPos().getY() + 0.5D, context.workPos().getZ() + 0.5D) <= 2.25D) {
-            context.bank().replaceMissingEmeraldChest((ServerLevel) villager.level());
+            ServerLevel level = (ServerLevel) villager.level();
+            long gameTime = level.getGameTime();
+            if (gameTime >= nextRepairAttemptTick) {
+                context.bank().replaceMissingEmeraldChest(level);
+                nextRepairAttemptTick = gameTime + REPAIR_ATTEMPT_INTERVAL_TICKS;
+            }
         }
         if (villager.distanceToSqr(context.workPos().getX() + 0.5D,
                 context.workPos().getY() + 0.5D, context.workPos().getZ() + 0.5D) > 2.25D
@@ -114,6 +122,7 @@ public final class BankerWorkGoal extends Goal {
         context = null;
         navigationWatchdog.reset();
         failed = false;
+        nextRepairAttemptTick = Long.MIN_VALUE;
     }
 
     private boolean isEligible() {

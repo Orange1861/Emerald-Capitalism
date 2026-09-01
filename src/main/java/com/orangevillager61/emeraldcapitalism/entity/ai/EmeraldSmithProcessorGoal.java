@@ -3,9 +3,8 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -55,7 +54,15 @@ public final class EmeraldSmithProcessorGoal extends Goal {
         }
 
         WorkContext resolved = resolveContext(level);
-        return resolved != null && hasPendingTask(resolved);
+        if (resolved == null) {
+            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+            return false;
+        }
+        boolean pending = hasPendingTask(resolved);
+        if (!pending) {
+            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+        }
+        return pending;
     }
 
     @Override
@@ -249,16 +256,13 @@ public final class EmeraldSmithProcessorGoal extends Goal {
     }
 
     private WorkContext resolveContext(ServerLevel level) {
-        VillageRecord village = VillageRegistryData.get(level).getVillageFor(villager.blockPosition());
-        if (village == null) return null;
-
-        BlockPos bankPos = VillageRegistryData.get(level).getBankPos(village.getVillageId());
-        if (bankPos == null) return null;
-        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) return null;
+        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+        if (bank == null) return null;
 
         BlockPos processorPos = bank.getClosestEmeraldProcessorPos();
         if (processorPos == null) return null;
-        if (!(level.getBlockEntity(processorPos) instanceof EmeraldOreProcessorBlockEntity processor)) {
+        if (!(BankEmployeeLookup.getLoadedBlockEntity(level, processorPos)
+                instanceof EmeraldOreProcessorBlockEntity processor)) {
             return null;
         }
         // The goal only resolves for a smith using this Bank's processor, so

@@ -7,20 +7,25 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class EmeraldChestBlockEntity extends ChestBlockEntity {
 
-    public static final StoredCounts EMPTY_COUNTS = new StoredCounts(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    public static final StoredCounts EMPTY_COUNTS = new StoredCounts(
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, Map.of());
 
     /** Derived inventory totals, rebuilt on mutation and never persisted. */
     private StoredCounts cachedCounts = EMPTY_COUNTS;
@@ -71,9 +76,15 @@ public class EmeraldChestBlockEntity extends ChestBlockEntity {
         int coal = 0;
         int emeraldGreenDye = 0;
         int plankEquivalent = 0;
+        int logs = 0;
+        Map<Item, Integer> itemCounts = new HashMap<>();
         for (int i = 0; i < getContainerSize(); i++) {
             ItemStack stack = getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
             int count = stack.getCount();
+            itemCounts.merge(stack.getItem(), count, Math::addExact);
             if (stack.is(Items.EMERALD)) {
                 emeraldValue += count;
             } else if (stack.is(Items.EMERALD_BLOCK)) {
@@ -88,10 +99,14 @@ public class EmeraldChestBlockEntity extends ChestBlockEntity {
             if (stack.is(Items.COAL) || stack.is(Items.CHARCOAL)) coal += count;
             if (stack.is(ECAPItems.EMERALD_GREEN_DYE.get())) emeraldGreenDye += count;
             if (stack.is(ItemTags.PLANKS)) plankEquivalent += count;
-            if (stack.is(ItemTags.LOGS)) plankEquivalent += count * 4;
+            if (stack.is(ItemTags.LOGS)) {
+                plankEquivalent += count * 4;
+                logs += count;
+            }
         }
         StoredCounts updated = new StoredCounts(emeraldValue, emeraldBlocks, emeraldOreTotal,
-                pumpkins, wheat, bread, coal, emeraldGreenDye, plankEquivalent);
+                pumpkins, wheat, bread, coal, emeraldGreenDye, plankEquivalent,
+                logs, itemCounts);
         if (updated.equals(cachedCounts)) {
             return;
         }
@@ -139,7 +154,11 @@ public class EmeraldChestBlockEntity extends ChestBlockEntity {
             return;
         }
         linkedBanks.removeIf(bankPos -> {
-            BlockEntity blockEntity = serverLevel.getBlockEntity(bankPos);
+            LevelChunk chunk = serverLevel.getChunkSource().getChunkNow(
+                    bankPos.getX() >> 4, bankPos.getZ() >> 4);
+            BlockEntity blockEntity = chunk == null
+                    ? null
+                    : chunk.getBlockEntity(bankPos, LevelChunk.EntityCreationType.CHECK);
             if (blockEntity instanceof BankBlockEntity bank && !bank.isRemoved()) {
                 bank.onLinkedChestChanged(worldPosition, cachedCounts);
                 return false;
@@ -160,6 +179,11 @@ public class EmeraldChestBlockEntity extends ChestBlockEntity {
 
     public record StoredCounts(int emeraldValue, int emeraldBlocks, int emeraldOre,
                                int pumpkins, int wheat, int bread, int coal,
-                               int emeraldGreenDye, int plankEquivalent) {
+                               int emeraldGreenDye, int plankEquivalent, int logs,
+                               Map<Item, Integer> itemCounts) {
+
+        public StoredCounts {
+            itemCounts = Map.copyOf(itemCounts);
+        }
     }
 }

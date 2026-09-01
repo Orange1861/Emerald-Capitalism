@@ -6,9 +6,9 @@ import java.util.Optional;
 /** Supported authored-book categories and their library-generation policy. */
 public enum LibraryBookRarity {
     COMMON("common", 55, true),
-    UNCOMMON("uncommon", 26, true),
-    RARE("rare", 16, true),
-    LEGENDARY("legendary", 3, true),
+    UNCOMMON("uncommon", 34, true),
+    RARE("rare", 9, true),
+    LEGENDARY("legendary", 2, true),
     BANK_RULE("bank_rule", 0, false),
     VILLAGE_MANAGER("village_manager", 0, false);
 

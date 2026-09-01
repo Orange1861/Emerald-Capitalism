@@ -25,6 +25,7 @@ import java.util.Optional;
 public final class MarketRegistry {
     private static final String RESOURCE_DIRECTORY = "market";
     private static volatile Map<String, MarketItem> entries = Map.of();
+    private static volatile List<MarketItem> sortedEntries = List.of();
 
     private MarketRegistry() {
     }
@@ -58,13 +59,14 @@ public final class MarketRegistry {
             }
         }
         entries = Map.copyOf(loaded);
+        sortedEntries = entries.values().stream()
+                .sorted(Comparator.comparing(item -> item.config().id()))
+                .toList();
         EmeraldCapitalism.LOGGER.info("Loaded {} market item definitions", entries.size());
     }
 
     public static List<MarketItem> entries() {
-        return entries.values().stream()
-                .sorted(Comparator.comparing(item -> item.config().id()))
-                .toList();
+        return sortedEntries;
     }
 
     public static Optional<MarketItem> get(String id) {

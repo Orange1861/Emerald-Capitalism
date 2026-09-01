@@ -38,6 +38,24 @@ public final class MayorDoorRepairGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
+    public static void mayorRepairGoalIsInjectedAtDaytimePriority(GameTestHelper helper) {
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+
+        var repairGoal = mayor.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof MayorDoorRepairGoal)
+                .findFirst()
+                .orElse(null);
+        helper.assertTrue(repairGoal != null,
+                "Mayor did not receive the repair goal when it joined the level");
+        if (repairGoal != null) {
+            helper.assertValueEqual(repairGoal.getPriority(), MayorDoorRepairGoal.GOAL_PRIORITY,
+                    "Mayor repair goal priority did not match the daytime work priority");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
     public static void mayorConvertsBankPlanksIntoMissingDoor(GameTestHelper helper) {
         RepairFixture fixture = createFixture(helper);
         if (fixture == null) {
@@ -58,7 +76,7 @@ public final class MayorDoorRepairGameTests {
         helper.assertFalse(goal.canUse(), "Mayor selected the repair task while sleeping");
         mayor.stopSleeping();
         mayor.setPos(bankApproach.getX() + 0.5D, bankApproach.getY(), bankApproach.getZ() + 0.5D);
-        helper.assertTrue(goal.canUse(), "Mayor did not select the post-sleep door-repair task");
+        helper.assertTrue(goal.canUse(), "Mayor did not select the daytime door-repair task");
         Villager conversationalVillager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 0);
         mayor.getBrain().setMemory(MemoryModuleType.INTERACTION_TARGET, conversationalVillager);
         goal.start();
@@ -67,7 +85,7 @@ public final class MayorDoorRepairGameTests {
         helper.assertTrue(mayor.getBrain().getMemory(MemoryModuleType.INTERACTION_TARGET).isEmpty(),
                 "Mayor kept a villager conversation target when repair started");
         helper.assertFalse(new MayorDoorRepairGoal(mayor).canUse(),
-                "Mayor retriggered the task without sleeping again");
+                "Mayor retriggered the task while the existing door claim was active");
         goal.tick();
         helper.assertValueEqual(bank.getTotalPlankCount(), 0,
                 "Mayor did not withdraw six planks at the bank");
@@ -116,7 +134,7 @@ public final class MayorDoorRepairGameTests {
         helper.assertFalse(goal.canUse(), "Mayor selected the repair task while sleeping");
         mayor.stopSleeping();
         mayor.setPos(bankApproach.getX() + 0.5D, bankApproach.getY(), bankApproach.getZ() + 0.5D);
-        helper.assertTrue(goal.canUse(), "Mayor did not select the post-sleep door-repair task");
+        helper.assertTrue(goal.canUse(), "Mayor did not select the daytime door-repair task");
 
         goal.start();
         helper.assertTrue(village.getClaimedDoorPositions().contains(doorPos),

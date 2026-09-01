@@ -8,9 +8,24 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.WeakHashMap;
 
 /** Server-side lookup helpers for Bank employee membership. */
 public final class BankEmployeeLookup {
+
+    private static final long LOOKUP_CACHE_TICKS = 20L;
+    private static final int MAX_CACHE_ENTRIES_PER_LEVEL = 4096;
+    private static final Map<ServerLevel, Map<UUID, CachedLookup>> VILLAGE_BANK_CACHE =
+            new WeakHashMap<>();
+    private static final Map<ServerLevel, Map<UUID, CachedLookup>> EMPLOYEE_BANK_CACHE =
+            new WeakHashMap<>();
 
     private BankEmployeeLookup() {
     }
@@ -22,6 +37,15 @@ public final class BankEmployeeLookup {
     /** Finds the loaded Bank registered to the villager's village, regardless of employee status. */
     @Nullable
     public static BankBlockEntity findVillageBank(ServerLevel level, Villager villager) {
+        long gameTime = level.getGameTime();
+        UUID villagerId = villager.getUUID();
+        Map<UUID, CachedLookup> cache = VILLAGE_BANK_CACHE.computeIfAbsent(
+                level, ignored -> newLookupCache());
+        CachedLookup cached = cache.get(villagerId);
+        if (cached != null && gameTime < cached.nextLookupTick()) {
+            return findCachedBank(level, cached);
+        }
+
         VillageRegistryData registry = VillageRegistryData.get(level);
         // Prefer the villager's durable membership when it is available. This
         // avoids choosing an unrelated overlapping village during structure
@@ -30,6 +54,8 @@ public final class BankEmployeeLookup {
             if (village.hasMember(villager.getUUID())) {
                 BankBlockEntity bank = findBankAt(level, registry.getBankPos(village.getVillageId()));
                 if (bank != null) {
+                    cache.put(villagerId, new CachedLookup(
+                            gameTime + LOOKUP_CACHE_TICKS, bank.getBlockPos().immutable()));
                     return bank;
                 }
             }
@@ -60,6 +86,9 @@ public final class BankEmployeeLookup {
                 nearestDistance = distance;
             }
         }
+        cache.put(villagerId, new CachedLookup(
+                gameTime + LOOKUP_CACHE_TICKS,
+                nearestBank == null ? null : nearestBank.getBlockPos().immutable()));
         return nearestBank;
     }
 
@@ -87,6 +116,15 @@ public final class BankEmployeeLookup {
      */
     @Nullable
     public static BankBlockEntity findEmployeeBank(ServerLevel level, Villager villager) {
+        long gameTime = level.getGameTime();
+        UUID villagerId = villager.getUUID();
+        Map<UUID, CachedLookup> cache = EMPLOYEE_BANK_CACHE.computeIfAbsent(
+                level, ignored -> newLookupCache());
+        CachedLookup cached = cache.get(villagerId);
+        if (cached != null && gameTime < cached.nextLookupTick()) {
+            return findCachedBank(level, cached);
+        }
+
         VillageRegistryData registry = VillageRegistryData.get(level);
         // Employees may be inside an overlapping unbanked record. Check every
         // containing record before falling back to employees outside their bounds.
@@ -100,6 +138,8 @@ public final class BankEmployeeLookup {
             BankBlockEntity bank = findEmployeeBankAt(level,
                     registry.getBankPos(village.getVillageId()), villager);
             if (bank != null) {
+                cache.put(villagerId, new CachedLookup(
+                        gameTime + LOOKUP_CACHE_TICKS, bank.getBlockPos().immutable()));
                 return bank;
             }
         }
@@ -110,9 +150,12 @@ public final class BankEmployeeLookup {
             BankBlockEntity bank = findEmployeeBankAt(level,
                     registry.getBankPos(village.getVillageId()), villager);
             if (bank != null) {
+                cache.put(villagerId, new CachedLookup(
+                        gameTime + LOOKUP_CACHE_TICKS, bank.getBlockPos().immutable()));
                 return bank;
             }
         }
+        cache.put(villagerId, new CachedLookup(gameTime + LOOKUP_CACHE_TICKS, null));
         return null;
     }
 
@@ -121,7 +164,7 @@ public final class BankEmployeeLookup {
         if (bankPos == null) {
             return null;
         }
-        BlockEntity blockEntity = level.getBlockEntity(bankPos);
+        BlockEntity blockEntity = getLoadedBlockEntity(level, bankPos);
         return blockEntity instanceof BankBlockEntity bank && bank.isEmployee(villager.getUUID())
                 ? bank : null;
     }
@@ -131,7 +174,48 @@ public final class BankEmployeeLookup {
         if (bankPos == null) {
             return null;
         }
-        BlockEntity blockEntity = level.getBlockEntity(bankPos);
+        BlockEntity blockEntity = getLoadedBlockEntity(level, bankPos);
         return blockEntity instanceof BankBlockEntity bank ? bank : null;
+    }
+
+    /** Returns a block entity only when its full chunk is already loaded. */
+    @Nullable
+    public static BlockEntity getLoadedBlockEntity(ServerLevel level, BlockPos pos) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(pos, "pos");
+        LevelChunk chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+        return chunk == null
+                ? null
+                : chunk.getBlockEntity(pos, LevelChunk.EntityCreationType.CHECK);
+    }
+
+    /** Returns a block state only when its full chunk is already loaded. */
+    @Nullable
+    public static BlockState getLoadedBlockState(ServerLevel level, BlockPos pos) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(pos, "pos");
+        LevelChunk chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+        return chunk == null ? null : chunk.getBlockState(pos);
+    }
+
+    @Nullable
+    private static BankBlockEntity findCachedBank(ServerLevel level, CachedLookup cached) {
+        if (cached.bankPos() == null) {
+            return null;
+        }
+        return getLoadedBlockEntity(level, cached.bankPos()) instanceof BankBlockEntity bank
+                && !bank.isRemoved() ? bank : null;
+    }
+
+    private record CachedLookup(long nextLookupTick, @Nullable BlockPos bankPos) {
+    }
+
+    private static Map<UUID, CachedLookup> newLookupCache() {
+        return new LinkedHashMap<>(128, 0.75F, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<UUID, CachedLookup> eldest) {
+                return size() > MAX_CACHE_ENTRIES_PER_LEVEL;
+            }
+        };
     }
 }
