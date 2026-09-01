@@ -82,3 +82,4 @@ config/emeraldcapitalism-common-4.toml.bak
 config/emeraldcapitalism-common-3.toml.bak
 config/emeraldcapitalism-common-2.toml.bak
 config/emeraldcapitalism-common-1.toml.bak
+*.md

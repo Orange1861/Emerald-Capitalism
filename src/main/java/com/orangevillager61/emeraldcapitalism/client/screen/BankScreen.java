@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.client.screen;
 
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.client.presentation.BankPresentation;
+import com.orangevillager61.emeraldcapitalism.client.renderer.BankOwnershipOverlayRenderer;
 import com.orangevillager61.emeraldcapitalism.market.MarketPricingEngine;
 import com.orangevillager61.emeraldcapitalism.market.MarketDemandContext;
 import com.orangevillager61.emeraldcapitalism.market.MarketTradeQuote;
@@ -30,6 +31,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.NotNull;
 
@@ -86,6 +88,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     /** Mutable bank name shown in title / rename box, updated optimistically on save. */
     private String displayBankName;
+    private final AABB ownershipOverlayBounds;
 
     // Rename controls
     private EditBox renameBox;
@@ -148,6 +151,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         this.imageWidth  = 420;
         this.imageHeight = 260;
         this.displayBankName = menu.getBankName().isEmpty() ? "Village Bank" : menu.getBankName();
+        this.ownershipOverlayBounds = BankOwnershipOverlayRenderer.boundsFor(menu.getBlockPos());
     }
 
     @Override
@@ -986,10 +990,15 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 && menu.getControllerId().equals(minecraft.player.getUUID());
     }
 
-    private boolean isBankOwner() {
+    public boolean isBankOwner() {
         return minecraft != null && minecraft.player != null
+                && !menu.isBankIndependent()
                 && menu.getControllerId() != null
                 && menu.getControllerId().equals(minecraft.player.getUUID());
+    }
+
+    public AABB getOwnershipOverlayBounds() {
+        return ownershipOverlayBounds;
     }
 
     private void onTargetModeToggle() {

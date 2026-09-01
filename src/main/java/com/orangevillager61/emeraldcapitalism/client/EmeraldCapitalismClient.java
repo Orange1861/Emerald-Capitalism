@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.client.model.EmeraldGolemModel;
 import com.orangevillager61.emeraldcapitalism.client.model.EmeraldSkrimisherModel;
+import com.orangevillager61.emeraldcapitalism.client.renderer.BankOwnershipOverlayRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldChestItemRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldChestRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldGreenBedItemRenderer;
@@ -217,15 +218,24 @@ public class EmeraldCapitalismClient {
                 return;
             }
 
-            if (!VillagePOIOverlayRenderer.isEnabled()) {
+            Minecraft minecraft = Minecraft.getInstance();
+            BankScreen bankScreen = minecraft.screen instanceof BankScreen openBankScreen
+                    && openBankScreen.isBankOwner() ? openBankScreen : null;
+            boolean villageOverlayEnabled = VillagePOIOverlayRenderer.isEnabled();
+            if (!villageOverlayEnabled && bankScreen == null) {
                 return;
             }
 
             Vec3 cameraPos = event.getCamera().getPosition();
-            MultiBufferSource.BufferSource bufferSource = net.minecraft.client.Minecraft.getInstance()
-                    .renderBuffers().bufferSource();
+            MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
 
-            VillagePOIOverlayRenderer.render(event.getPoseStack(), bufferSource, cameraPos);
+            if (villageOverlayEnabled) {
+                VillagePOIOverlayRenderer.render(event.getPoseStack(), bufferSource, cameraPos);
+            }
+            if (bankScreen != null) {
+                BankOwnershipOverlayRenderer.render(event.getPoseStack(), bufferSource, cameraPos,
+                        bankScreen.getOwnershipOverlayBounds());
+            }
 
             // Flush the line buffer so our lines actually appear
             bufferSource.endLastBatch();
