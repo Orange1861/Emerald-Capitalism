@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEnti
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankMorningTradeGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
@@ -23,6 +24,7 @@ import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -31,6 +33,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -107,6 +110,75 @@ public final class BankGameplayGameTests {
         helper.assertValueEqual(countItem(villager, Items.EMERALD), 0,
                 "villager bread sale created tangible emeralds");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void farmerSellsExcessWheatForAccountCredit(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BankBlockEntity bank = setupMarketBank(helper, Items.WHEAT, 0);
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 64));
+        BankAccountData.get(level).openAccount(farmer.getUUID());
+
+        BankMorningTradeGoal goal = new BankMorningTradeGoal(farmer);
+        helper.assertTrue(goal.canUse(), "farmer with excess wheat did not select its morning bank trade");
+        goal.start();
+        helper.assertTrue(goal.canContinueToUse(), "wheat sale goal did not reach its active state");
+        goal.tick();
+        goal.stop();
+
+        helper.assertValueEqual(countItem(farmer, Items.WHEAT), 24,
+                "farmer did not retain one wheat trade batch after selling its surplus");
+        helper.assertValueEqual(bank.getMarketStock(level, Items.WHEAT), 40,
+                "bank did not receive the farmer's complete wheat sale batches");
+        helper.assertValueEqual(BankAccountData.get(level).getBalance(farmer.getUUID()), 2,
+                "wheat sale did not credit one emerald per twenty wheat");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", timeoutTicks = 300)
+    public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.setDayTime(1_000L);
+        setupMarketBank(helper, Items.STICK, 0);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                helper.absolutePos(new BlockPos(1, 1, 2)));
+        if (chest == null) {
+            helper.fail("lumberjack scheduler chest was not created");
+            return;
+        }
+
+        BlockPos sawmillPos = helper.absolutePos(new BlockPos(5, 1, 1));
+        helper.setBlock(new BlockPos(5, 1, 1), ECAPBlocks.SAWMILL.get().defaultBlockState());
+        Villager lumberjack = helper.spawn(EntityType.VILLAGER, 5, 1, 2);
+        lumberjack.setVillagerData(lumberjack.getVillagerData()
+                .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                GlobalPos.of(level.dimension(), sawmillPos));
+        lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
+
+        var deliveryEntry = lumberjack.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof VillagerInventoryBankGoal)
+                .findFirst().orElse(null);
+        var workEntry = lumberjack.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof LumberjackGoal)
+                .findFirst().orElse(null);
+        helper.assertTrue(deliveryEntry != null && workEntry != null,
+                "lumberjack did not receive both delivery and profession-work goals");
+        if (deliveryEntry != null && workEntry != null) {
+            helper.assertValueEqual(deliveryEntry.getPriority(), VillagerInventoryBankGoal.GOAL_PRIORITY,
+                    "lumberjack delivery goal was registered at the wrong priority");
+            helper.assertTrue(deliveryEntry.getPriority() < workEntry.getPriority(),
+                    "lumberjack profession work still outranked pending bank delivery");
+        }
+
+        helper.succeedWhen(() -> {
+            helper.assertValueEqual(countItem(lumberjack, Items.STICK), 0,
+                    "lumberjack delivery goal did not win after the sawmill work cycle");
+            helper.assertValueEqual(countItem(chest, Items.STICK), 8,
+                    "lumberjack did not deliver its sticks through the real goal selector");
+        });
     }
 
     @GameTest(template = "empty_20x3x20")
