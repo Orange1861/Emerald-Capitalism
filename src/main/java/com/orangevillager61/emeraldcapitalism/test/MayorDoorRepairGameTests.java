@@ -59,9 +59,13 @@ public final class MayorDoorRepairGameTests {
         mayor.stopSleeping();
         mayor.setPos(bankApproach.getX() + 0.5D, bankApproach.getY(), bankApproach.getZ() + 0.5D);
         helper.assertTrue(goal.canUse(), "Mayor did not select the post-sleep door-repair task");
+        Villager conversationalVillager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 0);
+        mayor.getBrain().setMemory(MemoryModuleType.INTERACTION_TARGET, conversationalVillager);
         goal.start();
         helper.assertTrue(village.getClaimedDoorPositions().contains(doorPos),
                 "Mayor did not claim the selected missing door");
+        helper.assertTrue(mayor.getBrain().getMemory(MemoryModuleType.INTERACTION_TARGET).isEmpty(),
+                "Mayor kept a villager conversation target when repair started");
         helper.assertFalse(new MayorDoorRepairGoal(mayor).canUse(),
                 "Mayor retriggered the task without sleeping again");
         goal.tick();

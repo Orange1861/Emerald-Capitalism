@@ -166,6 +166,10 @@ public final class MayorDoorRepairGoal extends Goal {
             return;
         }
 
+        // Villager social behaviors run in the Brain independently of this goal's
+        // GoalSelector flags. Clear an interaction that was selected before the
+        // repair goal started so it cannot keep the mayor facing another villager.
+        clearSocialInteractionMemories();
         markJobSiteVisitConsumed();
         setWalkTarget();
     }
@@ -182,6 +186,7 @@ public final class MayorDoorRepairGoal extends Goal {
             return;
         }
 
+        clearSocialInteractionMemories();
         BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
         villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(lookTarget));
 
@@ -230,6 +235,7 @@ public final class MayorDoorRepairGoal extends Goal {
             village.unclaimDoorPosition(targetPos);
         }
         villager.getNavigation().stop();
+        clearSocialInteractionMemories();
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         targetPos = null;
@@ -356,6 +362,11 @@ public final class MayorDoorRepairGoal extends Goal {
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                     new WalkTarget(navigationTarget, SPEED_MODIFIER, WALK_TARGET_CLOSE_ENOUGH));
         }
+    }
+
+    private void clearSocialInteractionMemories() {
+        villager.getBrain().eraseMemory(MemoryModuleType.INTERACTION_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.BREED_TARGET);
     }
 
     @Nullable
