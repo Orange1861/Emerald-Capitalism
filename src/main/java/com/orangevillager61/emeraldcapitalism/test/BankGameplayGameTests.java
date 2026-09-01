@@ -139,6 +139,32 @@ public final class BankGameplayGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_20x3x20")
+    public static void bankConvertsStoredWheatIntoBread(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BankBlockEntity bank = setupMarketBank(helper, Items.BREAD, 0);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                helper.absolutePos(new BlockPos(1, 1, 2)));
+        if (chest == null) {
+            helper.fail("bread conversion chest was not created");
+            return;
+        }
+
+        chest.setItem(0, new ItemStack(Items.WHEAT, 20));
+        BankBlockEntity.serverTick(
+                level, bank.getBlockPos(), level.getBlockState(bank.getBlockPos()), bank);
+
+        helper.assertValueEqual(bank.getMarketStock(level, Items.WHEAT), 2,
+                "bank did not retain the incomplete wheat recipe remainder");
+        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 6,
+                "bank did not convert complete wheat recipes into bread");
+        helper.assertValueEqual(bank.getTotalWheatCount(), 2,
+                "bank wheat total did not reflect the conversion remainder");
+        helper.assertValueEqual(bank.getTotalBreadCount(), 6,
+                "bank bread total did not reflect converted wheat");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty_20x3x20", timeoutTicks = 300)
     public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

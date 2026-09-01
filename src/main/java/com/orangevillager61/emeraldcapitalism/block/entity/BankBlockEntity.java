@@ -76,8 +76,8 @@ import java.util.function.Predicate;
  * Block entity for {@link com.orangevillager61.emeraldcapitalism.block.BankBlock}.
  * Caches linked {@link EmeraldChestBlockEntity} positions and the nearest
  * {@link EmeraldOreProcessorBlockEntity} within the search cube.
- * The ticker advances the deposit queue, while full scans and cheaper verification
- * passes keep the cache synchronized with the world.
+ * The ticker advances the deposit queue, converts stored wheat into bread, and uses
+ * full scans plus cheaper verification passes to keep the cache synchronized.
  */
 public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
@@ -106,6 +106,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Vanilla chest recipe cost in plank-equivalents. */
     public static final int PLANKS_PER_VANILLA_CHEST = 8;
+
+    /** Vanilla bread recipe input count. */
+    private static final int WHEAT_PER_BREAD = 3;
 
     // State
 
@@ -610,6 +613,33 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         } else if (gameTime >= entity.nextVerifyTick) {
             entity.verifyCachedChests(serverLevel);
             entity.nextVerifyTick = gameTime + VERIFY_INTERVAL;
+        }
+        entity.convertStoredWheatToBread(serverLevel);
+    }
+
+    /** Converts complete vanilla bread recipes from linked bank storage. */
+    private void convertStoredWheatToBread(ServerLevel level) {
+        int breadCount = totalWheatCount / WHEAT_PER_BREAD;
+        if (breadCount <= 0) {
+            return;
+        }
+
+        ItemStack wheat = withdrawExactItem(level, Items.WHEAT, breadCount * WHEAT_PER_BREAD);
+        if (wheat.isEmpty()) {
+            return;
+        }
+
+        ItemStack bread = new ItemStack(Items.BREAD, wheat.getCount() / WHEAT_PER_BREAD);
+        if (storeItemInLinkedChests(level, bread)) {
+            return;
+        }
+
+        // The input was removed before checking output capacity. Restore it if
+        // the live chest contents changed between those two operations.
+        if (!storeItemInLinkedChests(level, wheat)) {
+            EmeraldCapitalism.LOGGER.error(
+                    "[ECAP/Bank] Could not restore wheat after bread conversion failed at {}",
+                    worldPosition);
         }
     }
 
