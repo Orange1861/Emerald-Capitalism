@@ -40,6 +40,7 @@ import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -115,6 +116,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void farmerSellsExcessWheatForAccountCredit(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
         BankBlockEntity bank = setupMarketBank(helper, Items.WHEAT, 0);
         Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
@@ -122,7 +124,7 @@ public final class BankGameplayGameTests {
         BankAccountData.get(level).openAccount(farmer.getUUID());
 
         BankMorningTradeGoal goal = new BankMorningTradeGoal(farmer);
-        helper.assertTrue(goal.canUse(), "farmer with excess wheat did not select its morning bank trade");
+        helper.assertTrue(goal.canUse(), "farmer with excess wheat did not select a daytime bank sale");
         goal.start();
         helper.assertTrue(goal.canContinueToUse(), "wheat sale goal did not reach its active state");
         goal.tick();
@@ -141,6 +143,7 @@ public final class BankGameplayGameTests {
     public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         level.setDayTime(1_000L);
+        level.getGameRules().getRule(GameRules.RULE_MOBGRIEFING).set(true, level.getServer());
         setupMarketBank(helper, Items.STICK, 0);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
                 helper.absolutePos(new BlockPos(1, 1, 2)));
@@ -151,12 +154,21 @@ public final class BankGameplayGameTests {
 
         BlockPos sawmillPos = helper.absolutePos(new BlockPos(5, 1, 1));
         helper.setBlock(new BlockPos(5, 1, 1), ECAPBlocks.SAWMILL.get().defaultBlockState());
+        BlockPos treeBase = new BlockPos(8, 1, 2);
+        helper.setBlock(treeBase.below(), Blocks.DIRT.defaultBlockState());
+        helper.setBlock(treeBase, Blocks.OAK_LOG.defaultBlockState());
+        helper.setBlock(treeBase.above(), Blocks.OAK_LOG.defaultBlockState());
+        helper.setBlock(treeBase.above(2), Blocks.OAK_LOG.defaultBlockState());
+        helper.setBlock(treeBase.above(3), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(treeBase.above(2).north(), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(treeBase.above(2).south(), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(treeBase.above(2).east(), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(treeBase.above(2).west(), Blocks.OAK_LEAVES.defaultBlockState());
         Villager lumberjack = helper.spawn(EntityType.VILLAGER, 5, 1, 2);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
         lumberjack.getBrain().setMemory(MemoryModuleType.JOB_SITE,
                 GlobalPos.of(level.dimension(), sawmillPos));
-        lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
 
         var deliveryEntry = lumberjack.goalSelector.getAvailableGoals().stream()
                 .filter(entry -> entry.getGoal() instanceof VillagerInventoryBankGoal)
@@ -172,6 +184,12 @@ public final class BankGameplayGameTests {
             helper.assertTrue(deliveryEntry.getPriority() < workEntry.getPriority(),
                     "lumberjack profession work still outranked pending bank delivery");
         }
+
+        helper.runAfterDelay(5, () -> {
+            helper.assertTrue(workEntry != null && workEntry.isRunning(),
+                    "lumberjack work was not active before the delivery became pending");
+            lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
+        });
 
         helper.succeedWhen(() -> {
             helper.assertValueEqual(countItem(lumberjack, Items.STICK), 0,
@@ -398,6 +416,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void villagerBreadSaleRefillsBankBelowOneVillageDay(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
         BankBlockEntity bank = setupBreadBank(helper, 2);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));

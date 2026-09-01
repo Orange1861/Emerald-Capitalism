@@ -61,7 +61,6 @@ public final class VillagerInventoryBankGoal extends Goal {
                 || villager.isSleeping()
                 || villager.isTrading()
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                || LumberjackGoal.isRunning(villager)
                 || level.getGameTime() < nextActionTick) {
             return false;
         }
@@ -128,7 +127,6 @@ public final class VillagerInventoryBankGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                && !LumberjackGoal.isRunning(villager)
                 && !bank.isRemoved()
                 && bank.isVillagerDeliveriesEnabled()
                 && isDeliveryModeEnabled();

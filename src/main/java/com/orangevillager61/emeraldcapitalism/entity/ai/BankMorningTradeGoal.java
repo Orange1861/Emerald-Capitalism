@@ -25,7 +25,7 @@ import net.minecraft.world.item.Items;
 
 import java.util.EnumSet;
 
-/** Sends villagers to their village bank once each morning to rebalance food and sell farm surplus. */
+/** Sends villagers to their village bank to sell surplus and make one morning food purchase. */
 public final class BankMorningTradeGoal extends Goal {
 
     public static final int GOAL_PRIORITY = 3;
@@ -58,26 +58,25 @@ public final class BankMorningTradeGoal extends Goal {
                 || villager.isSleeping()
                 || villager.isTrading()
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                || LumberjackGoal.isRunning(villager)
                 || level.getGameTime() < nextActionTick) {
             return false;
         }
 
         long day = level.getDayTime() / DAY_LENGTH_TICKS;
         long timeOfDay = Math.floorMod(level.getDayTime(), DAY_LENGTH_TICKS);
-        if (timeOfDay >= MORNING_END_TICK || day == lastMorningDay) {
-            return false;
-        }
+        boolean morningPurchaseAvailable = timeOfDay < MORNING_END_TICK && day != lastMorningDay;
 
         BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
         if (bank == null) {
-            lastMorningDay = day;
+            if (morningPurchaseAvailable) {
+                lastMorningDay = day;
+            }
             return false;
         }
 
         BankAccountData.get(level).openAccount(villager.getUUID());
-        boolean pendingTrade = hasPendingTrade(level, bank);
-        if (!pendingTrade) {
+        boolean pendingTrade = hasPendingTrade(level, bank, morningPurchaseAvailable);
+        if (!pendingTrade && morningPurchaseAvailable) {
             lastMorningDay = day;
         }
         return pendingTrade;
@@ -128,7 +127,6 @@ public final class BankMorningTradeGoal extends Goal {
                 && !villager.isSleeping()
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                && !LumberjackGoal.isRunning(villager)
                 && context.bank().isVillagerDeliveriesEnabled()
                 && !context.bank().isRemoved();
     }
@@ -182,11 +180,13 @@ public final class BankMorningTradeGoal extends Goal {
         nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
     }
 
-    private boolean hasPendingTrade(ServerLevel level, BankBlockEntity bank) {
+    private boolean hasPendingTrade(ServerLevel level, BankBlockEntity bank,
+                                    boolean allowBreadPurchase) {
         return bank.isVillagerDeliveriesEnabled()
                 && ((bank.isRandomDeliveriesEnabled()
                 && (hasPendingPumpkinSale(level, bank) || hasPendingWheatSale(level, bank)))
-                || (bank.isBreadDeliveriesEnabled() && hasPendingBreadTrade(level, bank)));
+                || (bank.isBreadDeliveriesEnabled()
+                && hasPendingBreadTrade(level, bank, allowBreadPurchase)));
     }
 
     private boolean hasPendingPumpkinSale(ServerLevel level, BankBlockEntity bank) {
@@ -198,10 +198,14 @@ public final class BankMorningTradeGoal extends Goal {
         return isValidQuote(quote(level, bank, Items.PUMPKIN, Math.min(quantity, capacity), TradeSide.SELL));
     }
 
-    private boolean hasPendingBreadTrade(ServerLevel level, BankBlockEntity bank) {
+    private boolean hasPendingBreadTrade(ServerLevel level, BankBlockEntity bank,
+                                         boolean allowPurchase) {
         int currentBread = countItem(Items.BREAD);
         int purchaseQuantity = BankTargets.breadPurchaseQuantity(currentBread, bank.getFoodDays());
         if (purchaseQuantity > 0) {
+            if (!allowPurchase) {
+                return false;
+            }
             if (!hasBreadReserve(level, bank)) {
                 return false;
             }
@@ -244,7 +248,7 @@ public final class BankMorningTradeGoal extends Goal {
         int currentBread = countItem(Items.BREAD);
         if (bank.isVillagerDeliveriesEnabled() && bank.isBreadDeliveriesEnabled()) {
             int purchaseQuantity = BankTargets.breadPurchaseQuantity(currentBread, bank.getFoodDays());
-            if (purchaseQuantity > 0) {
+            if (purchaseQuantity > 0 && isMorningPurchaseAvailable(level)) {
                 traded |= buyBread(level, bank, purchaseQuantity);
             } else {
                 traded |= sellItem(level, bank, Items.BREAD,
@@ -252,8 +256,16 @@ public final class BankMorningTradeGoal extends Goal {
             }
         }
 
-        lastMorningDay = level.getDayTime() / DAY_LENGTH_TICKS;
+        if (isMorningPurchaseAvailable(level)) {
+            lastMorningDay = level.getDayTime() / DAY_LENGTH_TICKS;
+        }
         nextActionTick = level.getGameTime() + (traded ? SUCCESS_COOLDOWN : FAILURE_COOLDOWN);
+    }
+
+    private boolean isMorningPurchaseAvailable(ServerLevel level) {
+        long day = level.getDayTime() / DAY_LENGTH_TICKS;
+        long timeOfDay = Math.floorMod(level.getDayTime(), DAY_LENGTH_TICKS);
+        return timeOfDay < MORNING_END_TICK && day != lastMorningDay;
     }
 
     private boolean buyBread(ServerLevel level, BankBlockEntity bank, int requestedQuantity) {

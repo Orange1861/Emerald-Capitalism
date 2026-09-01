@@ -408,8 +408,8 @@ public class VillageRegistryEvents {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof BankMorningTradeGoal);
         if (!hasGoal) {
-            // Bank trades win between profession-work cycles. The goal's active-work
-            // guard still prevents it from interrupting a lumberjack mid-harvest.
+            // Pending bank trades interrupt lower-priority profession work so a
+            // continuously active work loop cannot starve delivery indefinitely.
             villager.goalSelector.addGoal(BankMorningTradeGoal.GOAL_PRIORITY,
                     new BankMorningTradeGoal(villager));
         }
@@ -420,8 +420,8 @@ public class VillageRegistryEvents {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof VillagerInventoryBankGoal);
         if (!hasGoal) {
-            // Cleanup wins between profession-work cycles without interrupting an
-            // already-running multi-block lumberjack task.
+            // Cleanup interrupts lower-priority profession work when a delivery
+            // becomes pending.
             villager.goalSelector.addGoal(VillagerInventoryBankGoal.GOAL_PRIORITY,
                     new VillagerInventoryBankGoal(villager));
         }

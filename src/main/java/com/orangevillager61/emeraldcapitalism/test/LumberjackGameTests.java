@@ -120,6 +120,33 @@ public final class LumberjackGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
+    public static void underFueledCharcoalQuotaReturnsToTreeCollection(GameTestHelper helper) {
+        Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        lumberjack.setVillagerData(lumberjack.getVillagerData()
+                .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING));
+        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_LOG));
+        lumberjack.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                .setCharcoalQuota(1.0D);
+        installNearbyFurnace(helper);
+        BlockPos treeBase = installSmallTree(helper);
+
+        LumberjackGoal goal = new LumberjackGoal(lumberjack);
+        helper.assertTrue(goal.canUse(),
+                "under-fueled lumberjack did not continue with available tree work");
+        goal.start();
+        for (int tick = 0; tick < 180; tick++) {
+            goal.tick();
+        }
+
+        helper.assertTrue(helper.getLevel().getBlockState(treeBase).isAir()
+                        || helper.getLevel().getBlockState(treeBase.above()).isAir(),
+                "under-fueled charcoal work held the lumberjack motionless at the furnace");
+        goal.stop();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
     public static void lumberjackUsesCharcoalAsFurnaceFuel(GameTestHelper helper) {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
