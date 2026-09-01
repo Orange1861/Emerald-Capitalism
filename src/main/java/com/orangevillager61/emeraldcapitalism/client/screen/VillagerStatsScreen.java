@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
 import net.minecraft.world.entity.player.Inventory;
 import org.jetbrains.annotations.NotNull;
 
@@ -101,8 +102,8 @@ public class VillagerStatsScreen extends AbstractContainerScreen<VillagerStatsMe
         int y = this.topPos;
 
         PageDefinition activePage = pages.get(activePageIndex);
-        guiGraphics.blit(activePage.texture(), x, y, 0, 0, this.imageWidth, this.imageHeight,
-                this.imageWidth, this.imageHeight);
+        GuiGraphicsCompat.blit(guiGraphics, activePage.texture(), x, y, 0, 0,
+                this.imageWidth, this.imageHeight, this.imageWidth, this.imageHeight);
 
         activePage.renderer().render(guiGraphics, x, y);
     }
@@ -199,14 +200,14 @@ public class VillagerStatsScreen extends AbstractContainerScreen<VillagerStatsMe
         RenderSystem.defaultBlendFunc();
         for (int i = 0; i < maxHearts; i++) {
             int iconX = iconStartX + i * 8;
-            guiGraphics.blitSprite(HEART_EMPTY_SPRITE, iconX, iconY, 9, 9);
+            GuiGraphicsCompat.blitSprite(guiGraphics, HEART_EMPTY_SPRITE, iconX, iconY, 9, 9);
 
             float heartHealth = health - (i * healthPerHeart);
             if (heartHealth >= healthPerHeart) {
-                guiGraphics.blitSprite(withered ? HEART_WITHERED_FULL_SPRITE : HEART_FULL_SPRITE,
+                GuiGraphicsCompat.blitSprite(guiGraphics, withered ? HEART_WITHERED_FULL_SPRITE : HEART_FULL_SPRITE,
                         iconX, iconY, 9, 9);
             } else if (heartHealth >= halfHeartValue) {
-                guiGraphics.blitSprite(withered ? HEART_WITHERED_HALF_SPRITE : HEART_HALF_SPRITE,
+                GuiGraphicsCompat.blitSprite(guiGraphics, withered ? HEART_WITHERED_HALF_SPRITE : HEART_HALF_SPRITE,
                         iconX, iconY, 9, 9);
             }
         }
@@ -250,13 +251,13 @@ public class VillagerStatsScreen extends AbstractContainerScreen<VillagerStatsMe
         for (int i = 0; i < 10; i++) {
             int iconX = iconStartX + i * 8;
 
-            guiGraphics.blitSprite(FOOD_EMPTY_SPRITE, iconX, iconY, 9, 9);
+            GuiGraphicsCompat.blitSprite(guiGraphics, FOOD_EMPTY_SPRITE, iconX, iconY, 9, 9);
 
             if (i < hungerLevel / 2) {
-                guiGraphics.blitSprite(FOOD_FULL_SPRITE, iconX, iconY, 9, 9);
+                GuiGraphicsCompat.blitSprite(guiGraphics, FOOD_FULL_SPRITE, iconX, iconY, 9, 9);
             }
             else if (i == hungerLevel / 2 && hungerLevel % 2 != 0) {
-                guiGraphics.blitSprite(FOOD_HALF_SPRITE, iconX, iconY, 9, 9);
+                GuiGraphicsCompat.blitSprite(guiGraphics, FOOD_HALF_SPRITE, iconX, iconY, 9, 9);
             }
         }
         RenderSystem.disableBlend();

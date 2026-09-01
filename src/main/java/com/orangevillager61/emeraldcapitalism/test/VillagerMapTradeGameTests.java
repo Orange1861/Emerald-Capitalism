@@ -24,7 +24,7 @@ public final class VillagerMapTradeGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void cartographerJourneymanOffersVillageMapForEightEmeralds(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        Villager villager = EntityType.VILLAGER.create(level);
+        Villager villager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.VILLAGER, level);
         if (villager == null) {
             helper.fail("Could not create a villager to inspect the Cartographer trade");
             return;

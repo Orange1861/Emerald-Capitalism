@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.Config;
+import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -9,7 +10,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.ai.goal.BreakDoorGoal;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.block.Blocks;
@@ -80,20 +80,22 @@ public final class ZombieDoorBreakingGameTests {
             DifficultyInstance neutralDifficulty = new DifficultyInstance(
                     Difficulty.PEACEFUL, 0L, 0L, 0.0F);
             Config.zombieDoorBreakingChancePercent = 0;
-            Zombie cannotBreakDoors = EntityType.ZOMBIE.create(level);
+            Zombie cannotBreakDoors = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                    EntityType.ZOMBIE, level);
             helper.assertTrue(cannotBreakDoors != null, "could not create 0% zombie fixture");
             cannotBreakDoors.moveTo(helper.absolutePos(new BlockPos(1, 1, 1)), 0.0F, 0.0F);
-            cannotBreakDoors.finalizeSpawn(level, neutralDifficulty, MobSpawnType.COMMAND,
+            SpawnReasonCompat.finalizeCommand(cannotBreakDoors, level, neutralDifficulty,
                     new Zombie.ZombieGroupData(false, false));
             level.addFreshEntity(cannotBreakDoors);
             helper.assertFalse(cannotBreakDoors.canBreakDoors(),
                     "0% chance must prevent the door-breaking ability");
 
             Config.zombieDoorBreakingChancePercent = 100;
-            Zombie canBreakDoors = EntityType.ZOMBIE.create(level);
+            Zombie canBreakDoors = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                    EntityType.ZOMBIE, level);
             helper.assertTrue(canBreakDoors != null, "could not create 100% zombie fixture");
             canBreakDoors.moveTo(helper.absolutePos(new BlockPos(2, 1, 1)), 0.0F, 0.0F);
-            canBreakDoors.finalizeSpawn(level, neutralDifficulty, MobSpawnType.COMMAND,
+            SpawnReasonCompat.finalizeCommand(canBreakDoors, level, neutralDifficulty,
                     new Zombie.ZombieGroupData(false, false));
             level.addFreshEntity(canBreakDoors);
             helper.assertTrue(canBreakDoors.canBreakDoors(),
@@ -107,12 +109,12 @@ public final class ZombieDoorBreakingGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void loadedZombiePreservesDoorBreakingAbility(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        Zombie original = EntityType.ZOMBIE.create(level);
+        Zombie original = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.ZOMBIE, level);
         helper.assertTrue(original != null, "could not create saved zombie fixture");
         original.setCanBreakDoors(true);
         CompoundTag saved = original.saveWithoutId(new CompoundTag());
 
-        Zombie restored = EntityType.ZOMBIE.create(level);
+        Zombie restored = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.ZOMBIE, level);
         helper.assertTrue(restored != null, "could not create restored zombie fixture");
         restored.load(saved);
         restored.moveTo(helper.absolutePos(new BlockPos(1, 1, 1)), 0.0F, 0.0F);

@@ -761,7 +761,7 @@ public final class LumberjackGoal extends Goal {
     private int breakBlockAndCollect(ServerLevel level, BlockPos pos, BlockState state) {
         List<ItemStack> drops = Block.getDrops(state, level, pos, null, villager, ItemStack.EMPTY);
         if (level.destroyBlock(pos, false, villager)) {
-            int collectedLogs = collectDrops(drops);
+            int collectedLogs = collectDrops(level, drops);
             // Vanilla clients interpret event 2001 as the block's break sound
             // plus its block debris particles.
             level.levelEvent(2001, pos, Block.getId(state));
@@ -782,7 +782,7 @@ public final class LumberjackGoal extends Goal {
             if (leafState != null && leafState.is(BlockTags.LEAVES)) {
                 List<ItemStack> drops = Block.getDrops(leafState, level, leafPos, null, villager, ItemStack.EMPTY);
                 if (level.destroyBlock(leafPos, false, villager)) {
-                    collectDrops(drops);
+                    collectDrops(level, drops);
                 }
             }
         }
@@ -799,19 +799,19 @@ public final class LumberjackGoal extends Goal {
         logsCollectedThisTree = 0;
     }
 
-    private int collectDrops(List<ItemStack> drops) {
+    private int collectDrops(ServerLevel level, List<ItemStack> drops) {
         int collectedLogs = 0;
         for (ItemStack drop : drops) {
             ItemStack offered = drop.copy();
-            if (!villager.wantsToPickUp(offered)) {
-                villager.spawnAtLocation(offered);
+            if (!com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(villager, level, offered)) {
+                com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, offered);
                 continue;
             }
 
             int offeredLogCount = offered.is(ItemTags.LOGS) ? offered.getCount() : 0;
             ItemStack remainder = villager.getInventory().addItem(offered);
             if (!remainder.isEmpty()) {
-                villager.spawnAtLocation(remainder);
+                com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, remainder);
             }
             if (offeredLogCount > 0) {
                 collectedLogs += offeredLogCount - remainder.getCount();

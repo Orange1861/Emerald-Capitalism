@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.test;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import com.orangevillager61.emeraldcapitalism.util.ChunkSaveCompat;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -123,22 +124,22 @@ public final class VillageManagerPersistenceGameTests {
         UUID villageId = UUID.fromString("87654321-4321-8765-4321-876543218765");
         BlockPos bankPos = helper.absolutePos(new BlockPos(2, 1, 1));
 
-        level.getChunkAt(managerPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(managerPos));
         manager.setVillageId(villageId);
         helper.assertTrue(level.getChunkAt(managerPos).isUnsaved(),
                 "village link did not call setChanged");
 
-        level.getChunkAt(managerPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(managerPos));
         manager.registerBank(bankPos);
         helper.assertTrue(level.getChunkAt(managerPos).isUnsaved(),
                 "bank link did not call setChanged");
 
-        level.getChunkAt(managerPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(managerPos));
         manager.deregisterBank();
         helper.assertTrue(level.getChunkAt(managerPos).isUnsaved(),
                 "bank unlink did not call setChanged");
 
-        level.getChunkAt(managerPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(managerPos));
         manager.setVillageId(null);
         helper.assertTrue(level.getChunkAt(managerPos).isUnsaved(),
                 "village unlink did not call setChanged");

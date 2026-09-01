@@ -4,6 +4,8 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -25,7 +27,12 @@ public final class ECAPEntityTypes {
             () -> EntityType.Builder.of(EmeraldGolem::new, MobCategory.MISC)
                     .sized(1.0F, 2.0F)  // Exactly 1 block wide and 2 blocks tall
                     .clientTrackingRange(10)
-                    .build("emerald_golem")
+//? if >=1.21.4 {
+                    .build(ResourceKey.create(Registries.ENTITY_TYPE,
+                            ResourceLocation.fromNamespaceAndPath(EmeraldCapitalism.MODID, "emerald_golem")))
+//?} else {
+/*                    .build("emerald_golem")
+ *///?}
     );
 
     public static final Supplier<EntityType<EmeraldSkrimisher>> EMERALD_SKRIMISHER = ENTITY_TYPES.register(
@@ -33,6 +40,11 @@ public final class ECAPEntityTypes {
             () -> EntityType.Builder.of(EmeraldSkrimisher::new, MobCategory.MISC)
                     .sized(0.75F, 1.0F)
                     .clientTrackingRange(10)
-                    .build("emerald_skrimisher")
+//? if >=1.21.4 {
+                    .build(ResourceKey.create(Registries.ENTITY_TYPE,
+                            ResourceLocation.fromNamespaceAndPath(EmeraldCapitalism.MODID, "emerald_skrimisher")))
+//?} else {
+/*                    .build("emerald_skrimisher")
+ *///?}
     );
 }

@@ -40,13 +40,19 @@ base {
 // Mojang ships Java 21 to end users on this branch, so mods target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(Integer.parseInt(java_version))
 
+// Stonecutter preprocesses the shared tree into target-specific sources. Use
+// those outputs for every version project so a target compile cannot
+// accidentally compile the currently active source branch.
+def stonecutterGeneratedMain = layout.buildDirectory.dir('generated/stonecutter/main').get().asFile
+def stonecutterGeneratedTest = layout.buildDirectory.dir('generated/stonecutter/test').get().asFile
+
 sourceSets {
     main {
-        java.setSrcDirs([rootProject.file('src/main/java'), file('src/main/java')].unique())
-        resources.setSrcDirs([rootProject.file('src/main/resources'), file('src/main/resources')].unique())
+        java.setSrcDirs([new File(stonecutterGeneratedMain, 'java')])
+        resources.setSrcDirs([new File(stonecutterGeneratedMain, 'resources')])
     }
     test {
-        java.setSrcDirs([rootProject.file('src/test/java'), file('src/test/java')].unique())
+        java.setSrcDirs([new File(stonecutterGeneratedTest, 'java')])
     }
 }
 
@@ -150,6 +156,14 @@ neoForge {
     }
 }
 
+// ModDevGradle creates this task lazily; attach Stonecutter generation to it
+// so compileJava/processResources always consume fresh target-specific output.
+tasks.configureEach {
+    if (name == 'createMinecraftArtifacts' || name == 'processResources') {
+        dependsOn 'stonecutterGenerate'
+    }
+}
+
 tasks.register('auditMixins', MixinAuditTask) {
     group = 'verification'
     description = 'Validates and subtractively audits every configured mixin in isolated GameTest JVMs.'
@@ -233,7 +247,7 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.compilerArgs.addAll(['-Xlint:deprecation', '-Xlint:removal'])
+    options.compilerArgs.addAll(['-Xlint:deprecation', '-Xlint:removal', '-Xmaxerrs', '10000'])
 }
 
 idea {

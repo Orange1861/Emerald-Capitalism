@@ -848,7 +848,9 @@ public class VillageFarmSiteSelector {
                                                          int minCX, int maxCX,
                                                          int minCZ, int maxCZ,
                                                          List<StructurePiece> fallbackPieces) {
-        Registry<Structure> structureRegistry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
         List<BoundingBox> boxes = new ArrayList<>();
         Set<Long> visitedStarts = new HashSet<>();
 
@@ -928,7 +930,9 @@ public class VillageFarmSiteSelector {
     private StructureBoxSets collectStructurePieceBoxes(ServerLevel level,
                                                          int minCX, int maxCX,
                                                          int minCZ, int maxCZ) {
-        Registry<Structure> structureRegistry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
         List<BoundingBox> villageBuildings = new ArrayList<>();
         List<BoundingBox> nonVillagePieces = new ArrayList<>();
         Set<StructureStart> visitedStarts = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -988,7 +992,9 @@ public class VillageFarmSiteSelector {
     private List<BoundingBox> collectNonVillagePieceBoxes(ServerLevel level,
                                                           int minCX, int maxCX,
                                                           int minCZ, int maxCZ) {
-        Registry<Structure> structureRegistry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
         List<BoundingBox> boxes = new ArrayList<>();
         Set<Long> visitedStarts = new HashSet<>();
 

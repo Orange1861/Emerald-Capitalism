@@ -24,6 +24,9 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.menu.ECAPMenuTypes;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat;
+import com.orangevillager61.emeraldcapitalism.util.RecipeResultCompat;
+import com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -60,7 +63,9 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.resources.ResourceKey;
 import net.neoforged.neoforge.attachment.AttachmentType;
+//? if <1.21.4 {
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
+//?}
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
@@ -132,8 +137,8 @@ public final class RegistrationGameTests {
         assertId(helper, BuiltInRegistries.MENU, ECAPMenuTypes.SAWMILL_MENU.get(), "sawmill");
         assertId(helper, BuiltInRegistries.POINT_OF_INTEREST_TYPE, ECAPPoiTypes.SAWMILL.get(), "sawmill");
         assertId(helper, BuiltInRegistries.VILLAGER_PROFESSION, ECAPVillagerProfessions.LUMBERJACK.get(), "lumberjack");
-        var sawmillPoiHolder = BuiltInRegistries.POINT_OF_INTEREST_TYPE
-                .getHolder(ECAPPoiTypes.SAWMILL.getKey()).orElseThrow();
+        var sawmillPoiHolder = RegistryAccessCompat.getHolder(
+                BuiltInRegistries.POINT_OF_INTEREST_TYPE, ECAPPoiTypes.SAWMILL.getKey());
         if (!ECAPVillagerProfessions.LUMBERJACK.get().heldJobSite().test(sawmillPoiHolder)) {
             helper.fail("Lumberjack profession is not assigned to the sawmill POI");
             return;
@@ -164,8 +169,14 @@ public final class RegistrationGameTests {
         assertDoorItem(helper, ECAPItems.REGULAR_EMERALD_DOOR.get(), ECAPBlocks.REGULAR_EMERALD_DOOR.get());
 
         Item egg = ECAPItems.EMERALD_GOLEM_SPAWN_EGG.get();
-        if (!(egg instanceof DeferredSpawnEggItem deferredEgg)
+//? if >=1.21.4 {
+        if (!(egg instanceof SpawnEggItem spawnEgg)
+                || spawnEgg.getType(helper.getLevel().registryAccess(), egg.getDefaultInstance())
+                != ECAPEntityTypes.EMERALD_GOLEM.get()) {
+//?} else {
+/*        if (!(egg instanceof DeferredSpawnEggItem deferredEgg)
                 || deferredEgg.getType(egg.getDefaultInstance()) != ECAPEntityTypes.EMERALD_GOLEM.get()) {
+ *///?}
             helper.fail("Emerald golem egg is not the intended deferred spawn egg");
             return;
         }
@@ -195,7 +206,7 @@ public final class RegistrationGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void sawmillRecipesUseWoodTypesAndCounts(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        var recipes = level.getRecipeManager().getAllRecipesFor(ECAPRecipeTypes.SAWMILL.get());
+        var recipes = RecipeManagerCompat.getAllRecipesFor(level, ECAPRecipeTypes.SAWMILL.get());
         if (recipes.size() != 120) {
             helper.fail("Expected 120 sawmill recipes, found " + recipes.size());
             return;
@@ -203,11 +214,11 @@ public final class RegistrationGameTests {
 
         var oakDoor = recipes.stream()
                 .map(RecipeHolder::value)
-                .filter(recipe -> recipe.getResultItem(level.registryAccess()).is(Items.OAK_DOOR))
+                .filter(recipe -> RecipeResultCompat.getSawmillResult(recipe, level.registryAccess()).is(Items.OAK_DOOR))
                 .findFirst()
                 .orElseThrow();
         if (oakDoor.getInputCount() != 3
-                || oakDoor.getResultItem(level.registryAccess()).getCount() != 2
+                || RecipeResultCompat.getSawmillResult(oakDoor, level.registryAccess()).getCount() != 2
                 || !oakDoor.matches(new SingleRecipeInput(new ItemStack(Items.OAK_PLANKS, 3)), level)) {
             helper.fail("Oak door sawmill recipe did not preserve its input/output counts");
             return;
@@ -215,7 +226,7 @@ public final class RegistrationGameTests {
 
         var birchStairs = recipes.stream()
                 .map(RecipeHolder::value)
-                .filter(recipe -> recipe.getResultItem(level.registryAccess()).is(Items.BIRCH_STAIRS))
+                .filter(recipe -> RecipeResultCompat.getSawmillResult(recipe, level.registryAccess()).is(Items.BIRCH_STAIRS))
                 .findFirst();
         if (birchStairs.isEmpty()
                 || !birchStairs.get().matches(
@@ -224,8 +235,8 @@ public final class RegistrationGameTests {
             return;
         }
 
-        var stonecutterRecipes = level.getRecipeManager().getAllRecipesFor(RecipeType.STONECUTTING);
-        if (stonecutterRecipes.stream().anyMatch(holder -> holder.value().getType() == ECAPRecipeTypes.SAWMILL.get())) {
+        var stonecutterRecipes = RecipeManagerCompat.getAllRecipesFor(level, RecipeType.STONECUTTING);
+        if (stonecutterRecipes.stream().anyMatch(holder -> holder.value().getType().equals(ECAPRecipeTypes.SAWMILL.get()))) {
             helper.fail("Sawmill recipes were exposed through the vanilla stonecutter type");
             return;
         }

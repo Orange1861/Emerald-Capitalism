@@ -113,7 +113,8 @@ public class VillagerHungerEvents {
                         + HungerPolicy.UPDATE_INTERVAL;
                 
                 if (starvationTicks >= HungerPolicy.TICKS_PER_STARVATION_DAMAGE) {
-                    villager.hurt(villager.damageSources().starve(), 1.0F);
+                    com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils.hurt(
+                            villager, villager.damageSources().starve(), 1.0F);
                     stats.setTicksSinceLastStarvationDamage(0);
                 } else {
                     stats.setTicksSinceLastStarvationDamage(starvationTicks);
@@ -175,7 +176,11 @@ public class VillagerHungerEvents {
         float pitch = 0.8F + random.nextFloat() * 0.4F;
         
         villager.playSound(
-                SoundEvents.GENERIC_EAT,
+//? if >=1.21.4 {
+                SoundEvents.GENERIC_EAT.value(),
+//?} else {
+/*                SoundEvents.GENERIC_EAT,
+ *///?}
                 0.5F + 0.5F * random.nextFloat(),
                 pitch
         );

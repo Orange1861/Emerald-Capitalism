@@ -12,7 +12,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.stats.Stats;
 import net.minecraft.tags.StructureTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+//? if >=1.21.4 {
+import net.minecraft.world.InteractionResult;
+//?} else {
+/*import net.minecraft.world.InteractionResultHolder;
+ *///?}
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -35,10 +39,18 @@ public final class VillageMapItem extends Item {
     }
 
     @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+//? if >=1.21.4 {
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+//?} else {
+/*    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+ *///?}
         ItemStack ticket = player.getItemInHand(hand);
         if (level.isClientSide()) {
-            return InteractionResultHolder.success(ticket);
+//? if >=1.21.4 {
+            return InteractionResult.SUCCESS;
+//?} else {
+/*            return InteractionResultHolder.success(ticket);
+ *///?}
         }
 
         ServerLevel serverLevel = (ServerLevel) level;
@@ -46,7 +58,11 @@ public final class VillageMapItem extends Item {
         LocatedVillage locatedVillage = findNearestVillage(serverLevel, origin).orElse(null);
         if (locatedVillage == null) {
             player.displayClientMessage(Component.translatable("item.emeraldcapitalism.village_map.not_found"), true);
-            return InteractionResultHolder.fail(ticket);
+//? if >=1.21.4 {
+            return InteractionResult.FAIL;
+//?} else {
+/*            return InteractionResultHolder.fail(ticket);
+ *///?}
         }
 
         BlockPos village = locatedVillage.position();
@@ -61,7 +77,11 @@ public final class VillageMapItem extends Item {
 
         replaceTicketWithMap(player, hand, ticket, map);
         player.awardStat(Stats.ITEM_USED.get(this));
-        return InteractionResultHolder.consume(map);
+//? if >=1.21.4 {
+        return InteractionResult.CONSUME;
+//?} else {
+/*        return InteractionResultHolder.consume(map);
+ *///?}
     }
 
     static void replaceTicketWithMap(Player player, InteractionHand hand,
@@ -78,10 +98,12 @@ public final class VillageMapItem extends Item {
     }
 
     private static Optional<LocatedVillage> findNearestVillage(ServerLevel level, BlockPos origin) {
-        Registry<Structure> structureRegistry = level.registryAccess()
-                .registryOrThrow(Registries.STRUCTURE);
-        Optional<HolderSet.Named<Structure>> villageStructures = structureRegistry
-                .getTag(StructureTags.VILLAGE);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
+        Optional<HolderSet.Named<Structure>> villageStructures =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getTag(
+                        structureRegistry, StructureTags.VILLAGE);
         if (villageStructures.isEmpty()) {
             return Optional.empty();
         }

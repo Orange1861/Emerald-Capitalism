@@ -19,6 +19,7 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.util.ChunkSaveCompat;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
@@ -637,7 +638,8 @@ public final class BankGameplayGameTests {
         }
 
         VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(lumberjack);
-        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.STICK)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        lumberjack, helper.getLevel(), new ItemStack(Items.STICK)),
                 "lumberjack pickup policy rejected sticks");
         helper.assertTrue(goal.canUse(), "lumberjack with sticks did not select bank cleanup");
         goal.start();
@@ -919,8 +921,10 @@ public final class BankGameplayGameTests {
 
         bank.getEmployeeIds().forEach(bank::removeEmployee);
 
-        EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
-        IronGolem ironGolem = EntityType.IRON_GOLEM.create(level);
+        EmeraldGolem emeraldGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+        IronGolem ironGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, level);
         if (emeraldGolem == null || ironGolem == null) {
             helper.fail("could not create both vault golem types");
             return;
@@ -1026,37 +1030,37 @@ public final class BankGameplayGameTests {
         }
 
         UUID villageId = UUID.fromString("30000000-0000-0000-0000-000000000001");
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         bank.setVillageId(villageId);
         helper.assertTrue(level.getChunkAt(bankPos).isUnsaved(), "village link did not call setChanged");
 
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         bank.setVillageId(villageId);
         helper.assertTrue(level.getChunkAt(bankPos).isUnsaved(),
                 "documented no-op village-link mutation changed its dirty behavior");
 
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         bank.setBankName("Bank");
         helper.assertTrue(level.getChunkAt(bankPos).isUnsaved(), "bank naming did not call setChanged");
 
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         bank.setGolemConstructionPos(new BlockPos(-5, -64, 7));
         helper.assertTrue(level.getChunkAt(bankPos).isUnsaved(),
                 "construction-position mutation did not call setChanged");
 
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         helper.assertTrue(bank.registerEmeraldGolemEmployee(GOLEM_ONE),
                 "golem employee registration unexpectedly failed");
         helper.assertTrue(level.getChunkAt(bankPos).isUnsaved(),
                 "golem employee registration did not call setChanged");
 
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         helper.assertTrue(!bank.registerEmeraldGolemEmployee(GOLEM_ONE),
                 "duplicate golem employee registration unexpectedly succeeded");
         helper.assertTrue(!level.getChunkAt(bankPos).isUnsaved(),
                 "duplicate golem employee registration changed its documented dirty behavior");
 
-        level.getChunkAt(bankPos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(bankPos));
         helper.assertTrue(bank.removeEmeraldGolemEmployee(GOLEM_ONE),
                 "golem employee removal unexpectedly failed");
         helper.assertTrue(level.getChunkAt(bankPos).isUnsaved(),

@@ -20,7 +20,11 @@ public class SawmillRecipe extends SingleItemRecipe {
     private final int inputCount;
 
     public SawmillRecipe(String group, Ingredient ingredient, int inputCount, ItemStack result) {
-        super(ECAPRecipeTypes.SAWMILL.get(), ECAPRecipeSerializers.SAWMILL.get(), group, ingredient, result);
+//? if >=1.21.4 {
+        super(group, ingredient, result);
+//?} else {
+/*        super(ECAPRecipeTypes.SAWMILL.get(), ECAPRecipeSerializers.SAWMILL.get(), group, ingredient, result);
+ *///?}
         this.inputCount = inputCount;
     }
 
@@ -28,33 +32,80 @@ public class SawmillRecipe extends SingleItemRecipe {
         return this.inputCount;
     }
 
+//? if >=1.21.4 {
     @Override
-    public boolean matches(SingleRecipeInput input, Level level) {
-        return input.item().getCount() >= this.inputCount && this.ingredient.test(input.item());
+    public net.minecraft.world.item.crafting.RecipeSerializer<? extends SawmillRecipe> getSerializer() {
+        return ECAPRecipeSerializers.SAWMILL.get();
     }
 
     @Override
+    public net.minecraft.world.item.crafting.RecipeType<? extends SawmillRecipe> getType() {
+        return ECAPRecipeTypes.SAWMILL.get();
+    }
+
+    @Override
+    public net.minecraft.world.item.crafting.RecipeBookCategory recipeBookCategory() {
+        return net.minecraft.world.item.crafting.RecipeBookCategories.STONECUTTER;
+    }
+//?} else {
+//?}
+
+    @Override
+    public boolean matches(SingleRecipeInput input, Level level) {
+        return input.item().getCount() >= this.inputCount &&
+//? if >=1.21.4 {
+                this.input().test(input.item());
+//?} else {
+/*                this.ingredient.test(input.item());
+ *///?}
+    }
+
+//? if >=1.21.4 {
+//?} else {
+/*    @Override
     public ItemStack getToastSymbol() {
         return new ItemStack(ECAPBlocks.SAWMILL.get());
     }
+ *///?}
 
     public static final class Serializer implements net.minecraft.world.item.crafting.RecipeSerializer<SawmillRecipe> {
         private final MapCodec<SawmillRecipe> codec = RecordCodecBuilder.mapCodec(instance -> instance.group(
-                Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::getGroup),
+//? if >=1.21.4 {
+                Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::group),
+                Ingredient.CODEC.fieldOf("ingredient").forGetter(SawmillRecipe::input),
+//?} else {
+/*                Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::getGroup),
                 Ingredient.CODEC_NONEMPTY.fieldOf("ingredient").forGetter(recipe -> recipe.ingredient),
+ *///?}
                 Codec.intRange(1, 64).fieldOf("count").forGetter(SawmillRecipe::getInputCount),
-                ItemStack.STRICT_CODEC.fieldOf("result").forGetter(recipe -> recipe.result)
+//? if >=1.21.4 {
+                ItemStack.STRICT_CODEC.fieldOf("result").forGetter(SawmillRecipe::result)
+//?} else {
+/*                ItemStack.STRICT_CODEC.fieldOf("result").forGetter(recipe -> recipe.result)
+ *///?}
         ).apply(instance, SawmillRecipe::new));
 
         private final StreamCodec<RegistryFriendlyByteBuf, SawmillRecipe> streamCodec = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8,
-                SawmillRecipe::getGroup,
+//? if >=1.21.4 {
+                SawmillRecipe::group,
+//?} else {
+/*                SawmillRecipe::getGroup,
+ *///?}
                 Ingredient.CONTENTS_STREAM_CODEC,
-                recipe -> recipe.ingredient,
+//? if >=1.21.4 {
+                SawmillRecipe::input,
+//?} else {
+/*                recipe -> recipe.ingredient,
+ *///?}
                 ByteBufCodecs.VAR_INT,
                 SawmillRecipe::getInputCount,
                 ItemStack.STREAM_CODEC,
-                recipe -> recipe.result,
+//? if >=1.21.4 {
+                SawmillRecipe::result,
+//?} else {
+/*                recipe -> recipe.result,
+ *///?}
                 SawmillRecipe::new
         );
 
@@ -63,6 +114,7 @@ public class SawmillRecipe extends SingleItemRecipe {
             return this.codec;
         }
 
+        @SuppressWarnings("deprecation")
         @Override
         public StreamCodec<RegistryFriendlyByteBuf, SawmillRecipe> streamCodec() {
             return this.streamCodec;

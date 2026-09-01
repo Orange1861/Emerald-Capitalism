@@ -44,6 +44,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.storage.loot.LootTable;
+//? if >=1.21.4 {
+import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+//?}
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
@@ -133,9 +137,15 @@ public class EmeraldGolem extends IronGolem {
         tickAmbushAttack();
     }
 
+//? if >=1.21.4 {
     @Override
+    protected void customServerAiStep(ServerLevel level) {
+        super.customServerAiStep(level);
+//?} else {
+/*    @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
+ *///?}
         tickLadderTraversal();
     }
 
@@ -309,7 +319,11 @@ public class EmeraldGolem extends IronGolem {
         super.registerGoals();
         this.targetSelector.addGoal(1, new HostileVillageMayorTargetGoal(this));
         this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true,
-                candidate -> !this.isPlayerCreated()
+//? if >=1.21.4 {
+                (candidate, serverLevel) -> !this.isPlayerCreated()
+//?} else {
+/*                candidate -> !this.isPlayerCreated()
+ *///?}
                         && candidate instanceof Player player
                         && shouldAttackBankPlayer(player)));
         this.goalSelector.addGoal(8, new RandomStrollGoal(this, 0.6D));
@@ -396,7 +410,8 @@ public class EmeraldGolem extends IronGolem {
             stack.shrink(1);
         }
         this.playSound(SoundEvents.IRON_GOLEM_REPAIR, 1.0F, 1.0F);
-        return InteractionResult.sidedSuccess(this.level().isClientSide);
+        return com.orangevillager61.emeraldcapitalism.util.InteractionResultCompat.sidedSuccess(
+                this.level().isClientSide);
     }
 
     // Sounds
@@ -488,11 +503,35 @@ public class EmeraldGolem extends IronGolem {
         return 0.0F;
     }
 
-    /** Use the emerald golem loot table instead of the inherited iron golem table. */
+//? if >=1.21.4 {
+    @Override
+    protected void dropFromLootTable(ServerLevel level, DamageSource damageSource, boolean recentlyHit) {
+        if (!(ambush && Config.emeraldGolemAmbushDropsVillageMap)) {
+            super.dropFromLootTable(level, damageSource, recentlyHit);
+            return;
+        }
+        super.dropFromLootTable(level, AMBUSH_LOOT_TABLE, builder -> {
+            builder.withParameter(LootContextParams.THIS_ENTITY, this)
+                    .withParameter(LootContextParams.ORIGIN, position())
+                    .withParameter(LootContextParams.DAMAGE_SOURCE, damageSource)
+                    .withOptionalParameter(LootContextParams.ATTACKING_ENTITY, damageSource.getEntity())
+                    .withOptionalParameter(LootContextParams.DIRECT_ATTACKING_ENTITY,
+                            damageSource.getDirectEntity());
+            Player lastHurtByPlayer = this.lastHurtByPlayer;
+            if (recentlyHit && lastHurtByPlayer != null) {
+                builder.withParameter(LootContextParams.LAST_DAMAGE_PLAYER, lastHurtByPlayer)
+                        .withLuck(lastHurtByPlayer.getLuck());
+            }
+            return builder.create(LootContextParamSets.ENTITY);
+        }, (serverLevel, stack) -> spawnAtLocation(serverLevel, stack));
+    }
+//?} else {
+/*    // Use the emerald golem loot table instead of the inherited iron golem table.
     @Override
     protected ResourceKey<LootTable> getDefaultLootTable() {
         return ambush && Config.emeraldGolemAmbushDropsVillageMap
                 ? AMBUSH_LOOT_TABLE
                 : DEFAULT_LOOT_TABLE;
     }
+ *///?}
 }

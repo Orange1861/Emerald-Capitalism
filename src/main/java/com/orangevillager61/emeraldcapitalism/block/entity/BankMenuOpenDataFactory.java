@@ -92,7 +92,7 @@ final class BankMenuOpenDataFactory {
             entries.add(new BankMenu.MarketEntry(
                     marketItem.config().id(),
                     marketItem.itemId().toString(),
-                    marketItem.item().getDescription().getString(),
+                    com.orangevillager61.emeraldcapitalism.util.ItemNameCompat.get(marketItem.item()).getString(),
                     stock,
                     population,
                     bank.getMarketTarget(serverLevel, marketItem),

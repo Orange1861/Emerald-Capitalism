@@ -3,7 +3,11 @@ package com.orangevillager61.emeraldcapitalism.item;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEffects;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+//? if >=1.21.4 {
+import net.minecraft.world.InteractionResult;
+//?} else {
+/*import net.minecraft.world.InteractionResultHolder;
+ *///?}
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -21,10 +25,18 @@ public final class RottenFleshCoverItem extends Item {
     }
 
     @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+//? if >=1.21.4 {
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+//?} else {
+/*    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+ *///?}
         ItemStack stack = player.getItemInHand(hand);
         if (level.isClientSide()) {
-            return InteractionResultHolder.success(stack);
+//? if >=1.21.4 {
+            return InteractionResult.SUCCESS;
+//?} else {
+/*            return InteractionResultHolder.success(stack);
+ *///?}
         }
 
         applyZombieSmell(player);
@@ -32,7 +44,11 @@ public final class RottenFleshCoverItem extends Item {
             stack.shrink(1);
         }
         player.awardStat(Stats.ITEM_USED.get(this));
-        return InteractionResultHolder.consume(stack);
+//? if >=1.21.4 {
+        return InteractionResult.CONSUME;
+//?} else {
+/*        return InteractionResultHolder.consume(stack);
+ *///?}
     }
 
     public static void applyZombieSmell(LivingEntity entity) {

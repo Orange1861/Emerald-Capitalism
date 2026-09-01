@@ -9,7 +9,6 @@ import net.minecraft.world.item.DoubleHighBlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.BlockItem;
-import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.bus.api.IEventBus;
@@ -30,25 +29,43 @@ public final class ECAPItems {
     );
 
     // Spawn Eggs
-    public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.register(
+//? if >=1.21.4 {
+    public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.registerItem(
             "emerald_golem_spawn_egg",
-            () -> new DeferredSpawnEggItem(
+            properties -> new SpawnEggItem(
+                    ECAPEntityTypes.EMERALD_GOLEM.get(),
+                    properties
+            )
+    );
+
+    public static final DeferredItem<SpawnEggItem> EMERALD_SKRIMISHER_SPAWN_EGG = ITEMS.registerItem(
+            "emerald_skrimisher_spawn_egg",
+            properties -> new SpawnEggItem(
+                    ECAPEntityTypes.EMERALD_SKRIMISHER.get(),
+                    properties
+            )
+    );
+//?} else {
+/*    public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.register(
+            "emerald_golem_spawn_egg",
+            () -> new net.neoforged.neoforge.common.DeferredSpawnEggItem(
                     ECAPEntityTypes.EMERALD_GOLEM,
-                    0x17DD62,   // Primary color: emerald green
-                    0x0D8C3E,   // Secondary color: darker emerald
+                    0x17DD62,
+                    0x0D8C3E,
                     new Item.Properties()
             )
     );
 
     public static final DeferredItem<SpawnEggItem> EMERALD_SKRIMISHER_SPAWN_EGG = ITEMS.register(
             "emerald_skrimisher_spawn_egg",
-            () -> new DeferredSpawnEggItem(
+            () -> new net.neoforged.neoforge.common.DeferredSpawnEggItem(
                     ECAPEntityTypes.EMERALD_SKRIMISHER,
                     0xFFFFFF,
                     0xFFFFFF,
                     new Item.Properties()
             )
     );
+ *///?}
 
     public static final DeferredItem<BlockItem> VILLAGE_MANAGER = ITEMS.registerSimpleBlockItem(
             "village_manager",
@@ -101,37 +118,37 @@ public final class ECAPItems {
             ECAPBlocks.GOLEM_CONSTRUCTION_LOCATION
     );
 
-    public static final DeferredItem<DoubleHighBlockItem> EMERALD_DOOR = ITEMS.register(
+    public static final DeferredItem<DoubleHighBlockItem> EMERALD_DOOR = ITEMS.registerItem(
             "emerald_door",
-            () -> new DoubleHighBlockItem(ECAPBlocks.EMERALD_DOOR.get(), new Item.Properties())
+            properties -> new DoubleHighBlockItem(ECAPBlocks.EMERALD_DOOR.get(), properties)
     );
 
-    public static final DeferredItem<DoubleHighBlockItem> REGULAR_EMERALD_DOOR = ITEMS.register(
+    public static final DeferredItem<DoubleHighBlockItem> REGULAR_EMERALD_DOOR = ITEMS.registerItem(
             "regular_emerald_door",
-            () -> new DoubleHighBlockItem(ECAPBlocks.REGULAR_EMERALD_DOOR.get(), new Item.Properties())
+            properties -> new DoubleHighBlockItem(ECAPBlocks.REGULAR_EMERALD_DOOR.get(), properties)
     );
 
     // Standalone Items
-    public static final DeferredItem<EmeraldLeadItem> EMERALD_LEAD = ITEMS.register(
+    public static final DeferredItem<EmeraldLeadItem> EMERALD_LEAD = ITEMS.registerItem(
             "emerald_lead",
-            () -> new EmeraldLeadItem(new Item.Properties())
+            EmeraldLeadItem::new
     );
 
-    public static final DeferredItem<AbandonedVaultMapItem> ABANDONED_VAULT_MAP = ITEMS.register(
+    public static final DeferredItem<AbandonedVaultMapItem> ABANDONED_VAULT_MAP = ITEMS.registerItem(
             "abandoned_vault_map",
-            () -> new AbandonedVaultMapItem(AbandonedVaultMapItem.Target.NEAREST,
-                    new Item.Properties().stacksTo(1))
+            properties -> new AbandonedVaultMapItem(AbandonedVaultMapItem.Target.NEAREST,
+                    properties.stacksTo(1))
     );
 
-    public static final DeferredItem<AbandonedVaultMapItem> SECOND_ABANDONED_VAULT_MAP = ITEMS.register(
+    public static final DeferredItem<AbandonedVaultMapItem> SECOND_ABANDONED_VAULT_MAP = ITEMS.registerItem(
             "second_abandoned_vault_map",
-            () -> new AbandonedVaultMapItem(AbandonedVaultMapItem.Target.SECOND_NEAREST,
-                    new Item.Properties().stacksTo(1))
+            properties -> new AbandonedVaultMapItem(AbandonedVaultMapItem.Target.SECOND_NEAREST,
+                    properties.stacksTo(1))
     );
 
-    public static final DeferredItem<VillageMapItem> VILLAGE_MAP = ITEMS.register(
+    public static final DeferredItem<VillageMapItem> VILLAGE_MAP = ITEMS.registerItem(
             "village_map",
-            () -> new VillageMapItem(new Item.Properties().stacksTo(1))
+            properties -> new VillageMapItem(properties.stacksTo(1))
     );
 
     /** Icon item for the first-infection Zombkolaps advancement. */
@@ -147,8 +164,8 @@ public final class ECAPItems {
             new Item.Properties()
     );
 
-    public static final DeferredItem<RottenFleshCoverItem> ROTTEN_FLESH_COVER = ITEMS.register(
+    public static final DeferredItem<RottenFleshCoverItem> ROTTEN_FLESH_COVER = ITEMS.registerItem(
             "rotten_flesh_cover",
-            () -> new RottenFleshCoverItem(new Item.Properties())
+            RottenFleshCoverItem::new
     );
 }

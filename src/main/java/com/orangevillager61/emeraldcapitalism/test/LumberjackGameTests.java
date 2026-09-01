@@ -278,11 +278,14 @@ public final class LumberjackGameTests {
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
 
-        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.OAK_SAPLING)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        lumberjack, helper.getLevel(), new ItemStack(Items.OAK_SAPLING)),
                 "lumberjack did not accept a sapling when its work inventory had space");
-        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.OAK_LOG)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        lumberjack, helper.getLevel(), new ItemStack(Items.OAK_LOG)),
                 "lumberjack did not accept a harvested log when its work inventory had space");
-        helper.assertTrue(lumberjack.wantsToPickUp(new ItemStack(Items.STICK)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        lumberjack, helper.getLevel(), new ItemStack(Items.STICK)),
                 "lumberjack did not accept sticks from harvested leaves when its work inventory had space");
         helper.succeed();
     }

@@ -16,7 +16,7 @@ redactNonOpPoiDetails = true
 		enableFarmlandRepair = true
 		#If true, villagers can open and close fence gates during pathfinding.
 		enableFenceGateInteraction = true
-		#If true, shift-right-clicking a villager opens the villager statistics screen.
+		#If true, shift-right-clicking a villager or Emerald Skrimisher opens its read-only information screen.
 		enableVillagerStatsShiftClick = true
 		#If true, villagers will avoid nearby boats and try to keep a few blocks away.
 		enableBoatAvoidance = true
@@ -42,12 +42,47 @@ redactNonOpPoiDetails = true
 		#Search radius: 16 blocks.
 		emeraldBlockAggro = true
 
+		[ai.golemAI.emeraldGolemAmbush]
+			#If true, an emerald golem ambushes the player on their initial world spawn.
+			enabled = true
+			#If true, an emerald golem ambushes the player on every death respawn.
+			onRespawn = false
+			#Horizontal distance in blocks at which an ambush emerald golem tries to spawn
+			#from the player. Default: 16 blocks.
+			# Default: 16
+			# Range: 8 ~ 32
+			spawnDistance = 16
+			#Health of an ambush emerald golem in HP. Default: 2 HP.
+			# Default: 2.0
+			# Range: 0.5 ~ 50.0
+			health = 2.0
+			#Minimum delay before an ambush emerald golem attacks its target
+			#in seconds. Default: 3 seconds.
+			# Default: 3
+			# Range: 0 ~ 60
+			minAttackDelaySeconds = 3
+			#Maximum delay before an ambush emerald golem attacks its target
+			#in seconds. Default: 5 seconds.
+			# Default: 5
+			# Range: 0 ~ 60
+			maxAttackDelaySeconds = 5
+			#If true, an ambush emerald golem drops one Village Map when it dies.
+			dropsVillageMap = true
+
 	[ai.zombieAI]
 		#If true, zombie villagers avoid pathfinding into sunlight when they have no head protection.
 		enableZombieVillagerSunAvoidance = true
 		#If true, zombies always convert killed villagers into zombie villagers on Easy, Normal, and Hard difficulty.
 		#If false, vanilla conversion chances apply: 0% on Easy, 50% on Normal, and 100% on Hard.
 		alwaysConvertVillagersToZombieVillagers = true
+		#If true, zombies with the door-breaking ability can break wooden doors on any difficulty.
+		#If false, door breaking is limited to Hard difficulty, as in vanilla.
+		zombiesCanBreakDoorsOnAnyDifficulty = true
+		#Percentage of newly spawned zombies that receive the door-breaking ability.
+		#Default: 50%. Range: 0% to 100%.
+		# Default: 50
+		# Range: 0 ~ 100
+		zombieDoorBreakingChancePercent = 50
 
 	[illness.zombieVirus]
 		#How long Zombkolaps remains in phase one before phase two begins.
@@ -60,6 +95,11 @@ redactNonOpPoiDetails = true
 		# Default: 20
 		# Range: 1 ~ 3600
 		hitTimeReductionSeconds = 20
+		#Chance of contracting Zombkolaps when consuming rotten flesh.
+		#Default: 2%. Range: 0% to 100%.
+		# Default: 2
+		# Range: 0 ~ 100
+		rottenFleshInfectionChancePercent = 2
 
 	[advanced.villageRegistry]
 		#Permission level required to use /ecap village commands (0=everyone, 2=operator, 4=server owner).

@@ -17,7 +17,11 @@ import net.minecraft.client.model.geom.builders.PartDefinition;
  * {@link IronGolemModel} animation so gameplay values and animation timing are
  * unchanged.</p>
  */
-public class EmeraldGolemModel<T extends EmeraldGolem> extends IronGolemModel<T> {
+//? if >=1.21.4 {
+public class EmeraldGolemModel extends IronGolemModel {
+//?} else {
+/*public class EmeraldGolemModel<T extends EmeraldGolem> extends IronGolemModel<T> {
+ *///?}
 
     public EmeraldGolemModel(ModelPart root) {
         super(root);

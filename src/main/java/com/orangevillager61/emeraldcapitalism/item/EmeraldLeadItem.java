@@ -44,7 +44,8 @@ public class EmeraldLeadItem extends LeadItem {
         if (!player.level().isClientSide) {
             ((Leashable) target).setLeashedTo(player, true);
         }
-        return InteractionResult.sidedSuccess(player.level().isClientSide);
+        return com.orangevillager61.emeraldcapitalism.util.InteractionResultCompat.sidedSuccess(
+                player.level().isClientSide);
     }
 
     @Override
@@ -60,7 +61,7 @@ public class EmeraldLeadItem extends LeadItem {
         if (!level.isClientSide && player != null) {
             bindEligibleVillagersToFence(player, level, clickedPos);
         }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return com.orangevillager61.emeraldcapitalism.util.InteractionResultCompat.sidedSuccess(level.isClientSide);
     }
 
     private static void bindEligibleVillagersToFence(Player player, Level level, BlockPos fencePos) {

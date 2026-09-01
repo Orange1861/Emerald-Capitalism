@@ -231,7 +231,8 @@ public final class EmeraldSkrimisherGameTests {
                 new ItemStack(ECAPItems.ROTTEN_FLESH_COVER.get())
         };
         for (ItemStack stack : sharedItems) {
-            helper.assertTrue(villager.wantsToPickUp(stack),
+            helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                            villager, helper.getLevel(), stack),
                     "villager rejected a shared holdable item: " + stack.getHoverName().getString());
             helper.assertTrue(skrimisher.wantsToPickUp(stack),
                     "Skrimisher rejected a shared holdable item: " + stack.getHoverName().getString());
@@ -242,23 +243,28 @@ public final class EmeraldSkrimisherGameTests {
                 continue;
             }
             ItemStack stack = new ItemStack(item);
-            helper.assertTrue(villager.wantsToPickUp(stack),
+            helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                            villager, helper.getLevel(), stack),
                     "villager rejected an Emerald Capitalism item: " + BuiltInRegistries.ITEM.getKey(item));
             helper.assertTrue(skrimisher.wantsToPickUp(stack),
                     "Skrimisher rejected an Emerald Capitalism item: " + BuiltInRegistries.ITEM.getKey(item));
         }
         villager.setVillagerData(villager.getVillagerData().setProfession(VillagerProfession.FARMER));
-        helper.assertTrue(villager.wantsToPickUp(new ItemStack(Items.BONE_MEAL)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        villager, helper.getLevel(), new ItemStack(Items.BONE_MEAL)),
                 "farmers should be able to hold bonemeal for profession work");
         villager.setVillagerData(villager.getVillagerData().setProfession(
                 com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions.MAYOR.get()));
-        helper.assertTrue(villager.wantsToPickUp(new ItemStack(Items.OAK_DOOR)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        villager, helper.getLevel(), new ItemStack(Items.OAK_DOOR)),
                 "mayors should be able to hold doors for repair work");
-        helper.assertTrue(villager.wantsToPickUp(new ItemStack(Items.WHITE_BED)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        villager, helper.getLevel(), new ItemStack(Items.WHITE_BED)),
                 "mayors should be able to hold beds for village work");
         for (VillagerProfession profession : BuiltInRegistries.VILLAGER_PROFESSION) {
             villager.setVillagerData(villager.getVillagerData().setProfession(profession));
-            helper.assertTrue(villager.wantsToPickUp(new ItemStack(Items.IRON_INGOT)),
+            helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                            villager, helper.getLevel(), new ItemStack(Items.IRON_INGOT)),
                     "villager profession rejected an iron ingot: " + profession.name());
         }
         helper.succeed();
@@ -329,7 +335,8 @@ public final class EmeraldSkrimisherGameTests {
             helper.fail("Could not add the Emerald Skrimisher for the drop test");
             return;
         }
-        skrimisher.hurt(level.damageSources().generic(), 100.0F);
+        com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils.hurt(
+                skrimisher, level.damageSources().generic(), 100.0F);
 
         List<ItemEntity> drops = level.getEntitiesOfClass(
                 ItemEntity.class, skrimisher.getBoundingBox().inflate(2.0D));
@@ -403,7 +410,8 @@ public final class EmeraldSkrimisherGameTests {
         helper.assertValueEqual(bank.getTotalPlankCount(), BankBlockEntity.PLANKS_PER_VANILLA_CHEST,
                 "bank did not expose two oak logs as eight plank-equivalents");
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("could not create the completed emerald golem fixture");
             return;
@@ -439,7 +447,8 @@ public final class EmeraldSkrimisherGameTests {
     }
 
     private static EmeraldSkrimisher create(GameTestHelper helper) {
-        EmeraldSkrimisher skrimisher = ECAPEntityTypes.EMERALD_SKRIMISHER.get().create(helper.getLevel());
+        EmeraldSkrimisher skrimisher = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_SKRIMISHER.get(), helper.getLevel());
         if (skrimisher == null) {
             helper.fail("Could not create the Emerald Skrimisher");
         }

@@ -14,15 +14,14 @@ import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSite
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
-import net.neoforged.neoforge.event.EventHooks;
 
 import java.util.List;
 import java.util.UUID;
@@ -171,14 +170,13 @@ public final class VillageGenerationContext {
                     plannedManagerPos);
             return;
         }
-        Villager villager = EntityType.VILLAGER.create(level);
+        Villager villager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.VILLAGER, level);
         if (villager == null) {
             return;
         }
         villager.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D,
                 level.getRandom().nextFloat() * 360.0F, 0.0F);
-        EventHooks.finalizeMobSpawn(villager, level, level.getCurrentDifficultyAt(spawnPos),
-                MobSpawnType.STRUCTURE, null);
+        SpawnReasonCompat.finalizeStructure(villager, level, level.getCurrentDifficultyAt(spawnPos), null);
         // finalizeMobSpawn posts FinalizeSpawnEvent, which initializes structure supplies once.
         if (!level.addFreshEntity(villager)) {
             EmeraldCapitalism.LOGGER.warn(

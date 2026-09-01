@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.Config;
+import com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
@@ -34,7 +35,7 @@ public final class VillagerReputationDamageGameTests {
         for (int i = 0; i < DAMAGE_AMOUNTS.length; i++) {
             Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1 + i, 1, 1);
             float damage = DAMAGE_AMOUNTS[i];
-            boolean damaged = villager.hurt(
+            boolean damaged = EntityDamageUtils.hurt(villager,
                     helper.getLevel().damageSources().playerAttack(player), damage);
 
             helper.assertTrue(damaged, "player damage was not applied for amount " + damage);
@@ -54,14 +55,14 @@ public final class VillagerReputationDamageGameTests {
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 
         Villager environmentalTarget = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
-        environmentalTarget.hurt(helper.getLevel().damageSources().generic(), 2.0F);
+        EntityDamageUtils.hurt(environmentalTarget, helper.getLevel().damageSources().generic(), 2.0F);
         environmentalTarget.onReputationEventFrom(ReputationEventType.VILLAGER_HURT, player);
         helper.assertValueEqual(environmentalTarget.getPlayerReputation(player), -25,
                 "environmental damage armed the player-damage reputation path");
 
         Villager mobTarget = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 1);
         Zombie attacker = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 1, 1);
-        mobTarget.hurt(helper.getLevel().damageSources().mobAttack(attacker), 2.0F);
+        EntityDamageUtils.hurt(mobTarget, helper.getLevel().damageSources().mobAttack(attacker), 2.0F);
         mobTarget.onReputationEventFrom(ReputationEventType.VILLAGER_HURT, player);
         helper.assertValueEqual(mobTarget.getPlayerReputation(player), -25,
                 "non-player damage armed the player-damage reputation path");
@@ -77,7 +78,7 @@ public final class VillagerReputationDamageGameTests {
         cancelNextDamageFor = villager.getUUID();
         boolean damaged;
         try {
-            damaged = villager.hurt(
+            damaged = EntityDamageUtils.hurt(villager,
                     helper.getLevel().damageSources().playerAttack(player), 2.0F);
         } finally {
             cancelNextDamageFor = null;
@@ -96,7 +97,7 @@ public final class VillagerReputationDamageGameTests {
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         villager.setInvulnerable(true);
 
-        boolean damaged = villager.hurt(
+        boolean damaged = EntityDamageUtils.hurt(villager,
                 helper.getLevel().damageSources().playerAttack(player), 2.0F);
 
         helper.assertFalse(damaged, "invulnerable player damage was not rejected by the damage path");
@@ -116,7 +117,7 @@ public final class VillagerReputationDamageGameTests {
             boolean previous = Config.proportionalVillagerReputation;
             Config.proportionalVillagerReputation = false;
             try {
-                villager.hurt(
+                EntityDamageUtils.hurt(villager,
                         helper.getLevel().damageSources().playerAttack(player), 2.0F);
             } finally {
                 Config.proportionalVillagerReputation = previous;

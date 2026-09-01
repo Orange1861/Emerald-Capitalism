@@ -6,6 +6,8 @@ import com.orangevillager61.emeraldcapitalism.event.ZombieVirusEvents;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEffects;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPPotions;
+import com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils;
+import com.orangevillager61.emeraldcapitalism.util.ItemDescriptionCompat;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
@@ -62,7 +64,7 @@ public final class ZombieVirusGameTests {
                 ECAPEffects.ZOMBIE_VIRUS, MobEffectInstance.INFINITE_DURATION, 0, false, false, true));
         villager.setHealth(1.0F);
 
-        villager.hurt(helper.getLevel().damageSources().generic(), 100.0F);
+        EntityDamageUtils.hurt(villager, helper.getLevel().damageSources().generic(), 100.0F);
 
         helper.runAfterDelay(2, () -> {
             ZombieVillager replacement = helper.getLevel().getEntitiesOfClass(
@@ -173,7 +175,8 @@ public final class ZombieVirusGameTests {
 
         MobEffectInstance beforeEffect = player.getEffect(ECAPEffects.ZOMBIE_VIRUS);
         int before = beforeEffect == null ? 0 : beforeEffect.getDuration();
-        boolean damaged = player.hurt(helper.getLevel().damageSources().mobAttack(zombie), 1.0F);
+        boolean damaged = EntityDamageUtils.hurt(player,
+                helper.getLevel().damageSources().mobAttack(zombie), 1.0F);
         MobEffectInstance afterEffect = player.getEffect(ECAPEffects.ZOMBIE_VIRUS);
         int expected = Math.max(1, before - Config.zombieVirusHitTimeReductionSeconds * 20);
 
@@ -211,7 +214,7 @@ public final class ZombieVirusGameTests {
                 ECAPEffects.ZOMBIE_VIRUS, MobEffectInstance.INFINITE_DURATION, 0, false, false, true));
         player.setHealth(1.0F);
 
-        player.hurt(helper.getLevel().damageSources().generic(), 100.0F);
+        EntityDamageUtils.hurt(player, helper.getLevel().damageSources().generic(), 100.0F);
 
         helper.runAfterDelay(2, () -> {
             Zombie zombie = helper.getLevel().getEntitiesOfClass(
@@ -225,7 +228,7 @@ public final class ZombieVirusGameTests {
             helper.getLevel().getEntitiesOfClass(ItemEntity.class, zombie.getBoundingBox().inflate(2.0D))
                     .forEach(ItemEntity::discard);
             zombie.setHealth(1.0F);
-            zombie.hurt(helper.getLevel().damageSources().generic(), 100.0F);
+            EntityDamageUtils.hurt(zombie, helper.getLevel().damageSources().generic(), 100.0F);
 
             helper.runAfterDelay(2, () -> {
                 boolean droppedSword = helper.getLevel().getEntitiesOfClass(
@@ -250,7 +253,8 @@ public final class ZombieVirusGameTests {
                 MobEffects.POISON, 200, 0, false, true, true));
         villager.setHealth(villager.getMaxHealth());
         float villagerHealth = villager.getHealth();
-        boolean villagerHurt = villager.hurt(helper.getLevel().damageSources().magic(), 1.0F);
+        boolean villagerHurt = EntityDamageUtils.hurt(villager,
+                helper.getLevel().damageSources().magic(), 1.0F);
 
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         player.addEffect(new MobEffectInstance(
@@ -259,7 +263,8 @@ public final class ZombieVirusGameTests {
                 MobEffects.POISON, 200, 0, false, true, true));
         player.setHealth(player.getMaxHealth());
         float playerHealth = player.getHealth();
-        boolean playerHurt = player.hurt(helper.getLevel().damageSources().magic(), 1.0F);
+        boolean playerHurt = EntityDamageUtils.hurt(player,
+                helper.getLevel().damageSources().magic(), 1.0F);
 
         helper.assertTrue(!villagerHurt && villager.getHealth() == villagerHealth
                         && !playerHurt && player.getHealth() == playerHealth,
@@ -311,13 +316,13 @@ public final class ZombieVirusGameTests {
         helper.assertTrue(phaseOneSplash.is(Items.SPLASH_POTION)
                         && phaseTwoSplash.is(Items.SPLASH_POTION),
                 "Zombkolaps debug potions did not produce splash potion variants");
-        helper.assertTrue(phaseOnePotion.getDescriptionId().equals(
+        helper.assertTrue(ItemDescriptionCompat.get(phaseOnePotion).equals(
                                 "item.minecraft.potion.effect.zombie_virus_phase_one")
-                        && phaseTwoPotion.getDescriptionId().equals(
+                        && ItemDescriptionCompat.get(phaseTwoPotion).equals(
                                 "item.minecraft.potion.effect.zombie_virus_phase_two")
-                        && phaseOneSplash.getDescriptionId().equals(
+                        && ItemDescriptionCompat.get(phaseOneSplash).equals(
                                 "item.minecraft.splash_potion.effect.zombie_virus_phase_one")
-                        && phaseTwoSplash.getDescriptionId().equals(
+                        && ItemDescriptionCompat.get(phaseTwoSplash).equals(
                                 "item.minecraft.splash_potion.effect.zombie_virus_phase_two"),
                 "Zombkolaps potion names did not resolve to localized translation keys");
         helper.succeed();

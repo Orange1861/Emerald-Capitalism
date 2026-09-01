@@ -131,7 +131,8 @@ public class BankBlock extends BaseEntityBlock {
         return SHAPE;
     }
 
-    @Override
+//? if <1.21.4 {
+/*    @Override
     protected @NotNull VoxelShape getOcclusionShape(@NotNull BlockState state, @NotNull BlockGetter level,
                                                       @NotNull BlockPos pos) {
         return SHAPE;
@@ -141,6 +142,7 @@ public class BankBlock extends BaseEntityBlock {
     protected boolean useShapeForLightOcclusion(@NotNull BlockState state) {
         return true;
     }
+ *///?}
 
     @Nullable
     @Override
@@ -264,7 +266,8 @@ public class BankBlock extends BaseEntityBlock {
 
     private static void rejectPlacement(Level level, BlockPos pos, @Nullable LivingEntity placer) {
         if (placer instanceof Player player) {
-            player.sendSystemMessage(Component.literal("Too Close to Nearby Bank or Village"));
+            com.orangevillager61.emeraldcapitalism.util.PlayerMessageUtils.send(
+                    player, Component.literal("Too Close to Nearby Bank or Village"));
         }
         level.destroyBlock(pos, true);
     }

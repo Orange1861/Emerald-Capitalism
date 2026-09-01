@@ -5,9 +5,9 @@ import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttac
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFamilyUtils;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameManager;
+import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -52,8 +52,8 @@ public class VillagerSpawnEvents {
 
         VillagerNameManager.assignNameIfNeeded(villager);
 
-        MobSpawnType spawnType = event.getSpawnType();
-        if (spawnType == MobSpawnType.STRUCTURE) {
+        Object spawnType = event.getSpawnType();
+        if (SpawnReasonCompat.isStructure(spawnType)) {
             addStructureSpawnSupplies(villager);
         }
 
@@ -61,7 +61,7 @@ public class VillagerSpawnEvents {
             return;
         }
 
-        if (spawnType != MobSpawnType.STRUCTURE && spawnType != MobSpawnType.SPAWN_EGG) {
+        if (!SpawnReasonCompat.isStructure(spawnType) && !SpawnReasonCompat.isSpawnEgg(spawnType)) {
             return;
         }
 
@@ -105,7 +105,7 @@ public class VillagerSpawnEvents {
                             villager.getUUID(),
                             PARENT_ASSIGNMENT_READY_TIME.getOrDefault(villager.getUUID(), 0L),
                             villager.level().getGameTime());
-                } else if (villager.getSpawnType() == null || villager.getSpawnType() == MobSpawnType.BREEDING) {
+                } else if (villager.getSpawnType() == null || SpawnReasonCompat.isBreeding(villager.getSpawnType())) {
                     // Direct offspring creation can carry BREEDING without a
                     // FinalizeSpawnEvent; let its caller hook assign the parent first.
                     EmeraldCapitalism.LOGGER.debug(

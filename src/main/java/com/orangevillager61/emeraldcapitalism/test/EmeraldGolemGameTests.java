@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
+import com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HostileVillagePlayerTargetGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HostileVillageMayorTargetGoal;
@@ -59,7 +60,8 @@ public final class EmeraldGolemGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void emeraldGolemHasWanderGoal(GameTestHelper helper) {
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(helper.getLevel());
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), helper.getLevel());
         if (golem == null) {
             helper.fail("Could not create the emerald golem");
             return;
@@ -73,7 +75,8 @@ public final class EmeraldGolemGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void emeraldSkrimisherHasWanderGoal(GameTestHelper helper) {
-        EmeraldSkrimisher skrimisher = ECAPEntityTypes.EMERALD_SKRIMISHER.get().create(helper.getLevel());
+        EmeraldSkrimisher skrimisher = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_SKRIMISHER.get(), helper.getLevel());
         if (skrimisher == null) {
             helper.fail("Could not create the emerald skirmisher");
             return;
@@ -86,7 +89,8 @@ public final class EmeraldGolemGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void emeraldGolemOpenablesGoalDoesNotBlockMovement(GameTestHelper helper) {
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(helper.getLevel());
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), helper.getLevel());
         if (golem == null) {
             helper.fail("Could not create the emerald golem for the movement-goal test");
             return;
@@ -112,7 +116,8 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void emeraldGolemDropsEmeraldsInsteadOfIron(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the emerald golem for the drop test");
             return;
@@ -123,7 +128,7 @@ public final class EmeraldGolemGameTests {
             helper.fail("Could not add the emerald golem for the drop test");
             return;
         }
-        golem.hurt(level.damageSources().generic(), 100.0F);
+        EntityDamageUtils.hurt(golem, level.damageSources().generic(), 100.0F);
 
         List<ItemEntity> drops = level.getEntitiesOfClass(
                 ItemEntity.class, golem.getBoundingBox().inflate(2.0D));
@@ -146,7 +151,8 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void ambushEmeraldGolemDropsVillageMap(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the ambush emerald golem for the drop test");
             return;
@@ -161,7 +167,7 @@ public final class EmeraldGolemGameTests {
                 helper.fail("Could not add the ambush emerald golem for the drop test");
                 return;
             }
-            golem.hurt(level.damageSources().generic(), 100.0F);
+        EntityDamageUtils.hurt(golem, level.damageSources().generic(), 100.0F);
 
             List<ItemEntity> drops = level.getEntitiesOfClass(
                     ItemEntity.class, golem.getBoundingBox().inflate(2.0D));
@@ -186,7 +192,8 @@ public final class EmeraldGolemGameTests {
                 level.getServer(), level,
                 new GameProfile(playerId, "ecap-ambush-respawned"),
                 ClientInformation.createDefault());
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the ambush emerald golem for the respawn test");
             return;
@@ -221,7 +228,8 @@ public final class EmeraldGolemGameTests {
                 level.getServer(), level,
                 new GameProfile(playerId, "ecap-ambush-persisted"),
                 ClientInformation.createDefault());
-        EmeraldGolem original = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem original = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (original == null) {
             helper.fail("Could not create the ambush emerald golem for the save test");
             return;
@@ -231,7 +239,8 @@ public final class EmeraldGolemGameTests {
         original.armAmbush(target, 120);
         CompoundTag saved = original.saveWithoutId(new CompoundTag());
 
-        EmeraldGolem restored = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem restored = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (restored == null) {
             helper.fail("Could not recreate the ambush emerald golem for the save test");
             return;
@@ -245,8 +254,10 @@ public final class EmeraldGolemGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void vaultGolemsDoNotHaveWanderGoals(GameTestHelper helper) {
-        EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(helper.getLevel());
-        IronGolem ironGolem = EntityType.IRON_GOLEM.create(helper.getLevel());
+        EmeraldGolem emeraldGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), helper.getLevel());
+        IronGolem ironGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, helper.getLevel());
         if (emeraldGolem == null || ironGolem == null) {
             helper.fail("Could not create golems for the Vault Golem wander test");
             return;
@@ -276,7 +287,8 @@ public final class EmeraldGolemGameTests {
                     .setValue(LadderBlock.FACING, Direction.SOUTH), 3);
         }
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the vault emerald golem");
             return;
@@ -329,7 +341,8 @@ public final class EmeraldGolemGameTests {
         BlockPos target = ladderBase.above(4).east();
         level.setBlock(target.below(), Blocks.STONE.defaultBlockState(), 3);
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the emerald golem for the ladder path test");
             return;
@@ -359,8 +372,10 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void ironGolemsReceiveHostileVillagePlayerTargetGoal(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
-        IronGolem ironGolem = EntityType.IRON_GOLEM.create(level);
+        EmeraldGolem emeraldGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+        IronGolem ironGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, level);
         if (emeraldGolem == null || ironGolem == null) {
             helper.fail("Could not create golems for hostile-player target registration test");
             return;
@@ -403,7 +418,8 @@ public final class EmeraldGolemGameTests {
                 current.villagerDeliveriesEnabled(), current.randomDeliveriesEnabled(),
                 current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(), true));
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the bank golem for the attack setting test");
             return;
@@ -460,7 +476,8 @@ public final class EmeraldGolemGameTests {
         BankReputationData reputation = BankReputationData.get(level);
         reputation.adjustReputation(owner.getUUID(), -1_000);
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the bank golem for the owner-immunity test");
             return;
@@ -519,7 +536,8 @@ public final class EmeraldGolemGameTests {
         helper.assertTrue(VillageGovernance.bindGovernorCandidateAttackGrace(level, village),
                 "could not bind the contested candidate to its bank and Mayor");
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create the vault golem for the contested-governor test");
             return;
@@ -542,7 +560,7 @@ public final class EmeraldGolemGameTests {
 
         helper.assertFalse(goal.canUse(),
                 "vault golem attacked the candidate during the grace period");
-        helper.assertTrue(golem.hurt(level.damageSources().playerAttack(candidate), 1.0F),
+        helper.assertTrue(EntityDamageUtils.hurt(golem, level.damageSources().playerAttack(candidate), 1.0F),
                 "candidate could not hit the emerald golem during the grace period");
         boolean foundCandidate = false;
         for (int attempt = 0; attempt < 100 && !foundCandidate; attempt++) {
@@ -587,9 +605,12 @@ public final class EmeraldGolemGameTests {
         helper.assertTrue(VillageGovernance.bindGovernorCandidateAttackGrace(level, village),
                 "could not bind the mayor-target candidate to its bank and Mayor");
 
-        EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
-        EmeraldSkrimisher skrimisher = ECAPEntityTypes.EMERALD_SKRIMISHER.get().create(level);
-        IronGolem ironGolem = EntityType.IRON_GOLEM.create(level);
+        EmeraldGolem emeraldGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+        EmeraldSkrimisher skrimisher = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_SKRIMISHER.get(), level);
+        IronGolem ironGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, level);
         if (emeraldGolem == null || skrimisher == null || ironGolem == null) {
             helper.fail("Could not create golems for mayor hostility test");
             return;
@@ -685,8 +706,10 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void golemsReceiveSubtypeAppropriateOpenablesGoal(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
-        IronGolem ironGolem = EntityType.IRON_GOLEM.create(level);
+        EmeraldGolem emeraldGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+        IronGolem ironGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, level);
         if (emeraldGolem == null || ironGolem == null) {
             helper.fail("Could not create golems for openables-goal registration test");
             return;
@@ -721,8 +744,10 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void ironGolemReachesTargetsAboveItsHead(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        IronGolem golem = EntityType.IRON_GOLEM.create(level);
-        net.minecraft.world.entity.monster.Zombie target = EntityType.ZOMBIE.create(level);
+        IronGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, level);
+        net.minecraft.world.entity.monster.Zombie target =
+                com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.ZOMBIE, level);
         if (golem == null || target == null) {
             helper.fail("Could not create iron golem reach test entities");
             return;
@@ -748,7 +773,8 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void emeraldGolemAssignmentSurvivesEntitySaveReload(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        EmeraldGolem original = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem original = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (original == null) {
             helper.fail("Could not create the original emerald golem");
             return;
@@ -773,7 +799,8 @@ public final class EmeraldGolemGameTests {
                 .count();
 
         original.discard();
-        EmeraldGolem restored = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem restored = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (restored == null) {
             helper.fail("Could not recreate the emerald golem for reload");
             return;
@@ -794,7 +821,8 @@ public final class EmeraldGolemGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void malformedOrMissingBankEmployeeStateDefaultsToUnassigned(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        EmeraldGolem source = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem source = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (source == null) {
             helper.fail("Could not create the source emerald golem");
             return;
@@ -802,7 +830,8 @@ public final class EmeraldGolemGameTests {
         source.moveTo(helper.absolutePos(new BlockPos(1, 1, 1)), 0.0F, 0.0F);
         CompoundTag saved = source.saveWithoutId(new CompoundTag());
 
-        EmeraldGolem missing = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem missing = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (missing == null) {
             helper.fail("Could not create the missing-state emerald golem");
             return;
@@ -813,7 +842,8 @@ public final class EmeraldGolemGameTests {
         helper.assertTrue(missing.getBankEmployeePos() == null,
                 "missing bank employee state must default to unassigned");
 
-        EmeraldGolem malformed = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem malformed = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (malformed == null) {
             helper.fail("Could not create the malformed-state emerald golem");
             return;

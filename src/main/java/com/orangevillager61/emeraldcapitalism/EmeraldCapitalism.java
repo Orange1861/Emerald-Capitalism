@@ -25,6 +25,7 @@ import com.orangevillager61.emeraldcapitalism.util.VillagerNameRefreshScheduler;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.util.SharedScanGenerationBudget;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
+import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.naming.data.RootLexiconRegistry;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
 import org.slf4j.Logger;
@@ -40,7 +41,11 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.AddReloadListenerEvent;
+//? if >=1.21.4 {
+import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
+//?} else {
+/*import net.neoforged.neoforge.event.AddReloadListenerEvent;
+ *///?}
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
@@ -54,7 +59,10 @@ public class EmeraldCapitalism {
         NeoForge.EVENT_BUS.register(this);
 
         ECAPRegistries.registerAll(modEventBus);
-        modEventBus.addListener(ECAPPoiTypes::extendVanillaPoiTypes);
+//? if >=1.21.4 {
+//?} else {
+/*        modEventBus.addListener(ECAPPoiTypes::extendVanillaPoiTypes);
+ *///?}
 
         EmeraldGolemEvents.register(modEventBus, NeoForge.EVENT_BUS);
 
@@ -71,8 +79,16 @@ public class EmeraldCapitalism {
     }
 
     @SubscribeEvent
-    public void onAddReloadListeners(AddReloadListenerEvent event) {
-        event.addListener(new SimplePreparableReloadListener<Void>() {
+//? if >=1.21.4 {
+    public void onAddReloadListeners(AddServerReloadListenersEvent event) {
+//?} else {
+/*    public void onAddReloadListeners(AddReloadListenerEvent event) {
+ *///?}
+//? if >=1.21.4 {
+        event.addListener(ModIds.id("resource_reload"), new SimplePreparableReloadListener<Void>() {
+//?} else {
+/*        event.addListener(new SimplePreparableReloadListener<Void>() {
+ *///?}
             @Override
             protected Void prepare(ResourceManager resourceManager, ProfilerFiller profiler) {
                 return null;

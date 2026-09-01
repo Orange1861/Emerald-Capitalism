@@ -306,8 +306,8 @@ public class VillagePOIScreen extends Screen {
             return true;
         }
         if (minecraft != null && minecraft.player != null) {
-            minecraft.player.sendSystemMessage(Component.literal(
-                    "[ECAP] Only the village Governor can " + action + "."));
+            minecraft.player.displayClientMessage(Component.literal(
+                    "[ECAP] Only the village Governor can " + action + "."), false);
         }
         return false;
     }

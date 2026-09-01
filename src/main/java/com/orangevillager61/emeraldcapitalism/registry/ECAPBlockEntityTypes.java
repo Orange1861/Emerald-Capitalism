@@ -27,7 +27,11 @@ public final class ECAPBlockEntityTypes {
     private static <T extends BlockEntity> BlockEntityType<T> registerType(
             BlockEntityType.BlockEntitySupplier<T> factory,
             Block... validBlocks) {
-        return BlockEntityType.Builder.of(factory, validBlocks).build(null);
+//? if >=1.21.4 {
+        return new BlockEntityType<>(factory, validBlocks);
+//?} else {
+/*        return BlockEntityType.Builder.of(factory, validBlocks).build(null);
+ *///?}
     }
 
     public static final Supplier<BlockEntityType<EmeraldChestBlockEntity>> EMERALD_CHEST =

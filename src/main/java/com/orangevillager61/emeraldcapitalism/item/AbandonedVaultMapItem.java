@@ -6,8 +6,12 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.stats.Stats;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.InteractionHand;
+//? if >=1.21.4 {
+import net.minecraft.world.InteractionResult;
+//?} else {
+/*import net.minecraft.world.InteractionResultHolder;
+ *///?}
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -37,10 +41,18 @@ public final class AbandonedVaultMapItem extends Item {
     }
 
     @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+//? if >=1.21.4 {
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+//?} else {
+/*    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+ *///?}
         ItemStack ticket = player.getItemInHand(hand);
         if (level.isClientSide()) {
-            return InteractionResultHolder.success(ticket);
+//? if >=1.21.4 {
+            return InteractionResult.SUCCESS;
+//?} else {
+/*            return InteractionResultHolder.success(ticket);
+ *///?}
         }
 
         ServerLevel serverLevel = (ServerLevel) level;
@@ -52,7 +64,11 @@ public final class AbandonedVaultMapItem extends Item {
             player.displayClientMessage(Component.literal(target == Target.SECOND_NEAREST
                     ? "No second abandoned vault could be found nearby."
                     : "No abandoned vault could be found nearby."), true);
-            return InteractionResultHolder.fail(ticket);
+//? if >=1.21.4 {
+            return InteractionResult.FAIL;
+//?} else {
+/*            return InteractionResultHolder.fail(ticket);
+ *///?}
         }
 
         BlockPos vault = targetPosition.get();
@@ -72,6 +88,10 @@ public final class AbandonedVaultMapItem extends Item {
             player.drop(map, false);
         }
         player.awardStat(Stats.ITEM_USED.get(this));
-        return InteractionResultHolder.consume(ticket);
+//? if >=1.21.4 {
+        return InteractionResult.CONSUME;
+//?} else {
+/*        return InteractionResultHolder.consume(ticket);
+ *///?}
     }
 }

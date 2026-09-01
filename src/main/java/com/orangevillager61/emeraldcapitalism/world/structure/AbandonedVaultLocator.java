@@ -47,14 +47,15 @@ public final class AbandonedVaultLocator {
 
     /** Returns the nearest distinct structure positions in distance order. */
     public static List<BlockPos> findDistinct(ServerLevel level, BlockPos origin) {
-        Registry<Structure> structures = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-        Optional<Holder.Reference<Structure>> holder = structures.getHolder(STRUCTURE_KEY);
-        if (holder.isEmpty()) {
-            return List.of();
-        }
+        Registry<Structure> structures =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
+        Holder<Structure> holder =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getHolder(
+                        structures, STRUCTURE_KEY);
 
         ChunkGeneratorStructureState generatorState = level.getChunkSource().getGeneratorState();
-        List<StructurePlacement> placements = generatorState.getPlacementsForStructure(holder.get());
+        List<StructurePlacement> placements = generatorState.getPlacementsForStructure(holder);
         Map<Long, BlockPos> located = new HashMap<>();
         for (BlockPos position : VillageRegistryData.get(level).getAbandonedVaultPositions()) {
             if (isWithinSearchRadius(origin, position)) {
@@ -65,7 +66,7 @@ public final class AbandonedVaultLocator {
             if (!(placement instanceof RandomSpreadStructurePlacement randomSpread)) {
                 continue;
             }
-            searchRandomSpread(level, origin, holder.get(), randomSpread, located);
+            searchRandomSpread(level, origin, holder, randomSpread, located);
         }
 
         return located.values().stream()

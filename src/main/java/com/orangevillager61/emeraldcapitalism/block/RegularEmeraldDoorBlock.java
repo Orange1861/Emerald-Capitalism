@@ -55,6 +55,6 @@ public class RegularEmeraldDoorBlock extends DoorBlock {
 
         level.playSound(player, lowerPos, open ? SoundEvents.WOODEN_DOOR_OPEN : SoundEvents.WOODEN_DOOR_CLOSE,
                 SoundSource.BLOCKS, 1.0F, 0.9F);
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return com.orangevillager61.emeraldcapitalism.util.InteractionResultCompat.sidedSuccess(level.isClientSide);
     }
 }

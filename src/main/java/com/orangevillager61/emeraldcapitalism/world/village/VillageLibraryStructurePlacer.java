@@ -157,8 +157,11 @@ public final class VillageLibraryStructurePlacer {
 
             StructurePlaceSettings settings = placementSettings(plan.rotation())
                     .setIgnoreEntities(false);
-            StructureProcessorList processors = level.registryAccess()
-                    .registryOrThrow(Registries.PROCESSOR_LIST).get(LIBRARY_PROCESSORS);
+            StructureProcessorList processors =
+                    com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getValue(
+                            com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                                    level.registryAccess(), Registries.PROCESSOR_LIST),
+                            LIBRARY_PROCESSORS);
             if (processors != null) {
                 for (var processor : processors.list()) {
                     settings.addProcessor(processor);

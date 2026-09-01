@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.world.village;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
@@ -13,7 +14,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
@@ -29,7 +29,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
-import net.neoforged.neoforge.event.EventHooks;
 import net.minecraft.world.phys.AABB;
 
 import javax.annotation.Nullable;
@@ -363,14 +362,13 @@ public final class VillageLumbermillStructurePlacer {
         List<BlockPos> positions = findVillagerSpawnPositions(level, buildingBox, existingVillagers, needed);
         int spawned = 0;
         for (BlockPos position : positions) {
-            Villager villager = EntityType.VILLAGER.create(level);
+            Villager villager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.VILLAGER, level);
             if (villager == null) {
                 continue;
             }
             villager.moveTo(position.getX() + 0.5D, position.getY(), position.getZ() + 0.5D,
                     level.getRandom().nextFloat() * 360.0F, 0.0F);
-            EventHooks.finalizeMobSpawn(villager, level, level.getCurrentDifficultyAt(position),
-                    MobSpawnType.STRUCTURE, null);
+            SpawnReasonCompat.finalizeStructure(villager, level, level.getCurrentDifficultyAt(position), null);
             if (level.addFreshEntity(villager)) {
                 spawned++;
             }
@@ -393,8 +391,8 @@ public final class VillageLumbermillStructurePlacer {
             return List.of();
         }
         List<BlockPos> candidates = new ArrayList<>();
-        int minY = Math.max(level.getMinBuildHeight() + 1, buildingBox.minY());
-        int maxY = Math.min(level.getMaxBuildHeight() - 2, buildingBox.maxY());
+        int minY = Math.max(com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level) + 1, buildingBox.minY());
+        int maxY = Math.min(com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level) - 2, buildingBox.maxY());
         for (int y = minY; y <= maxY; y++) {
             for (int x = buildingBox.minX(); x <= buildingBox.maxX(); x++) {
                 for (int z = buildingBox.minZ(); z <= buildingBox.maxZ(); z++) {
@@ -697,7 +695,8 @@ public final class VillageLumbermillStructurePlacer {
                     sampleX, sampleZ) - 1;
             int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE,
                     sampleX, sampleZ) - 1;
-            if (noLeavesY < level.getMinBuildHeight() || surfaceY < level.getMinBuildHeight()) {
+            if (noLeavesY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
+                    || surfaceY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)) {
                 samples.put(key, -1);
                 return -1;
             }

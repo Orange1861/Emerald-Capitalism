@@ -237,7 +237,7 @@ public final class ZombieVirusEvents {
     }
 
     private static void replacePlayer(ServerLevel level, Player player) {
-        Zombie zombie = EntityType.ZOMBIE.create(level);
+        Zombie zombie = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.ZOMBIE, level);
         if (zombie == null) {
             return;
         }
@@ -255,9 +255,9 @@ public final class ZombieVirusEvents {
     }
 
     private static void recordZombiePlagueDeathMessage(ServerLevel level, Player player) {
-        Holder<DamageType> damageType = level.registryAccess()
-                .registryOrThrow(Registries.DAMAGE_TYPE)
-                .getHolderOrThrow(ZOMBIE_PLAGUE_DAMAGE_TYPE);
+        Holder<DamageType> damageType = com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getHolder(
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.DAMAGE_TYPE), ZOMBIE_PLAGUE_DAMAGE_TYPE);
         player.getCombatTracker().recordDamage(new DamageSource(damageType), 0.0F);
     }
 
@@ -270,7 +270,8 @@ public final class ZombieVirusEvents {
     }
 
     private static void replaceVillager(ServerLevel level, Villager villager) {
-        ZombieVillager zombieVillager = EntityType.ZOMBIE_VILLAGER.create(level);
+        ZombieVillager zombieVillager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.ZOMBIE_VILLAGER, level);
         if (zombieVillager == null) {
             return;
         }

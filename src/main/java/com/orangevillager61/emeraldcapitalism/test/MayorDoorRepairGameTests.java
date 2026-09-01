@@ -42,7 +42,7 @@ public final class MayorDoorRepairGameTests {
     public static void mayorRepairGoalIsInjectedAtDaytimePriority(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos mayorPos = helper.absolutePos(new BlockPos(1, 1, 1));
-        Villager mayor = EntityType.VILLAGER.create(level);
+        Villager mayor = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.VILLAGER, level);
         helper.assertTrue(mayor != null, "could not create the Mayor injection fixture");
         if (mayor == null) {
             return;

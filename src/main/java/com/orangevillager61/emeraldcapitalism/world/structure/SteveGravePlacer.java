@@ -62,11 +62,11 @@ public final class SteveGravePlacer {
 
         BlockPos origin = structureOrigin(level, target);
         BoundingBox placedBox = template.getBoundingBox(settings, origin);
-        if (origin.getY() < level.getMinBuildHeight()
-                || placedBox.maxY() >= level.getMaxBuildHeight()
+        if (origin.getY() < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
+                || placedBox.maxY() >= com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level)
                 || !allChunksLoaded(level, placedBox)) {
-            return placedBox.maxY() >= level.getMaxBuildHeight()
-                    || origin.getY() < level.getMinBuildHeight()
+            return placedBox.maxY() >= com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level)
+                    || origin.getY() < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
                     ? PlacementAttempt.failed() : PlacementAttempt.notReady();
         }
 

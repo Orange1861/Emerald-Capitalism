@@ -47,10 +47,12 @@ public final class VillageLocateCommand {
 
     private static int locateVillage(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
-        Registry<Structure> structureRegistry = level.registryAccess()
-                .registryOrThrow(Registries.STRUCTURE);
-        Optional<HolderSet.Named<Structure>> villageStructures = structureRegistry
-                .getTag(VILLAGE_STRUCTURE_TAG);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
+        Optional<HolderSet.Named<Structure>> villageStructures =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getTag(
+                        structureRegistry, VILLAGE_STRUCTURE_TAG);
 
         if (villageStructures.isEmpty()) {
             source.sendFailure(Component.literal(

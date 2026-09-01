@@ -9,13 +9,13 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
+import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
@@ -25,7 +25,6 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.neoforged.neoforge.event.EventHooks;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -423,7 +422,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             return ConstructionResult.SUCCESS;
         }
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             failureReason = "emerald golem entity type returned null";
             return ConstructionResult.FAILED;
@@ -433,8 +433,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         BlockPos spawnPos = activeFormation.anchor().above();
         golem.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D,
                 level.getRandom().nextFloat() * 360.0F, 0.0F);
-        EventHooks.finalizeMobSpawn(golem, level, level.getCurrentDifficultyAt(spawnPos),
-                MobSpawnType.MOB_SUMMONED, null);
+        SpawnReasonCompat.finalizeSummoned(golem, level, level.getCurrentDifficultyAt(spawnPos), null);
         golem.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 5 * 20, 4));
         golem.setPersistenceRequired();
         golem.setBankEmployeePos(context.bank().getBlockPos());
@@ -634,7 +633,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         }
         remainder = villager.getInventory().addItem(remainder);
         if (!remainder.isEmpty()) {
-            villager.spawnAtLocation(remainder);
+            com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, remainder);
         }
     }
 

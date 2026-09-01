@@ -28,7 +28,8 @@ public final class AttachmentPersistenceGameTests {
         AttachmentType<VillagerStatsAttachment> type = EmeraldCapitalismAttachments.VILLAGER_STATS.get();
         AttachmentType<LumberjackProductionAttachment> productionType =
                 EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION.get();
-        Villager original = EntityType.VILLAGER.create(helper.getLevel());
+        Villager original = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.VILLAGER, helper.getLevel());
         if (original == null) {
             helper.fail("Could not create a villager for the attachment lifecycle test");
             return;
@@ -51,7 +52,8 @@ public final class AttachmentPersistenceGameTests {
         originalProduction.setPendingCharcoalFurnace(pendingFurnace);
 
         CompoundTag saved = original.saveWithoutId(new CompoundTag());
-        Villager restored = EntityType.VILLAGER.create(helper.getLevel());
+        Villager restored = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.VILLAGER, helper.getLevel());
         if (restored == null) {
             helper.fail("Could not create the restored villager for the attachment lifecycle test");
             return;
@@ -84,7 +86,8 @@ public final class AttachmentPersistenceGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void attachmentBackedBehaviorReadsAndWritesDurableState(GameTestHelper helper) {
-        Villager villager = EntityType.VILLAGER.create(helper.getLevel());
+        Villager villager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.VILLAGER, helper.getLevel());
         if (villager == null) {
             helper.fail("Could not create a villager for attachment behavior integration");
             return;

@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.client.screen;
 
 import com.orangevillager61.emeraldcapitalism.menu.EmeraldSkrimisherMenu;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -37,9 +38,9 @@ public final class EmeraldSkrimisherScreen extends AbstractContainerScreen<Emera
 
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
-        guiGraphics.blit(BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0, 0,
+        GuiGraphicsCompat.blit(guiGraphics, BACKGROUND_TEXTURE, this.leftPos, this.topPos, 0, 0,
                 this.imageWidth, this.imageHeight, this.imageWidth, this.imageHeight);
-        guiGraphics.blit(SLOT_TEXTURE,
+        GuiGraphicsCompat.blit(guiGraphics, SLOT_TEXTURE,
                 this.leftPos + SLOT_BACKGROUND_X, this.topPos + SLOT_BACKGROUND_Y,
                 SLOT_BACKGROUND_X, SLOT_BACKGROUND_Y,
                 SLOT_ROW_WIDTH, SLOT_ROW_HEIGHT, this.imageWidth, this.imageHeight);

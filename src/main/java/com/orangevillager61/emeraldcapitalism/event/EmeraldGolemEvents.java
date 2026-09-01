@@ -125,7 +125,8 @@ public class EmeraldGolemEvents {
             return false;
         }
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             return false;
         }
@@ -180,7 +181,8 @@ public class EmeraldGolemEvents {
             for (int verticalOffset = 0; verticalOffset <= 8; verticalOffset++) {
                 for (int direction : verticalOffset == 0 ? new int[]{1} : new int[]{1, -1}) {
                     int y = playerY + verticalOffset * direction;
-                    if (y < level.getMinBuildHeight() + 1 || y >= level.getMaxBuildHeight() - 2) {
+                    if (y < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level) + 1
+                            || y >= com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level) - 2) {
                         continue;
                     }
 
@@ -198,8 +200,8 @@ public class EmeraldGolemEvents {
             }
 
             int surfaceY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-            if (surfaceY >= level.getMinBuildHeight() + 1
-                    && surfaceY < level.getMaxBuildHeight() - 2) {
+            if (surfaceY >= com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level) + 1
+                    && surfaceY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level) - 2) {
                 BlockPos surface = new BlockPos(x, surfaceY, z);
                 if (isValidAmbushPosition(level, surface)) {
                     golem.moveTo(surface.getX() + 0.5D, surface.getY(),
@@ -268,7 +270,8 @@ public class EmeraldGolemEvents {
             return false;
         }
 
-        EmeraldSkrimisher skrimisher = ECAPEntityTypes.EMERALD_SKRIMISHER.get().create(level);
+        EmeraldSkrimisher skrimisher = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_SKRIMISHER.get(), level);
         if (skrimisher == null) {
             return false;
         }
@@ -340,7 +343,8 @@ public class EmeraldGolemEvents {
         level.setBlock(legs, Blocks.AIR.defaultBlockState(), 2);
 
         // Spawn at the legs position (bottom of the T), centered
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) return false;
 
         golem.setPlayerCreated(placer instanceof Player);

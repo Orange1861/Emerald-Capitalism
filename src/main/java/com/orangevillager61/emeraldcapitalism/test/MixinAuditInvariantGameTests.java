@@ -60,7 +60,8 @@ public final class MixinAuditInvariantGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void wanderingTraderKeepsVanillaInventorySize(GameTestHelper helper) {
-        WanderingTrader trader = EntityType.WANDERING_TRADER.create(helper.getLevel());
+        WanderingTrader trader = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.WANDERING_TRADER, helper.getLevel());
         helper.assertTrue(trader != null, "could not create wandering trader inventory fixture");
         helper.assertValueEqual(trader.getInventory().getContainerSize(), 8,
                 "villager inventory expansion must not affect wandering traders");
@@ -84,9 +85,11 @@ public final class MixinAuditInvariantGameTests {
         for (int slot = 0; slot < 15; slot++) {
             villager.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
         }
-        helper.assertFalse(villager.wantsToPickUp(new ItemStack(Items.EMERALD)),
+        helper.assertFalse(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        villager, helper.getLevel(), new ItemStack(Items.EMERALD)),
                 "non-food pickup must not consume one of the three reserved food slots");
-        helper.assertTrue(villager.wantsToPickUp(new ItemStack(Items.BREAD)),
+        helper.assertTrue(com.orangevillager61.emeraldcapitalism.util.VillagerPickupCompat.wants(
+                        villager, helper.getLevel(), new ItemStack(Items.BREAD)),
                 "food pickup must be allowed to use the reserved slots");
         helper.succeed();
     }
@@ -154,7 +157,7 @@ public final class MixinAuditInvariantGameTests {
         Villager villager = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
         villager.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
                 0.0F, 0.0F);
-        Zombie zombie = EntityType.ZOMBIE.create(level);
+        Zombie zombie = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.ZOMBIE, level);
         helper.assertTrue(zombie != null, "could not create unrelated ladder-pathing fixture");
 
         boolean previousLadderTraversal = Config.enableLadderTraversal;
@@ -198,8 +201,10 @@ public final class MixinAuditInvariantGameTests {
         BlockPos gatePos = helper.absolutePos(new BlockPos(1, 1, 1));
         level.setBlock(gatePos, Blocks.OAK_FENCE_GATE.defaultBlockState(), 3);
         Villager villager = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
-        IronGolem ironGolem = EntityType.IRON_GOLEM.create(level);
-        EmeraldGolem emeraldGolem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        IronGolem ironGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.IRON_GOLEM, level);
+        EmeraldGolem emeraldGolem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         helper.assertTrue(ironGolem != null && emeraldGolem != null,
                 "could not create openable-pathing fixtures");
 
@@ -316,7 +321,8 @@ public final class MixinAuditInvariantGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void wanderingTraderReceivesCustomMovementGoals(GameTestHelper helper) {
-        WanderingTrader trader = EntityType.WANDERING_TRADER.create(helper.getLevel());
+        WanderingTrader trader = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.WANDERING_TRADER, helper.getLevel());
         helper.assertTrue(trader != null, "could not create wandering trader");
         helper.getLevel().addFreshEntity(trader);
         helper.assertTrue(trader.goalSelector.getAvailableGoals().stream()
@@ -331,7 +337,8 @@ public final class MixinAuditInvariantGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void wanderingTraderClimbsInstalledLadderPath(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
-        WanderingTrader trader = EntityType.WANDERING_TRADER.create(helper.getLevel());
+        WanderingTrader trader = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.WANDERING_TRADER, helper.getLevel());
         helper.assertTrue(trader != null, "could not create wandering trader ladder fixture");
         trader.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
                 0.0F, 0.0F);

@@ -279,8 +279,9 @@ public class VillageDetectionHandler {
             return;
         }
 
-        Registry<Structure> structureRegistry = serverLevel.registryAccess()
-                .registryOrThrow(Registries.STRUCTURE);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        serverLevel.registryAccess(), Registries.STRUCTURE);
 
         VillageRegistryData data = VillageRegistryData.get(serverLevel);
 

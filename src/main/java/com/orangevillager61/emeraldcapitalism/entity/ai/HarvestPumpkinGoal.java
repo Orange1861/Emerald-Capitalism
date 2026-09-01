@@ -217,7 +217,7 @@ public class HarvestPumpkinGoal extends Goal {
             ItemStack remainder = villager.getInventory().addItem(new ItemStack(Items.PUMPKIN));
             if (!remainder.isEmpty()) {
                 // The capacity check and mutation run on the server thread, so this should be unreachable.
-                villager.spawnAtLocation(remainder);
+                com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, remainder);
             }
         }
         targetPos = null;

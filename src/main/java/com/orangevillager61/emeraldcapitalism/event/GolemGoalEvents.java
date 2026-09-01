@@ -26,7 +26,6 @@ public final class GolemGoalEvents {
 
         if (golem.getNavigation() instanceof GroundPathNavigation navigation) {
             navigation.setCanOpenDoors(true);
-            navigation.setCanPassDoors(true);
         }
 
         if (golem instanceof EmeraldGolem emeraldGolem) {

@@ -111,7 +111,8 @@ public final class VillagerTradeEvents {
             return;
         }
 
-        if (villager.spawnAtLocation(remainder) == null) {
+        if (!(villager.level() instanceof net.minecraft.server.level.ServerLevel level)
+                || com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, remainder) == null) {
             VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
             int lostValue = countEmeraldsInStack(remainder);
             if (lostValue > 0) {

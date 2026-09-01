@@ -145,7 +145,7 @@ public class VillageManagerBlock extends BaseEntityBlock {
                 data.registerVillageManager(existing.getVillageId(), pos);
                 appointGovernor(data, existing, placerId);
                 if (placer instanceof ServerPlayer player) {
-                    player.sendSystemMessage(Component.literal(
+                    com.orangevillager61.emeraldcapitalism.util.PlayerMessageUtils.send(player, Component.literal(
                             "[Village Manager] Linked to existing village " + existing.getVillageId().toString().substring(0, 8)
                     ));
                 }
@@ -170,7 +170,7 @@ public class VillageManagerBlock extends BaseEntityBlock {
             villageManager.setVillageId(villageId);
             data.registerVillageManager(villageId, pos);
             if (placer instanceof ServerPlayer player) {
-                player.sendSystemMessage(Component.literal(
+                com.orangevillager61.emeraldcapitalism.util.PlayerMessageUtils.send(player, Component.literal(
                         "[Village Manager] Discovered unregistered village and linked"
                 ));
             }
@@ -191,7 +191,7 @@ public class VillageManagerBlock extends BaseEntityBlock {
         villageManager.setVillageId(villageId);
         data.registerVillageManager(villageId, pos);
         if (placer instanceof ServerPlayer player) {
-            player.sendSystemMessage(Component.literal(
+            com.orangevillager61.emeraldcapitalism.util.PlayerMessageUtils.send(player, Component.literal(
                     "[Village Manager] Created new village area"
             ));
         }
@@ -273,7 +273,8 @@ public class VillageManagerBlock extends BaseEntityBlock {
 
     private static void rejectPlacement(Level level, BlockPos pos, @Nullable LivingEntity placer) {
         if (placer instanceof Player player) {
-            player.sendSystemMessage(Component.literal("Too Close to Nearby Bank or Village"));
+            com.orangevillager61.emeraldcapitalism.util.PlayerMessageUtils.send(
+                    player, Component.literal("Too Close to Nearby Bank or Village"));
         }
         level.destroyBlock(pos, true);
     }

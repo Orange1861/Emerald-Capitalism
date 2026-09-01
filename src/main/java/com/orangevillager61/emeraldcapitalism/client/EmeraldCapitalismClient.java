@@ -5,13 +5,15 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.client.model.EmeraldGolemModel;
 import com.orangevillager61.emeraldcapitalism.client.model.EmeraldSkrimisherModel;
 import com.orangevillager61.emeraldcapitalism.client.renderer.BankOwnershipOverlayRenderer;
-import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldChestItemRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldChestRenderer;
-import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldGreenBedItemRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldGreenBedRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldGolemRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldSkrimisherRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.VillagePOIOverlayRenderer;
+//? if <1.21.4 {
+import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldChestItemRenderer;
+import com.orangevillager61.emeraldcapitalism.client.renderer.EmeraldGreenBedItemRenderer;
+//?}
 import com.orangevillager61.emeraldcapitalism.client.screen.BankScreen;
 import com.orangevillager61.emeraldcapitalism.client.screen.EmeraldOreProcessorScreen;
 import com.orangevillager61.emeraldcapitalism.client.screen.EmeraldSkrimisherScreen;
@@ -31,7 +33,6 @@ import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRar
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.RecipeBookCategories;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -50,7 +51,6 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
-import net.neoforged.neoforge.client.event.RegisterRecipeBookCategoriesEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
@@ -79,8 +79,10 @@ public class EmeraldCapitalismClient {
         modEventBus.addListener(EmeraldCapitalismClient::registerLayerDefinitions);
         modEventBus.addListener(this::registerScreens);
         modEventBus.addListener(EmeraldCapitalismClient::registerKeyMappings);
+//? if <1.21.4 {
         modEventBus.addListener(EmeraldCapitalismClient::registerClientExtensions);
         modEventBus.addListener(EmeraldCapitalismClient::registerRecipeBookCategories);
+//?}
     }
 
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
@@ -109,12 +111,13 @@ public class EmeraldCapitalismClient {
         event.register(KEY_OPEN_POI_SCREEN);
     }
 
-    private static void registerRecipeBookCategories(RegisterRecipeBookCategoriesEvent event) {
+//? if <1.21.4 {
+    private static void registerRecipeBookCategories(net.neoforged.neoforge.client.event.RegisterRecipeBookCategoriesEvent event) {
         event.registerRecipeCategoryFinder(ECAPRecipeTypes.SAWMILL.get(),
-                recipe -> RecipeBookCategories.STONECUTTER);
+                recipe -> net.minecraft.client.RecipeBookCategories.STONECUTTER);
     }
 
-    private static void registerClientExtensions(RegisterClientExtensionsEvent event) {
+    private static void registerClientExtensions(net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent event) {
         event.registerItem(new IClientItemExtensions() {
             private final EmeraldChestItemRenderer renderer = new EmeraldChestItemRenderer(
                     Minecraft.getInstance().getBlockEntityRenderDispatcher(),
@@ -139,6 +142,7 @@ public class EmeraldCapitalismClient {
             }
         }, ECAPItems.EMERALD_GREEN_BED.get());
     }
+//?}
 
     // Client event handlers
 
@@ -154,7 +158,7 @@ public class EmeraldCapitalismClient {
 
             while (KEY_OPEN_POI_SCREEN.consumeClick()) {
                 PacketDistributor.sendToServer(RequestVillagePOIsPacket.nearest());
-                mc.player.sendSystemMessage(Component.literal("[ECAP] Requesting nearest village POI data..."));
+                mc.player.displayClientMessage(Component.literal("[ECAP] Requesting nearest village POI data..."), false);
                 mc.setScreen(new VillagePOIScreen());
             }
         }

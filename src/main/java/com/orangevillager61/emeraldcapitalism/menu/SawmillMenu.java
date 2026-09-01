@@ -167,8 +167,8 @@ public class SawmillMenu extends AbstractContainerMenu {
         this.selectedRecipeIndex.set(-1);
         this.resultSlot.set(ItemStack.EMPTY);
         if (!stack.isEmpty()) {
-            this.recipes = this.level.getRecipeManager().getRecipesFor(
-                    ECAPRecipeTypes.SAWMILL.get(), createRecipeInput(container), this.level);
+            this.recipes = com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.getRecipesFor(
+                    this.level, ECAPRecipeTypes.SAWMILL.get(), createRecipeInput(container));
         }
     }
 
@@ -225,7 +225,7 @@ public class SawmillMenu extends AbstractContainerMenu {
                 if (!this.moveItemStackTo(stack, INV_SLOT_START, USE_ROW_SLOT_END, false)) {
                     return ItemStack.EMPTY;
                 }
-            } else if (this.level.getRecipeManager().getRecipeFor(
+            } else if (com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(this.level).getRecipeFor(
                     ECAPRecipeTypes.SAWMILL.get(), new SingleRecipeInput(stack), this.level).isPresent()) {
                 if (!this.moveItemStackTo(stack, INPUT_SLOT, RESULT_SLOT, false)) {
                     return ItemStack.EMPTY;

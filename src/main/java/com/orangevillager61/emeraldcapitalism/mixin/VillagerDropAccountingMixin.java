@@ -16,18 +16,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Entity.class)
 public class VillagerDropAccountingMixin {
 
-    /**
-     * Entity owns both spawnAtLocation overloads; the single-argument method
-     * delegates here, so one return hook accounts for each spawned stack once.
-     * The direct Villager API is part of the accounting contract, so limiting
-     * this to the mod's current goal call sites would miss external callers.
-     */
+    /** Accounts for each successful spawned stack through Entity's drop API. */
+//? if >=1.21.4 {
     @Inject(
+            method = "spawnAtLocation(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;",
+            at = @At("RETURN"),
+            require = 1)
+    @SuppressWarnings("unused")
+    private void recordEmeraldDrop(net.minecraft.server.level.ServerLevel level, ItemStack stack,
+                                   float yOffset, CallbackInfoReturnable<ItemEntity> cir) {
+        recordEmeraldDropResult(cir);
+    }
+//?} else {
+/*    @Inject(
             method = "spawnAtLocation(Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;",
             at = @At("RETURN"),
             require = 1)
     @SuppressWarnings("unused")
     private void recordEmeraldDrop(ItemStack stack, float yOffset, CallbackInfoReturnable<ItemEntity> cir) {
+        recordEmeraldDropResult(cir);
+    }
+ *///?}
+
+    private void recordEmeraldDropResult(CallbackInfoReturnable<ItemEntity> cir) {
         Entity entity = (Entity) (Object) this;
         if (!(entity instanceof Villager villager) || villager.level().isClientSide()) {
             return;

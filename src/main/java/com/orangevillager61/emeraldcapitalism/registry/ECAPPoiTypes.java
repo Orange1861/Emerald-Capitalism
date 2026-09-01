@@ -9,7 +9,10 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
-import net.neoforged.neoforge.common.world.poi.ExtendPoiTypesEvent;
+//? if >=1.21.4 {
+//?} else {
+/*import net.neoforged.neoforge.common.world.poi.ExtendPoiTypesEvent;
+ *///?}
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.bus.api.IEventBus;
@@ -51,7 +54,10 @@ public final class ECAPPoiTypes {
 
     private ECAPPoiTypes() {}
 
-    /** Adds the custom bed to the vanilla home POI used by villager housing and breeding. */
+//? if >=1.21.4 {
+//?} else {
+/*
+    // Adds the custom bed to the vanilla home POI used by villager housing and breeding.
     public static void extendVanillaPoiTypes(ExtendPoiTypesEvent event) {
         Set<BlockState> headStates =
                 ECAPBlocks.EMERALD_GREEN_BED.get().getStateDefinition().getPossibleStates().stream()
@@ -59,6 +65,7 @@ public final class ECAPPoiTypes {
                         .collect(Collectors.toUnmodifiableSet());
         event.addStatesToPoi(PoiTypes.HOME, headStates);
     }
+ *///?}
 
     private static PoiType createJobSite(Block block) {
         return createJobSite(block, ignored -> true);

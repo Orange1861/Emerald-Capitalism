@@ -104,8 +104,8 @@ public final class VillageEntityRelocation {
                 candidate.getY() - entity.getY(),
                 candidate.getZ() + 0.5D - entity.getZ());
         if (intersectsAny(destinationBox, buildingBoxes)
-                || destinationBox.minY < level.getMinBuildHeight()
-                || destinationBox.maxY > level.getMaxBuildHeight()
+                || destinationBox.minY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
+                || destinationBox.maxY > com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level)
                 || !hasNoFluid(level, destinationBox)
                 || !level.noCollision(entity, destinationBox)
                 || !hasSafeFloor(level, entity, candidate)) {

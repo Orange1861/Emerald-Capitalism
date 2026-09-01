@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.recipe.SawmillRecipe;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.bus.api.IEventBus;
 
@@ -22,8 +23,13 @@ public final class ECAPRecipeTypes {
     public static final Supplier<RecipeType<SawmillRecipe>> SAWMILL = RECIPE_TYPES.register(
             "sawmill", () -> RecipeType.simple(ModIds.id("sawmill")));
 
-    public static final Supplier<RecipeType<EmeraldCraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
+//? if >=1.21.4 {
+    public static final Supplier<RecipeType<CraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
             "emerald_crafting", () -> RecipeType.simple(ModIds.id("emerald_crafting")));
+//?} else {
+/*    public static final Supplier<RecipeType<EmeraldCraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
+            "emerald_crafting", () -> RecipeType.simple(ModIds.id("emerald_crafting")));
+ *///?}
 
     private ECAPRecipeTypes() {}
 }

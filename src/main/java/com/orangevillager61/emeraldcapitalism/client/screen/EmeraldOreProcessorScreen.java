@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.client.screen;
 
 import com.orangevillager61.emeraldcapitalism.menu.EmeraldOreProcessorMenu;
+import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -30,17 +31,19 @@ public class EmeraldOreProcessorScreen extends AbstractContainerScreen<EmeraldOr
         int x = this.leftPos;
         int y = this.topPos;
 
-        guiGraphics.blit(TEXTURE, x, y, 0, 0, this.imageWidth, this.imageHeight);
+        GuiGraphicsCompat.blit(guiGraphics, TEXTURE, x, y, 0, 0, this.imageWidth, this.imageHeight);
 
         // Burn indicator (flame): renders bottom-up
         if (this.menu.isLit()) {
             int litHeight = Mth.ceil(this.menu.getLitProgress() * 13.0F) + 1;
-            guiGraphics.blitSprite(LIT_PROGRESS_SPRITE, 14, 14, 0, 14 - litHeight, x + 56, y + 36 + 14 - litHeight, 14, litHeight);
+            GuiGraphicsCompat.blitSprite(guiGraphics, LIT_PROGRESS_SPRITE, 14, 14, 0,
+                    14 - litHeight, x + 56, y + 36 + 14 - litHeight, 14, litHeight);
         }
 
         // Cook progress arrow: renders left-to-right
         int burnWidth = Mth.ceil(this.menu.getBurnProgress() * 24.0F);
-        guiGraphics.blitSprite(BURN_PROGRESS_SPRITE, 24, 16, 0, 0, x + 79, y + 34, burnWidth, 16);
+        GuiGraphicsCompat.blitSprite(guiGraphics, BURN_PROGRESS_SPRITE, 24, 16, 0, 0,
+                x + 79, y + 34, burnWidth, 16);
     }
 
     @Override

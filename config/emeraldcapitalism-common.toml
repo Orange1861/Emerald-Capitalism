@@ -1,6 +1,6 @@
 #If true, villagers can starve to death. If false, they stop taking starvation damage at 2 HP.
 villagersCanStarveToDeath = true
-#If true, villagers receive server-authoritative names from the village substrate system.
+#If enabled, villagers will be named based on Emerald Capitalism's Unique Language System.
 enableVillagerNames = true
 #If true, villager reputation loss from player damage is proportional to damage dealt (5 points per HP, 10 per heart).
 #In vanilla, hitting a villager always costs 25 reputation regardless of damage.
@@ -85,12 +85,12 @@ redactNonOpPoiDetails = true
 		zombieDoorBreakingChancePercent = 50
 
 	[illness.zombieVirus]
-		#How long Zombkolaps remains in phase one before phase two begins.
+		#How long Zombkolaps remains in the turning phase before the rotting phase begins.
 		#Unit: seconds. Default: 600 seconds (10 minutes).
 		# Default: 600
 		# Range: 1 ~ 86400
 		phaseOneDurationSeconds = 600
-		#How much time a later Zombie hit removes from phase one of Zombkolaps.
+		#How much time a later Zombie hit removes from the turning phase of Zombkolaps.
 		#Unit: seconds. Default: 20 seconds.
 		# Default: 20
 		# Range: 1 ~ 3600
@@ -223,3 +223,8 @@ redactNonOpPoiDetails = true
 		# Default: 1.0
 		# Range: 0.0 ~ 1000000.0
 		baseGolems = 1.0
+
+[books]
+	#If true, all authored books are added to the Emerald Capitalism creative tab.
+	#Warning: The mod author recommends exploring the world to find the books.
+	enableBooksInCreativeTab = false

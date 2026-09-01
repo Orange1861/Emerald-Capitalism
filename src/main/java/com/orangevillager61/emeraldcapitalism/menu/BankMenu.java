@@ -224,17 +224,35 @@ public class BankMenu extends AbstractContainerMenu {
     }
 
     private Optional<RecipeHolder<? extends CraftingRecipe>> findRecipe(Level level, CraftingInput input) {
-        Optional<RecipeHolder<EmeraldCraftingRecipe>> emeraldRecipe = level.getRecipeManager().getRecipeFor(
+//? if >=1.21.4 {
+        Optional<RecipeHolder<CraftingRecipe>> emeraldRecipe =
+                com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(level).getRecipeFor(
+                        ECAPRecipeTypes.EMERALD_CRAFTING.get(), input, level);
+        if (emeraldRecipe.isPresent()) {
+            return Optional.<RecipeHolder<? extends CraftingRecipe>>of(emeraldRecipe.get());
+        }
+
+        Optional<RecipeHolder<CraftingRecipe>> vanillaRecipe =
+                com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(level).getRecipeFor(
+                        RecipeType.CRAFTING, input, level);
+        return vanillaRecipe.isPresent()
+                ? Optional.<RecipeHolder<? extends CraftingRecipe>>of(vanillaRecipe.get())
+                : Optional.empty();
+//?} else {
+/*        Optional<RecipeHolder<EmeraldCraftingRecipe>> emeraldRecipe =
+                com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(level).getRecipeFor(
                 ECAPRecipeTypes.EMERALD_CRAFTING.get(), input, level);
         if (emeraldRecipe.isPresent()) {
             return Optional.<RecipeHolder<? extends CraftingRecipe>>of(emeraldRecipe.get());
         }
 
-        Optional<RecipeHolder<CraftingRecipe>> vanillaRecipe = level.getRecipeManager().getRecipeFor(
+        Optional<RecipeHolder<CraftingRecipe>> vanillaRecipe =
+                com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(level).getRecipeFor(
                 RecipeType.CRAFTING, input, level);
         return vanillaRecipe.isPresent()
                 ? Optional.<RecipeHolder<? extends CraftingRecipe>>of(vanillaRecipe.get())
                 : Optional.empty();
+ *///?}
     }
 
     public void beginPlacingRecipe() {

@@ -50,7 +50,7 @@ public class EmeraldDoorBlock extends DoorBlock {
     @Override
     public BlockState getStateForPlacement(@NotNull BlockPlaceContext context) {
         BlockPos pos = context.getClickedPos();
-        if (pos.getY() >= context.getLevel().getMaxBuildHeight() - 2) {
+        if (pos.getY() >= com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(context.getLevel()) - 2) {
             return null;
         }
         if (!context.getLevel().getBlockState(pos.above(2)).canBeReplaced(context)) {
@@ -90,7 +90,7 @@ public class EmeraldDoorBlock extends DoorBlock {
         }
         level.playSound(player, lowerPos, open ? SoundEvents.WOODEN_DOOR_OPEN : SoundEvents.WOODEN_DOOR_CLOSE,
                 SoundSource.BLOCKS, 1.0F, 0.9F);
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return com.orangevillager61.emeraldcapitalism.util.InteractionResultCompat.sidedSuccess(level.isClientSide);
     }
 
     public static void syncTopState(@NotNull Level level, @NotNull BlockPos lowerDoorPos) {

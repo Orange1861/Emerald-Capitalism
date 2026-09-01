@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import com.orangevillager61.emeraldcapitalism.util.RenderLineBoxCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -99,7 +100,7 @@ public final class BankOwnershipOverlayRenderer {
             if (DISABLED_BANK_OVERLAYS.contains(entry.getKey())) {
                 continue;
             }
-            LevelRenderer.renderLineBox(poseStack, lineConsumer, entry.getValue(),
+            RenderLineBoxCompat.render(poseStack, lineConsumer, entry.getValue(),
                     BANK_RED, BANK_GREEN, BANK_BLUE, 1.0f);
         }
         poseStack.popPose();

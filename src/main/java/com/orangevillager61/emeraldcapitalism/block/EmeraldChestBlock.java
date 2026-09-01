@@ -23,7 +23,11 @@ public class EmeraldChestBlock extends ChestBlock {
     );
 
     public EmeraldChestBlock(Properties properties, Supplier<BlockEntityType<? extends ChestBlockEntity>> blockEntityType) {
-        super(properties, blockEntityType);
+//? if >=1.21.4 {
+        super(blockEntityType, properties);
+//?} else {
+/*        super(properties, blockEntityType);
+ *///?}
     }
 
     @Override

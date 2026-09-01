@@ -22,7 +22,11 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
 
     public HostileVillagePlayerTargetGoal(IronGolem golem) {
         super(golem, ServerPlayer.class, 10, true, false,
-                target -> target instanceof Player player
+//? if >=1.21.4 {
+                (target, level) -> target instanceof Player player
+//?} else {
+/*                target -> target instanceof Player player
+ *///?}
                         && isHostilePlayer(golem, player));
         this.golem = golem;
     }

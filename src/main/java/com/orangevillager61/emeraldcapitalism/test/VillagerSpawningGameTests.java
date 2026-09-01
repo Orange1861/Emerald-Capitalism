@@ -61,7 +61,8 @@ public final class VillagerSpawningGameTests {
         installTestVillage(helper, localOrigin);
 
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
-        Villager parent = EntityType.VILLAGER.create(helper.getLevel());
+        Villager parent = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.VILLAGER, helper.getLevel());
         if (parent == null) {
             helper.fail("Could not create the villager spawn-egg parent");
             return;
@@ -117,7 +118,8 @@ public final class VillagerSpawningGameTests {
         installTestVillage(helper, new BlockPos(64, 1, 1));
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
 
-        Villager failedParent = EntityType.VILLAGER.create(helper.getLevel());
+        Villager failedParent = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.VILLAGER, helper.getLevel());
         if (failedParent == null) {
             helper.fail("Could not create the failed-spawn parent");
             return;
@@ -141,7 +143,8 @@ public final class VillagerSpawningGameTests {
         helper.assertValueEqual(mismatchedStack.getCount(), 1,
                 "failed spawn consumed a spawn egg");
 
-        Mob nonVillagerParent = EntityType.ZOMBIE.create(helper.getLevel());
+        Mob nonVillagerParent = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.ZOMBIE, helper.getLevel());
         if (nonVillagerParent == null) {
             helper.fail("Could not create the non-villager spawn-egg parent");
             return;
@@ -168,7 +171,8 @@ public final class VillagerSpawningGameTests {
         helper.assertValueEqual(villagerChildStack.getCount(), 0,
                 "successful non-villager parent path did not consume one egg");
 
-        Cow nonVillagerChildParent = EntityType.COW.create(helper.getLevel());
+        Cow nonVillagerChildParent = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                EntityType.COW, helper.getLevel());
         if (nonVillagerChildParent == null) {
             helper.fail("Could not create the non-villager child parent");
             return;

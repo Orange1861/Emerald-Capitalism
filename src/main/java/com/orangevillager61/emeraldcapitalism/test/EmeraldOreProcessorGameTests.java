@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.test;
 import com.orangevillager61.emeraldcapitalism.block.EmeraldOreProcessorBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
+import com.orangevillager61.emeraldcapitalism.util.ChunkSaveCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -133,19 +134,19 @@ public final class EmeraldOreProcessorGameTests {
             return;
         }
 
-        level.getChunkAt(pos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(pos));
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT,
                 new ItemStack(Items.EMERALD_ORE));
         helper.assertTrue(level.getChunkAt(pos).isUnsaved(),
                 "inventory insertion did not call setChanged");
 
-        level.getChunkAt(pos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(pos));
         setTimers(processor, 2, 400, 5, 400);
         EmeraldOreProcessorBlockEntity.serverTick(level, pos, state, processor);
         helper.assertTrue(level.getChunkAt(pos).isUnsaved(),
                 "burn/cook timer mutation did not call setChanged");
 
-        level.getChunkAt(pos).setUnsaved(false);
+        ChunkSaveCompat.markClean(level.getChunkAt(pos));
         processor.clearContent();
         helper.assertTrue(level.getChunkAt(pos).isUnsaved(),
                 "clearContent did not call setChanged for durable inventory removal");

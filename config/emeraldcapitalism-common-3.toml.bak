@@ -42,17 +42,46 @@ redactNonOpPoiDetails = true
 		#Search radius: 16 blocks.
 		emeraldBlockAggro = true
 
+		[ai.golemAI.emeraldGolemAmbush]
+			#If true, a player with hostile village opinion can trigger an emerald golem ambush
+			#when entering a village.
+			enabled = true
+			#Horizontal distance in blocks at which an ambush emerald golem tries to spawn
+			#from the hostile player. Default: 16 blocks.
+			# Default: 16
+			# Range: 8 ~ 32
+			spawnDistance = 16
+			#Health of an ambush emerald golem in HP. Default: 2 HP.
+			# Default: 2.0
+			# Range: 0.5 ~ 50.0
+			health = 2.0
+			#Minimum delay before an ambush emerald golem attacks its target
+			#in seconds. Default: 3 seconds.
+			# Default: 3
+			# Range: 0 ~ 60
+			minAttackDelaySeconds = 3
+			#Maximum delay before an ambush emerald golem attacks its target
+			#in seconds. Default: 5 seconds.
+			# Default: 5
+			# Range: 0 ~ 60
+			maxAttackDelaySeconds = 5
+			#If true, an ambush emerald golem drops one Village Map when it dies.
+			dropsVillageMap = true
+
 	[ai.zombieAI]
 		#If true, zombie villagers avoid pathfinding into sunlight when they have no head protection.
 		enableZombieVillagerSunAvoidance = true
+		#If true, zombies always convert killed villagers into zombie villagers on Easy, Normal, and Hard difficulty.
+		#If false, vanilla conversion chances apply: 0% on Easy, 50% on Normal, and 100% on Hard.
+		alwaysConvertVillagersToZombieVillagers = true
 
 	[illness.zombieVirus]
-	#How long Zombkolaps remains in phase one before phase two begins.
+		#How long Zombkolaps remains in phase one before phase two begins.
 		#Unit: seconds. Default: 600 seconds (10 minutes).
 		# Default: 600
 		# Range: 1 ~ 86400
 		phaseOneDurationSeconds = 600
-	#How much time a later Zombie hit removes from phase one of Zombkolaps.
+		#How much time a later Zombie hit removes from phase one of Zombkolaps.
 		#Unit: seconds. Default: 20 seconds.
 		# Default: 20
 		# Range: 1 ~ 3600

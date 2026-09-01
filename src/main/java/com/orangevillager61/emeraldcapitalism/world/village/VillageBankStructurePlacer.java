@@ -26,10 +26,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
@@ -52,7 +52,6 @@ import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
-import net.neoforged.neoforge.event.EventHooks;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -287,8 +286,8 @@ public final class VillageBankStructurePlacer {
                 int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE_WG,
                         originX + sizeX / 2, originZ + sizeZ / 2) - 1;
                 int originY = surfaceY - ABANDONED_VAULT_TOP_DEPTH - sizeY + 1;
-                if (originY < level.getMinBuildHeight()
-                        || originY + sizeY > level.getMaxBuildHeight()) {
+                if (originY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
+                        || originY + sizeY > com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level)) {
                     continue;
                 }
 
@@ -382,8 +381,8 @@ public final class VillageBankStructurePlacer {
 
         BlockPos origin = new BlockPos(originX, terrain.gradeY(), originZ);
         BlockPos vaultOrigin = origin.offset(VAULT_OFFSET);
-        if (vaultOrigin.getY() < level.getMinBuildHeight()
-                || vaultOrigin.getY() + VAULT_HEIGHT > level.getMaxBuildHeight()) {
+        if (vaultOrigin.getY() < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
+                || vaultOrigin.getY() + VAULT_HEIGHT > com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level)) {
             return null;
         }
 
@@ -695,9 +694,9 @@ public final class VillageBankStructurePlacer {
                 maxSurface = Math.max(maxSurface, surface);
             }
         }
-        int minY = Math.max(level.getMinBuildHeight(),
+        int minY = Math.max(com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level),
                 Math.min(Math.min(topOrigin.getY(), vaultOrigin.getY()), minSurface));
-        int maxY = Math.min(level.getMaxBuildHeight() - 1,
+        int maxY = Math.min(com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level) - 1,
                 Math.max(Math.max(topOrigin.getY() + TOP_HEIGHT + 3,
                         vaultOrigin.getY() + VAULT_HEIGHT - 1), maxSurface));
         return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
@@ -977,7 +976,7 @@ public final class VillageBankStructurePlacer {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Generated bank vault at {} could only fit {} of {} starter {}",
                     vaultOrigin, INITIAL_LOG_COUNT - remaining, INITIAL_LOG_COUNT,
-                    logs.getDescription().getString());
+                    com.orangevillager61.emeraldcapitalism.util.ItemNameCompat.get(logs).getString());
         }
     }
 
@@ -1149,7 +1148,7 @@ public final class VillageBankStructurePlacer {
         }
 
         for (BlockPos spawnPos : spawnPositions) {
-            Villager villager = EntityType.VILLAGER.create(level);
+            Villager villager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.VILLAGER, level);
             if (villager == null) {
                 EmeraldCapitalism.LOGGER.warn(
                         "[ECAP] Failed to create vault villager at {}", spawnPos);
@@ -1158,8 +1157,7 @@ public final class VillageBankStructurePlacer {
 
             villager.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D,
                     level.getRandom().nextFloat() * 360.0F, 0.0F);
-            EventHooks.finalizeMobSpawn(villager, level, level.getCurrentDifficultyAt(spawnPos),
-                    MobSpawnType.STRUCTURE, null);
+            SpawnReasonCompat.finalizeStructure(villager, level, level.getCurrentDifficultyAt(spawnPos), null);
             villager.setPersistenceRequired();
             if (!level.addFreshEntity(villager)) {
                 EmeraldCapitalism.LOGGER.warn(
@@ -1230,7 +1228,8 @@ public final class VillageBankStructurePlacer {
 
     @Nullable
     private EmeraldGolem spawnEmeraldGolem(ServerLevel level, BlockPos spawnPos, BankBlockEntity bank) {
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Failed to create emerald vault golem at {}", spawnPos);
@@ -1239,8 +1238,7 @@ public final class VillageBankStructurePlacer {
 
         golem.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D,
                 level.getRandom().nextFloat() * 360.0F, 0.0F);
-        EventHooks.finalizeMobSpawn(golem, level, level.getCurrentDifficultyAt(spawnPos),
-                MobSpawnType.STRUCTURE, null);
+        SpawnReasonCompat.finalizeStructure(golem, level, level.getCurrentDifficultyAt(spawnPos), null);
         golem.setCustomName(Component.literal("Vault Golem"));
         golem.setBankEmployeePos(bank.getBlockPos());
         VaultGolemGoals.markAsVaultGuard(golem);
@@ -1254,7 +1252,7 @@ public final class VillageBankStructurePlacer {
     }
 
     private void spawnIronGolem(ServerLevel level, BlockPos spawnPos) {
-        IronGolem golem = EntityType.IRON_GOLEM.create(level);
+        IronGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.IRON_GOLEM, level);
         if (golem == null) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Failed to create iron vault golem at {}", spawnPos);
@@ -1263,8 +1261,7 @@ public final class VillageBankStructurePlacer {
 
         golem.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D,
                 level.getRandom().nextFloat() * 360.0F, 0.0F);
-        EventHooks.finalizeMobSpawn(golem, level, level.getCurrentDifficultyAt(spawnPos),
-                MobSpawnType.STRUCTURE, null);
+        SpawnReasonCompat.finalizeStructure(golem, level, level.getCurrentDifficultyAt(spawnPos), null);
         golem.setCustomName(Component.literal("Vault Golem"));
         VaultGolemGoals.markAsVaultGuard(golem);
         golem.setPersistenceRequired();
@@ -1437,7 +1434,9 @@ public final class VillageBankStructurePlacer {
         int maxX = originX + TOP_SIZE - 1 + TERRAIN_BLEND_RADIUS;
         int minZ = originZ - TERRAIN_BLEND_RADIUS;
         int maxZ = originZ + TOP_SIZE - 1 + TERRAIN_BLEND_RADIUS;
-        Registry<Structure> structureRegistry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Registry<Structure> structureRegistry =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                        level.registryAccess(), Registries.STRUCTURE);
         Set<StructureStart> visitedStarts = new HashSet<>();
 
         for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {

@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSavedData;
+import com.orangevillager61.emeraldcapitalism.util.DimensionDataStorageCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -69,12 +70,12 @@ public final class SavedDataPersistenceGameTests {
         Path storageDirectory;
         try {
             storageDirectory = Files.createTempDirectory("ecap-saved-data-gametest-");
-            DimensionDataStorage storage = new DimensionDataStorage(
-                    storageDirectory.toFile(), overworld.getServer().getFixerUpper(), overworld.registryAccess());
+            DimensionDataStorage storage = DimensionDataStorageCompat.create(
+                    storageDirectory, overworld.getServer().getFixerUpper(), overworld.registryAccess());
             storage.set(BANK_DATA_NAME, bank);
             storage.set(FARM_DATA_NAME, farms);
             storage.set(REGISTRY_DATA_NAME, registry);
-            storage.save();
+            DimensionDataStorageCompat.save(storage);
         } catch (IOException ex) {
             helper.fail("Could not create the SavedData storage fixture: " + ex.getMessage());
             return;
@@ -95,8 +96,8 @@ public final class SavedDataPersistenceGameTests {
             BlockPos bankPosition
     ) {
         try {
-            DimensionDataStorage reloadedStorage = new DimensionDataStorage(
-                    storageDirectory.toFile(), level.getServer().getFixerUpper(), level.registryAccess());
+            DimensionDataStorage reloadedStorage = DimensionDataStorageCompat.create(
+                    storageDirectory, level.getServer().getFixerUpper(), level.registryAccess());
             BankAccountData bank = reloadedStorage.computeIfAbsent(
                     new net.minecraft.world.level.saveddata.SavedData.Factory<>(
                             BankAccountData::new, BankAccountData::load, null),

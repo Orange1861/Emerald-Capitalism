@@ -64,7 +64,8 @@ public final class LoadedChunkComposition {
                 LevelChunk chunk = level.getChunk(chunkX, chunkZ);
                 loadedChunks.put(ChunkPos.asLong(chunkX, chunkZ), chunk);
                 LevelChunkSection[] sections = chunk.getSections();
-                int chunkMinSectionY = SectionPos.blockToSectionCoord(chunk.getMinBuildHeight());
+                int chunkMinSectionY = SectionPos.blockToSectionCoord(
+                        com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(chunk));
                 for (int sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
                     int sectionY = chunkMinSectionY + sectionIndex;
                     if (sectionY >= minSectionY && sectionY <= maxSectionY

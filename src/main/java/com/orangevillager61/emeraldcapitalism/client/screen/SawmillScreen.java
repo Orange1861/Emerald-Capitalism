@@ -11,6 +11,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import com.orangevillager61.emeraldcapitalism.recipe.SawmillRecipe;
+import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
+import com.orangevillager61.emeraldcapitalism.util.RecipeResultCompat;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -54,11 +56,13 @@ public class SawmillScreen extends AbstractContainerScreen<SawmillMenu> {
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         int left = this.leftPos;
         int top = this.topPos;
-        guiGraphics.blit(BG_LOCATION, left, top, 0, 0, this.imageWidth, this.imageHeight);
+        GuiGraphicsCompat.blit(guiGraphics, BG_LOCATION, left, top, 0, 0,
+                this.imageWidth, this.imageHeight);
         int scrollOffset = (int) (41.0F * this.scrollOffs);
         ResourceLocation scroller = this.isScrollBarActive()
                 ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
-        guiGraphics.blitSprite(scroller, left + 119, top + 15 + scrollOffset, 12, 15);
+        GuiGraphicsCompat.blitSprite(guiGraphics, scroller, left + 119,
+                top + 15 + scrollOffset, 12, 15);
         int recipesX = this.leftPos + 52;
         int recipesY = this.topPos + 14;
         int lastVisible = this.startIndex + 12;
@@ -83,7 +87,8 @@ public class SawmillScreen extends AbstractContainerScreen<SawmillMenu> {
             int yStart = recipesY + visibleIndex / 4 * 18 + 2;
             if (x >= xStart && x < xStart + 16 && y >= yStart && y < yStart + 18) {
                 guiGraphics.renderTooltip(this.font,
-                        recipes.get(index).value().getResultItem(this.minecraft.level.registryAccess()), x, y);
+                        RecipeResultCompat.getSawmillResult(recipes.get(index).value(),
+                                this.minecraft.level.registryAccess()), x, y);
             }
         }
     }
@@ -104,7 +109,7 @@ public class SawmillScreen extends AbstractContainerScreen<SawmillMenu> {
             } else {
                 sprite = RECIPE_SPRITE;
             }
-            guiGraphics.blitSprite(sprite, xStart, yStart - 1, 16, 18);
+            GuiGraphicsCompat.blitSprite(guiGraphics, sprite, xStart, yStart - 1, 16, 18);
         }
     }
 
@@ -116,7 +121,9 @@ public class SawmillScreen extends AbstractContainerScreen<SawmillMenu> {
             int xStart = x + visibleIndex % 4 * 16;
             int yStart = y + visibleIndex / 4 * 18 + 2;
             guiGraphics.renderItem(recipes.get(index).value()
-                    .getResultItem(this.minecraft.level.registryAccess()), xStart, yStart);
+                    .assemble(new net.minecraft.world.item.crafting.SingleRecipeInput(
+                            net.minecraft.world.item.ItemStack.EMPTY), this.minecraft.level.registryAccess()),
+                    xStart, yStart);
         }
     }
 

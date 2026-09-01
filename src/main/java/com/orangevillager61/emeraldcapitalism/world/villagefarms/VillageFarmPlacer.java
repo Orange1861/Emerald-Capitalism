@@ -153,9 +153,16 @@ public class VillageFarmPlacer {
                     .setIgnoreEntities(false);
 
             // Look up and apply processor list
-            Registry<StructureProcessorList> processorRegistry = level.registryAccess()
-                    .registryOrThrow(Registries.PROCESSOR_LIST);
-            StructureProcessorList processors = processorRegistry.get(placement.processorList());
+            Registry<StructureProcessorList> processorRegistry =
+                    com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                            level.registryAccess(), Registries.PROCESSOR_LIST);
+//? if >=1.21.4 {
+            StructureProcessorList processors =
+                    com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getValue(
+                            processorRegistry, placement.processorList());
+//?} else {
+/*            StructureProcessorList processors = processorRegistry.get(placement.processorList());
+ *///?}
             if (processors != null) {
                 for (var processor : processors.list()) {
                     settings.addProcessor(processor);
@@ -389,7 +396,8 @@ public class VillageFarmPlacer {
                     Block block = state.getBlock();
 
                     // Never remove bedrock or the bottom of the world.
-                    if (block == Blocks.BEDROCK || by <= level.getMinBuildHeight()) {
+                    if (block == Blocks.BEDROCK
+                            || by <= com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)) {
                         break;
                     }
 

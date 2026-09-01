@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
+import com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
@@ -37,7 +38,8 @@ public final class BankReputationDamageGameTests {
         Config.proportionalVillagerReputation = true;
         try {
             Player player = helper.makeMockPlayer(GameType.SURVIVAL);
-            EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(helper.getLevel());
+            EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                    ECAPEntityTypes.EMERALD_GOLEM.get(), helper.getLevel());
             if (golem == null) {
                 helper.fail("Could not create an emerald golem");
                 return;
@@ -46,7 +48,7 @@ public final class BankReputationDamageGameTests {
             golem.setBankEmployeePos(helper.absolutePos(new net.minecraft.core.BlockPos(0, 1, 0)));
             helper.getLevel().addFreshEntity(golem);
 
-            golem.hurt(helper.getLevel().damageSources().playerAttack(player), 4.0F);
+            EntityDamageUtils.hurt(golem, helper.getLevel().damageSources().playerAttack(player), 4.0F);
 
             helper.assertValueEqual(BankReputationData.get(helper.getLevel()).getReputation(player.getUUID()), -20,
                     "bank employee damage did not use the proportional 5-points-per-HP penalty");
@@ -62,7 +64,8 @@ public final class BankReputationDamageGameTests {
         Config.proportionalVillagerReputation = false;
         try {
             Player player = helper.makeMockPlayer(GameType.SURVIVAL);
-            EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(helper.getLevel());
+            EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                    ECAPEntityTypes.EMERALD_GOLEM.get(), helper.getLevel());
             if (golem == null) {
                 helper.fail("Could not create an emerald golem");
                 return;
@@ -71,7 +74,7 @@ public final class BankReputationDamageGameTests {
             golem.setBankEmployeePos(helper.absolutePos(new net.minecraft.core.BlockPos(0, 1, 0)));
             helper.getLevel().addFreshEntity(golem);
 
-            golem.hurt(helper.getLevel().damageSources().playerAttack(player), 4.0F);
+            EntityDamageUtils.hurt(golem, helper.getLevel().damageSources().playerAttack(player), 4.0F);
 
             helper.assertValueEqual(BankReputationData.get(helper.getLevel()).getReputation(player.getUUID()), -10,
                     "disabled proportional bank reputation did not use the fixed -10 penalty");
@@ -88,7 +91,8 @@ public final class BankReputationDamageGameTests {
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         VillageRecord village = createContestedVillage(level, bankPos, player.getUUID());
 
-        EmeraldGolem golem = ECAPEntityTypes.EMERALD_GOLEM.get().create(level);
+            EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                    ECAPEntityTypes.EMERALD_GOLEM.get(), level);
         if (golem == null) {
             helper.fail("Could not create an emerald golem");
             return;
@@ -97,7 +101,7 @@ public final class BankReputationDamageGameTests {
         golem.setBankEmployeePos(bankPos);
         level.addFreshEntity(golem);
 
-        golem.hurt(level.damageSources().playerAttack(player), 100.0F);
+        EntityDamageUtils.hurt(golem, level.damageSources().playerAttack(player), 100.0F);
 
         helper.assertValueEqual(village.getOpinionModifier(player.getUUID()), 0,
                 "contested governor killing a vault golem changed village opinion");
@@ -123,7 +127,7 @@ public final class BankReputationDamageGameTests {
             }
             VillageRecord village = createContestedVillage(level, bankPos, player.getUUID());
 
-            Villager villager = EntityType.VILLAGER.create(level);
+            Villager villager = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(EntityType.VILLAGER, level);
             if (villager == null) {
                 helper.fail("Could not create a bank employee villager");
                 return;
@@ -141,7 +145,7 @@ public final class BankReputationDamageGameTests {
                     "test candidate was not recognized as contested");
 
             int opinionBefore = villager.getPlayerReputation(player);
-            villager.hurt(level.damageSources().playerAttack(player), 100.0F);
+            EntityDamageUtils.hurt(villager, level.damageSources().playerAttack(player), 100.0F);
 
             helper.assertValueEqual(villager.getPlayerReputation(player), opinionBefore,
                     "contested governor killing a bank employee changed village opinion");

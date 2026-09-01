@@ -17,8 +17,8 @@ import net.minecraft.client.resources.model.Material;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.BlockAtlasCompat;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
@@ -28,7 +28,7 @@ import net.minecraft.world.level.block.state.properties.BedPart;
 public class EmeraldGreenBedRenderer implements BlockEntityRenderer<EmeraldGreenBedBlockEntity> {
 
     private static final Material MATERIAL = new Material(
-            InventoryMenu.BLOCK_ATLAS,
+            BlockAtlasCompat.location(),
             ModIds.id("block/emerald_green_bed")
     );
 

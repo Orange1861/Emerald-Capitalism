@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.client.renderer.VillagePOIOverlayR
 import com.orangevillager61.emeraldcapitalism.menu.VillageManagerMenu;
 import com.orangevillager61.emeraldcapitalism.network.RequestVillagePOIsPacket;
 import com.orangevillager61.emeraldcapitalism.network.TogglePOIOverlayPacket;
+import com.orangevillager61.emeraldcapitalism.util.MinecraftExecutionCompat;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -57,7 +58,7 @@ public class VillageManagerScreen extends AbstractContainerScreen<VillageManager
             // The client sends the close packet and returns its local menu to the
             // inventory menu; the server then does the same for ServerPlayer.
             this.minecraft.player.closeContainer();
-            this.minecraft.tell(() -> {
+            MinecraftExecutionCompat.execute(this.minecraft, () -> {
                 if (this.minecraft != null) {
                     this.minecraft.setScreen(new VillagePOIScreen(villageId));
                 }

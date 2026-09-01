@@ -692,7 +692,7 @@ public final class MayorDoorRepairGoal extends Goal {
         if (!planks.isEmpty()) {
             EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] REFUND dropped planks={} bankUnavailable={} mayor={}",
                     planks.getCount(), bank == null || bank.isRemoved(), villager.getUUID());
-            villager.spawnAtLocation(planks, 0.0F);
+            com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, planks, 0.0F);
         }
     }
 

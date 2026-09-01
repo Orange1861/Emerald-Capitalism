@@ -84,30 +84,51 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
         return VillagerSkrimisherItemPool.contains(stack) && inventory.canAddItem(stack);
     }
 
-    @Override
     public boolean wantsToPickUp(ItemStack stack) {
         return canHoldItem(stack);
     }
 
+//? if >=1.21.4 {
     @Override
+    public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
+        return canHoldItem(stack);
+    }
+//?} else {
+/*    @Override
     protected ResourceKey<LootTable> getDefaultLootTable() {
         return LOOT_TABLE;
     }
+ *///?}
 
     @Override
     protected void dropCustomDeathLoot(ServerLevel level, DamageSource damageSource, boolean recentlyHit) {
         super.dropCustomDeathLoot(level, damageSource, recentlyHit);
-        this.inventory.removeAllItems().forEach(this::spawnAtLocation);
+        this.inventory.removeAllItems().forEach(stack ->
+                com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(this, level, stack));
     }
 
+//? if >=1.21.4 {
     @Override
+    protected void pickUpItem(ServerLevel level, ItemEntity itemEntity) {
+        InventoryCarrier.pickUpItem(level, this, this, itemEntity);
+    }
+//?} else {
+/*    @Override
     protected void pickUpItem(ItemEntity itemEntity) {
         InventoryCarrier.pickUpItem(this, this, itemEntity);
     }
+ *///?}
 
     /** Entry point used by the pickup goal, which cannot call Mob's protected method. */
     public void pickUpItemForGoal(ItemEntity itemEntity) {
-        pickUpItem(itemEntity);
+        if (!(level() instanceof ServerLevel level)) {
+            return;
+        }
+//? if >=1.21.4 {
+        pickUpItem(level, itemEntity);
+//?} else {
+/*        pickUpItem(itemEntity);
+ *///?}
     }
 
     /** Returns whether another emerald or iron golem is within eight blocks of the target. */
@@ -128,7 +149,8 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
 
         level().broadcastEntityEvent(this, (byte) 4);
         float damage = jumpAttack ? 1.0F : (float) getAttributeValue(Attributes.ATTACK_DAMAGE);
-        boolean damaged = target.hurt(damageSources().mobAttack(this), damage);
+        boolean damaged = com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils.hurt(
+                target, damageSources().mobAttack(this), damage);
         if (damaged) {
             if (jumpAttack) {
                 target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 6 * 20, 3), this);

@@ -287,7 +287,7 @@ public final class BankMorningTradeGoal extends Goal {
         }
         if (bread.getCount() != quote.quantity()) {
             if (!bank.storeItemInLinkedChests(level, bread)) {
-                villager.spawnAtLocation(bread);
+                com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, bread);
             }
             return false;
         }
@@ -298,7 +298,7 @@ public final class BankMorningTradeGoal extends Goal {
             restoreInventory(inventoryBeforePurchase);
             ItemStack withdrawnBread = new ItemStack(Items.BREAD, quote.quantity());
             if (!bank.storeItemInLinkedChests(level, withdrawnBread)) {
-                villager.spawnAtLocation(withdrawnBread);
+                com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(villager, level, withdrawnBread);
             }
             return false;
         }

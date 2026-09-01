@@ -252,11 +252,13 @@ public final class VillagerTradeAccountingGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void villagerEmeraldDropDebitsBalanceOnce(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
         stats.setEmeraldBalance(20);
 
-        ItemEntity dropped = villager.spawnAtLocation(new ItemStack(Items.EMERALD_BLOCK, 2));
+        ItemEntity dropped = com.orangevillager61.emeraldcapitalism.util.EntityDropUtils.spawn(
+                villager, level, new ItemStack(Items.EMERALD_BLOCK, 2));
 
         helper.assertTrue(dropped != null, "villager emerald drop did not create an item entity");
         helper.assertValueEqual(stats.getEmeraldBalance(), 2,

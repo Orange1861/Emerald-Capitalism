@@ -7,12 +7,19 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
+//? if >=1.21.4 {
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+//?}
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 
 /** Client renderer using the Emerald Skrimisher model and texture. */
 public final class EmeraldSkrimisherRenderer
-        extends MobRenderer<EmeraldSkrimisher, EmeraldSkrimisherModel> {
+//? if >=1.21.4 {
+        extends MobRenderer<EmeraldSkrimisher, LivingEntityRenderState, EmeraldSkrimisherModel> {
+//?} else {
+/*        extends MobRenderer<EmeraldSkrimisher, EmeraldSkrimisherModel> {
+ *///?}
 
     public static final ModelLayerLocation EMERALD_SKRIMISHER_LAYER =
             new ModelLayerLocation(ModIds.id("emerald_skrimisher"), "main");
@@ -25,7 +32,23 @@ public final class EmeraldSkrimisherRenderer
                 0.35F);
     }
 
+//? if >=1.21.4 {
     @Override
+    protected void scale(@NotNull LivingEntityRenderState state, @NotNull PoseStack poseStack) {
+        poseStack.scale(0.75F, 0.75F, 0.75F);
+    }
+
+    @Override
+    public LivingEntityRenderState createRenderState() {
+        return new LivingEntityRenderState();
+    }
+
+    @Override
+    public @NotNull ResourceLocation getTextureLocation(@NotNull LivingEntityRenderState state) {
+        return EMERALD_SKRIMISHER_TEXTURE;
+    }
+//?} else {
+/*    @Override
     protected void scale(@NotNull EmeraldSkrimisher entity, @NotNull PoseStack poseStack, float partialTick) {
         poseStack.scale(0.75F, 0.75F, 0.75F);
     }
@@ -34,4 +57,5 @@ public final class EmeraldSkrimisherRenderer
     public @NotNull ResourceLocation getTextureLocation(@NotNull EmeraldSkrimisher entity) {
         return EMERALD_SKRIMISHER_TEXTURE;
     }
+ *///?}
 }

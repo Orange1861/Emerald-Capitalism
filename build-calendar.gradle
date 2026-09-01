@@ -46,28 +46,36 @@ sourceSets {
     }
 }
 
+// Config-cache forbids Task.project access at execution time, so capture
+// every needed value into plain locals here (configuration time) and only
+// read those locals inside doLast (execution time).
+def calendarConfiguredJavaVersion = java_version
+def calendarTargetMinecraftVersion = minecraft_version
+def calendarMixinCompatibilityLevel = mixinCompatibilityLevel
+def calendarJavaToolchainService = javaToolchains
+
 tasks.register('verifyTargetSetup') {
     group = 'verification'
     description = 'Verifies this calendar target uses an available Java 25 toolchain.'
     inputs.file(file('gradle.properties'))
 
     doLast {
-        int configuredJava = Integer.parseInt(java_version)
+        int configuredJava = Integer.parseInt(calendarConfiguredJavaVersion)
         if (configuredJava != 25) {
-            throw new GradleException("Calendar target ${minecraft_version} must declare java_version=25, found ${configuredJava}")
+            throw new GradleException("Calendar target ${calendarTargetMinecraftVersion} must declare java_version=25, found ${configuredJava}")
         }
 
-        def launcher = javaToolchains.launcherFor {
-            languageVersion = JavaLanguageVersion.of(configuredJava)
+        def launcher = calendarJavaToolchainService.launcherFor { spec ->
+            spec.languageVersion = JavaLanguageVersion.of(configuredJava)
         }.get()
         if (launcher.metadata.languageVersion.asInt() != configuredJava) {
-            throw new GradleException("Java ${configuredJava} toolchain was not selected for ${minecraft_version}")
+            throw new GradleException("Java ${configuredJava} toolchain was not selected for ${calendarTargetMinecraftVersion}")
         }
         String expectedMixinLevel = configuredJava >= 25 ? 'JAVA_25' : 'JAVA_21'
-        if (mixinCompatibilityLevel != expectedMixinLevel) {
-            throw new GradleException("${minecraft_version} must use ${expectedMixinLevel} mixin compatibility, found ${mixinCompatibilityLevel}")
+        if (calendarMixinCompatibilityLevel != expectedMixinLevel) {
+            throw new GradleException("${calendarTargetMinecraftVersion} must use ${expectedMixinLevel} mixin compatibility, found ${calendarMixinCompatibilityLevel}")
         }
-        logger.lifecycle("Verified ${minecraft_version}: Java ${configuredJava} (${launcher.metadata.installationPath})")
+        logger.lifecycle("Verified ${calendarTargetMinecraftVersion}: Java ${configuredJava} (${launcher.metadata.installationPath})")
     }
 }
 

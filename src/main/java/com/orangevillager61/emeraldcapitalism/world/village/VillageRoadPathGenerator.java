@@ -768,7 +768,7 @@ public final class VillageRoadPathGenerator {
             }
 
             int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-            if (y < level.getMinBuildHeight()) {
+            if (y < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)) {
                 invalidColumns.add(key);
                 return null;
             }
