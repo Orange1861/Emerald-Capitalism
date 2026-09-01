@@ -159,8 +159,7 @@ public final class MayorDoorRepairGoal extends Goal {
 
         WorkContext context = new WorkContext(village, bank,
                 BankBlock.getDepositApproachPos(bank.getBlockState(), bank.getBlockPos()));
-        navigationTarget = VillagerNavigationTargets.findReachableTarget(
-                villager, context.bankApproach(), NAVIGATION_RADIUS);
+        navigationTarget = findNavigationTarget(context.bankApproach());
         if (navigationTarget == null) {
             village.unclaimDoorPosition(targetPos);
             failed = true;
@@ -193,8 +192,7 @@ public final class MayorDoorRepairGoal extends Goal {
             }
 
             stage = Stage.DOOR;
-            navigationTarget = VillagerNavigationTargets.findReachableTarget(
-                    villager, targetPos, NAVIGATION_RADIUS);
+            navigationTarget = findNavigationTarget(targetPos);
             if (navigationTarget == null) {
                 finish(level);
                 return;
@@ -358,6 +356,14 @@ public final class MayorDoorRepairGoal extends Goal {
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                     new WalkTarget(navigationTarget, SPEED_MODIFIER, WALK_TARGET_CLOSE_ENOUGH));
         }
+    }
+
+    @Nullable
+    private BlockPos findNavigationTarget(BlockPos desired) {
+        if (isAt(desired)) {
+            return desired;
+        }
+        return VillagerNavigationTargets.findReachableTarget(villager, desired, NAVIGATION_RADIUS);
     }
 
     private boolean isAt(BlockPos pos) {

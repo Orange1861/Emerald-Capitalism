@@ -69,3 +69,58 @@ The version-sensitive ownership points remain registrations, packet
 registration/handlers, resource loaders, persistence adapters, and client
 renderers/screens. Keep differences at those seams and pass stable plain data
 through the existing core and presentation helpers.
+
+## Recent gameplay-fix port checklist
+
+Keep the following invariants when adapting the recent lumberjack, village,
+processor, and scan-bound fixes to another target. These are shared gameplay
+rules; add a target override only when the target API makes the shared code
+impossible.
+
+### Processor inventory hooks
+
+`EmeraldOreProcessorBlockEntity` must invalidate nearby bank caches whenever its
+inventory changes through `setItem`, `removeItem`, `removeItemNoUpdate`, or
+`clearContent`. The server ticker must do the same after consuming fuel and
+after completing a smelt, because those mutations do not necessarily pass
+through a container setter. The notification must reach
+`BankBlockEntity.markChestCachesDirtyNear`, which marks both the chest and
+processor caches dirty so the next bank tick rebuilds live totals and the
+nearest processor position. Timer-only changes should not cause an inventory
+invalidation.
+
+If a target renames or adds container mutation methods, map every equivalent
+server-side mutation path; do not rely on the periodic full scan as the only
+refresh mechanism.
+
+### `ServerLevel` checks
+
+Processor-to-bank invalidation and village/bank lookups are server-only. Keep
+the `instanceof ServerLevel` guard around processor cache notifications and
+preserve loaded-block lookups that do not force chunks to load. Client ticks,
+unloaded block entities, and unavailable overworld instances must not access
+server registries or mutate bank caches.
+
+### `AABB` bounds behavior
+
+`AABB` maximum coordinates and `BlockPos` scan endpoints have different edge
+semantics: scan loops use the floored maximum endpoint, while the village
+record's tracked block margin is 16 blocks on every side. When
+`VillageRecord.shrinkToFit()` recalculates bounds, it must retain the complete
+margin even when a tracked block lies on the previous scan boundary. Do not
+clamp the recalculated box back inside the old box, or the next scan cannot
+discover newly placed blocks in the required extra chunk. Preserve cache
+pruning and delta-scan behavior when a box changes.
+
+### Village lookup tie-breaking
+
+`VillageRegistryData.getVillageFor` must examine every containing record. A
+record with a registered bank takes precedence over an unbanked overlapping
+record; among records with the same bank status, choose the nearest bell and
+break exact ties by village UUID rather than `HashMap` iteration order.
+`BankEmployeeLookup.findVillageBank` must likewise inspect all containing
+records and verify the registered position contains an actual loaded bank. A
+villager's durable membership is preferred when it resolves to a bank, but an
+automatically-created overlapping record without a bank must never shadow the
+bank-backed record. Keep the same deterministic tie-breaking if multiple bank
+candidates remain.
