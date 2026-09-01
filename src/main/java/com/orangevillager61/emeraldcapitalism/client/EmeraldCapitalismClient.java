@@ -220,7 +220,7 @@ public class EmeraldCapitalismClient {
 
             Minecraft minecraft = Minecraft.getInstance();
             boolean villageOverlayEnabled = VillagePOIOverlayRenderer.isEnabled();
-            boolean bankOverlayEnabled = BankOwnershipOverlayRenderer.hasOwnedBanks();
+            boolean bankOverlayEnabled = BankOwnershipOverlayRenderer.hasEnabledOverlays();
             if (!villageOverlayEnabled && !bankOverlayEnabled) {
                 return;
             }

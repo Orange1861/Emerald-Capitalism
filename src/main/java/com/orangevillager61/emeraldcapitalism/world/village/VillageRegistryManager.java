@@ -154,7 +154,14 @@ public class VillageRegistryManager {
             // Non-player entities such as zombies remove doors directly through
             // Level.removeBlock, so no player BreakEvent reaches the cache hooks.
             // Recheck the small published block cache before the next repair pass.
-            changed |= village.verify(level);
+            boolean doorCacheChanged = village.verify(level);
+            changed |= doorCacheChanged;
+            if (doorCacheChanged) {
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][DoorCache] MANAGER verification changed village={} doors={} missingDoors={} gameTime={}",
+                        village.getVillageId(), village.getDoorRegistry().size(),
+                        village.getMissingDoorRegistry().size(), level.getGameTime());
+            }
             // A normal village already has a recorded Mayor and receives
             // immediate succession checks from villager-death events. Keep a
             // slower reconciliation pass for chunk unloads or missed events,
@@ -335,6 +342,8 @@ public class VillageRegistryManager {
             if (currentFullScanVillageId == null) {
                 return;
             }
+            EmeraldCapitalism.LOGGER.debug("[ECAP][DoorCache] MANAGER starting queued scan village={} gameTime={}",
+                    currentFullScanVillageId, level.getGameTime());
         }
 
         VillageRecord village = registryData.getVillages().get(currentFullScanVillageId);
@@ -359,6 +368,8 @@ public class VillageRegistryManager {
             registryData.setDirty();
             currentFullScanVillageId = null;
             queueFullScanMemberRefresh(villageId);
+            EmeraldCapitalism.LOGGER.debug("[ECAP][DoorCache] MANAGER completed scan village={} gameTime={}",
+                    villageId, level.getGameTime());
         } else {
             // Requeue incomplete scans so a large village cannot monopolize the full-scan queue.
             fullScanQueue.add(villageId);
@@ -479,6 +490,9 @@ public class VillageRegistryManager {
         village.beginFullScan(adaptive);
         VillagePOIDataCache.invalidateVillage(villageId);
         fullScanQueue.add(villageId);
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][DoorCache] MANAGER queued scan village={} adaptive={} queueSize={} cacheInitialized={}",
+                villageId, adaptive, fullScanQueue.size(), village.isCacheInitialized());
     }
 
     /** Cancels an initial scan that was waiting on a generation pipeline which failed. */

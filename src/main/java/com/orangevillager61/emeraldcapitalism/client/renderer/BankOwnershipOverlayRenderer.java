@@ -9,15 +9,18 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** Renders remembered ownership areas for banks controlled by the local player. */
 public final class BankOwnershipOverlayRenderer {
 
     private static final double HALF_SIZE = 8.0;
     private static final Map<BlockPos, AABB> OWNED_BANK_BOUNDS = new LinkedHashMap<>();
+    private static final Set<BlockPos> DISABLED_BANK_OVERLAYS = new HashSet<>();
 
     // Match the dark-green bank marker used by the village POI overlay.
     private static final float BANK_RED = 0.0f;
@@ -35,6 +38,7 @@ public final class BankOwnershipOverlayRenderer {
             OWNED_BANK_BOUNDS.computeIfAbsent(immutablePos, BankOwnershipOverlayRenderer::boundsFor);
         } else {
             OWNED_BANK_BOUNDS.remove(bankPos);
+            DISABLED_BANK_OVERLAYS.remove(bankPos);
         }
     }
 
@@ -42,9 +46,42 @@ public final class BankOwnershipOverlayRenderer {
         return !OWNED_BANK_BOUNDS.isEmpty();
     }
 
+    /** Returns whether at least one remembered owned bank has its outline enabled. */
+    public static boolean hasEnabledOverlays() {
+        return OWNED_BANK_BOUNDS.size() > DISABLED_BANK_OVERLAYS.size();
+    }
+
+    /** Returns whether the outline is enabled for a remembered owned bank. */
+    public static boolean isOverlayEnabled(BlockPos bankPos) {
+        Objects.requireNonNull(bankPos, "bankPos");
+        return OWNED_BANK_BOUNDS.containsKey(bankPos) && !DISABLED_BANK_OVERLAYS.contains(bankPos);
+    }
+
+    /** Sets the client-only wide outline setting for a remembered owned bank. */
+    public static boolean setOverlayEnabled(BlockPos bankPos, boolean enabled) {
+        Objects.requireNonNull(bankPos, "bankPos");
+        if (!OWNED_BANK_BOUNDS.containsKey(bankPos)) {
+            return false;
+        }
+
+        if (enabled) {
+            DISABLED_BANK_OVERLAYS.remove(bankPos);
+        } else {
+            DISABLED_BANK_OVERLAYS.add(bankPos);
+        }
+        return enabled;
+    }
+
+    /** Toggles the client-only wide outline setting for a remembered owned bank. */
+    public static boolean toggleOverlay(BlockPos bankPos) {
+        Objects.requireNonNull(bankPos, "bankPos");
+        return setOverlayEnabled(bankPos, !isOverlayEnabled(bankPos));
+    }
+
     /** Clears remembered ownership when the client level or network session ends. */
     public static void clear() {
         OWNED_BANK_BOUNDS.clear();
+        DISABLED_BANK_OVERLAYS.clear();
     }
 
     /** Renders exact 16×16×16 wireframes for the client's remembered owned banks. */
@@ -58,8 +95,11 @@ public final class BankOwnershipOverlayRenderer {
 
         poseStack.pushPose();
         poseStack.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
-        for (AABB bounds : OWNED_BANK_BOUNDS.values()) {
-            LevelRenderer.renderLineBox(poseStack, lineConsumer, bounds,
+        for (Map.Entry<BlockPos, AABB> entry : OWNED_BANK_BOUNDS.entrySet()) {
+            if (DISABLED_BANK_OVERLAYS.contains(entry.getKey())) {
+                continue;
+            }
+            LevelRenderer.renderLineBox(poseStack, lineConsumer, entry.getValue(),
                     BANK_RED, BANK_GREEN, BANK_BLUE, 1.0f);
         }
         poseStack.popPose();

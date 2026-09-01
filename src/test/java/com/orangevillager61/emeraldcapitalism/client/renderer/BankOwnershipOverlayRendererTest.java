@@ -32,11 +32,30 @@ class BankOwnershipOverlayRendererTest {
     @Test
     void rememberedOwnedBankRemainsAvailableUntilOwnershipIsRemoved() {
         BlockPos bankPos = new BlockPos(4, 64, 9);
+        BlockPos otherBankPos = new BlockPos(-12, 68, 21);
 
         BankOwnershipOverlayRenderer.updateBank(bankPos, true);
+        BankOwnershipOverlayRenderer.updateBank(otherBankPos, true);
         assertTrue(BankOwnershipOverlayRenderer.hasOwnedBanks());
+        assertTrue(BankOwnershipOverlayRenderer.hasEnabledOverlays());
+        assertTrue(BankOwnershipOverlayRenderer.isOverlayEnabled(bankPos));
+        assertTrue(BankOwnershipOverlayRenderer.isOverlayEnabled(otherBankPos));
+
+        assertFalse(BankOwnershipOverlayRenderer.toggleOverlay(bankPos));
+        assertFalse(BankOwnershipOverlayRenderer.isOverlayEnabled(bankPos));
+        assertTrue(BankOwnershipOverlayRenderer.isOverlayEnabled(otherBankPos));
+        assertTrue(BankOwnershipOverlayRenderer.hasEnabledOverlays());
+
+        BankOwnershipOverlayRenderer.updateBank(bankPos, true);
+        assertFalse(BankOwnershipOverlayRenderer.isOverlayEnabled(bankPos));
+
+        assertTrue(BankOwnershipOverlayRenderer.toggleOverlay(bankPos));
+        assertTrue(BankOwnershipOverlayRenderer.isOverlayEnabled(bankPos));
+        assertTrue(BankOwnershipOverlayRenderer.hasEnabledOverlays());
 
         BankOwnershipOverlayRenderer.updateBank(bankPos, false);
+        BankOwnershipOverlayRenderer.updateBank(otherBankPos, false);
         assertFalse(BankOwnershipOverlayRenderer.hasOwnedBanks());
+        assertFalse(BankOwnershipOverlayRenderer.hasEnabledOverlays());
     }
 }

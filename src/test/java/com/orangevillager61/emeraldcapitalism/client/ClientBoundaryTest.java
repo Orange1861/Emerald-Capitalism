@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.client;
 
+import com.orangevillager61.emeraldcapitalism.client.renderer.BankOwnershipOverlayRenderer;
 import com.orangevillager61.emeraldcapitalism.client.renderer.VillagePOIOverlayRenderer;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIClientCache;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIDataPacket;
@@ -26,6 +27,7 @@ class ClientBoundaryTest {
     void clearClientState() {
         VillagePOIClientCache.clear();
         VillagePOIOverlayRenderer.clear();
+        BankOwnershipOverlayRenderer.clear();
     }
 
     @Test
@@ -113,6 +115,8 @@ class ClientBoundaryTest {
                 "client POI cache is not cleared at lifecycle boundaries");
         assertTrue(source.contains("VillagePOIOverlayRenderer.clear()"),
                 "client overlay state is not cleared at lifecycle boundaries");
+        assertTrue(source.contains("BankOwnershipOverlayRenderer.clear()"),
+                "bank outline state is not cleared at lifecycle boundaries");
     }
 
     @Test

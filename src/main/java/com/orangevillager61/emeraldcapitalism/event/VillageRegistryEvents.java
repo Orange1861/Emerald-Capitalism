@@ -431,6 +431,9 @@ public class VillageRegistryEvents {
                 .anyMatch(g -> g.getGoal() instanceof MayorDoorRepairGoal);
         if (!hasGoal) {
             villager.goalSelector.addGoal(2, new MayorDoorRepairGoal(villager));
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][MayorRepair] INJECTED villager={} profession={} pos={} priority=2 flags=MOVE,LOOK",
+                    villager.getUUID(), villager.getVillagerData().getProfession(), villager.blockPosition());
         }
     }
 
@@ -573,6 +576,14 @@ public class VillageRegistryEvents {
         }
         VillageRegistryData data = VillageRegistryData.get(level);
         VillageRecord village = data.getVillageFor(pos);
+        if (isDoor) {
+            BlockPos basePos = VillageRecord.doorBasePos(pos, state);
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][DoorCache] PLAYER/ENTITY PLACE entity={} pos={} base={} state={} village={} cacheInitialized={}",
+                    event.getEntity().getUUID(), pos, basePos, state,
+                    village == null ? null : village.getVillageId(),
+                    village != null && village.isCacheInitialized());
+        }
         if (village != null) {
             village.onBlockPlaced(pos, state);
             if (isFarmland && village.addFarmland(pos)) {
@@ -580,6 +591,11 @@ public class VillageRegistryEvents {
             }
             if (isDoor) {
                 data.setDirty();
+                BlockPos basePos = VillageRecord.doorBasePos(pos, state);
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][DoorCache] PLACE recorded base={} doorRegistered={} missing={} village={}",
+                        basePos, village.getDoorRegistry().contains(basePos),
+                        village.getMissingDoorRegistry().contains(basePos), village.getVillageId());
             }
             if (isBed && !level.canSeeSky(pos.above())
                     && event.getEntity() instanceof Player player) {
@@ -610,6 +626,7 @@ public class VillageRegistryEvents {
         }
         BlockPos pos = event.getPos();
         BlockState state = event.getLevel().getBlockState(pos);
+        boolean isDoor = state.getBlock() instanceof DoorBlock;
 
         if (state.is(com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks.EMERALD_CHEST.get())
                 || state.is(com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks.EMERALD_ORE_PROCESSOR.get())) {
@@ -658,14 +675,28 @@ public class VillageRegistryEvents {
         // Village cache updates
         VillageRegistryData data = VillageRegistryData.get(level);
         VillageRecord village = data.getVillageFor(pos);
+        if (isDoor) {
+            BlockPos basePos = VillageRecord.doorBasePos(pos, state);
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][DoorCache] PLAYER BREAK entity={} pos={} base={} state={} village={} cacheInitialized={} canceled={}",
+                    event.getPlayer().getUUID(), pos, basePos, state,
+                    village == null ? null : village.getVillageId(),
+                    village != null && village.isCacheInitialized(), event.isCanceled());
+        }
         if (village != null) {
             village.onBlockRemoved(pos);
             // BreakEvent fires before the block actually changes, so check the current state
             if (state.getBlock() instanceof FarmBlock && village.addToRepairQueue(pos)) {
                 data.setDirty();
             }
-            if (state.getBlock() instanceof DoorBlock) {
+            if (isDoor) {
                 data.setDirty();
+                BlockPos basePos = VillageRecord.doorBasePos(pos, state);
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][DoorCache] BREAK recorded base={} doorRegistered={} missing={} claimed={} village={}",
+                        basePos, village.getDoorRegistry().contains(basePos),
+                        village.getMissingDoorRegistry().contains(basePos),
+                        village.getClaimedDoorPositions().contains(basePos), village.getVillageId());
             }
             if (state.getBlock() instanceof BedBlock) {
                 // Destroying a bed in a village reduces that player's village opinion by 5.
@@ -742,7 +773,12 @@ public class VillageRegistryEvents {
         BlockState newState = event.getLevel().getBlockState(pos);
 
         if (newState.getBlock() instanceof DoorBlock) {
-            if (village.addDoor(VillageRecord.doorBasePos(pos, newState))) {
+            BlockPos basePos = VillageRecord.doorBasePos(pos, newState);
+            boolean added = village.addDoor(basePos);
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][DoorCache] NEIGHBOR door state changed pos={} base={} added={} village={} cacheInitialized={}",
+                    pos, basePos, added, village.getVillageId(), village.isCacheInitialized());
+            if (added) {
                 data.setDirty();
             }
         } else if (newState.getBlock() instanceof FarmBlock) {

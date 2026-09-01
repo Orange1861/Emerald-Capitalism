@@ -1260,6 +1260,10 @@ public class VillageRecord {
     public void beginFullScan(boolean adaptiveInitialScan) {
         Set<BlockPos> knownDoorPositions = new HashSet<>(doorRegistry);
         knownDoorPositions.addAll(missingDoorRegistry);
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][DoorCache] SCAN begin village={} adaptive={} cacheInitialized={} knownDoors={} missingDoors={} bounds={}",
+                villageId, adaptiveInitialScan, cacheInitialized, knownDoorPositions.size(),
+                missingDoorRegistry.size(), boundingBox);
         FullScanState state = new FullScanState(
                 boundingBox,
                 bellPosition,
@@ -1448,6 +1452,10 @@ public class VillageRecord {
         cacheInitialized = true;
         fullScanState = null;
         shrinkToFit();
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][DoorCache] SCAN published village={} doors={} missingDoors={} beds={} jobSites={} bounds={}",
+                villageId, doorRegistry.size(), missingDoorRegistry.size(), cachedBedPositions.size(),
+                cachedJobSitePositions.size(), boundingBox);
         return true;
     }
 
@@ -1490,9 +1498,13 @@ public class VillageRecord {
             while (doors.hasNext()) {
                 BlockPos pos = doors.next();
                 if (!isDoorBase(level.getBlockState(pos))) {
+                    BlockState liveState = level.getBlockState(pos);
                     doors.remove();
                     missingDoorRegistry.add(pos.immutable());
                     doorsChanged = true;
+                    EmeraldCapitalism.LOGGER.info(
+                            "[ECAP][DoorCache] VERIFY found missing door village={} base={} liveState={} missingCount={}",
+                            villageId, pos, liveState, missingDoorRegistry.size());
                 }
             }
         }
@@ -1507,6 +1519,11 @@ public class VillageRecord {
      */
     public void onBlockPlaced(BlockPos pos, BlockState state) {
         if (!cacheInitialized && fullScanState == null) {
+            if (state.getBlock() instanceof DoorBlock) {
+                EmeraldCapitalism.LOGGER.debug(
+                        "[ECAP][DoorCache] PLACE ignored before cache initialization village={} pos={} state={}",
+                        villageId, pos, state);
+            }
             return;
         }
         if (isBedHead(state)) {
@@ -1519,8 +1536,12 @@ public class VillageRecord {
             if (fullScanState != null) fullScanState.jobSites.put(pos.immutable(), jobType);
         }
         if (doorRepairEnabled && state.getBlock() instanceof DoorBlock) {
-            addDoor(doorBasePos(pos, state));
-            missingDoorRegistry.remove(doorBasePos(pos, state));
+            BlockPos basePos = doorBasePos(pos, state);
+            boolean wasMissing = missingDoorRegistry.contains(basePos);
+            boolean added = addDoor(basePos);
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][DoorCache] PLACE applied village={} pos={} base={} added={} wasMissing={} doors={} missing={}",
+                    villageId, pos, basePos, added, wasMissing, doorRegistry.size(), missingDoorRegistry.size());
         }
     }
 
@@ -1535,8 +1556,14 @@ public class VillageRecord {
         if (cacheInitialized) {
             cachedBedPositions.remove(pos);
             cachedJobSitePositions.remove(pos);
-            markDoorMissing(pos);
-            markDoorMissing(pos.below());
+            boolean directDoorMissing = markDoorMissing(pos);
+            boolean lowerDoorMissing = markDoorMissing(pos.below());
+            if (directDoorMissing || lowerDoorMissing) {
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][DoorCache] BREAK applied village={} pos={} directMissing={} lowerMissing={} doors={} missing={}",
+                        villageId, pos, directDoorMissing, lowerDoorMissing,
+                        doorRegistry.size(), missingDoorRegistry.size());
+            }
         }
         if (fullScanState != null) {
             fullScanState.beds.remove(pos);
@@ -1621,6 +1648,10 @@ public class VillageRecord {
         missingDoorRegistry.remove(pos);
         claimedDoorPositions.remove(pos);
         if (fullScanState != null) fullScanState.doors.add(pos.immutable());
+        if (added) {
+            EmeraldCapitalism.LOGGER.debug("[ECAP][DoorCache] ADD village={} base={} doors={} missing={}",
+                    villageId, pos, doorRegistry.size(), missingDoorRegistry.size());
+        }
         return added;
     }
 
@@ -1643,6 +1674,11 @@ public class VillageRecord {
         if (fullScanState != null) {
             fullScanState.doors.remove(pos);
         }
+        if (wasTracked) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][DoorCache] MISSING village={} base={} missingCount={} claimedBefore={}",
+                    villageId, pos, missingDoorRegistry.size(), claimedDoorPositions.contains(pos));
+        }
         return wasTracked;
     }
 
@@ -1657,6 +1693,9 @@ public class VillageRecord {
         if (fullScanState != null) {
             fullScanState.doors.add(pos.immutable());
         }
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][DoorCache] REPAIRED village={} base={} wasMissing={} doors={} missing={}",
+                villageId, pos, wasMissing, doorRegistry.size(), missingDoorRegistry.size());
         return wasMissing || wasAdded;
     }
 

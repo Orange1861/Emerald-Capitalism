@@ -70,6 +70,10 @@ public final class MayorDoorRepairGoal extends Goal {
     private Stage lastLoggedStage;
     @Nullable
     private BlockPos lastLoggedNavigationTarget;
+    @Nullable
+    private BlockPos lastLoggedJobSite;
+    @Nullable
+    private String finishReason;
 
     public MayorDoorRepairGoal(Villager villager) {
         this.villager = villager;
@@ -86,45 +90,65 @@ public final class MayorDoorRepairGoal extends Goal {
                     && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()) {
                 observeSleep();
             }
-            return false;
+            return reject(level, "sleeping");
         }
-        if (villager.isBaby()
-                || villager.isTrading()
-                || VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                || villager.getVillagerData().getProfession() != ECAPVillagerProfessions.MAYOR.get()
-                || !hasSleptSinceJobSiteVisit()
-                || hasConsumedJobSiteVisit()
-                || level.getGameTime() < nextDoorLookupTick) {
-            return false;
+        if (villager.isBaby()) {
+            return reject(level, "baby villager");
+        }
+        if (villager.isTrading()) {
+            return reject(level, "currently trading");
+        }
+        if (VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
+            return reject(level, "breeding session owns villager movement");
+        }
+        if (villager.getVillagerData().getProfession() != ECAPVillagerProfessions.MAYOR.get()) {
+            return reject(level, "profession is " + villager.getVillagerData().getProfession());
+        }
+        if (!hasSleptSinceJobSiteVisit()) {
+            return reject(level, "has not slept since the previous job-site visit");
+        }
+        if (hasConsumedJobSiteVisit()) {
+            return reject(level, "already consumed this job-site visit");
+        }
+        if (level.getGameTime() < nextDoorLookupTick) {
+            return reject(level, "door lookup cooldown until gameTime " + nextDoorLookupTick);
         }
 
         BlockPos jobSite = findJobSite(level);
-        if (jobSite == null || !isAt(jobSite)) {
-            nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
-            return false;
+        if (jobSite == null) {
+            return reject(level, "no valid JOB_SITE memory or POI for the mayor");
+        }
+        if (!isAt(jobSite)) {
+            return reject(level, "not at JOB_SITE " + jobSite + ", distanceSq="
+                    + distanceToCenterSq(jobSite));
         }
 
         WorkContext resolved = resolveContext(level);
         if (resolved == null) {
             nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
-            return false;
+            return reject(level, "village/bank context could not be resolved");
         }
 
         BlockPos nearest = findMissingDoor(level, resolved.village());
         if (nearest == null) {
             nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
-            return false;
+            return reject(level, "no acceptable unclaimed missing door within " + MAX_RANGE
+                    + " blocks; missingCount=" + resolved.village().getMissingDoorRegistry().size());
         }
-        if (resolved.bank().getTotalPlankCount() < PLANKS_PER_DOOR
-                || !canStore(Items.OAK_PLANKS, PLANKS_PER_DOOR)
-                || !canStore(Items.OAK_DOOR, 1)) {
+        int bankPlanks = resolved.bank().getTotalPlankCount();
+        boolean canStorePlanks = canStore(Items.OAK_PLANKS, PLANKS_PER_DOOR);
+        boolean canStoreDoor = canStore(Items.OAK_DOOR, 1);
+        if (bankPlanks < PLANKS_PER_DOOR || !canStorePlanks || !canStoreDoor) {
             nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
-            return false;
+            return reject(level, "resources unavailable: bankPlanks=" + bankPlanks
+                    + ", canStorePlanks=" + canStorePlanks + ", canStoreDoor=" + canStoreDoor);
         }
 
         village = resolved.village();
         bank = resolved.bank();
         targetPos = nearest;
+        logEligibility(level, "eligible; selected target=" + targetPos + ", bank="
+                + bank.getBlockPos() + ", village=" + village.getVillageId());
         return true;
     }
 
@@ -135,22 +159,42 @@ public final class MayorDoorRepairGoal extends Goal {
                     && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()) {
                 observeSleep();
             }
-            return false;
+            return stopBecause("villager went to sleep");
         }
-        return !failed
-                && !finished
-                && targetPos != null
-                && navigationTarget != null
-                && village != null
-                && bank != null
-                && stage != null
-                && !villager.isTrading()
-                && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()
-                && village.isDoorRepairEnabled()
-                && village.getMissingDoorRegistry().contains(targetPos)
-                && village.getClaimedDoorPositions().contains(targetPos)
-                && !bank.isRemoved();
+        if (failed) {
+            return stopBecause("goal marked failed");
+        }
+        if (finished) {
+            return stopBecause("goal marked finished");
+        }
+        if (targetPos == null || navigationTarget == null || village == null
+                || bank == null || stage == null) {
+            return stopBecause("runtime context became incomplete: target=" + targetPos
+                    + ", navigationTarget=" + navigationTarget + ", village=" + village
+                    + ", bank=" + bank + ", stage=" + stage);
+        }
+        if (villager.isTrading()) {
+            return stopBecause("villager started trading");
+        }
+        if (VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
+            return stopBecause("breeding session took movement ownership");
+        }
+        if (villager.getVillagerData().getProfession() != ECAPVillagerProfessions.MAYOR.get()) {
+            return stopBecause("profession changed to " + villager.getVillagerData().getProfession());
+        }
+        if (!village.isDoorRepairEnabled()) {
+            return stopBecause("door repair disabled for village " + village.getVillageId());
+        }
+        if (!village.getMissingDoorRegistry().contains(targetPos)) {
+            return stopBecause("target is no longer in missing-door registry: " + targetPos);
+        }
+        if (!village.getClaimedDoorPositions().contains(targetPos)) {
+            return stopBecause("target claim was lost: " + targetPos);
+        }
+        if (bank.isRemoved()) {
+            return stopBecause("bank block entity was removed: " + bank.getBlockPos());
+        }
+        return true;
     }
 
     @Override
@@ -158,17 +202,37 @@ public final class MayorDoorRepairGoal extends Goal {
         failed = false;
         finished = false;
         carryingRepairDoor = false;
+        finishReason = null;
         stage = Stage.BANK;
         navigationWatchdog.reset();
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][MayorRepair] START attempt mayor={} pos={} target={} village={} bank={}",
+                villager.getUUID(), villager.blockPosition(), targetPos,
+                village == null ? null : village.getVillageId(),
+                bank == null ? null : bank.getBlockPos());
 
-        if (!(villager.level() instanceof ServerLevel level)
-                || village == null
-                || bank == null
-                || targetPos == null
-                || !village.claimDoorPosition(targetPos)) {
+        if (!(villager.level() instanceof ServerLevel level)) {
             failed = true;
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] START failed: mayor is not in a ServerLevel");
             return;
         }
+        if (village == null || bank == null || targetPos == null) {
+            failed = true;
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] START failed: missing selected context village={} bank={} target={}",
+                    village, bank, targetPos);
+            return;
+        }
+        if (!village.claimDoorPosition(targetPos)) {
+            failed = true;
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] START failed: could not claim target={} missing={} claimed={}",
+                    targetPos, village.getMissingDoorRegistry().contains(targetPos),
+                    village.getClaimedDoorPositions().contains(targetPos));
+            return;
+        }
+        EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] CLAIMED target={} village={}",
+                targetPos, village.getVillageId());
 
         WorkContext context = new WorkContext(village, bank,
                 BankBlock.getDepositApproachPos(bank.getBlockState(), bank.getBlockPos()));
@@ -176,6 +240,9 @@ public final class MayorDoorRepairGoal extends Goal {
         if (navigationTarget == null) {
             village.unclaimDoorPosition(targetPos);
             failed = true;
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] START failed: no reachable bank approach desired={} target={}",
+                    context.bankApproach(), targetPos);
             return;
         }
 
@@ -185,6 +252,9 @@ public final class MayorDoorRepairGoal extends Goal {
         clearSocialInteractionMemories();
         markJobSiteVisitConsumed();
         setWalkTarget();
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][MayorRepair] STARTED mayor={} stage={} bankApproach={} navigationTarget={} doorTarget={}",
+                villager.getUUID(), stage, context.bankApproach(), navigationTarget, targetPos);
     }
 
     @Override
@@ -196,23 +266,31 @@ public final class MayorDoorRepairGoal extends Goal {
                 || bank == null
                 || stage == null) {
             failed = true;
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] TICK failed: incomplete context mayor={} target={} navigationTarget={} village={} bank={} stage={}",
+                    villager.getUUID(), targetPos, navigationTarget, village, bank, stage);
             return;
         }
 
+        logProgress(level);
         clearSocialInteractionMemories();
         BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
         villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(lookTarget));
 
         if (stage == Stage.BANK && isAt(navigationTarget)) {
+            EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at bank approach={} bank={} mayor={}",
+                    navigationTarget, bank.getBlockPos(), villager.getUUID());
             if (!receiveAndCraftDoor(level)) {
-                finish(level);
+                finish(level, "bank withdrawal/crafting failed");
                 return;
             }
 
             stage = Stage.DOOR;
+            EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] CRAFTED door; switching to door target={} mayor={}",
+                    targetPos, villager.getUUID());
             navigationTarget = findNavigationTarget(targetPos);
             if (navigationTarget == null) {
-                finish(level);
+                finish(level, "no reachable navigation target near missing door");
                 return;
             }
             navigationWatchdog.reset();
@@ -221,19 +299,25 @@ public final class MayorDoorRepairGoal extends Goal {
         }
 
         if (stage == Stage.DOOR && (isAt(navigationTarget) || isAt(targetPos))) {
+            EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at door target={} navigationTarget={} mayor={}",
+                    targetPos, navigationTarget, villager.getUUID());
             if (placeDoor(level)) {
                 if (village.markDoorRepaired(targetPos)) {
                     VillageRegistryData.get(level).setDirty();
                 }
-                finish(level);
+                finish(level, "door placement succeeded");
             } else {
-                finish(level);
+                finish(level, "door placement failed");
             }
             return;
         }
 
         if (navigationWatchdog.isStuck(villager, navigationTarget)) {
-            finish(level);
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] NAVIGATION watchdog fired mayor={} stage={} currentPos={} target={} distanceSq={} navigationDone={}",
+                    villager.getUUID(), stage, villager.blockPosition(), navigationTarget,
+                    distanceToCenterSq(navigationTarget), villager.getNavigation().isDone());
+            finish(level, "navigation watchdog reported no movement");
             return;
         }
         setWalkTarget();
@@ -241,6 +325,10 @@ public final class MayorDoorRepairGoal extends Goal {
 
     @Override
     public void stop() {
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][MayorRepair] STOP mayor={} pos={} stage={} target={} navigationTarget={} failed={} finished={} reason={} carryingDoor={}",
+                villager.getUUID(), villager.blockPosition(), stage, targetPos, navigationTarget,
+                failed, finished, finishReason, carryingRepairDoor);
         if (villager.level() instanceof ServerLevel level) {
             refundCarriedDoor(level);
         }
@@ -259,52 +347,112 @@ public final class MayorDoorRepairGoal extends Goal {
         navigationWatchdog.reset();
         failed = false;
         finished = false;
+        finishReason = null;
+        nextProgressDiagnosticTick = 0L;
+        lastLoggedStage = null;
+        lastLoggedNavigationTarget = null;
+        lastLoggedJobSite = null;
     }
 
     @Nullable
     private WorkContext resolveContext(ServerLevel level) {
         BankBlockEntity resolvedBank = BankEmployeeLookup.findVillageBank(level, villager);
-        if (resolvedBank == null || resolvedBank.getVillageId() == null) {
+        if (resolvedBank == null) {
+            logEligibility(level, "context unresolved: no loaded bank found for mayor");
+            return null;
+        }
+        if (resolvedBank.getVillageId() == null) {
+            logEligibility(level, "context unresolved: bank " + resolvedBank.getBlockPos()
+                    + " has no village ID");
             return null;
         }
 
         VillageRecord resolvedVillage = VillageRegistryData.get(level).getVillages()
                 .get(resolvedBank.getVillageId());
-        if (resolvedVillage == null
-                || !resolvedVillage.isDoorRepairEnabled()
-                || (!resolvedVillage.hasMember(villager.getUUID())
-                && !resolvedVillage.getBoundingBox().contains(villager.getX(), villager.getY(), villager.getZ()))) {
+        if (resolvedVillage == null) {
+            logEligibility(level, "context unresolved: no village record for bank village ID "
+                    + resolvedBank.getVillageId());
+            return null;
+        }
+        if (!resolvedVillage.isDoorRepairEnabled()) {
+            logEligibility(level, "context unresolved: door repair disabled for village "
+                    + resolvedVillage.getVillageId());
+            return null;
+        }
+        boolean member = resolvedVillage.hasMember(villager.getUUID());
+        boolean insideBounds = resolvedVillage.getBoundingBox()
+                .contains(villager.getX(), villager.getY(), villager.getZ());
+        if (!member && !insideBounds) {
+            logEligibility(level, "context unresolved: mayor is not a village member and is outside bounds; "
+                    + "mayorPos=" + villager.blockPosition() + ", bounds="
+                    + resolvedVillage.getBoundingBox());
             return null;
         }
 
         BlockPos bankApproach = BankBlock.getDepositApproachPos(
                 resolvedBank.getBlockState(), resolvedBank.getBlockPos());
+        logEligibility(level, "context resolved: village=" + resolvedVillage.getVillageId()
+                + ", bank=" + resolvedBank.getBlockPos() + ", bankApproach=" + bankApproach
+                + ", member=" + member + ", insideBounds=" + insideBounds);
         return new WorkContext(resolvedVillage, resolvedBank, bankApproach);
     }
 
     @Nullable
     private BlockPos findMissingDoor(ServerLevel level, VillageRecord record) {
-        return record.getNearestUnclaimedMissingDoor(villager.blockPosition(), MAX_RANGE,
+        int claimed = 0;
+        int outOfRange = 0;
+        int invalidWorldPosition = 0;
+        double maxRangeSq = MAX_RANGE * MAX_RANGE;
+        for (BlockPos pos : record.getMissingDoorRegistry()) {
+            if (record.getClaimedDoorPositions().contains(pos)) {
+                claimed++;
+            } else if (villager.blockPosition().distSqr(pos) > maxRangeSq) {
+                outOfRange++;
+            } else if (!level.isLoaded(pos)
+                    || !level.isLoaded(pos.above())
+                    || !level.getBlockState(pos).canBeReplaced()
+                    || !level.getBlockState(pos.above()).canBeReplaced()) {
+                invalidWorldPosition++;
+            }
+        }
+        BlockPos selected = record.getNearestUnclaimedMissingDoor(villager.blockPosition(), MAX_RANGE,
                 pos -> level.isLoaded(pos)
                         && level.isLoaded(pos.above())
                         && level.getBlockState(pos).canBeReplaced()
                         && level.getBlockState(pos.above()).canBeReplaced());
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][MayorRepair] DOOR lookup mayor={} village={} missing={} claimed={} outOfRange={} invalidWorldPosition={} selected={}",
+                villager.getUUID(), record.getVillageId(), record.getMissingDoorRegistry().size(), claimed,
+                outOfRange, invalidWorldPosition, selected);
+        return selected;
     }
 
     private boolean receiveAndCraftDoor(ServerLevel level) {
         if (bank == null) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] CRAFT failed: bank context is null mayor={}",
+                    villager.getUUID());
             return false;
         }
 
+        EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] CRAFT withdrawing {} planks from bank={} mayor={}",
+                PLANKS_PER_DOOR, bank.getBlockPos(), villager.getUUID());
         ItemStack planks = bank.withdrawExactPlanks(level, PLANKS_PER_DOOR);
         if (planks.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] CRAFT failed: bank returned no planks bank={} remainingPlanks={} mayor={}",
+                    bank.getBlockPos(), bank.getTotalPlankCount(), villager.getUUID());
             return false;
         }
 
         int withdrawnCount = planks.getCount();
+        EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] CRAFT withdrew count={} bank={} mayor={}",
+                withdrawnCount, bank.getBlockPos(), villager.getUUID());
         ItemStack remainder = villager.getInventory().addItem(planks);
         if (!remainder.isEmpty()) {
             int acceptedCount = withdrawnCount - remainder.getCount();
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] CRAFT failed: mayor inventory rejected {} of {} withdrawn planks; accepted={}",
+                    remainder.getCount(), withdrawnCount, acceptedCount);
             removeItem(Items.OAK_PLANKS, acceptedCount);
             returnPlanksToBankOrDrop(level, new ItemStack(Items.OAK_PLANKS, withdrawnCount));
             return false;
@@ -312,6 +460,9 @@ public final class MayorDoorRepairGoal extends Goal {
 
         int removedPlanks = removeItem(Items.OAK_PLANKS, PLANKS_PER_DOOR);
         if (removedPlanks != PLANKS_PER_DOOR) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] CRAFT failed: expected to consume {} planks but removed {} mayor={}",
+                    PLANKS_PER_DOOR, removedPlanks, villager.getUUID());
             returnPlanksToBankOrDrop(level,
                     new ItemStack(Items.OAK_PLANKS, PLANKS_PER_DOOR - removedPlanks));
             return false;
@@ -319,20 +470,40 @@ public final class MayorDoorRepairGoal extends Goal {
 
         ItemStack doorRemainder = villager.getInventory().addItem(new ItemStack(Items.OAK_DOOR));
         if (!doorRemainder.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] CRAFT failed: mayor inventory rejected oak door remainder={}",
+                    doorRemainder.getCount());
             removeItem(Items.OAK_DOOR, 1 - doorRemainder.getCount());
             returnPlanksToBankOrDrop(level, new ItemStack(Items.OAK_PLANKS, PLANKS_PER_DOOR));
             return false;
         }
 
         carryingRepairDoor = true;
+        EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] CRAFT succeeded: mayor={} carrying oak door from bank={}",
+                villager.getUUID(), bank.getBlockPos());
         return true;
     }
 
     private boolean placeDoor(ServerLevel level) {
-        if (village == null || targetPos == null
-                || !village.isDoorRepairEnabled()
-                || !village.getMissingDoorRegistry().contains(targetPos)
-                || villager.getInventory().countItem(Items.OAK_DOOR) < 1) {
+        if (village == null || targetPos == null) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] PLACE failed: village or target context is null");
+            return false;
+        }
+        if (!village.isDoorRepairEnabled()) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] PLACE failed: door repair disabled village={}",
+                    village.getVillageId());
+            return false;
+        }
+        if (!village.getMissingDoorRegistry().contains(targetPos)) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] PLACE failed: target={} is no longer missing village={} missingCount={}",
+                    targetPos, village.getVillageId(), village.getMissingDoorRegistry().size());
+            return false;
+        }
+        int doorCount = villager.getInventory().countItem(Items.OAK_DOOR);
+        if (doorCount < 1) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] PLACE failed: mayor has no oak door inventoryCount={}",
+                    doorCount);
             return false;
         }
 
@@ -340,9 +511,19 @@ public final class MayorDoorRepairGoal extends Goal {
         BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
                 .setValue(DoorBlock.FACING, villager.getDirection())
                 .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT);
-        if (!level.getBlockState(pos).canBeReplaced()
-                || !level.getBlockState(pos.above()).canBeReplaced()
-                || !lower.canSurvive(level, pos)) {
+        BlockState currentLower = level.getBlockState(pos);
+        BlockState currentUpper = level.getBlockState(pos.above());
+        boolean lowerReplaceable = currentLower.canBeReplaced();
+        boolean upperReplaceable = currentUpper.canBeReplaced();
+        boolean survives = lower.canSurvive(level, pos);
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][MayorRepair] PLACE checking target={} lowerState={} upperState={} lowerReplaceable={} upperReplaceable={} survives={} facing={} mayor={}",
+                pos, currentLower, currentUpper, lowerReplaceable, upperReplaceable, survives,
+                villager.getDirection(), villager.getUUID());
+        if (!lowerReplaceable || !upperReplaceable || !survives) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] PLACE failed validation target={} lowerReplaceable={} upperReplaceable={} survives={}",
+                    pos, lowerReplaceable, upperReplaceable, survives);
             return false;
         }
 
@@ -350,14 +531,21 @@ public final class MayorDoorRepairGoal extends Goal {
         level.setBlock(pos.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
         if (!VillageRecord.isDoorBase(level.getBlockState(pos))
                 || !level.getBlockState(pos.above()).is(Blocks.OAK_DOOR)) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] PLACE failed post-write validation target={} lowerState={} upperState={}",
+                    pos, level.getBlockState(pos), level.getBlockState(pos.above()));
             rollbackDoorPlacement(level, pos);
             return false;
         }
         if (removeItem(Items.OAK_DOOR, 1) != 1) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] PLACE failed: could not remove consumed oak door target={}",
+                    pos);
             rollbackDoorPlacement(level, pos);
             return false;
         }
         carryingRepairDoor = false;
+        EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] PLACE succeeded target={} lowerState={} upperState={} mayor={}",
+                pos, level.getBlockState(pos), level.getBlockState(pos.above()), villager.getUUID());
         return true;
     }
 
@@ -374,10 +562,20 @@ public final class MayorDoorRepairGoal extends Goal {
         if (navigationTarget != null) {
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                     new WalkTarget(navigationTarget, SPEED_MODIFIER, WALK_TARGET_CLOSE_ENOUGH));
+        } else {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] WALK_TARGET not set: navigation target is null mayor={}",
+                    villager.getUUID());
         }
     }
 
     private void clearSocialInteractionMemories() {
+        boolean hadInteractionTarget = villager.getBrain().hasMemoryValue(MemoryModuleType.INTERACTION_TARGET);
+        boolean hadBreedTarget = villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET);
+        if (hadInteractionTarget || hadBreedTarget) {
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][MayorRepair] CLEAR social Brain memories mayor={} interactionTarget={} breedTarget={}",
+                    villager.getUUID(), hadInteractionTarget, hadBreedTarget);
+        }
         villager.getBrain().eraseMemory(MemoryModuleType.INTERACTION_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.BREED_TARGET);
     }
@@ -385,9 +583,69 @@ public final class MayorDoorRepairGoal extends Goal {
     @Nullable
     private BlockPos findNavigationTarget(BlockPos desired) {
         if (isAt(desired)) {
+            EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] PATH target already reached desired={} mayor={}",
+                    desired, villager.getUUID());
             return desired;
         }
-        return VillagerNavigationTargets.findReachableTarget(villager, desired, NAVIGATION_RADIUS);
+        BlockPos reachable = VillagerNavigationTargets.findReachableTarget(villager, desired, NAVIGATION_RADIUS);
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][MayorRepair] PATH search mayor={} from={} desired={} radius={} result={}",
+                villager.getUUID(), villager.blockPosition(), desired, NAVIGATION_RADIUS, reachable);
+        return reachable;
+    }
+
+    private boolean reject(ServerLevel level, String reason) {
+        logEligibility(level, "rejected: " + reason);
+        return false;
+    }
+
+    private void logEligibility(ServerLevel level, String reason) {
+        long gameTime = level.getGameTime();
+        if (reason.equals(lastEligibilityDiagnostic) && gameTime < nextEligibilityDiagnosticTick) {
+            return;
+        }
+        lastEligibilityDiagnostic = reason;
+        nextEligibilityDiagnosticTick = gameTime + ELIGIBILITY_LOG_INTERVAL_TICKS;
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][MayorRepair] CHECK mayor={} gameTime={} pos={} reason={} sleptFlag={} consumedFlag={} jobSiteMemory={} interactionTarget={} breedTarget={} walkTarget={}",
+                villager.getUUID(), gameTime, villager.blockPosition(), reason,
+                hasSleptSinceJobSiteVisit(), hasConsumedJobSiteVisit(),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.INTERACTION_TARGET),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET));
+    }
+
+    private boolean stopBecause(String reason) {
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][MayorRepair] CONTINUE=false mayor={} stage={} target={} navigationTarget={} reason={}",
+                villager.getUUID(), stage, targetPos, navigationTarget, reason);
+        return false;
+    }
+
+    private void logProgress(ServerLevel level) {
+        long gameTime = level.getGameTime();
+        boolean targetChanged = lastLoggedNavigationTarget == null
+                ? navigationTarget != null
+                : !lastLoggedNavigationTarget.equals(navigationTarget);
+        if (stage == lastLoggedStage && !targetChanged && gameTime < nextProgressDiagnosticTick) {
+            return;
+        }
+        lastLoggedStage = stage;
+        lastLoggedNavigationTarget = navigationTarget == null ? null : navigationTarget.immutable();
+        nextProgressDiagnosticTick = gameTime + PROGRESS_LOG_INTERVAL_TICKS;
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][MayorRepair] TICK mayor={} gameTime={} stage={} pos={} exactPos={} target={} navigationTarget={} distanceSq={} navigationDone={} walkTarget={} interactionTarget={} breedTarget={} carryingDoor={}",
+                villager.getUUID(), gameTime, stage, villager.blockPosition(), villager.position(), targetPos,
+                navigationTarget, navigationTarget == null ? null : distanceToCenterSq(navigationTarget),
+                villager.getNavigation().isDone(),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.INTERACTION_TARGET),
+                villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET), carryingRepairDoor);
+    }
+
+    private double distanceToCenterSq(BlockPos pos) {
+        return villager.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D);
     }
 
     private boolean isAt(BlockPos pos) {
@@ -431,6 +689,8 @@ public final class MayorDoorRepairGoal extends Goal {
                 || villager.getPersistentData().getBoolean(JOB_SITE_VISIT_CONSUMED_KEY)) {
             villager.getPersistentData().putBoolean(SLEPT_SINCE_JOB_SITE_VISIT_KEY, true);
             villager.getPersistentData().putBoolean(JOB_SITE_VISIT_CONSUMED_KEY, false);
+            EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] SLEEP observed mayor={} gameTime={}",
+                    villager.getUUID(), villager.level().getGameTime());
         }
     }
 
@@ -445,16 +705,28 @@ public final class MayorDoorRepairGoal extends Goal {
     private void markJobSiteVisitConsumed() {
         villager.getPersistentData().putBoolean(SLEPT_SINCE_JOB_SITE_VISIT_KEY, false);
         villager.getPersistentData().putBoolean(JOB_SITE_VISIT_CONSUMED_KEY, true);
+        EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] SLEEP flag consumed mayor={} gameTime={}",
+                villager.getUUID(), villager.level().getGameTime());
     }
 
     @Nullable
     private BlockPos findJobSite(ServerLevel level) {
-        return villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+        BlockPos jobSite = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
                 .filter(globalPos -> globalPos.dimension().equals(level.dimension()))
                 .map(GlobalPos::pos)
                 .filter(level::isLoaded)
                 .filter(pos -> level.getPoiManager().getType(pos).isPresent())
                 .orElse(null);
+        boolean changed = lastLoggedJobSite == null ? jobSite != null
+                : !lastLoggedJobSite.equals(jobSite);
+        if (changed || level.getGameTime() >= nextEligibilityDiagnosticTick) {
+            lastLoggedJobSite = jobSite == null ? null : jobSite.immutable();
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][MayorRepair] JOB_SITE lookup mayor={} memoryPresent={} result={} gameTime={}",
+                    villager.getUUID(), villager.getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE),
+                    jobSite, level.getGameTime());
+        }
+        return jobSite;
     }
 
     private void refundCarriedDoor(ServerLevel level) {
@@ -463,8 +735,13 @@ public final class MayorDoorRepairGoal extends Goal {
         }
         carryingRepairDoor = false;
         if (removeItem(Items.OAK_DOOR, 1) != 1) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] REFUND failed: carrying flag was set but mayor had no oak door mayor={}",
+                    villager.getUUID());
             return;
         }
+        EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] REFUND returning six planks mayor={} bank={}",
+                villager.getUUID(), bank.getBlockPos());
         returnPlanksToBankOrDrop(level, new ItemStack(Items.OAK_PLANKS, PLANKS_PER_DOOR));
     }
 
@@ -472,14 +749,24 @@ public final class MayorDoorRepairGoal extends Goal {
         if (bank != null && !planks.isEmpty()
                 && !bank.isRemoved()
                 && bank.storeItemInLinkedChests(level, planks)) {
+            EmeraldCapitalism.LOGGER.debug("[ECAP][MayorRepair] REFUND stored planks={} bank={} mayor={}",
+                    planks.getCount(), bank.getBlockPos(), villager.getUUID());
             return;
         }
         if (!planks.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] REFUND dropped planks={} bankUnavailable={} mayor={}",
+                    planks.getCount(), bank == null || bank.isRemoved(), villager.getUUID());
             villager.spawnAtLocation(planks, 0.0F);
         }
     }
 
-    private void finish(ServerLevel level) {
+    private void finish(ServerLevel level, String reason) {
+        finishReason = reason;
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][MayorRepair] FINISH mayor={} stage={} target={} reason={} missingDoorStillQueued={} carryingDoor={}",
+                villager.getUUID(), stage, targetPos, reason,
+                village != null && targetPos != null && village.getMissingDoorRegistry().contains(targetPos),
+                carryingRepairDoor);
         refundCarriedDoor(level);
         finished = true;
     }

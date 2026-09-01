@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
@@ -89,7 +90,15 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         }
 
         candidate = resolvedCandidate;
+        EmeraldCapitalism.LOGGER.info(
+                "[ECAP][MayorFollow] START mayor={} candidate={} mayorPos={} candidatePos={}",
+                mayor.getUUID(), resolvedCandidate.getUUID(), mayor.blockPosition(),
+                resolvedCandidate.blockPosition());
         if (!tryPathToCandidate(level)) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorFollow] START path failed mayor={} candidate={} mayorPos={} candidatePos={}",
+                    mayor.getUUID(), resolvedCandidate.getUUID(), mayor.blockPosition(),
+                    resolvedCandidate.blockPosition());
             markPathFailure(level, resolvedCandidate);
         }
     }
@@ -132,6 +141,8 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
 
     @Override
     public void stop() {
+        EmeraldCapitalism.LOGGER.debug("[ECAP][MayorFollow] STOP mayor={} candidate={} pathingFailed={}",
+                mayor.getUUID(), candidate == null ? null : candidate.getUUID(), pathingFailed);
         mayor.getNavigation().stop();
         candidate = null;
         pathingFailed = false;

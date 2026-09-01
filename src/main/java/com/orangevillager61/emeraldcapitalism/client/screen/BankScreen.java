@@ -127,6 +127,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private Button targetTabBtn;
     private Button deliveriesTabBtn;
     private Button securityTabBtn;
+    private Button bankOverlayBtn;
     private Button targetModeBtn;
     private Button targetSaveBtn;
     private EditBox emeraldGolemTargetBox;
@@ -867,6 +868,9 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         controlBtn = addRenderableWidget(Button.builder(Component.literal("Claim Bank"),
                 btn -> onControlToggle())
                 .bounds(right - controlActionWidth, contentTop, controlActionWidth, TAB_H).build());
+        bankOverlayBtn = addRenderableWidget(Button.builder(Component.literal("Outline: ON"),
+                btn -> toggleBankOverlay())
+                .bounds(right - controlActionWidth - 60, targetControlsY, controlActionWidth, 20).build());
 
         targetModeBtn = addRenderableWidget(Button.builder(Component.literal("Automatic targets"),
                 btn -> onTargetModeToggle())
@@ -939,6 +943,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         deliveriesTabBtn.visible = controlVisible;
         securityTabBtn.visible = controlVisible;
         controlBtn.visible = controlVisible;
+        bankOverlayBtn.visible = controlVisible;
         targetModeBtn.visible = targetsVisible;
         targetSaveBtn.visible = targetsVisible;
         emeraldGolemTargetBox.setVisible(targetsVisible);
@@ -973,6 +978,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         lumberjackDeliveriesBtn.setMessage(deliveryMessage("Lumberjack deliveries",
                 settings.lumberjackDeliveriesEnabled()));
         attackAllPlayersBtn.setMessage(deliveryMessage("Attack Other Players", settings.attackAllPlayers()));
+        updateBankOverlayButton();
         villagerDeliveriesBtn.active = editable && deliveriesVisible;
         randomDeliveriesBtn.active = editable && deliveriesVisible;
         breadDeliveriesBtn.active = editable && deliveriesVisible;
@@ -996,6 +1002,24 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 && !menu.isBankIndependent()
                 && menu.getControllerId() != null
                 && menu.getControllerId().equals(minecraft.player.getUUID());
+    }
+
+    private void toggleBankOverlay() {
+        if (!isBankOwner() || bankOverlayBtn == null || !bankOverlayBtn.active) {
+            return;
+        }
+        BankOwnershipOverlayRenderer.toggleOverlay(menu.getBlockPos());
+        updateBankOverlayButton();
+    }
+
+    private void updateBankOverlayButton() {
+        if (bankOverlayBtn == null) {
+            return;
+        }
+        boolean owner = isBankOwner();
+        boolean enabled = owner && BankOwnershipOverlayRenderer.isOverlayEnabled(menu.getBlockPos());
+        bankOverlayBtn.setMessage(Component.literal("Outline: " + (enabled ? "ON" : "OFF")));
+        bankOverlayBtn.active = owner;
     }
 
     private void refreshOwnershipOverlay() {
