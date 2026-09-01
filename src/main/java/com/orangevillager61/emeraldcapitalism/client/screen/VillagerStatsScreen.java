@@ -227,13 +227,13 @@ public class VillagerStatsScreen extends AbstractContainerScreen<VillagerStatsMe
         }
 
         if (phase == 2) {
-            guiGraphics.drawString(this.font, "Illness: Zombkolaps (Turning Phase)", x, y, 0x6B1F1F, false);
+            guiGraphics.drawString(this.font, "Illness: Zombkolaps (Rotting Phase)", x, y, 0x6B1F1F, false);
             return;
         }
 
         int seconds = Math.max(0, this.menu.getIllnessRemainingTicks() / 20);
         guiGraphics.drawString(this.font,
-                "Illness: Zombkolaps (Rotting Phase): " + (seconds / 60) + ":" + String.format("%02d", seconds % 60),
+                "Illness: Zombkolaps (Turning Phase): " + (seconds / 60) + ":" + String.format("%02d", seconds % 60),
                 x, y, 0x4CAF50, false);
     }
 
