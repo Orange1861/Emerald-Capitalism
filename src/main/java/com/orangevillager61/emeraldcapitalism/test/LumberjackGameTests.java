@@ -73,22 +73,22 @@ public final class LumberjackGameTests {
             tickFurnace(helper, furnacePos);
         }
 
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 1,
-                "the bootstrap fuel log was not consumed before charcoal production");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 1,
-                "the lumberjack did not collect furnace-produced charcoal");
+        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 3,
+                "a sub-eight-log charcoal allocation consumed harvested logs");
+        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                "a sub-eight-log charcoal allocation started production");
         helper.assertValueEqual(countItem(lumberjack, Items.OAK_PLANKS), 0,
                 "bootstrap planks were incorrectly returned to the lumberjack inventory");
-        helper.assertValueEqual(((FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos))
-                        .getItem(1).getCount(), 3,
-                "the lumberjack did not make four planks and use the first as furnace fuel");
+        helper.assertTrue(((FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos))
+                        .getItem(1).isEmpty(),
+                "a sub-eight-log allocation inserted furnace fuel");
         helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_SAPLING),
                 "lumberjack did not replant a compatible sapling at the tree base");
         helper.succeed();
     }
 
     @GameTest(template = "empty_3x3x3")
-    public static void lumberjackRetainsLogsAcrossRepeatedTreeBatches(GameTestHelper helper) {
+    public static void lumberjackAccumulatesCharcoalQuotaAcrossSmallTreeBatches(GameTestHelper helper) {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
@@ -98,10 +98,10 @@ public final class LumberjackGameTests {
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
         installSmallTree(helper);
         harvestTree(helper, goal);
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 1,
-                "the first tree did not reserve one log for bootstrap fuel");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 1,
-                "the first tree did not produce its charcoal share");
+        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 3,
+                "the first small tree lost logs before a charcoal batch was ready");
+        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                "the first small tree started a sub-eight-log charcoal batch");
 
         installSmallTree(helper);
         LumberjackGoal nextGoal = new LumberjackGoal(lumberjack);
@@ -109,13 +109,13 @@ public final class LumberjackGameTests {
         nextGoal.start();
         harvestTreeAfterStart(helper, nextGoal);
 
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 2,
-                "retained logs were recounted as newly harvested logs");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 3,
-                "the rolling quota did not convert the complete accumulated portion");
+        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 6,
+                "small-tree batches consumed logs before eight were assigned to charcoal");
+        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                "repeated small trees started charcoal production below the batch threshold");
         helper.assertValueEqual(lumberjack.getData(
-                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 0.0D,
-                "the completed rolling quota left an unexpected remainder");
+                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 3.0D,
+                "small-tree charcoal assignments did not accumulate without recounting retained logs");
         helper.succeed();
     }
 
@@ -151,20 +151,28 @@ public final class LumberjackGameTests {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
-        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING));
+        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_LOG, 8));
         lumberjack.getInventory().addItem(new ItemStack(Items.CHARCOAL));
-        installNearbyFurnace(helper);
-        installSmallTree(helper);
+        BlockPos furnacePos = installNearbyFurnace(helper);
+        lumberjack.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                .setCharcoalQuota(8.0D);
 
-        harvestTree(helper, new LumberjackGoal(lumberjack));
+        LumberjackGoal goal = new LumberjackGoal(lumberjack);
+        helper.assertTrue(goal.canUse(), "eight assigned logs did not start charcoal production");
+        goal.start();
+        goal.tick();
 
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 2,
+        FurnaceBlockEntity furnace = (FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos);
+        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 7,
                 "charcoal fuel path consumed a log instead of using charcoal");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 1,
-                "the furnace-produced charcoal was not returned to the lumberjack");
+        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                "charcoal fuel remained in the villager inventory after insertion");
+        helper.assertTrue(furnace != null && furnace.getItem(1).is(Items.CHARCOAL),
+                "charcoal was not inserted as furnace fuel");
         helper.assertValueEqual(lumberjack.getData(
-                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 0.5D,
-                "the charcoal-fueled conversion discarded the fractional quota");
+                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 7.0D,
+                "the charcoal-fueled conversion did not charge exactly one assigned log");
+        goal.stop();
         helper.succeed();
     }
 
@@ -173,23 +181,26 @@ public final class LumberjackGameTests {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
-        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING));
+        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_LOG, 9));
         BlockPos furnacePos = installNearbyFurnace(helper);
-        installSmallTree(helper);
+        lumberjack.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                .setCharcoalQuota(8.0D);
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
-        harvestTreeThroughInputInsertion(helper, goal);
+        helper.assertTrue(goal.canUse(), "eight assigned logs did not select charcoal production");
+        goal.start();
+        goal.tick();
 
         FurnaceBlockEntity furnace = (FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos);
         helper.assertTrue(furnace != null && !furnace.getItem(0).isEmpty(),
                 "the lumberjack did not insert a log before the interruption test");
         helper.assertValueEqual(lumberjack.getData(
-                        EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 0.5D,
+                        EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 7.0D,
                 "the lumberjack did not charge the quota when the furnace input was inserted");
 
         goal.stop();
         helper.assertValueEqual(lumberjack.getData(
-                        EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 0.5D,
+                        EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 7.0D,
                 "stopping an in-flight furnace job must not restore or duplicate its quota");
 
         for (int tick = 0; tick < 220; tick++) {
@@ -213,12 +224,15 @@ public final class LumberjackGameTests {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
-        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_SAPLING));
+        lumberjack.getInventory().addItem(new ItemStack(Items.OAK_LOG, 9));
         BlockPos furnacePos = installNearbyFurnace(helper);
-        installSmallTree(helper);
+        lumberjack.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                .setCharcoalQuota(8.0D);
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
-        harvestTreeThroughInputInsertion(helper, goal);
+        helper.assertTrue(goal.canUse(), "eight assigned logs did not select charcoal production");
+        goal.start();
+        goal.tick();
         goal.stop();
 
         for (int slot = 0; slot < lumberjack.getInventory().getContainerSize(); slot++) {
@@ -490,14 +504,6 @@ public final class LumberjackGameTests {
                 goal.tick();
                 tickFurnace(helper, furnacePos);
             }
-        }
-    }
-
-    private static void harvestTreeThroughInputInsertion(GameTestHelper helper, LumberjackGoal goal) {
-        helper.assertTrue(goal.canUse(), "lumberjack did not detect the test tree");
-        goal.start();
-        for (int tick = 0; tick < 3 * 61 + 2; tick++) {
-            goal.tick();
         }
     }
 

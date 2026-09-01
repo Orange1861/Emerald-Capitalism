@@ -128,7 +128,7 @@ public final class LumberjackGoal extends Goal {
             }
         }
 
-        if (hasPendingCharcoalProduction()) {
+        if (hasReadyCharcoalBatch()) {
             FurnaceBlockEntity furnace = findNearestUsableFurnaceCached(level);
             if (furnace != null && canStartCharcoalProduction(furnace)) {
                 productionFurnace = furnace.getBlockPos().immutable();
@@ -838,7 +838,7 @@ public final class LumberjackGoal extends Goal {
     }
 
     private void beginCharcoalProduction(ServerLevel level) {
-        if (!hasPendingCharcoalProduction()) {
+        if (!hasReadyCharcoalBatch()) {
             return;
         }
 
@@ -854,15 +854,26 @@ public final class LumberjackGoal extends Goal {
     }
 
     private boolean hasPendingCharcoalProduction() {
+        return pendingCharcoalConversions() > 0;
+    }
+
+    private boolean hasReadyCharcoalBatch() {
         LumberjackProductionAttachment production = villager.getData(
                 EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION);
-        return CharcoalProductionPolicy.wholeConversions(
+        return CharcoalProductionPolicy.readyBatchConversions(
                 production.getCharcoalQuota(), countLogsInInventory()) > 0;
     }
 
-    /** Returns whether one pending conversion has both input and a usable fuel source. */
+    private int pendingCharcoalConversions() {
+        LumberjackProductionAttachment production = villager.getData(
+                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION);
+        return CharcoalProductionPolicy.wholeConversions(
+                production.getCharcoalQuota(), countLogsInInventory());
+    }
+
+    /** Returns whether an assigned eight-log batch also has a usable fuel source. */
     private boolean canStartCharcoalProduction(FurnaceBlockEntity furnace) {
-        if (!hasPendingCharcoalProduction()) {
+        if (!hasReadyCharcoalBatch()) {
             return false;
         }
         if (!furnace.getItem(FURNACE_FUEL_SLOT).isEmpty()
@@ -870,7 +881,8 @@ public final class LumberjackGoal extends Goal {
             return true;
         }
         Item fuelLog = findCompatibleLogForPlanks();
-        return fuelLog != null && countCompatibleLogsForPlanks(fuelLog) >= 2;
+        return fuelLog != null
+                && countLogsInInventory() > CharcoalProductionPolicy.MIN_CHARCOAL_BATCH_LOGS;
     }
 
     @Nullable
@@ -1009,7 +1021,8 @@ public final class LumberjackGoal extends Goal {
                 fuel = new ItemStack(Items.CHARCOAL);
             } else {
                 Item fuelLog = findCompatibleLogForPlanks();
-                if (fuelLog == null || countCompatibleLogsForPlanks(fuelLog) < 2) {
+                if (fuelLog == null || countLogsInInventory()
+                        <= CharcoalProductionPolicy.MIN_CHARCOAL_BATCH_LOGS) {
                     // Preserve the quota and resume tree collection instead of
                     // waiting motionless at a furnace that cannot be fueled.
                     finishCharcoalProduction();
@@ -1244,17 +1257,6 @@ public final class LumberjackGoal extends Goal {
             }
         }
         return null;
-    }
-
-    private int countCompatibleLogsForPlanks(Item log) {
-        int count = 0;
-        for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
-            ItemStack stack = villager.getInventory().getItem(slot);
-            if (stack.is(log)) {
-                count += stack.getCount();
-            }
-        }
-        return count;
     }
 
     @Nullable

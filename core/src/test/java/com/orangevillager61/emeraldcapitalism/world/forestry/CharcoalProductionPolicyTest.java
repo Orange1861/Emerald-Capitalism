@@ -43,6 +43,14 @@ class CharcoalProductionPolicyTest {
     }
 
     @Test
+    void charcoalBatchRequiresEightAssignedLogs() {
+        assertEquals(0, CharcoalProductionPolicy.readyBatchConversions(7.99D, 64));
+        assertEquals(0, CharcoalProductionPolicy.readyBatchConversions(20.0D, 7));
+        assertEquals(8, CharcoalProductionPolicy.readyBatchConversions(8.0D, 64));
+        assertEquals(12, CharcoalProductionPolicy.readyBatchConversions(12.75D, 20));
+    }
+
+    @Test
     void quotaSchemaRulesRejectAndSanitizeMalformedValues() {
         assertTrue(CharcoalProductionPolicy.isValidQuota(0.0D));
         assertTrue(CharcoalProductionPolicy.isValidQuota(CharcoalProductionPolicy.MAX_PENDING_QUOTA));

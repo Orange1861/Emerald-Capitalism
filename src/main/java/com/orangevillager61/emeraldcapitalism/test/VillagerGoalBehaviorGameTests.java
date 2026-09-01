@@ -15,6 +15,7 @@ import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBeha
 import com.orangevillager61.emeraldcapitalism.behavior.UseZombieSmellBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.VillagerGoalPackageIntegration;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
@@ -197,6 +198,18 @@ public final class VillagerGoalBehaviorGameTests {
                 "front position was accepted for banker work");
         helper.assertFalse(BankBlock.isAtBankerWorkPos(state, bankPos, side),
                 "side position was accepted for banker work");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void zeroRadiusNavigationDoesNotSelectAnotherFloor(GameTestHelper helper) {
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        BlockPos blockedTarget = helper.absolutePos(new BlockPos(1, 1, 2));
+        helper.setBlock(new BlockPos(1, 1, 2), Blocks.STONE.defaultBlockState());
+
+        helper.assertTrue(VillagerNavigationTargets.findReachableTarget(
+                        villager, blockedTarget, 0) == null,
+                "zero-radius bank navigation selected a block above or below the exact target");
         helper.succeed();
     }
 

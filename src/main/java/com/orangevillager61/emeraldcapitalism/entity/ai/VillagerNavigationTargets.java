@@ -43,6 +43,14 @@ public final class VillagerNavigationTargets {
         }
 
         PathNavigation navigation = mob.getNavigation();
+        if (radius == 0) {
+            if (!acceptable.test(desired)) {
+                return null;
+            }
+            Path exactPath = navigation.createPath(desired, 0);
+            return exactPath != null && exactPath.canReach() ? desired.immutable() : null;
+        }
+
         List<BlockPos> candidates = new ArrayList<>((radius * 2 + 1) * (radius * 2 + 1) * 3);
         for (int dy = -1; dy <= 1; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {

@@ -12,6 +12,7 @@ public final class CharcoalProductionPolicy {
     public static final double MIN_SHARE = 0.20D;
     public static final double MAX_SHARE = 0.80D;
     public static final double MAX_PENDING_QUOTA = 1_000_000.0D;
+    public static final int MIN_CHARCOAL_BATCH_LOGS = 8;
 
     private static final double SHARE_SENSITIVITY = 0.20D;
     private static final double LOG_TWO = Math.log(2.0D);
@@ -55,6 +56,12 @@ public final class CharcoalProductionPolicy {
             return 0;
         }
         return Math.min(availableLogs, (int) Math.min(MAX_PENDING_QUOTA, Math.floor(pendingQuota)));
+    }
+
+    /** Returns assigned conversions only when a complete charcoal batch can start. */
+    public static int readyBatchConversions(double pendingQuota, int availableLogs) {
+        int conversions = wholeConversions(pendingQuota, availableLogs);
+        return conversions >= MIN_CHARCOAL_BATCH_LOGS ? conversions : 0;
     }
 
     /** Removes successfully completed conversions from the pending quota. */
