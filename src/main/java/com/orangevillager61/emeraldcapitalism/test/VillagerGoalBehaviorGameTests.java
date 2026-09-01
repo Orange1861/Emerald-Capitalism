@@ -41,6 +41,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.level.storage.ServerLevelData;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -207,7 +208,8 @@ public final class VillagerGoalBehaviorGameTests {
                 beggar.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
         VillagerStatsAttachment donorStats =
                 donor.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
-        long gameTime = helper.getLevel().getGameTime();
+        long gameTime = Math.max(helper.getLevel().getGameTime(), 600L);
+        ((ServerLevelData) helper.getLevel().getLevelData()).setGameTime(gameTime);
 
         beggarStats.setHungerLevel(0);
         beggarStats.setLastBegTime(gameTime - 600L);

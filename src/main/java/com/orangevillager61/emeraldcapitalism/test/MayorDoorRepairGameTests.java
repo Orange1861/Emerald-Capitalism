@@ -40,8 +40,17 @@ public final class MayorDoorRepairGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void mayorRepairGoalIsInjectedAtDaytimePriority(GameTestHelper helper) {
-        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        ServerLevel level = helper.getLevel();
+        BlockPos mayorPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        Villager mayor = EntityType.VILLAGER.create(level);
+        helper.assertTrue(mayor != null, "could not create the Mayor injection fixture");
+        if (mayor == null) {
+            return;
+        }
+        mayor.moveTo(mayorPos.getX() + 0.5D, mayorPos.getY(), mayorPos.getZ() + 0.5D,
+                0.0F, 0.0F);
         mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        helper.assertTrue(level.addFreshEntity(mayor), "could not add the Mayor injection fixture");
 
         var repairGoal = mayor.goalSelector.getAvailableGoals().stream()
                 .filter(entry -> entry.getGoal() instanceof MayorDoorRepairGoal)

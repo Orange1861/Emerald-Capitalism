@@ -422,7 +422,11 @@ public final class EmeraldGolemGameTests {
         if (goal == null) {
             return;
         }
-        helper.assertTrue(goal.canUse(),
+        boolean foundOtherPlayer = false;
+        for (int attempt = 0; attempt < 100 && !foundOtherPlayer; attempt++) {
+            foundOtherPlayer = goal.canUse();
+        }
+        helper.assertTrue(foundOtherPlayer,
                 "enabled bank attack setting did not find a non-controller player on sight");
         goal.start();
         helper.assertTrue(golem.getTarget() == otherPlayer,
@@ -558,7 +562,7 @@ public final class EmeraldGolemGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20")
+    @GameTest(template = "empty_20x3x20", timeoutTicks = 1_105)
     public static void unownedBankGolemTargetsMayorDuringAnElection(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));

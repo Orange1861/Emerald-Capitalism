@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.serialization.JsonOps;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.EmeraldDoorTopBlock;
@@ -32,6 +33,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ClientInformation;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
@@ -64,6 +68,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.resources.RegistryOps;
+import io.netty.channel.embedded.EmbeddedChannel;
 
 import java.util.Set;
 import java.util.UUID;
@@ -266,10 +271,7 @@ public final class RegistrationGameTests {
     public static void spectatorsCannotMutateVillagePoiState(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos center = helper.absolutePos(new BlockPos(1, 1, 1));
-        ServerPlayer player = new ServerPlayer(
-                level.getServer(), level,
-                new GameProfile(UUID.randomUUID(), "ecap-spectator-policy-test"),
-                ClientInformation.createDefault());
+        ServerPlayer player = createRegisteredTestPlayer(level);
         player.setPos(center.getX() + 0.5D, center.getY(), center.getZ() + 0.5D);
         VillageRecord village = new VillageRecord(
                 UUID.randomUUID(), center, new net.minecraft.world.phys.AABB(center).inflate(8.0D));
@@ -286,6 +288,18 @@ public final class RegistrationGameTests {
             return;
         }
         helper.succeed();
+    }
+
+    /** Registers the player so policy checks can safely inspect its connection state. */
+    private static ServerPlayer createRegisteredTestPlayer(ServerLevel level) {
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
+                new GameProfile(UUID.randomUUID(), "ecap-spectator-policy-test"), false);
+        ServerPlayer player = new ServerPlayer(
+                level.getServer(), level, cookie.gameProfile(), cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        return player;
     }
 
     @GameTest(template = "empty_3x3x3")

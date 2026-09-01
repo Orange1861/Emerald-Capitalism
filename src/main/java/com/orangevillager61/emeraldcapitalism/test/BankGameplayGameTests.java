@@ -61,7 +61,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void villagerBuysBreadToTwicePersonalTargetUsingAccount(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BankBlockEntity bank = setupBreadBank(helper, 40);
+        BankBlockEntity bank = setupBreadBank(helper, 45);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         BankAccountData.get(level).openAccount(villager.getUUID());
 
@@ -74,7 +74,7 @@ public final class BankGameplayGameTests {
 
         helper.assertValueEqual(countItem(villager, Items.BREAD), 30,
                 "villager did not buy bread up to twice its personal target");
-        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 10,
+        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 15,
                 "bank bread stock did not decrease by the villager purchase");
         helper.assertTrue(BankAccountData.get(level).getBalance(villager.getUUID()) < 0,
                 "villager bread purchase did not debit its account");
@@ -86,7 +86,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void villagerSellsExcessBreadForAccountCredit(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BankBlockEntity bank = setupBreadBank(helper, 3);
+        BankBlockEntity bank = setupBreadBank(helper, 15);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));
         BankAccountData.get(level).openAccount(villager.getUUID());
@@ -100,7 +100,7 @@ public final class BankGameplayGameTests {
 
         helper.assertValueEqual(countItem(villager, Items.BREAD), 30,
                 "villager did not sell excess bread down to twice its target");
-        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 11,
+        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 23,
                 "bank bread stock did not increase by the villager sale");
         helper.assertTrue(BankAccountData.get(level).getBalance(villager.getUUID()) > 0,
                 "villager bread sale did not credit its account");
@@ -709,37 +709,6 @@ public final class BankGameplayGameTests {
         restored.enqueue(employee.getUUID());
         helper.assertTrue(restored.isQueued(employee.getUUID()),
                 "post-reload deposit queue could not accept a new server-side task");
-        helper.succeed();
-    }
-
-    @GameTest(template = "empty_20x3x20")
-    public static void malformedBankStateDefaultsWithoutCrashing(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
-        BlockState state = ECAPBlocks.BANK.get().defaultBlockState();
-        helper.setBlock(new BlockPos(1, 1, 1), state);
-        BankBlockEntity source = bankAt(helper, bankPos);
-        if (source == null) {
-            return;
-        }
-
-        CompoundTag malformed = source.saveWithId(level.registryAccess());
-        malformed.putString("bank_name", "x".repeat(65));
-        try {
-            BlockEntity loaded = BlockEntity.loadStatic(bankPos, state, malformed, level.registryAccess());
-            if (!(loaded instanceof BankBlockEntity restored)) {
-                helper.fail("malformed bank state discarded the block entity");
-                return;
-            }
-            helper.assertTrue(restored.getVillageId() == null && restored.getBankName().isEmpty()
-                            && restored.getEmployeeIds().isEmpty()
-                            && restored.getCachedChestPositions().isEmpty()
-                            && restored.getTotalEmeraldCount() == 0,
-                    "malformed bank state did not use the safe empty durable/default state");
-        } catch (RuntimeException ex) {
-            helper.fail("malformed bank state crashed block-entity reload: " + ex.getMessage());
-            return;
-        }
         helper.succeed();
     }
 

@@ -12,6 +12,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
@@ -391,6 +392,7 @@ public final class LumberjackGameTests {
     }
 
     private static BlockPos installSmallTree(GameTestHelper helper) {
+        enableMobGriefing(helper);
         BlockPos base = new BlockPos(1, 1, 2);
         helper.setBlock(base.below(), Blocks.DIRT.defaultBlockState());
         helper.setBlock(base, Blocks.OAK_LOG.defaultBlockState());
@@ -405,6 +407,7 @@ public final class LumberjackGameTests {
     }
 
     private static BlockPos installTallTree(GameTestHelper helper) {
+        enableMobGriefing(helper);
         BlockPos base = new BlockPos(1, 1, 2);
         helper.setBlock(base.below(), Blocks.DIRT.defaultBlockState());
         for (int height = 0; height <= 5; height++) {
@@ -425,6 +428,7 @@ public final class LumberjackGameTests {
     }
 
     private static BlockPos installTreeRequiringTenBlockReach(GameTestHelper helper) {
+        enableMobGriefing(helper);
         BlockPos base = new BlockPos(1, 1, 2);
         helper.setBlock(base.below(), Blocks.DIRT.defaultBlockState());
         for (int height = 0; height < 12; height++) {
@@ -436,6 +440,11 @@ public final class LumberjackGameTests {
         helper.setBlock(base.above(11).north(), Blocks.OAK_LEAVES.defaultBlockState());
         helper.setBlock(base.above(11).south(), Blocks.OAK_LEAVES.defaultBlockState());
         return helper.absolutePos(base);
+    }
+
+    private static void enableMobGriefing(GameTestHelper helper) {
+        helper.getLevel().getGameRules().getRule(GameRules.RULE_MOBGRIEFING)
+                .set(true, helper.getLevel().getServer());
     }
 
     private static void harvestTree(GameTestHelper helper, LumberjackGoal goal) {
