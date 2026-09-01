@@ -21,7 +21,34 @@
         "src/main/resources/data/minecraft/worldgen/template_pool/village/taiga/houses.json"
       ]
     },
-    "1.21.4": { "overrides": ["src/main/resources/pack.mcmeta"] },
+    "1.21.4": {
+      "overrides": [
+        "src/main/resources/pack.mcmeta",
+        "src/main/resources/assets/emeraldcapitalism/items/abandoned_vault_map.json",
+        "src/main/resources/assets/emeraldcapitalism/items/bank.json",
+        "src/main/resources/assets/emeraldcapitalism/items/compacted_rotten_flesh.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_chest.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_door.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_golem_spawn_egg.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_green_bed.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_green_dye.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_green_stained_glass.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_green_stained_glass_pane.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_green_wool.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_lead.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_ore_processor.json",
+        "src/main/resources/assets/emeraldcapitalism/items/emerald_skrimisher_spawn_egg.json",
+        "src/main/resources/assets/emeraldcapitalism/items/golem_construction_location.json",
+        "src/main/resources/assets/emeraldcapitalism/items/regular_emerald_door.json",
+        "src/main/resources/assets/emeraldcapitalism/items/rotten_flesh_cover.json",
+        "src/main/resources/assets/emeraldcapitalism/items/sawmill.json",
+        "src/main/resources/assets/emeraldcapitalism/items/second_abandoned_vault_map.json",
+        "src/main/resources/assets/emeraldcapitalism/items/village_manager.json",
+        "src/main/resources/assets/emeraldcapitalism/items/village_map.json",
+        "src/main/resources/assets/emeraldcapitalism/items/zombie_face.json",
+        "src/main/resources/assets/emeraldcapitalism/textures/entity/bed/emerald_green_bed.png"
+      ]
+    },
     "1.21.11": { "overrides": ["src/main/resources/pack.mcmeta"] },
     "26.1": { "overrides": ["src/main/resources/pack.mcmeta"] },
     "26.2": { "overrides": ["src/main/resources/pack.mcmeta"] }

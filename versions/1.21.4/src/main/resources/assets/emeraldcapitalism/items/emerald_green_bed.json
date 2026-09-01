@@ -1,0 +1,10 @@
+{
+  "model": {
+    "type": "minecraft:special",
+    "base": "emeraldcapitalism:item/emerald_green_bed",
+    "model": {
+      "type": "minecraft:bed",
+      "texture": "emeraldcapitalism:emerald_green_bed"
+    }
+  }
+}

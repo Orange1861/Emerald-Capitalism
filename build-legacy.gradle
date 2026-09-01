@@ -49,7 +49,10 @@ def stonecutterGeneratedTest = layout.buildDirectory.dir('generated/stonecutter/
 sourceSets {
     main {
         java.setSrcDirs([new File(stonecutterGeneratedMain, 'java')])
-        resources.setSrcDirs([new File(stonecutterGeneratedMain, 'resources')])
+        // Stonecutter generates the shared resources, while the target project
+        // owns allowlisted resource-format overrides such as pack metadata and
+        // 1.21.4 item model definitions.
+        resources.setSrcDirs([new File(stonecutterGeneratedMain, 'resources'), file('src/main/resources')])
     }
     test {
         java.setSrcDirs([new File(stonecutterGeneratedTest, 'java')])

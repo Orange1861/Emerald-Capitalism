@@ -1,0 +1,10 @@
+{
+  "model": {
+    "type": "minecraft:special",
+    "base": "emeraldcapitalism:item/emerald_chest",
+    "model": {
+      "type": "minecraft:chest",
+      "texture": "emeraldcapitalism:emerald_chest"
+    }
+  }
+}
