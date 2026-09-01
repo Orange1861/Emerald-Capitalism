@@ -147,13 +147,13 @@ public class Config {
 
 
     private static final ModConfigSpec.IntValue ZOMBIE_VIRUS_PHASE_ONE_DURATION_SECONDS = BUILDER
-            .comment("How long Zombkolaps remains in the rotting phase before the turning phase begins.",
+            .comment("How long Zombkolaps remains in the turning phase before the rotting phase begins.",
                      "Unit: seconds. Default: 600 seconds (10 minutes).")
             .translation("emeraldcapitalism.configuration.illness.zombieVirus.phaseOneDurationSeconds")
             .defineInRange("illness.zombieVirus.phaseOneDurationSeconds", 600, 1, 86_400);
 
     private static final ModConfigSpec.IntValue ZOMBIE_VIRUS_HIT_TIME_REDUCTION_SECONDS = BUILDER
-            .comment("How much time a later Zombie hit removes from the rotting phase of Zombkolaps.",
+            .comment("How much time a later Zombie hit removes from the turning phase of Zombkolaps.",
                      "Unit: seconds. Default: 20 seconds.")
             .translation("emeraldcapitalism.configuration.illness.zombieVirus.hitTimeReductionSeconds")
             .defineInRange("illness.zombieVirus.hitTimeReductionSeconds", 20, 1, 3_600);
@@ -469,6 +469,27 @@ public class Config {
                      "Warning: The mod author recommends exploring the world to find the books.")
             .translation("emeraldcapitalism.configuration.books.enableBooksInCreativeTab")
             .define("books.enableBooksInCreativeTab", false);
+
+    // Explicitly register translation keys for intermediate sections in the configuration tree.
+    static {
+        BUILDER.translation("emeraldcapitalism.configuration.ai").push("ai").pop();
+        BUILDER.translation("emeraldcapitalism.configuration.ai.villagerAI").push("ai.villagerAI").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.ai.golemAI").push("ai.golemAI").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.ai.golemAI.emeraldGolemAmbush")
+                .push("ai.golemAI.emeraldGolemAmbush").pop(3);
+        BUILDER.translation("emeraldcapitalism.configuration.ai.zombieAI").push("ai.zombieAI").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.illness").push("illness").pop();
+        BUILDER.translation("emeraldcapitalism.configuration.illness.zombieVirus")
+                .push("illness.zombieVirus").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.advanced").push("advanced").pop();
+        BUILDER.translation("emeraldcapitalism.configuration.advanced.villageRegistry")
+                .push("advanced.villageRegistry").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.advanced.outskirtFarms")
+                .push("advanced.outskirtFarms").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.advanced.emeraldGolemFormula")
+                .push("advanced.emeraldGolemFormula").pop(2);
+        BUILDER.translation("emeraldcapitalism.configuration.books").push("books").pop();
+    }
 
     // Build the spec
 
