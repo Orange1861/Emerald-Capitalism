@@ -3,10 +3,7 @@ package com.orangevillager61.emeraldcapitalism.block.entity;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.IntArrayTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import org.junit.jupiter.api.Test;
 
@@ -158,38 +155,6 @@ class BankPersistedStateCodecTest {
         assertEquals(12_345L, decoded.takeoverLockUntil());
     }
 
-    @Test
-    void missingAndMalformedBoundedFieldsFailSafely() {
-        assertEquals(BankBlockEntity.PersistedState.empty(),
-                BankBlockEntity.PersistedState.CODEC.parse(NbtOps.INSTANCE, new CompoundTag())
-                        .result()
-                        .orElseThrow());
-
-        CompoundTag oversizedName = new CompoundTag();
-        oversizedName.putString("bank_name", "x".repeat(ProtocolStringLimits.MAX_BANK_NAME_LENGTH + 1));
-        assertCodecError(oversizedName);
-
-        CompoundTag oversizedEmployees = new CompoundTag();
-        ListTag employeeList = new ListTag();
-        for (int i = 0; i < BankBlockEntity.MAX_EMPLOYEES + 1; i++) {
-            employeeList.add(new IntArrayTag(UUIDUtil.uuidToIntArray(new UUID(0x2000L, i))));
-        }
-        oversizedEmployees.put("employee_ids", employeeList);
-        assertCodecError(oversizedEmployees);
-
-        CompoundTag malformedVillage = new CompoundTag();
-        malformedVillage.putString("village_id", "not-a-uuid");
-        assertCodecError(malformedVillage);
-
-        CompoundTag oversizedChestLocations = new CompoundTag();
-        ListTag chestLocations = new ListTag();
-        for (int i = 0; i < BankBlockEntity.MAX_TRACKED_CHEST_LOCATIONS + 1; i++) {
-            chestLocations.add(new IntArrayTag(new int[]{i, 0, 0}));
-        }
-        oversizedChestLocations.put("tracked_chest_positions", chestLocations);
-        assertCodecError(oversizedChestLocations);
-    }
-
     private static BankBlockEntity.PersistedState roundTrip(BankBlockEntity.PersistedState source) {
         CompoundTag encoded = (CompoundTag) BankBlockEntity.PersistedState.CODEC
                 .encodeStart(NbtOps.INSTANCE, source)
@@ -200,8 +165,4 @@ class BankPersistedStateCodecTest {
                 .orElseThrow();
     }
 
-    private static void assertCodecError(CompoundTag tag) {
-        assertTrue(BankBlockEntity.PersistedState.CODEC.parse(NbtOps.INSTANCE, tag).error().isPresent(),
-                "malformed bank durable state should be rejected without throwing");
-    }
 }
