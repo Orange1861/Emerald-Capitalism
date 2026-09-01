@@ -396,19 +396,26 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
-    public static void bankRejectsBreadTradesBelowOneVillageDay(GameTestHelper helper) {
+    public static void villagerBreadSaleRefillsBankBelowOneVillageDay(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        setupBreadBank(helper, 2);
+        BankBlockEntity bank = setupBreadBank(helper, 2);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));
         BankAccountData.get(level).openAccount(villager.getUUID());
 
         BankMorningTradeGoal goal = new BankMorningTradeGoal(villager);
-        helper.assertTrue(!goal.canUse(), "bank accepted a bread trade below one village day of supply");
-        helper.assertValueEqual(countItem(villager, Items.BREAD), 38,
-                "rejected bread trade changed the villager inventory");
-        helper.assertValueEqual(BankAccountData.get(level).getBalance(villager.getUUID()), 0,
-                "rejected bread trade changed the villager account");
+        helper.assertTrue(goal.canUse(), "bank below its reserve rejected an incoming bread sale");
+        goal.start();
+        helper.assertTrue(goal.canContinueToUse(), "bread refill goal did not reach its active state");
+        goal.tick();
+        goal.stop();
+
+        helper.assertValueEqual(countItem(villager, Items.BREAD), 30,
+                "villager did not sell excess bread to the low-stock bank");
+        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 10,
+                "low-stock bank did not accept the villager's bread sale");
+        helper.assertTrue(BankAccountData.get(level).getBalance(villager.getUUID()) > 0,
+                "bread sale to the low-stock bank did not credit the villager account");
         helper.succeed();
     }
 

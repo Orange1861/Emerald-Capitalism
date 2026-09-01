@@ -199,13 +199,12 @@ public final class BankMorningTradeGoal extends Goal {
     }
 
     private boolean hasPendingBreadTrade(ServerLevel level, BankBlockEntity bank) {
-        if (!hasBreadReserve(level, bank)) {
-            return false;
-        }
-
         int currentBread = countItem(Items.BREAD);
         int purchaseQuantity = BankTargets.breadPurchaseQuantity(currentBread, bank.getFoodDays());
         if (purchaseQuantity > 0) {
+            if (!hasBreadReserve(level, bank)) {
+                return false;
+            }
             int quantity = Math.min(purchaseQuantity,
                     bank.getMarketStock(level, Items.BREAD) - breadVillageReserve(level, bank));
             quantity = Math.min(quantity, breadStorageCapacity());
@@ -234,13 +233,12 @@ public final class BankMorningTradeGoal extends Goal {
     private void executeMorningTrades(ServerLevel level, BankBlockEntity bank) {
         boolean traded = bank.isVillagerDeliveriesEnabled()
                 && bank.isRandomDeliveriesEnabled()
-                && sellItem(level, bank, Items.PUMPKIN, countItem(Items.PUMPKIN), false);
+                && sellItem(level, bank, Items.PUMPKIN, countItem(Items.PUMPKIN));
 
         if (bank.isVillagerDeliveriesEnabled() && bank.isRandomDeliveriesEnabled()
                 && villager.getVillagerData().getProfession()
                 == VillagerProfession.FARMER) {
-            traded |= sellItem(level, bank, Items.WHEAT,
-                    wheatSaleQuantity(level, bank), false);
+            traded |= sellItem(level, bank, Items.WHEAT, wheatSaleQuantity(level, bank));
         }
 
         int currentBread = countItem(Items.BREAD);
@@ -250,7 +248,7 @@ public final class BankMorningTradeGoal extends Goal {
                 traded |= buyBread(level, bank, purchaseQuantity);
             } else {
                 traded |= sellItem(level, bank, Items.BREAD,
-                        BankTargets.breadSaleQuantity(currentBread, bank.getFoodDays()), true);
+                        BankTargets.breadSaleQuantity(currentBread, bank.getFoodDays()));
             }
         }
 
@@ -314,9 +312,8 @@ public final class BankMorningTradeGoal extends Goal {
     }
 
     private boolean sellItem(ServerLevel level, BankBlockEntity bank, Item item,
-                             int requestedQuantity, boolean requireBreadReserve) {
-        if (requestedQuantity <= 0
-                || (requireBreadReserve && !hasBreadReserve(level, bank))) {
+                             int requestedQuantity) {
+        if (requestedQuantity <= 0) {
             return false;
         }
 
