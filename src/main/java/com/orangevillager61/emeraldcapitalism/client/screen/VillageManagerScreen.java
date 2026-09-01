@@ -4,7 +4,7 @@ import com.orangevillager61.emeraldcapitalism.client.renderer.VillagePOIOverlayR
 import com.orangevillager61.emeraldcapitalism.menu.VillageManagerMenu;
 import com.orangevillager61.emeraldcapitalism.network.RequestVillagePOIsPacket;
 import com.orangevillager61.emeraldcapitalism.network.TogglePOIOverlayPacket;
-import com.orangevillager61.emeraldcapitalism.util.MinecraftExecutionCompat;
+import com.orangevillager61.emeraldcapitalism.client.util.MinecraftExecutionCompat;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;

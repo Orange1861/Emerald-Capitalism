@@ -1,4 +1,4 @@
-package com.orangevillager61.emeraldcapitalism.util;
+package com.orangevillager61.emeraldcapitalism.client.util;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;

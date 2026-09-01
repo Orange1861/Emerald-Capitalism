@@ -1,4 +1,4 @@
-package com.orangevillager61.emeraldcapitalism.util;
+package com.orangevillager61.emeraldcapitalism.client.util;
 
 import net.minecraft.client.Minecraft;
 

@@ -11,7 +11,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import com.orangevillager61.emeraldcapitalism.recipe.SawmillRecipe;
-import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
+import com.orangevillager61.emeraldcapitalism.client.util.GuiGraphicsCompat;
 import com.orangevillager61.emeraldcapitalism.util.RecipeResultCompat;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.api.distmarker.Dist;

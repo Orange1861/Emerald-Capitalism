@@ -4,6 +4,8 @@
 // gradle.properties and any explicitly allowlisted target override.
 
 import com.orangevillager61.emeraldcapitalism.build.MixinAuditTask
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
 
 plugins {
     id 'java-library'
@@ -267,6 +269,52 @@ tasks.named('test', Test).configure {
 tasks.named('processResources', ProcessResources).configure {
     filesMatching(['emeraldcapitalism.mixins.json', 'emeraldcapitalism.client.mixins.json']) {
         expand(mixin_compatibility_level: mixinCompatibilityLevel)
+    }
+
+    // Minecraft 1.21.4 changed recipe ingredients from {item/tag: ...}
+    // objects to item/tag strings. Convert the shared recipes only in the
+    // processed 1.21.4 resource output so 1.21.1 keeps its native format.
+    if (minecraft_version == '1.21.4') {
+        inputs.property('emeraldCapitalismRecipeFormat', 'minecraft-1.21.4-string-ingredients')
+        doLast {
+            def modernizeIngredient = { ingredient ->
+                if (!(ingredient instanceof Map) || ingredient.size() != 1) {
+                    return ingredient
+                }
+                if (ingredient.containsKey('item')) {
+                    return ingredient.item
+                }
+                if (ingredient.containsKey('tag')) {
+                    return "#${ingredient.tag}"
+                }
+                return ingredient
+            }
+
+            fileTree(destinationDirectory.get().asFile).matching {
+                include 'data/emeraldcapitalism/recipe/**/*.json'
+            }.files.each { File recipeFile ->
+                def recipe = new JsonSlurper().parse(recipeFile)
+                switch (recipe.type) {
+                    case 'minecraft:crafting_shaped':
+                    case 'emeraldcapitalism:emerald_crafting':
+                        recipe.key = recipe.key.collectEntries { key, ingredient ->
+                            [(key): modernizeIngredient(ingredient)]
+                        }
+                        break
+                    case 'minecraft:crafting_shapeless':
+                        recipe.ingredients = recipe.ingredients.collect { ingredient ->
+                            modernizeIngredient(ingredient)
+                        }
+                        break
+                    case 'emeraldcapitalism:sawmill':
+                        recipe.ingredient = modernizeIngredient(recipe.ingredient)
+                        break
+                    default:
+                        return
+                }
+                recipeFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(recipe)) + '\n', 'UTF-8')
+            }
+        }
     }
 }
 

@@ -8,7 +8,7 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import com.orangevillager61.emeraldcapitalism.util.RenderLineBoxCompat;
+import com.orangevillager61.emeraldcapitalism.client.util.RenderLineBoxCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;

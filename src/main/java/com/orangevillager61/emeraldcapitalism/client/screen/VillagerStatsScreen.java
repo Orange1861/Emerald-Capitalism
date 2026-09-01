@@ -10,7 +10,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
-import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
+import com.orangevillager61.emeraldcapitalism.client.util.GuiGraphicsCompat;
 import net.minecraft.world.entity.player.Inventory;
 import org.jetbrains.annotations.NotNull;
 

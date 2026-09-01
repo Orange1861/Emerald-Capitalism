@@ -1,7 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.client.screen;
 
 import com.orangevillager61.emeraldcapitalism.menu.EmeraldOreProcessorMenu;
-import com.orangevillager61.emeraldcapitalism.util.GuiGraphicsCompat;
+import com.orangevillager61.emeraldcapitalism.client.util.GuiGraphicsCompat;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
