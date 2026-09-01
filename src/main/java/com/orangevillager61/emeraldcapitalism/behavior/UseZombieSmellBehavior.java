@@ -19,10 +19,14 @@ public final class UseZombieSmellBehavior extends Behavior<Villager> {
     private static final double ZOMBIE_DETECTION_RANGE = 16.0D;
     private static final long ZOMBIE_LOOKUP_INTERVAL_TICKS = 5L;
     private static final long EMPTY_LOOKUP_INTERVAL_TICKS = 20L;
+    private static final long COVER_LOOKUP_INTERVAL_TICKS = 20L;
 
     private UUID cachedVillagerId;
     private Zombie cachedZombie;
     private long nextZombieLookupTick = Long.MIN_VALUE;
+    private ServerLevel cachedCoverLevel;
+    private boolean cachedHasCover;
+    private long nextCoverLookupTick = Long.MIN_VALUE;
 
     public UseZombieSmellBehavior() {
         super(Map.of(), 1, 1);
@@ -31,7 +35,7 @@ public final class UseZombieSmellBehavior extends Behavior<Villager> {
     @Override
     protected boolean checkExtraStartConditions(@Nonnull ServerLevel level, @Nonnull Villager villager) {
         if (villager.getEffect(ECAPEffects.ZOMBIE_SMELL) != null
-                || !hasCover(villager.getInventory())) {
+                || !hasCover(level, villager.getInventory())) {
             return false;
         }
         return findClearLineOfSightZombie(level, villager) != null;
@@ -40,12 +44,20 @@ public final class UseZombieSmellBehavior extends Behavior<Villager> {
     @Override
     protected void start(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         SimpleContainer inventory = villager.getInventory();
-        if (!hasCover(inventory)) {
+        // Recheck the mutable inventory before consuming the item; the cached
+        // result only throttles the behavior's eligibility scan.
+        if (!hasCoverNow(inventory)) {
+            cachedCoverLevel = level;
+            cachedHasCover = false;
+            nextCoverLookupTick = gameTime + COVER_LOOKUP_INTERVAL_TICKS;
             return;
         }
 
         inventory.removeItemType(ECAPItems.ROTTEN_FLESH_COVER.get(), 1);
         RottenFleshCoverItem.applyZombieSmell(villager);
+        cachedCoverLevel = level;
+        cachedHasCover = false;
+        nextCoverLookupTick = gameTime + COVER_LOOKUP_INTERVAL_TICKS;
     }
 
     @Override
@@ -85,7 +97,19 @@ public final class UseZombieSmellBehavior extends Behavior<Villager> {
         return closest;
     }
 
-    private static boolean hasCover(SimpleContainer inventory) {
+    private boolean hasCover(ServerLevel level, SimpleContainer inventory) {
+        long gameTime = level.getGameTime();
+        if (cachedCoverLevel == level && gameTime < nextCoverLookupTick) {
+            return cachedHasCover;
+        }
+
+        cachedCoverLevel = level;
+        cachedHasCover = hasCoverNow(inventory);
+        nextCoverLookupTick = gameTime + COVER_LOOKUP_INTERVAL_TICKS;
+        return cachedHasCover;
+    }
+
+    private static boolean hasCoverNow(SimpleContainer inventory) {
         return inventory.countItem(ECAPItems.ROTTEN_FLESH_COVER.get()) > 0;
     }
 }

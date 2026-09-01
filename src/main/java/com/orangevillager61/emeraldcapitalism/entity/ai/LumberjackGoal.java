@@ -51,6 +51,8 @@ public final class LumberjackGoal extends Goal {
     private static final float SPEED_MODIFIER = 0.6F;
     private static final int HAND_BREAK_TICKS_PER_HARDNESS = 30;
     private static final int NAVIGATION_RETRY_INTERVAL_TICKS = 10;
+    private static final int JOB_SITE_SEARCH_RETRY_INTERVAL_TICKS = 100;
+    private static final int BANK_LOOKUP_INTERVAL_TICKS = 20;
     private static final int MAX_NAVIGATION_FAILURES = 20;
     private static final int FURNACE_INPUT_SLOT = 0;
     private static final int FURNACE_FUEL_SLOT = 1;
@@ -79,6 +81,11 @@ public final class LumberjackGoal extends Goal {
     private long nextSearchTick;
     private long nextFurnaceSearchTick;
     private long nextNavigationRetryTick;
+    private long nextJobSiteReturnAttemptTick = Long.MIN_VALUE;
+    private long nextBankLookupTick = Long.MIN_VALUE;
+    private ServerLevel cachedBankLevel;
+    @Nullable
+    private BankBlockEntity cachedVillageBank;
     private int navigationFailures;
     private List<LumberjackTreeScanner.TreeSnapshot> candidateTrees = List.of();
     private int nextCandidateIndex;
@@ -105,12 +112,12 @@ public final class LumberjackGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (!isEligible()) {
+        if (!(villager.level() instanceof ServerLevel level) || !isBaseEligible()) {
             return false;
         }
 
-        ServerLevel level = (ServerLevel) villager.level();
-        if (isDepositPending(level)) {
+        BankBlockEntity bank = findVillageBankCached(level);
+        if (!isEligible(level, bank) || isDepositPending(bank)) {
             return false;
         }
 
@@ -281,8 +288,15 @@ public final class LumberjackGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return (returningToJobSite || tree != null || productionFurnace != null)
-                && !failed && isEligible();
+        if (!(villager.level() instanceof ServerLevel level) || !isBaseEligible()) {
+            return false;
+        }
+        if (!returningToJobSite && tree == null && productionFurnace == null) {
+            return false;
+        }
+
+        BankBlockEntity bank = findVillageBankCached(level);
+        return !failed && isEligible(level, bank);
     }
 
     @Override
@@ -471,26 +485,41 @@ public final class LumberjackGoal extends Goal {
         failed = false;
     }
 
-    private boolean isEligible() {
+    private boolean isBaseEligible() {
         return villager.getVillagerData().getProfession() == ECAPVillagerProfessions.LUMBERJACK.get()
-                && villager.level() instanceof ServerLevel level
                 && !villager.isSleeping()
                 && !villager.isTrading()
-                && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
-                && (lumberjackCuttingEnabled(level) || hasTrackedCharcoalProduction())
-                && (!isDepositPending(level) || hasActiveWork())
+                && !VillagerBreedingSessions.shouldYieldCustomWork(villager);
+    }
+
+    private boolean isEligible(ServerLevel level, @Nullable BankBlockEntity bank) {
+        return (lumberjackCuttingEnabled(bank) || hasTrackedCharcoalProduction())
+                && (!isDepositPending(bank) || hasActiveWork())
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
     }
 
-    private boolean lumberjackCuttingEnabled(ServerLevel level) {
-        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+    private boolean lumberjackCuttingEnabled(@Nullable BankBlockEntity bank) {
         return bank == null || (bank.isVillagerDeliveriesEnabled()
                 && bank.isLumberjackDeliveriesEnabled());
     }
 
-    private boolean isDepositPending(ServerLevel level) {
-        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+    private boolean isDepositPending(@Nullable BankBlockEntity bank) {
         return bank != null && bank.isQueued(villager.getUUID());
+    }
+
+    @Nullable
+    private BankBlockEntity findVillageBankCached(ServerLevel level) {
+        long gameTime = level.getGameTime();
+        if (gameTime < nextBankLookupTick
+                && cachedBankLevel == level
+                && (cachedVillageBank == null || !cachedVillageBank.isRemoved())) {
+            return cachedVillageBank;
+        }
+
+        cachedBankLevel = level;
+        nextBankLookupTick = gameTime + BANK_LOOKUP_INTERVAL_TICKS;
+        cachedVillageBank = BankEmployeeLookup.findVillageBank(level, villager);
+        return cachedVillageBank;
     }
 
     private boolean hasActiveWork() {
@@ -498,8 +527,13 @@ public final class LumberjackGoal extends Goal {
     }
 
     private boolean prepareJobSiteReturn(ServerLevel level) {
+        long gameTime = level.getGameTime();
         BlockPos jobSite = getJobSite(level);
         if (jobSite == null || isWithinWorkReach(jobSite)) {
+            nextJobSiteReturnAttemptTick = gameTime;
+            return false;
+        }
+        if (gameTime < nextJobSiteReturnAttemptTick) {
             return false;
         }
 
@@ -507,9 +541,11 @@ public final class LumberjackGoal extends Goal {
         if (jobSiteTarget == null) {
             // A stale or obstructed job site must not prevent the lumberjack
             // from scanning from its current position.
+            nextJobSiteReturnAttemptTick = gameTime + JOB_SITE_SEARCH_RETRY_INTERVAL_TICKS;
             return false;
         }
 
+        nextJobSiteReturnAttemptTick = gameTime + JOB_SITE_SEARCH_RETRY_INTERVAL_TICKS;
         returningToJobSite = true;
         navigationTarget = null;
         failed = false;
@@ -1094,7 +1130,7 @@ public final class LumberjackGoal extends Goal {
     }
 
     private double charcoalShare(ServerLevel level) {
-        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+        BankBlockEntity bank = findVillageBankCached(level);
         if (bank == null) {
             return CharcoalProductionPolicy.DEFAULT_SHARE;
         }
