@@ -104,7 +104,7 @@ public final class VillageBankStructurePlacer {
     /** First exterior path block immediately outside the two tall emerald doors. */
     private static final BlockPos BANK_DOOR_PATH_START = new BlockPos(-1, 0, 5);
     /** The bank block's authored FACING value in {@code bank_top.nbt}. */
-    private static final Direction AUTHORED_BANK_FACING = Direction.EAST;
+    private static final Direction AUTHORED_BANK_FACING = Direction.WEST;
     /** The emerald processor's known position within {@code bank_top.nbt}. */
     private static final BlockPos EMERALD_ORE_PROCESSOR_OFFSET = new BlockPos(8, 1, 7);
     /** The emerald processor's authored FACING value in {@code bank_top.nbt}. */
@@ -750,7 +750,7 @@ public final class VillageBankStructurePlacer {
     /**
      * Structure placement does not call {@link BankBlock#getStateForPlacement}.
      * Keep the generated bank's state aligned with the authored NBT direction
-     * ({@code facing=east}) and the rotation selected for the whole template.
+     * ({@code facing=west}) and the rotation selected for the whole template.
      */
     private void alignGeneratedBankFacing(ServerLevel level, BlockPos bankPos, Rotation rotation) {
         BlockState state = level.getBlockState(bankPos);
