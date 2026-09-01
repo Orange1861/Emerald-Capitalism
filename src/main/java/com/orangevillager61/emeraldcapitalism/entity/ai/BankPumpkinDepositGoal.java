@@ -84,7 +84,7 @@ public final class BankPumpkinDepositGoal extends Goal {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
-        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.depositPos(), 2);
+        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.depositPos(), 0);
         if (navigationTarget == null) {
             finished = true;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
@@ -209,7 +209,7 @@ public final class BankPumpkinDepositGoal extends Goal {
             return false;
         }
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(pos, SPEED, 1));
+                new WalkTarget(pos, SPEED, 0));
         return true;
     }
 

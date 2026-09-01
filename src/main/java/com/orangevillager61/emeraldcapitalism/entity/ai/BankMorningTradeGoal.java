@@ -18,15 +18,17 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.EnumSet;
 
-/** Sends villagers to their village bank once each morning to rebalance food and sell pumpkins. */
+/** Sends villagers to their village bank once each morning to rebalance food and sell farm surplus. */
 public final class BankMorningTradeGoal extends Goal {
 
+    public static final int GOAL_PRIORITY = 3;
     private static final long DAY_LENGTH_TICKS = 24_000L;
     private static final long MORNING_END_TICK = 6_000L;
     private static final float SPEED = 0.5F;
@@ -105,7 +107,7 @@ public final class BankMorningTradeGoal extends Goal {
         }
 
         BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(
-                villager, context.depositPos(), 2);
+                villager, context.depositPos(), 0);
         if (navigationTarget == null) {
             finished = true;
             markMorningAttemptFailed(level);
@@ -182,7 +184,8 @@ public final class BankMorningTradeGoal extends Goal {
 
     private boolean hasPendingTrade(ServerLevel level, BankBlockEntity bank) {
         return bank.isVillagerDeliveriesEnabled()
-                && ((bank.isRandomDeliveriesEnabled() && hasPendingPumpkinSale(level, bank))
+                && ((bank.isRandomDeliveriesEnabled()
+                && (hasPendingPumpkinSale(level, bank) || hasPendingWheatSale(level, bank)))
                 || (bank.isBreadDeliveriesEnabled() && hasPendingBreadTrade(level, bank)));
     }
 
@@ -217,10 +220,28 @@ public final class BankMorningTradeGoal extends Goal {
         return isValidQuote(quote(level, bank, Items.BREAD, Math.min(saleQuantity, capacity), TradeSide.SELL));
     }
 
+    private boolean hasPendingWheatSale(ServerLevel level, BankBlockEntity bank) {
+        if (villager.getVillagerData().getProfession() != VillagerProfession.FARMER) {
+            return false;
+        }
+        int saleQuantity = wheatSaleQuantity(level, bank);
+        if (saleQuantity <= 0) {
+            return false;
+        }
+        return isValidQuote(quote(level, bank, Items.WHEAT, saleQuantity, TradeSide.SELL));
+    }
+
     private void executeMorningTrades(ServerLevel level, BankBlockEntity bank) {
         boolean traded = bank.isVillagerDeliveriesEnabled()
                 && bank.isRandomDeliveriesEnabled()
                 && sellItem(level, bank, Items.PUMPKIN, countItem(Items.PUMPKIN), false);
+
+        if (bank.isVillagerDeliveriesEnabled() && bank.isRandomDeliveriesEnabled()
+                && villager.getVillagerData().getProfession()
+                == VillagerProfession.FARMER) {
+            traded |= sellItem(level, bank, Items.WHEAT,
+                    wheatSaleQuantity(level, bank), false);
+        }
 
         int currentBread = countItem(Items.BREAD);
         if (bank.isVillagerDeliveriesEnabled() && bank.isBreadDeliveriesEnabled()) {
@@ -331,7 +352,14 @@ public final class BankMorningTradeGoal extends Goal {
         if (quantity <= 0) {
             return null;
         }
-        String marketId = item == Items.PUMPKIN ? "pumpkin" : "bread";
+        String marketId;
+        if (item == Items.PUMPKIN) {
+            marketId = "pumpkin";
+        } else if (item == Items.WHEAT) {
+            marketId = "wheat";
+        } else {
+            marketId = "bread";
+        }
         MarketItem market = MarketRegistry.get(marketId).orElse(null);
         if (market == null) {
             return null;
@@ -378,6 +406,16 @@ public final class BankMorningTradeGoal extends Goal {
         return capacity;
     }
 
+    private int wheatSaleQuantity(ServerLevel level, BankBlockEntity bank) {
+        int available = BankTargets.wheatSaleQuantity(countItem(Items.WHEAT));
+        if (available <= 0) {
+            return 0;
+        }
+        int capacity = bank.getItemStorageCapacity(level, new ItemStack(Items.WHEAT, available));
+        int storable = Math.min(available, capacity);
+        return storable / BankTargets.WHEAT_TRADE_BATCH * BankTargets.WHEAT_TRADE_BATCH;
+    }
+
     private void removeItem(Item item, int amount) {
         int remaining = amount;
         for (int slot = 0; slot < villager.getInventory().getContainerSize() && remaining > 0; slot++) {
@@ -401,7 +439,7 @@ public final class BankMorningTradeGoal extends Goal {
             return false;
         }
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(pos, SPEED, 1));
+                new WalkTarget(pos, SPEED, 0));
         return true;
     }
 

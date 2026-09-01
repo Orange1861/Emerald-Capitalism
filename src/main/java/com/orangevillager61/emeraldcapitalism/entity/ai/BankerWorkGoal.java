@@ -17,7 +17,7 @@ import java.util.EnumSet;
 public final class BankerWorkGoal extends Goal {
 
     private static final float SPEED = 0.5F;
-    private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
+    private static final int WALK_TARGET_CLOSE_ENOUGH = 0;
     private static final int FAILURE_RETRY_TICKS = 100;
     private static final int REPAIR_ATTEMPT_INTERVAL_TICKS = 20;
 
@@ -54,7 +54,7 @@ public final class BankerWorkGoal extends Goal {
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
             return;
         }
-        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.workPos(), 2);
+        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.workPos(), 0);
         if (navigationTarget == null) {
             context = null;
             failed = true;

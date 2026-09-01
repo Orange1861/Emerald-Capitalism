@@ -64,6 +64,15 @@ class BankTargetsTest {
     }
 
     @Test
+    void wheatSalesPreserveOneFarmerTradeBatchAndSellOnlyCompleteBatches() {
+        assertEquals(0, BankTargets.wheatSaleQuantity(-1));
+        assertEquals(0, BankTargets.wheatSaleQuantity(39));
+        assertEquals(20, BankTargets.wheatSaleQuantity(40));
+        assertEquals(40, BankTargets.wheatSaleQuantity(64));
+        assertEquals(80, BankTargets.wheatSaleQuantity(100));
+    }
+
+    @Test
     void coalTargetUsesBaseReservePlusEmeraldOreCount() {
         assertEquals(192, BankTargets.coalTarget(0));
         assertEquals(197, BankTargets.coalTarget(5));

@@ -926,9 +926,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return;
         }
         BankDepositGoal goal = new BankDepositGoal(villager, getBlockPos(), this);
-        // Deposits wait behind active profession work. The goal itself also
-        // pauses safely if another higher-priority task starts first.
-        villager.goalSelector.addGoal(5, goal);
+        // Deposits win between profession-work cycles. The goal itself pauses
+        // safely when a protected active lumberjack task owns movement.
+        villager.goalSelector.addGoal(BankDepositGoal.GOAL_PRIORITY, goal);
         activeGoal = goal;
     }
 

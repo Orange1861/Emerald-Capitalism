@@ -23,8 +23,9 @@ import java.util.EnumSet;
  */
 public class BankDepositGoal extends Goal {
 
-    /** The Bank block is solid, so target a nearby reachable block instead of its center. */
-    private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
+    public static final int GOAL_PRIORITY = 3;
+    /** The Bank block is solid, so target its exact front access block instead of its center. */
+    private static final int WALK_TARGET_CLOSE_ENOUGH = 0;
     /** Walk speed modifier passed to navigation. */
     private static final float  SPEED           = 0.5f;
     /** Ticks allowed per pathfinding attempt before it counts as a failure. */
@@ -186,7 +187,7 @@ public class BankDepositGoal extends Goal {
         // not select the nearest side: that lets the villager approach from
         // the designated deposit side and avoids circling around the bank.
         BlockPos approach = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);
-        return VillagerNavigationTargets.findReachableTarget(villager, approach, 2);
+        return VillagerNavigationTargets.findReachableTarget(villager, approach, 0);
     }
 
     private boolean isAtBank() {

@@ -1,0 +1,13 @@
+{
+  "id": "wheat",
+  "fixedEmeraldOutput": 1,
+  "baseRate": 20.0,
+  "dailyConsumptionRate": 1.0,
+  "dailyConsumptionScalesWithPopulation": false,
+  "lowMult": 1.0,
+  "highMult": 1.0,
+  "floorRate": 20.0,
+  "ceilingRate": 20.0,
+  "bidAskSpread": 0.0,
+  "minimumTradeSize": 20
+}

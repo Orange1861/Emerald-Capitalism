@@ -21,7 +21,6 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
     private static final long DAY_LENGTH_TICKS = 24_000L;
     private static final long MORNING_END_TICK = 6_000L;
     private static final float SPEED = 0.5F;
-    private static final double ARRIVAL_DIST_SQ = 4.0D;
     private static final int ATTEMPT_TICKS = 100;
     private static final int MAX_ATTEMPTS = 3;
     private static final int FAILURE_COOLDOWN = 100;
@@ -83,13 +82,13 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
             return;
         }
 
-        if (isAtBank(context.depositPos())) {
+        if (isAtBank()) {
             context = new WorkContext(context.bank(), context.depositPos(), context.depositPos());
             return;
         }
 
         BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(
-                skrimisher, context.depositPos(), 2);
+                skrimisher, context.depositPos(), 0);
         if (navigationTarget == null) {
             finished = true;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
@@ -119,7 +118,7 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
             return;
         }
 
-        if (isAtBank(context.depositPos())) {
+        if (isAtBank()) {
             transferInventory(level, context.bank());
             finished = true;
             return;
@@ -193,13 +192,13 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
             return false;
         }
         skrimisher.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(pos, SPEED, 1));
+                new WalkTarget(pos, SPEED, 0));
         return true;
     }
 
-    private boolean isAtBank(BlockPos pos) {
-        return skrimisher.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D,
-                pos.getZ() + 0.5D) <= ARRIVAL_DIST_SQ;
+    private boolean isAtBank() {
+        return context != null && BankBlock.isAtDepositApproach(
+                context.bank().getBlockState(), context.bank().getBlockPos(), skrimisher.position());
     }
 
     private record WorkContext(BankBlockEntity bank, BlockPos depositPos, BlockPos navigationTarget) {

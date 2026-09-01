@@ -32,6 +32,7 @@ import java.util.EnumSet;
 /** Sends a full-inventory villager to the bank to sell or donate loose items. */
 public final class VillagerInventoryBankGoal extends Goal {
 
+    public static final int GOAL_PRIORITY = 3;
     private static final float SPEED = 0.5F;
     private static final int ATTEMPT_TICKS = 100;
     private static final int MAX_ATTEMPTS = 3;
@@ -112,7 +113,7 @@ public final class VillagerInventoryBankGoal extends Goal {
             return;
         }
 
-        navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, depositPos, 2);
+        navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, depositPos, 0);
         if (navigationTarget == null || !moveToBank()) {
             finish(level, FAILURE_COOLDOWN);
         }
@@ -149,7 +150,7 @@ public final class VillagerInventoryBankGoal extends Goal {
 
         if (navigationTarget != null) {
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED, 1));
+                    new WalkTarget(navigationTarget, SPEED, 0));
         }
         attemptTicks++;
         if (attemptTicks >= ATTEMPT_TICKS) {
@@ -408,7 +409,7 @@ public final class VillagerInventoryBankGoal extends Goal {
             return false;
         }
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(navigationTarget, SPEED, 1));
+                new WalkTarget(navigationTarget, SPEED, 0));
         return true;
     }
 

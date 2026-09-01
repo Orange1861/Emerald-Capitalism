@@ -15,6 +15,8 @@ public final class BankTargets {
     public static final int INTERNAL_BREAD_DAYS = 5;
     public static final int BREAD_PER_VILLAGER = BREAD_PER_DAY * INTERNAL_BREAD_DAYS;
     public static final int BREAD_TRADE_TARGET = BREAD_PER_VILLAGER * 2;
+    public static final int FARMER_WHEAT_RESERVE = 20;
+    public static final int WHEAT_TRADE_BATCH = 20;
     public static final int MAX_FOOD_DAYS = 64;
     public static final int BASE_COAL_TARGET = 192;
     public static final int COAL_PER_EMERALD_ORE = 1;
@@ -103,6 +105,12 @@ public final class BankTargets {
     public static int breadPerVillager(int foodDays) {
         int safeFoodDays = Math.max(0, Math.min(MAX_FOOD_DAYS, foodDays));
         return BREAD_PER_DAY * safeFoodDays;
+    }
+
+    /** Returns complete 20-wheat sale batches while preserving one farmer trade batch. */
+    public static int wheatSaleQuantity(int currentWheat) {
+        int excess = Math.max(0, currentWheat - FARMER_WHEAT_RESERVE);
+        return excess / WHEAT_TRADE_BATCH * WHEAT_TRADE_BATCH;
     }
 
     /** Returns the coal-and-charcoal reserve target: {@code 192 + emerald ore}. */
