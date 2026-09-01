@@ -79,6 +79,11 @@ public class EmeraldGolem extends IronGolem {
     private int ambushAttackDelayTicks;
     private boolean ambushAttackStarted;
     private int ladderClimbDirection;
+    @Nullable
+    private Path ladderPathCache;
+    @Nullable
+    private BlockPos ladderPathPosition;
+    private int ladderPathNextNodeIndex = -1;
 
     /**
      * Mod-owned durable golem state. Bank assignment and the ambush marker
@@ -165,7 +170,16 @@ public class EmeraldGolem extends IronGolem {
 
         PathNavigation navigation = getNavigation();
         Path path = navigation.getPath();
-        if (path != null) {
+        int nextNodeIndex = path == null ? -1 : path.getNextNodeIndex();
+        boolean ladderPathChanged = path != ladderPathCache
+                || nextNodeIndex != ladderPathNextNodeIndex
+                || !position.equals(ladderPathPosition);
+        if (ladderPathChanged) {
+            ladderPathCache = path;
+            ladderPathNextNodeIndex = nextNodeIndex;
+            ladderPathPosition = position.immutable();
+        }
+        if (path != null && ladderPathChanged) {
             for (int index = Math.max(0, path.getNextNodeIndex() - 1);
                  index < path.getNodeCount(); index++) {
                 Node node = path.getNode(index);
@@ -218,6 +232,9 @@ public class EmeraldGolem extends IronGolem {
 
     private void stopLadderTraversal(boolean stopNavigation) {
         ladderClimbDirection = 0;
+        ladderPathCache = null;
+        ladderPathPosition = null;
+        ladderPathNextNodeIndex = -1;
         setNoGravity(false);
         if (stopNavigation) {
             setDeltaMovement(Vec3.ZERO);

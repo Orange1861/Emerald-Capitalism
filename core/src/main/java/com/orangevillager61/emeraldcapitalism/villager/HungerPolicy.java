@@ -7,7 +7,10 @@ public final class HungerPolicy {
     public static final int TICKS_PER_HUNGER_DECREASE = 1_600;
     public static final int TICKS_PER_STARVATION_DAMAGE = 3_200;
     public static final int TICKS_PER_HEAL = 80;
-    public static final int UPDATE_INTERVAL = 20;
+    /** Responsive hunger and eating poll interval, in ticks. */
+    public static final int RESPONSIVE_UPDATE_INTERVAL = 40;
+    /** Slower poll interval for hunger-decrease bookkeeping, in ticks. */
+    public static final int HUNGER_DECREASE_UPDATE_INTERVAL = 80;
     public static final int EATING_DURATION_TICKS = 32;
     public static final int EATING_EFFECT_INTERVAL = 4;
     public static final int HUNGER_THRESHOLD_TO_EAT_WOUNDED = 18;

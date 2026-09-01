@@ -71,6 +71,8 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
     protected void stop(ServerLevel level, Villager villager, long gameTime) {
         cachedThreat = null;
         escapeTarget = null;
+        nextThreatLookupTick = Long.MIN_VALUE;
+        nextEscapeSearchTick = Long.MIN_VALUE;
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
     }
@@ -158,11 +160,15 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
     @Nullable
     private Villager findClosestThreat(Villager villager) {
         long gameTime = villager.level().getGameTime();
-        if (gameTime < nextThreatLookupTick
-                && cachedThreat != null
-                && cachedThreat.isAlive()
-                && isPhaseTwo(cachedThreat)) {
-            return cachedThreat;
+        if (gameTime < nextThreatLookupTick) {
+            if (cachedThreat == null) {
+                // Honor the negative cache so active villagers do not rescan
+                // their neighborhood on every behavior check.
+                return null;
+            }
+            if (cachedThreat.isAlive() && isPhaseTwo(cachedThreat)) {
+                return cachedThreat;
+            }
         }
 
         List<Villager> nearbyVillagers = villager.level().getEntitiesOfClass(

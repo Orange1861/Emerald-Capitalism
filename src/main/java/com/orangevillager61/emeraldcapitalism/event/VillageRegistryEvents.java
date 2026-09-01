@@ -84,6 +84,7 @@ public class VillageRegistryEvents {
     private static final int IRON_GOLEM_KILLED_OPINION_DELTA = -50;
     private static final int GOLEM_HOSTILITY_THRESHOLD = -25;
     private static final double BANK_GOLEM_CONNECTION_RADIUS = 32.0D;
+    private static final long GOLEM_OPINION_REFRESH_INTERVAL_TICKS = 40L;
 
     /**
      * Returns the manager for the given level, creating one if needed.
@@ -137,9 +138,10 @@ public class VillageRegistryEvents {
 
         long levelTick = serverLevel.getGameTime();
 
-        // Every second, connected non-player-built golems re-evaluate nearby
-        // players. A Village Opinion of You <= -25 makes both golem types attack.
-        if (levelTick % 20 == 0) {
+        // Connected non-player-built golems re-evaluate nearby players every
+        // two seconds. A Village Opinion of You <= -25 makes both golem types
+        // attack. The target goals remain independent of this reconciliation.
+        if (levelTick % GOLEM_OPINION_REFRESH_INTERVAL_TICKS == 0) {
             applyOpinionBasedGolemTargets(serverLevel);
         }
 
@@ -263,10 +265,14 @@ public class VillageRegistryEvents {
      */
     private static void applyOpinionBasedGolemTargets(ServerLevel level) {
         VillageRegistryData data = VillageRegistryData.get(level);
+        List<ServerPlayer> players = level.players();
+        if (players.isEmpty()) {
+            return;
+        }
 
         for (VillageRecord village : data.getVillages().values()) {
             AABB searchArea = village.getBoundingBox().inflate(BANK_GOLEM_CONNECTION_RADIUS);
-            List<ServerPlayer> nearbyPlayers = level.players().stream()
+            List<ServerPlayer> nearbyPlayers = players.stream()
                     .filter(player -> !player.isSpectator()
                             && searchArea.contains(player.getX(), player.getY(), player.getZ()))
                     .toList();

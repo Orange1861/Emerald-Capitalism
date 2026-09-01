@@ -75,6 +75,8 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
         cachedThreat = null;
         village = null;
         escapeTarget = null;
+        nextThreatLookupTick = Long.MIN_VALUE;
+        nextEscapeSearchTick = Long.MIN_VALUE;
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
         villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
     }
@@ -202,13 +204,19 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
     @Nullable
     private ServerPlayer findClosestThreat(ServerLevel level, Villager villager) {
         long gameTime = level.getGameTime();
-        if (gameTime < nextThreatLookupTick && cachedThreat != null
-                && cachedThreat.isAlive()
-                && village != null
-                && VillageHostility.isHostilePlayer(level, village, cachedThreat)
-                && villager.hasLineOfSight(cachedThreat)
-                && villager.distanceToSqr(cachedThreat) <= DETECTION_RANGE * DETECTION_RANGE) {
-            return cachedThreat;
+        if (gameTime < nextThreatLookupTick) {
+            if (cachedThreat == null) {
+                // Empty lookups are cached too; otherwise every active behavior
+                // check would repeat the nearby-player scan before its expiry.
+                return null;
+            }
+            if (cachedThreat.isAlive()
+                    && village != null
+                    && VillageHostility.isHostilePlayer(level, village, cachedThreat)
+                    && villager.hasLineOfSight(cachedThreat)
+                    && villager.distanceToSqr(cachedThreat) <= DETECTION_RANGE * DETECTION_RANGE) {
+                return cachedThreat;
+            }
         }
 
         if (village == null) {

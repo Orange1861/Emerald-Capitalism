@@ -15,8 +15,11 @@ public final class WanderingTraderAvoidBoatGoal extends Goal {
     private static final double DETECTION_RANGE = 8.0D;
     private static final double SAFE_DISTANCE = 4.5D;
     private static final double ESCAPE_DISTANCE = 4.0D;
+    private static final long BOAT_LOOKUP_INTERVAL_TICKS = 5L;
+    private static final long EMPTY_LOOKUP_INTERVAL_TICKS = 20L;
     private final WanderingTrader trader;
     private Boat boat;
+    private long nextBoatLookupTick = Long.MIN_VALUE;
 
     public WanderingTraderAvoidBoatGoal(WanderingTrader trader) {
         this.trader = trader;
@@ -65,15 +68,25 @@ public final class WanderingTraderAvoidBoatGoal extends Goal {
     @Override
     public void stop() {
         boat = null;
+        nextBoatLookupTick = Long.MIN_VALUE;
         trader.getNavigation().stop();
     }
 
     private Boat findBoat() {
-        return trader.level().getEntitiesOfClass(
+        long gameTime = trader.level().getGameTime();
+        if (gameTime < nextBoatLookupTick && (boat == null || boat.isAlive())) {
+            return boat;
+        }
+
+        Boat closest = trader.level().getEntitiesOfClass(
                         Boat.class, trader.getBoundingBox().inflate(DETECTION_RANGE), Boat::isAlive)
                 .stream()
                 .min((first, second) -> Double.compare(
                         trader.distanceToSqr(first), trader.distanceToSqr(second)))
                 .orElse(null);
+        boat = closest;
+        nextBoatLookupTick = gameTime + (closest == null
+                ? EMPTY_LOOKUP_INTERVAL_TICKS : BOAT_LOOKUP_INTERVAL_TICKS);
+        return closest;
     }
 }

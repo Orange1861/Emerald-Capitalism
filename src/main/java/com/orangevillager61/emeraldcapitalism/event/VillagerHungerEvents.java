@@ -43,8 +43,8 @@ public class VillagerHungerEvents {
         if (stats.isEating()) {
             boolean hasBreedTarget = villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET);
 
-            // Use the normal stagger for bed wakeups while an eating animation is active.
-            if ((villager.tickCount + villager.getId()) % HungerPolicy.UPDATE_INTERVAL == 0
+            // Use the responsive stagger for bed wakeups while an eating animation is active.
+            if ((villager.tickCount + villager.getId()) % HungerPolicy.RESPONSIVE_UPDATE_INTERVAL == 0
                     && villager.isSleeping()) {
                 villager.stopSleeping();
             }
@@ -63,8 +63,8 @@ public class VillagerHungerEvents {
             return;
         }
 
-        // Stagger non-eating updates by entity ID to distribute per-tick work.
-        if ((villager.tickCount + villager.getId()) % HungerPolicy.UPDATE_INTERVAL != 0) {
+        // Stagger responsive non-eating updates by entity ID to distribute work.
+        if ((villager.tickCount + villager.getId()) % HungerPolicy.RESPONSIVE_UPDATE_INTERVAL != 0) {
             return;
         }
 
@@ -83,7 +83,7 @@ public class VillagerHungerEvents {
         }
 
         if (HungerPolicy.shouldHeal(stats.getHungerLevel(), isWounded)) {
-            int healTicks = stats.getTicksSinceLastHeal() + HungerPolicy.UPDATE_INTERVAL;
+            int healTicks = stats.getTicksSinceLastHeal() + HungerPolicy.RESPONSIVE_UPDATE_INTERVAL;
             
             if (healTicks >= HungerPolicy.TICKS_PER_HEAL) {
                 villager.heal(1.0F);
@@ -96,21 +96,24 @@ public class VillagerHungerEvents {
             stats.setTicksSinceLastHeal(0);
         }
 
-        int currentTicks = stats.getTicksSinceLastHungerDecrease();
-        currentTicks += HungerPolicy.UPDATE_INTERVAL;
+        if ((villager.tickCount + villager.getId())
+                % HungerPolicy.HUNGER_DECREASE_UPDATE_INTERVAL == 0) {
+            int currentTicks = stats.getTicksSinceLastHungerDecrease()
+                    + HungerPolicy.HUNGER_DECREASE_UPDATE_INTERVAL;
 
-        if (currentTicks >= HungerPolicy.TICKS_PER_HUNGER_DECREASE) {
-            stats.decreaseHunger(1);
-            stats.setTicksSinceLastHungerDecrease(0);
-        } else {
-            stats.setTicksSinceLastHungerDecrease(currentTicks);
+            if (currentTicks >= HungerPolicy.TICKS_PER_HUNGER_DECREASE) {
+                stats.decreaseHunger(1);
+                stats.setTicksSinceLastHungerDecrease(0);
+            } else {
+                stats.setTicksSinceLastHungerDecrease(currentTicks);
+            }
         }
 
         if (stats.isStarving()) {
             boolean canTakeDamage = Config.villagersCanStarveToDeath || villager.getHealth() > 2.0F;
             if (canTakeDamage) {
                 int starvationTicks = stats.getTicksSinceLastStarvationDamage()
-                        + HungerPolicy.UPDATE_INTERVAL;
+                        + HungerPolicy.RESPONSIVE_UPDATE_INTERVAL;
                 
                 if (starvationTicks >= HungerPolicy.TICKS_PER_STARVATION_DAMAGE) {
                     com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils.hurt(

@@ -44,6 +44,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     public static final int INVENTORY_SIZE = 3;
 
     public static final int SMELT_DURATION = 400; // 20 seconds (slow)
+    private static final long IDLE_CHECK_INTERVAL_TICKS = 20L;
 
     private final NonNullList<ItemStack> items = NonNullList.withSize(INVENTORY_SIZE, ItemStack.EMPTY);
 
@@ -51,6 +52,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     private int burnDuration;
     private int cookProgress;
     private int cookTotalTime = SMELT_DURATION;
+    private long nextIdleCheckTick = Long.MIN_VALUE;
 
     /**
      * The mod-owned durable processor state. Inventory remains owned by
@@ -172,6 +174,14 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, EmeraldOreProcessorBlockEntity processor) {
+        long gameTime = level.getGameTime();
+        if (!processor.isLit()) {
+            if (gameTime < processor.nextIdleCheckTick) {
+                return;
+            }
+            processor.nextIdleCheckTick = gameTime + IDLE_CHECK_INTERVAL_TICKS;
+        }
+
         boolean wasLit = processor.isLit();
         boolean changed = false;
         boolean inventoryChanged = false;
@@ -271,6 +281,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
                         "Ignoring malformed emerald ore processor durable state: {}", message))
                 .orElseGet(PersistedState::empty)
                 .applyTo(this);
+        nextIdleCheckTick = Long.MIN_VALUE;
     }
 
     // MenuProvider
@@ -310,6 +321,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     public @NotNull ItemStack removeItem(int slot, int amount) {
         ItemStack result = ContainerHelper.removeItem(items, slot, amount);
         if (!result.isEmpty()) {
+            wakeIdleTick();
             setChanged();
             markNearbyBankCachesDirty();
         }
@@ -320,6 +332,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
     public @NotNull ItemStack removeItemNoUpdate(int slot) {
         ItemStack result = ContainerHelper.takeItem(items, slot);
         if (!result.isEmpty()) {
+            wakeIdleTick();
             markNearbyBankCachesDirty();
         }
         return result;
@@ -331,6 +344,7 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
         if (stack.getCount() > getMaxStackSize()) {
             stack.setCount(getMaxStackSize());
         }
+        wakeIdleTick();
         setChanged();
         markNearbyBankCachesDirty();
     }
@@ -352,9 +366,15 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
             items.set(slot, ItemStack.EMPTY);
         }
         if (hadItems) {
+            wakeIdleTick();
             setChanged();
             markNearbyBankCachesDirty();
         }
+    }
+
+    /** Wakes the idle fallback after a container mutation. */
+    private void wakeIdleTick() {
+        nextIdleCheckTick = Long.MIN_VALUE;
     }
 
     /** Invalidates nearby bank processor scans after a server-side inventory mutation. */
