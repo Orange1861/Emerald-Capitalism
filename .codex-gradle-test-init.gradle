@@ -1,0 +1,10 @@
+gradle.beforeProject { project ->
+    if (project.path != ':1.21.1') {
+        return
+    }
+
+    project.tasks.register('prepareGameTestServer')
+    project.tasks.matching { it.name == 'test' }.configureEach {
+        workingDir(project.rootProject.projectDir)
+    }
+}

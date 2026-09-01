@@ -13,7 +13,7 @@ import net.minecraft.world.entity.npc.Villager;
 
 import java.util.EnumSet;
 
-/** Keeps a banker on the bank's facing side while the banker is working. */
+/** Keeps a banker on the side opposite the bank's deposit face while working. */
 public final class BankerWorkGoal extends Goal {
 
     private static final float SPEED = 0.5F;
@@ -88,8 +88,9 @@ public final class BankerWorkGoal extends Goal {
         // allowing vanilla job-site pathing to pull the banker into the bank.
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                 new WalkTarget(context.navigationTarget(), SPEED, WALK_TARGET_CLOSE_ENOUGH));
-        if (villager.distanceToSqr(context.workPos().getX() + 0.5D,
-                context.workPos().getY() + 0.5D, context.workPos().getZ() + 0.5D) <= 2.25D) {
+        boolean atWorkPos = BankBlock.isAtBankerWorkPos(
+                context.bank().getBlockState(), context.bank().getBlockPos(), villager.position());
+        if (atWorkPos) {
             ServerLevel level = (ServerLevel) villager.level();
             long gameTime = level.getGameTime();
             if (gameTime >= nextRepairAttemptTick) {
@@ -97,9 +98,7 @@ public final class BankerWorkGoal extends Goal {
                 nextRepairAttemptTick = gameTime + REPAIR_ATTEMPT_INTERVAL_TICKS;
             }
         }
-        if (villager.distanceToSqr(context.workPos().getX() + 0.5D,
-                context.workPos().getY() + 0.5D, context.workPos().getZ() + 0.5D) > 2.25D
-                && navigationWatchdog.isStuck(villager, context.navigationTarget())) {
+        if (!atWorkPos && navigationWatchdog.isStuck(villager, context.navigationTarget())) {
             failed = true;
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
             villager.getNavigation().stop();

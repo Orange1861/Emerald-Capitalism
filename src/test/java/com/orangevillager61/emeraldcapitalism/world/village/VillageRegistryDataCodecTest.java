@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
@@ -8,6 +9,9 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
@@ -64,6 +68,8 @@ class VillageRegistryDataCodecTest {
         assertTrue(first.getFarmlandRegistry().contains(new BlockPos(-2, 70, 3)));
         assertTrue(first.getRepairQueue().contains(new BlockPos(-2, 70, 3)));
         assertTrue(first.getDoorRegistry().contains(new BlockPos(-4, 70, 3)));
+        assertEquals(new VillageRecord.DoorPlacement(Direction.SOUTH, DoorHingeSide.RIGHT),
+                first.getDoorPlacement(new BlockPos(-4, 70, 3)));
         assertTrue(first.getClaimedPositions().isEmpty());
         assertNull(restored.getVMPos(firstId));
 
@@ -250,6 +256,37 @@ class VillageRegistryDataCodecTest {
         }
         oversizedDoors.put("door_registry", doors);
         assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, oversizedDoors).error().isPresent());
+
+        CompoundTag oversizedDoorPlacements = encodedVillageWithDoorPlacement();
+        CompoundTag placement = oversizedDoorPlacements.getList("door_placements", Tag.TAG_COMPOUND)
+                .getCompound(0);
+        ListTag placements = new ListTag();
+        for (int i = 0; i <= VillageRecord.MAX_PERSISTED_DOOR_POSITIONS; i++) {
+            placements.add(placement.copy());
+        }
+        oversizedDoorPlacements.put("door_placements", placements);
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, oversizedDoorPlacements).error().isPresent());
+    }
+
+    @Test
+    void corruptDoorPlacementsAreRejected() {
+        CompoundTag verticalFacing = encodedVillageWithDoorPlacement();
+        verticalFacing.getList("door_placements", Tag.TAG_COMPOUND)
+                .getCompound(0).putString("facing", "up");
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, verticalFacing).error().isPresent());
+
+        CompoundTag unknownPosition = encodedVillageWithDoorPlacement();
+        unknownPosition.put("door_registry", new ListTag());
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, unknownPosition).error().isPresent());
+
+        CompoundTag missingPlacement = encodedVillageWithDoorPlacement();
+        missingPlacement.put("door_placements", new ListTag());
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, missingPlacement).error().isPresent());
+
+        CompoundTag duplicatePlacement = encodedVillageWithDoorPlacement();
+        ListTag placements = duplicatePlacement.getList("door_placements", Tag.TAG_COMPOUND);
+        placements.add(placements.getCompound(0).copy());
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, duplicatePlacement).error().isPresent());
     }
 
     @Test
@@ -430,7 +467,9 @@ class VillageRegistryDataCodecTest {
                 19.5F, VillagerPOIRecord.Status.ACTIVE, 2, 123L);
         data.registerVillager(firstId, member);
         first.addFarmland(new BlockPos(-2, 70, 3));
-        first.addDoor(new BlockPos(-4, 70, 3));
+        first.addDoor(new BlockPos(-4, 70, 3), Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.SOUTH)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.RIGHT));
         first.addToRepairQueue(new BlockPos(-2, 70, 3));
         first.claimPosition(new BlockPos(-2, 70, 3));
         first.adjustOpinionModifier(UUID.nameUUIDFromBytes("player".getBytes()), 7);
@@ -455,6 +494,16 @@ class VillageRegistryDataCodecTest {
     private static CompoundTag encodedMinimalVillage() {
         VillageRecord village = new VillageRecord(
                 UUID.randomUUID(), BlockPos.ZERO, new AABB(-1, -1, -1, 1, 1, 1));
+        return (CompoundTag) VillageRecord.CODEC.encodeStart(NbtOps.INSTANCE, village)
+                .result().orElseThrow();
+    }
+
+    private static CompoundTag encodedVillageWithDoorPlacement() {
+        VillageRecord village = new VillageRecord(
+                UUID.randomUUID(), BlockPos.ZERO, new AABB(-1, -1, -1, 1, 1, 1));
+        village.addDoor(BlockPos.ZERO, Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.SOUTH)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.RIGHT));
         return (CompoundTag) VillageRecord.CODEC.encodeStart(NbtOps.INSTANCE, village)
                 .result().orElseThrow();
     }

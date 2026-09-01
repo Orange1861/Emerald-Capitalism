@@ -269,6 +269,8 @@ public final class MixinAuditInvariantGameTests {
         helper.runAfterDelay(40, () -> {
             helper.assertTrue(villager.getY() > ladderBase.getY() + 1.0D,
                     "villager did not climb its installed ladder path");
+            helper.assertTrue(villager.getZ() > ladderBase.getZ() + 1.0D,
+                    "villager did not walk off the top of its ladder path");
             helper.succeed();
         });
     }

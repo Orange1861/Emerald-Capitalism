@@ -22,7 +22,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 
 import javax.annotation.Nullable;
@@ -248,7 +247,8 @@ public final class MayorDoorRepairGoal extends Goal {
         BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
         villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(lookTarget));
 
-        if (stage == Stage.BANK && isAt(navigationTarget)) {
+        if (stage == Stage.BANK && BankBlock.isAtDepositApproach(
+                bank.getBlockState(), bank.getBlockPos(), villager.position())) {
             EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at bank approach={} bank={} mayor={}",
                     navigationTarget, bank.getBlockPos(), villager.getUUID());
             if (!receiveAndCraftDoor(level)) {
@@ -476,11 +476,18 @@ public final class MayorDoorRepairGoal extends Goal {
                     doorCount);
             return false;
         }
+        VillageRecord.DoorPlacement placement = village.getDoorPlacement(targetPos);
+        if (placement == null) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP][MayorRepair] PLACE failed: target={} has no cached door placement village={}",
+                    targetPos, village.getVillageId());
+            return false;
+        }
 
         BlockPos pos = targetPos;
         BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
-                .setValue(DoorBlock.FACING, villager.getDirection())
-                .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT);
+                .setValue(DoorBlock.FACING, placement.facing())
+                .setValue(DoorBlock.HINGE, placement.hinge());
         BlockState currentLower = level.getBlockState(pos);
         BlockState currentUpper = level.getBlockState(pos.above());
         boolean lowerReplaceable = currentLower.canBeReplaced();
@@ -489,7 +496,7 @@ public final class MayorDoorRepairGoal extends Goal {
         EmeraldCapitalism.LOGGER.debug(
                 "[ECAP][MayorRepair] PLACE checking target={} lowerState={} upperState={} lowerReplaceable={} upperReplaceable={} survives={} facing={} mayor={}",
                 pos, currentLower, currentUpper, lowerReplaceable, upperReplaceable, survives,
-                villager.getDirection(), villager.getUUID());
+                placement.facing(), villager.getUUID());
         if (!lowerReplaceable || !upperReplaceable || !survives) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorRepair] PLACE failed validation target={} lowerReplaceable={} upperReplaceable={} survives={}",
@@ -499,11 +506,15 @@ public final class MayorDoorRepairGoal extends Goal {
 
         level.setBlock(pos, lower, Block.UPDATE_ALL);
         level.setBlock(pos.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
-        if (!VillageRecord.isDoorBase(level.getBlockState(pos))
-                || !level.getBlockState(pos.above()).is(Blocks.OAK_DOOR)) {
+        BlockState placedLower = level.getBlockState(pos);
+        BlockState placedUpper = level.getBlockState(pos.above());
+        if (!VillageRecord.isDoorBase(placedLower)
+                || !placedUpper.is(Blocks.OAK_DOOR)
+                || placedLower.getValue(DoorBlock.FACING) != placement.facing()
+                || placedLower.getValue(DoorBlock.HINGE) != placement.hinge()) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorRepair] PLACE failed post-write validation target={} lowerState={} upperState={}",
-                    pos, level.getBlockState(pos), level.getBlockState(pos.above()));
+                    pos, placedLower, placedUpper);
             rollbackDoorPlacement(level, pos);
             return false;
         }

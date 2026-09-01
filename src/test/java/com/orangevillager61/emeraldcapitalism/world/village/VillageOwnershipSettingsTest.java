@@ -1,14 +1,21 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VillageOwnershipSettingsTest {
@@ -40,11 +47,12 @@ class VillageOwnershipSettingsTest {
                 UUID.randomUUID(), new BlockPos(0, 64, 0),
                 new AABB(-8, 60, -8, 8, 80, 8));
         BlockPos door = new BlockPos(1, 64, 1);
-        record.addDoor(door);
+        record.addDoor(door, testDoorState());
 
         assertTrue(record.getDoorRegistry().contains(door));
         record.setDoorRepairEnabled(false);
         assertTrue(record.getDoorRegistry().isEmpty());
+        assertNull(record.getDoorPlacement(door));
     }
 
     @Test
@@ -53,7 +61,7 @@ class VillageOwnershipSettingsTest {
                 UUID.randomUUID(), new BlockPos(0, 64, 0),
                 new AABB(-8, 60, -8, 8, 80, 8));
         BlockPos door = new BlockPos(1, 64, 1);
-        record.addDoor(door);
+        record.addDoor(door, testDoorState());
 
         assertTrue(record.markDoorMissing(door));
         assertTrue(record.getDoorRegistry().isEmpty());
@@ -70,7 +78,7 @@ class VillageOwnershipSettingsTest {
                 UUID.randomUUID(), new BlockPos(0, 64, 0),
                 new AABB(-8, 60, -8, 8, 80, 8));
         BlockPos door = new BlockPos(1, 64, 1);
-        source.addDoor(door);
+        source.addDoor(door, testDoorState());
         source.markDoorMissing(door);
 
         CompoundTag encoded = (CompoundTag) VillageRecord.CODEC
@@ -83,5 +91,13 @@ class VillageOwnershipSettingsTest {
                 .orElseThrow();
 
         assertTrue(decoded.getMissingDoorRegistry().contains(door));
+        assertEquals(new VillageRecord.DoorPlacement(Direction.WEST, DoorHingeSide.RIGHT),
+                decoded.getDoorPlacement(door));
+    }
+
+    private static BlockState testDoorState() {
+        return Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.WEST)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.RIGHT);
     }
 }

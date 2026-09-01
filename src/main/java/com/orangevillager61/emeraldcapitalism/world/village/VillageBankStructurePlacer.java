@@ -103,8 +103,6 @@ public final class VillageBankStructurePlacer {
     private static final BlockPos BANK_DOOR_CENTER = new BlockPos(0, 0, 5);
     /** First exterior path block immediately outside the two tall emerald doors. */
     private static final BlockPos BANK_DOOR_PATH_START = new BlockPos(-1, 0, 5);
-    /** The bank block's authored FACING value in {@code bank_top.nbt}. */
-    private static final Direction AUTHORED_BANK_FACING = Direction.WEST;
     /** The emerald processor's known position within {@code bank_top.nbt}. */
     private static final BlockPos EMERALD_ORE_PROCESSOR_OFFSET = new BlockPos(8, 1, 7);
     /** The emerald processor's authored FACING value in {@code bank_top.nbt}. */
@@ -628,19 +626,23 @@ public final class VillageBankStructurePlacer {
 
             BlockPos bankPos = topPlacePos.offset(rotateOffset(BANK_BLOCK_OFFSET, rotation));
             BlockEntity bank = level.getBlockEntity(bankPos);
-            if (!(bank instanceof BankBlockEntity)) {
+            if (!(bank instanceof BankBlockEntity generatedBank)) {
                 EmeraldCapitalism.LOGGER.error(
                         "[ECAP] Generated bank template at {} does not contain a bank block entity at {}",
                         topOrigin, bankPos);
                 return null;
             }
 
+            // Structure block-entity NBT can retain the controller that saved the
+            // template. Generated village banks always start independent so their
+            // banker POI is available and villagers can use the public front.
+            generatedBank.setController(null);
             alignGeneratedBankFacing(level, bankPos, rotation);
             BlockPos processorPos = topPlacePos.offset(rotateOffset(EMERALD_ORE_PROCESSOR_OFFSET, rotation));
             alignGeneratedProcessorFacing(level, processorPos, rotation);
 
             captureGolemConstructionLocation(level, topPlacePos, vaultOrigin, rotation,
-                    (BankBlockEntity) bank);
+                    generatedBank);
 
             replaceGeneratedBankCoalWithCharcoal(level, topPlacePos, rotation);
             seedInitialBread(level, vaultOrigin, rotation);
@@ -749,8 +751,8 @@ public final class VillageBankStructurePlacer {
 
     /**
      * Structure placement does not call {@link BankBlock#getStateForPlacement}.
-     * Keep the generated bank's state aligned with the authored NBT direction
-     * ({@code facing=west}) and the rotation selected for the whole template.
+     * Keep the generated bank's deposit-facing state aligned with the doors
+     * and the rotation selected for the whole template.
      */
     private void alignGeneratedBankFacing(ServerLevel level, BlockPos bankPos, Rotation rotation) {
         BlockState state = level.getBlockState(bankPos);
@@ -758,12 +760,7 @@ public final class VillageBankStructurePlacer {
             return;
         }
 
-        Direction expectedFacing = switch (rotation) {
-            case CLOCKWISE_90 -> AUTHORED_BANK_FACING.getClockWise();
-            case CLOCKWISE_180 -> AUTHORED_BANK_FACING.getOpposite();
-            case COUNTERCLOCKWISE_90 -> AUTHORED_BANK_FACING.getCounterClockWise();
-            case NONE -> AUTHORED_BANK_FACING;
-        };
+        Direction expectedFacing = bankEntranceDirection(rotation);
 
         if (state.getValue(BankBlock.FACING) != expectedFacing) {
             level.setBlock(bankPos, state.setValue(BankBlock.FACING, expectedFacing), 2);

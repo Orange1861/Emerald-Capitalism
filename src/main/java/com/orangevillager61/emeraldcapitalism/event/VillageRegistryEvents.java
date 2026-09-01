@@ -776,7 +776,7 @@ public class VillageRegistryEvents {
 
         if (newState.getBlock() instanceof DoorBlock) {
             BlockPos basePos = VillageRecord.doorBasePos(pos, newState);
-            boolean added = village.addDoor(basePos);
+            boolean added = village.addDoor(basePos, newState);
             EmeraldCapitalism.LOGGER.debug(
                     "[ECAP][DoorCache] NEIGHBOR door state changed pos={} base={} added={} village={} cacheInitialized={}",
                     pos, basePos, added, village.getVillageId(), village.isCacheInitialized());

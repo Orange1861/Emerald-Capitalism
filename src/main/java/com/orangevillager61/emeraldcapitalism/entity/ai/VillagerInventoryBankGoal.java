@@ -33,7 +33,6 @@ import java.util.EnumSet;
 public final class VillagerInventoryBankGoal extends Goal {
 
     private static final float SPEED = 0.5F;
-    private static final double ARRIVAL_DIST_SQ = 4.0D;
     private static final int ATTEMPT_TICKS = 100;
     private static final int MAX_ATTEMPTS = 3;
     private static final int SUCCESS_COOLDOWN = 20;
@@ -414,9 +413,8 @@ public final class VillagerInventoryBankGoal extends Goal {
     }
 
     private boolean isAtBank() {
-        return villager.distanceToSqr(
-                depositPos.getX() + 0.5D, depositPos.getY() + 0.5D, depositPos.getZ() + 0.5D)
-                <= ARRIVAL_DIST_SQ;
+        return bank != null && BankBlock.isAtDepositApproach(
+                bank.getBlockState(), bank.getBlockPos(), villager.position());
     }
 
     private void finish(ServerLevel level, int cooldown) {

@@ -10,6 +10,7 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -22,6 +23,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -115,6 +117,10 @@ public final class MayorDoorRepairGameTests {
                 "Mayor did not place the repaired oak door: lower=" + level.getBlockState(doorPos)
                         + ", upper=" + level.getBlockState(doorPos.above())
                         + ", doors=" + mayor.getInventory().countItem(Items.OAK_DOOR));
+        helper.assertValueEqual(level.getBlockState(doorPos).getValue(DoorBlock.FACING), Direction.WEST,
+                "Mayor did not restore the cached door facing");
+        helper.assertValueEqual(level.getBlockState(doorPos).getValue(DoorBlock.HINGE), DoorHingeSide.RIGHT,
+                "Mayor did not restore the cached door hinge side");
         helper.assertTrue(village.getMissingDoorRegistry().isEmpty(),
                 "repaired door remained in the missing-door registry");
         helper.assertTrue(village.getClaimedDoorPositions().isEmpty(),
@@ -178,7 +184,9 @@ public final class MayorDoorRepairGameTests {
                     Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
         }
 
-        BlockState lower = Blocks.OAK_DOOR.defaultBlockState();
+        BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.EAST)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.RIGHT);
         level.setBlock(doorPos, lower, Block.UPDATE_ALL);
         level.setBlock(doorPos.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER),
                 Block.UPDATE_ALL);
@@ -188,6 +196,15 @@ public final class MayorDoorRepairGameTests {
         village.fullScan(level);
         helper.assertTrue(village.getDoorRegistry().contains(doorPos),
                 "door was not present in the published village cache");
+        VillageRecord.DoorPlacement placement = village.getDoorPlacement(doorPos);
+        helper.assertTrue(placement != null,
+                "door placement was not present in the published village cache");
+        if (placement != null) {
+            helper.assertValueEqual(placement.facing(), Direction.EAST,
+                    "door facing was not recorded in the village cache");
+            helper.assertValueEqual(placement.hinge(), DoorHingeSide.RIGHT,
+                    "door hinge side was not recorded in the village cache");
+        }
 
         // This is the same direct world mutation used by BreakDoorGoal after
         // its 240-tick breaking animation completes.
@@ -202,6 +219,8 @@ public final class MayorDoorRepairGameTests {
 
         helper.assertTrue(village.getMissingDoorRegistry().contains(doorPos),
                 "periodic village verification did not queue the removed door");
+        helper.assertValueEqual(village.getDoorPlacement(doorPos), placement,
+                "door placement was discarded when the door became missing");
         helper.succeed();
     }
 
@@ -228,7 +247,10 @@ public final class MayorDoorRepairGameTests {
         VillageRecord village = registry.getOrCreateVillage(villageId, bankPos,
                 new AABB(bankPos.getX() - 6, bankPos.getY() - 3, bankPos.getZ() - 6,
                         bankPos.getX() + 6, bankPos.getY() + 3, bankPos.getZ() + 6));
-        village.addDoor(doorPos);
+        BlockState originalDoor = Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.WEST)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.RIGHT);
+        village.addDoor(doorPos, originalDoor);
         village.markDoorMissing(doorPos);
         registry.registerBankPosition(villageId, bankPos);
         bank.setVillageId(villageId);

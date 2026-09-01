@@ -41,6 +41,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -171,6 +172,30 @@ public final class VillagerGoalBehaviorGameTests {
                 "bank candidate could not be assigned from the banker work side");
         helper.assertValueEqual(villager.getVillagerData().getProfession(), ECAPVillagerProfessions.BANKER.get(),
                 "bank candidate did not receive the banker profession");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void bankFrontAndBackAccessSidesAreExclusive(GameTestHelper helper) {
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        var state = ECAPBlocks.BANK.get().defaultBlockState()
+                .setValue(BankBlock.FACING, Direction.NORTH);
+        Vec3 front = Vec3.atBottomCenterOf(BankBlock.getDepositApproachPos(state, bankPos));
+        Vec3 back = Vec3.atBottomCenterOf(BankBlock.getBankerWorkPos(state, bankPos));
+        Vec3 side = Vec3.atBottomCenterOf(bankPos.relative(Direction.EAST));
+
+        helper.assertTrue(BankBlock.isAtDepositApproach(state, bankPos, front),
+                "front position was not accepted for villager bank access");
+        helper.assertFalse(BankBlock.isAtDepositApproach(state, bankPos, back),
+                "back position was accepted for ordinary villager bank access");
+        helper.assertFalse(BankBlock.isAtDepositApproach(state, bankPos, side),
+                "side position was accepted for ordinary villager bank access");
+        helper.assertTrue(BankBlock.isAtBankerWorkPos(state, bankPos, back),
+                "back position was not accepted for banker work");
+        helper.assertFalse(BankBlock.isAtBankerWorkPos(state, bankPos, front),
+                "front position was accepted for banker work");
+        helper.assertFalse(BankBlock.isAtBankerWorkPos(state, bankPos, side),
+                "side position was accepted for banker work");
         helper.succeed();
     }
 

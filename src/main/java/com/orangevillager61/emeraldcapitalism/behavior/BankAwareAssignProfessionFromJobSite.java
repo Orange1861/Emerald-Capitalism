@@ -18,8 +18,6 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class BankAwareAssignProfessionFromJobSite implements BehaviorControl<Villager> {
 
-    private static final double ASSIGNMENT_DISTANCE = 2.0D;
-
     private final BehaviorControl<Villager> delegate = AssignProfessionFromJobSite.create();
 
     @Override
@@ -61,7 +59,6 @@ public final class BankAwareAssignProfessionFromJobSite implements BehaviorContr
         BlockPos bankPos = potentialJobSite.pos();
         BlockState state = level.getBlockState(bankPos);
         return !state.is(ECAPBlocks.BANK.get())
-                || BankBlock.getBankerWorkPos(state, bankPos)
-                .closerToCenterThan(villager.position(), ASSIGNMENT_DISTANCE);
+                || BankBlock.isAtBankerWorkPos(state, bankPos, villager.position());
     }
 }

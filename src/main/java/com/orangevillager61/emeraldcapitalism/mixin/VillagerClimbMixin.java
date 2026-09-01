@@ -147,8 +147,21 @@ public abstract class VillagerClimbMixin {
                     villager.getNavigation().stop();
                     return;
                 }
-                // Top of ladder: boost up to clear onto the floor above
-                villager.setDeltaMovement(pullX, 0.2, pullZ);
+                // Top of ladder: leave the column and take one walking step onto the floor.
+                // Without the horizontal exit, the completed path can be replaced by a
+                // route back down before the villager has cleared the ladder.
+                double exitPullX = pullX;
+                double exitPullZ = pullZ;
+                BlockState state = villager.level().getBlockState(pos);
+                if (state.hasProperty(LadderBlock.FACING)) {
+                    Direction facing = state.getValue(LadderBlock.FACING);
+                    BlockPos walkExitPos = exitPos.relative(facing);
+                    if (emeraldcapitalism$isClearForVillager(villager, walkExitPos)) {
+                        exitPullX = (walkExitPos.getX() + 0.5D - villager.getX()) * 0.2D;
+                        exitPullZ = (walkExitPos.getZ() + 0.5D - villager.getZ()) * 0.2D;
+                    }
+                }
+                villager.setDeltaMovement(exitPullX, 0.2D, exitPullZ);
             } else {
                 // Bottom of ladder: push off horizontally using ladder facing
                 BlockState state = villager.level().getBlockState(pos);

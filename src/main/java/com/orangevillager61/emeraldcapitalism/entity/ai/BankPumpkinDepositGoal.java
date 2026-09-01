@@ -23,7 +23,6 @@ import java.util.EnumSet;
 public final class BankPumpkinDepositGoal extends Goal {
 
     private static final float SPEED = 0.5F;
-    private static final double ARRIVAL_DIST_SQ = 4.0;
     private static final int ATTEMPT_TICKS = 100;
     private static final int MAX_ATTEMPTS = 3;
     private static final int SUCCESS_COOLDOWN = 20;
@@ -215,9 +214,8 @@ public final class BankPumpkinDepositGoal extends Goal {
     }
 
     private boolean isAtBank() {
-        BlockPos pos = context.depositPos();
-        return villager.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)
-                <= ARRIVAL_DIST_SQ;
+        return context != null && BankBlock.isAtDepositApproach(
+                context.bank().getBlockState(), context.bank().getBlockPos(), villager.position());
     }
 
     private record WorkContext(BankBlockEntity bank, BlockPos depositPos, BlockPos navigationTarget) {

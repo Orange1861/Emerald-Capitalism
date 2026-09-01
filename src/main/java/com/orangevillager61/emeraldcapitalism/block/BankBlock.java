@@ -19,6 +19,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -55,6 +56,8 @@ import java.util.UUID;
  */
 public class BankBlock extends BaseEntityBlock {
 
+    private static final double ACCESS_DISTANCE = 1.0D;
+
     public static final MapCodec<BankBlock> CODEC = simpleCodec(BankBlock::new);
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
     /** Controlled banks stop exposing their block state as an acquirable banker POI. */
@@ -65,8 +68,8 @@ public class BankBlock extends BaseEntityBlock {
      * ({@code NORTH}, {@code WEST}, {@code EAST}, and {@code SOUTH}) from the
      * block state rather than a villager's current heading:
      * <ul>
-     *     <li>The side named by {@link #FACING} is the villager deposit approach side.</li>
-     *     <li>The opposite side is the banker work side.</li>
+     *     <li>The side named by {@link #FACING} is the front, used by villagers.</li>
+     *     <li>The opposite side is the back, used by the banker.</li>
      * </ul>
      */
 
@@ -78,6 +81,16 @@ public class BankBlock extends BaseEntityBlock {
     /** Returns the side where the banker works at the bank. */
     public static BlockPos getBankerWorkPos(BlockState state, BlockPos bankPos) {
         return bankPos.relative(state.getValue(FACING).getOpposite());
+    }
+
+    /** Returns whether an entity has reached the bank's front deposit position. */
+    public static boolean isAtDepositApproach(BlockState state, BlockPos bankPos, Vec3 entityPos) {
+        return getDepositApproachPos(state, bankPos).closerToCenterThan(entityPos, ACCESS_DISTANCE);
+    }
+
+    /** Returns whether an entity has reached the banker's back work position. */
+    public static boolean isAtBankerWorkPos(BlockState state, BlockPos bankPos, Vec3 entityPos) {
+        return getBankerWorkPos(state, bankPos).closerToCenterThan(entityPos, ACCESS_DISTANCE);
     }
 
     // Keep interaction geometry aligned with the bank's full-cube resource model.

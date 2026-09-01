@@ -23,10 +23,8 @@ import java.util.EnumSet;
  */
 public class BankDepositGoal extends Goal {
 
-    /** Squared arrival distance (2 blocks). */
-    private static final double ARRIVAL_DIST_SQ = 4.0;
     /** The Bank block is solid, so target a nearby reachable block instead of its center. */
-    private static final int WALK_TARGET_CLOSE_ENOUGH = 2;
+    private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
     /** Walk speed modifier passed to navigation. */
     private static final float  SPEED           = 0.5f;
     /** Ticks allowed per pathfinding attempt before it counts as a failure. */
@@ -192,10 +190,6 @@ public class BankDepositGoal extends Goal {
     }
 
     private boolean isAtBank() {
-        BlockPos depositPos = BankBlock.getDepositApproachPos(bank.getBlockState(), bankPos);
-        return villager.distanceToSqr(
-                depositPos.getX() + 0.5,
-                depositPos.getY() + 0.5,
-                depositPos.getZ() + 0.5) <= ARRIVAL_DIST_SQ;
+        return BankBlock.isAtDepositApproach(bank.getBlockState(), bankPos, villager.position());
     }
 }

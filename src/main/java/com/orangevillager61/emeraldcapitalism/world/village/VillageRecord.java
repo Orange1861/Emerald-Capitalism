@@ -16,6 +16,7 @@ import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.AdaptiveChunkScanPlan;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.InitialVillageScanChunkLoadPool;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
@@ -23,6 +24,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
@@ -186,6 +188,49 @@ public class VillageRecord {
     private static final Codec<List<BlockPos>> DOOR_POSITIONS_CODEC =
             BlockPos.CODEC.sizeLimitedListOf(MAX_PERSISTED_DOOR_POSITIONS);
 
+    private static final Codec<Direction> HORIZONTAL_DIRECTION_CODEC = Direction.CODEC.validate(direction ->
+            direction.getAxis().isHorizontal()
+                    ? DataResult.success(direction)
+                    : DataResult.error(() -> "Door facing must be horizontal"));
+
+    /** The block-state properties needed to restore a door to its original side and hinge. */
+    public record DoorPlacement(Direction facing, DoorHingeSide hinge) {
+        public DoorPlacement {
+            Objects.requireNonNull(facing, "facing");
+            Objects.requireNonNull(hinge, "hinge");
+            if (!facing.getAxis().isHorizontal()) {
+                throw new IllegalArgumentException("Door facing must be horizontal");
+            }
+        }
+
+        private static DoorPlacement fromState(BlockState state) {
+            if (!(state.getBlock() instanceof DoorBlock)) {
+                throw new IllegalArgumentException("Door placement requires a door block state");
+            }
+            return new DoorPlacement(state.getValue(DoorBlock.FACING), state.getValue(DoorBlock.HINGE));
+        }
+    }
+
+    private record PersistedDoorPlacement(BlockPos position, Direction facing, boolean rightHinge) {
+        private static final Codec<PersistedDoorPlacement> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                BlockPos.CODEC.fieldOf("position").forGetter(PersistedDoorPlacement::position),
+                HORIZONTAL_DIRECTION_CODEC.fieldOf("facing").forGetter(PersistedDoorPlacement::facing),
+                Codec.BOOL.fieldOf("right_hinge").forGetter(PersistedDoorPlacement::rightHinge)
+        ).apply(instance, PersistedDoorPlacement::new));
+
+        private static PersistedDoorPlacement from(Map.Entry<BlockPos, DoorPlacement> entry) {
+            return new PersistedDoorPlacement(entry.getKey(), entry.getValue().facing(),
+                    entry.getValue().hinge() == DoorHingeSide.RIGHT);
+        }
+
+        private DoorPlacement placement() {
+            return new DoorPlacement(facing, rightHinge ? DoorHingeSide.RIGHT : DoorHingeSide.LEFT);
+        }
+    }
+
+    private static final Codec<List<PersistedDoorPlacement>> DOOR_PLACEMENTS_CODEC =
+            PersistedDoorPlacement.CODEC.sizeLimitedListOf(MAX_PERSISTED_DOOR_POSITIONS);
+
     /** Codec for the durable portion of a village record, excluding the extra door field. */
     private static final Codec<VillageRecord> BASE_CODEC = RecordCodecBuilder.create(instance -> instance.group(
             UUIDUtil.CODEC.fieldOf("village_id").forGetter(VillageRecord::getVillageId),
@@ -257,7 +302,13 @@ public class VillageRecord {
                                     return ops.mergeToMap(withDoors, ops.createString("missing_door_registry"),
                                             ops.createList(missingPositions.stream()));
                                 })
-                                .flatMap(withMissingDoors -> ops.mergeToMap(withMissingDoors,
+                                .flatMap(withMissingDoors -> DOOR_PLACEMENTS_CODEC.encodeStart(ops,
+                                                input.doorPlacements.entrySet().stream()
+                                                        .map(PersistedDoorPlacement::from)
+                                                        .toList())
+                                        .flatMap(encodedPlacements -> ops.mergeToMap(withMissingDoors,
+                                                ops.createString("door_placements"), encodedPlacements)))
+                                .flatMap(withDoorPlacements -> ops.mergeToMap(withDoorPlacements,
                                         ops.createString("farmland_repair_enabled"),
                                         ops.createBoolean(input.farmlandRepairEnabled)))
                                 .flatMap(withFarmlandSetting -> ops.mergeToMap(withFarmlandSetting,
@@ -291,8 +342,16 @@ public class VillageRecord {
                                 DataResult<List<BlockPos>> missingDoorsResult = encodedMissingDoors == null
                                         ? DataResult.success(List.of())
                                         : DOOR_POSITIONS_CODEC.parse(ops, encodedMissingDoors);
+                                T encodedDoorPlacements = map.get(ops.createString("door_placements"));
+                                DataResult<List<PersistedDoorPlacement>> doorPlacementsResult =
+                                        encodedDoorPlacements == null
+                                                ? DataResult.success(List.of())
+                                                : DOOR_PLACEMENTS_CODEC.parse(ops, encodedDoorPlacements);
                                 return doorsResult.flatMap(doors -> missingDoorsResult.flatMap(missingDoors ->
-                                        readOptionalBoolean(ops, map, "farmland_repair_enabled",
+                                        doorPlacementsResult.flatMap(doorPlacements ->
+                                                validateDoorPlacements(doorPlacements, doors, missingDoors)
+                                                        .flatMap(validPlacements ->
+                                                readOptionalBoolean(ops, map, "farmland_repair_enabled",
                                                 decoded.getFirst().farmlandRepairEnabled).flatMap(farmlandEnabled ->
                                                 readOptionalBoolean(ops, map, "door_repair_enabled",
                                                         decoded.getFirst().doorRepairEnabled).flatMap(doorEnabled ->
@@ -313,6 +372,7 @@ public class VillageRecord {
                                                     decoded.getFirst().missingDoorRegistry.addAll(missingDoors);
                                                     decoded.getFirst().missingDoorRegistry.removeAll(
                                                             decoded.getFirst().doorRegistry);
+                                                    decoded.getFirst().doorPlacements.putAll(validPlacements);
                                                     decoded.getFirst().farmlandRepairEnabled = farmlandEnabled;
                                                     decoded.getFirst().doorRepairEnabled = doorEnabled;
                                                     UUID candidateId = decoded.getFirst().governorCandidateId;
@@ -332,11 +392,34 @@ public class VillageRecord {
                                                     decoded.getFirst().governorCandidateAttackGraceUntil =
                                                             completeGrace ? graceUntil : 0L;
                                                     return decoded;
-                                                }))))))));
+                                                }))))))))));
                             }));
                 }
             }
     );
+
+    private static DataResult<Map<BlockPos, DoorPlacement>> validateDoorPlacements(
+            List<PersistedDoorPlacement> placements,
+            List<BlockPos> doors,
+            List<BlockPos> missingDoors
+    ) {
+        Set<BlockPos> trackedPositions = new HashSet<>(doors);
+        trackedPositions.addAll(missingDoors);
+        Map<BlockPos, DoorPlacement> validated = new HashMap<>();
+        for (PersistedDoorPlacement persisted : placements) {
+            BlockPos position = persisted.position().immutable();
+            if (!trackedPositions.contains(position)) {
+                return DataResult.error(() -> "Door placement has no tracked door at " + position);
+            }
+            if (validated.putIfAbsent(position, persisted.placement()) != null) {
+                return DataResult.error(() -> "Duplicate persisted door placement at " + position);
+            }
+        }
+        if (validated.size() != trackedPositions.size()) {
+            return DataResult.error(() -> "Door placement data is missing for one or more tracked doors");
+        }
+        return DataResult.success(validated);
+    }
 
     private static Codec<String> boundedStringCodec(int maxLength, String description) {
         return Codec.STRING.validate(value -> value.length() <= maxLength
@@ -418,6 +501,8 @@ public class VillageRecord {
     private final Set<BlockPos> doorRegistry = new HashSet<>();
     /** Previously tracked door positions that are currently empty and need repair. */
     private final Set<BlockPos> missingDoorRegistry = new HashSet<>();
+    /** Facing and hinge retained for active and missing doors so repairs reproduce their placement. */
+    private final Map<BlockPos, DoorPlacement> doorPlacements = new HashMap<>();
     /** Farmland positions that need repair (trampled or turned to dirt). */
     private final Set<BlockPos> repairQueue = new HashSet<>();
     /** Farmland positions currently claimed by a farmer for repair. Cleared on server load. */
@@ -449,6 +534,7 @@ public class VillageRecord {
         private final Map<BlockPos, String> jobSites = new HashMap<>();
         private final Set<BlockPos> farmland = new HashSet<>();
         private final Set<BlockPos> doors = new HashSet<>();
+        private final Map<BlockPos, DoorPlacement> doorPlacements = new HashMap<>();
 
         private FullScanState(
                 AABB area,
@@ -833,9 +919,11 @@ public class VillageRecord {
         if (!enabled) {
             doorRegistry.clear();
             missingDoorRegistry.clear();
+            doorPlacements.clear();
             claimedDoorPositions.clear();
             if (fullScanState != null) {
                 fullScanState.doors.clear();
+                fullScanState.doorPlacements.clear();
             }
         }
         return true;
@@ -915,6 +1003,7 @@ public class VillageRecord {
         farmlandRegistry.removeIf(pos -> !containsPos(newBox, pos));
         doorRegistry.removeIf(pos -> !containsPos(newBox, pos));
         missingDoorRegistry.removeIf(pos -> !containsPos(newBox, pos));
+        doorPlacements.keySet().removeIf(pos -> !containsPos(newBox, pos));
         repairQueue.removeIf(pos -> !containsPos(newBox, pos));
         claimedPositions.removeIf(pos -> !containsPos(newBox, pos));
         claimedDoorPositions.removeIf(pos -> !containsPos(newBox, pos));
@@ -1387,7 +1476,9 @@ public class VillageRecord {
                 interesting = true;
             }
             if (doorRepairEnabled && isDoorBase(blockState)) {
-                state.doors.add(pos.immutable());
+                BlockPos immutablePos = pos.immutable();
+                state.doors.add(immutablePos);
+                state.doorPlacements.put(immutablePos, DoorPlacement.fromState(blockState));
                 interesting = true;
             }
             Block block = blockState.getBlock();
@@ -1447,6 +1538,10 @@ public class VillageRecord {
         missingDoorRegistry.addAll(previouslyKnownDoors);
         missingDoorRegistry.removeAll(state.doors);
         missingDoorRegistry.removeIf(pos -> !containsPos(boundingBox, pos));
+        doorPlacements.putAll(state.doorPlacements);
+        Set<BlockPos> trackedDoorPositions = new HashSet<>(doorRegistry);
+        trackedDoorPositions.addAll(missingDoorRegistry);
+        doorPlacements.keySet().retainAll(trackedDoorPositions);
         claimedDoorPositions.retainAll(missingDoorRegistry);
         reconcileRepairQueue(level);
         cacheInitialized = true;
@@ -1538,7 +1633,7 @@ public class VillageRecord {
         if (doorRepairEnabled && state.getBlock() instanceof DoorBlock) {
             BlockPos basePos = doorBasePos(pos, state);
             boolean wasMissing = missingDoorRegistry.contains(basePos);
-            boolean added = addDoor(basePos);
+            boolean added = addDoor(basePos, state);
             EmeraldCapitalism.LOGGER.debug(
                     "[ECAP][DoorCache] PLACE applied village={} pos={} base={} added={} wasMissing={} doors={} missing={}",
                     villageId, pos, basePos, added, wasMissing, doorRegistry.size(), missingDoorRegistry.size());
@@ -1570,6 +1665,8 @@ public class VillageRecord {
             fullScanState.jobSites.remove(pos);
             fullScanState.doors.remove(pos);
             fullScanState.doors.remove(pos.below());
+            fullScanState.doorPlacements.remove(pos);
+            fullScanState.doorPlacements.remove(pos.below());
         }
     }
 
@@ -1588,6 +1685,12 @@ public class VillageRecord {
     /** Returns previously tracked door positions that are currently missing. */
     public Set<BlockPos> getMissingDoorRegistry() {
         return Collections.unmodifiableSet(missingDoorRegistry);
+    }
+
+    /** Returns the cached placement for an active or missing door, or {@code null} if unavailable. */
+    @Nullable
+    public DoorPlacement getDoorPlacement(BlockPos pos) {
+        return doorPlacements.get(pos);
     }
 
     /** Returns an unmodifiable view of the repair queue. */
@@ -1639,27 +1742,43 @@ public class VillageRecord {
         return added;
     }
 
-    /** Adds a canonical door position, returning whether persistent state changed. */
-    public boolean addDoor(BlockPos pos) {
+    /** Adds a canonical door position and its placement, returning whether persistent state changed. */
+    public boolean addDoor(BlockPos pos, BlockState state) {
         if (!doorRepairEnabled) {
             return false;
         }
-        boolean added = doorRegistry.add(pos.immutable());
-        missingDoorRegistry.remove(pos);
-        claimedDoorPositions.remove(pos);
-        if (fullScanState != null) fullScanState.doors.add(pos.immutable());
-        if (added) {
-            EmeraldCapitalism.LOGGER.debug("[ECAP][DoorCache] ADD village={} base={} doors={} missing={}",
-                    villageId, pos, doorRegistry.size(), missingDoorRegistry.size());
+        Objects.requireNonNull(pos, "pos");
+        Objects.requireNonNull(state, "state");
+        BlockPos immutablePos = pos.immutable();
+        DoorPlacement placement = DoorPlacement.fromState(state);
+        boolean changed = doorRegistry.add(immutablePos);
+        changed |= missingDoorRegistry.remove(pos);
+        changed |= claimedDoorPositions.remove(pos);
+        changed |= !placement.equals(doorPlacements.put(immutablePos, placement));
+        if (fullScanState != null) {
+            fullScanState.doors.add(immutablePos);
+            fullScanState.doorPlacements.put(immutablePos, placement);
         }
-        return added;
+        if (changed) {
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][DoorCache] ADD village={} base={} facing={} hinge={} doors={} missing={}",
+                    villageId, pos, placement.facing(), placement.hinge(),
+                    doorRegistry.size(), missingDoorRegistry.size());
+        }
+        return changed;
     }
 
     /** Removes a canonical door position from the registry. */
     public void removeDoor(BlockPos pos) {
         doorRegistry.remove(pos);
+        if (!missingDoorRegistry.contains(pos)) {
+            doorPlacements.remove(pos);
+        }
         claimedDoorPositions.remove(pos);
-        if (fullScanState != null) fullScanState.doors.remove(pos);
+        if (fullScanState != null) {
+            fullScanState.doors.remove(pos);
+            fullScanState.doorPlacements.remove(pos);
+        }
     }
 
     /** Records a tracked door as missing after its block was destroyed. */
@@ -1702,6 +1821,7 @@ public class VillageRecord {
     /** Clears remembered missing-door targets when a governor explicitly resets the door cache. */
     public boolean clearMissingDoors() {
         boolean changed = !missingDoorRegistry.isEmpty();
+        doorPlacements.keySet().removeAll(missingDoorRegistry);
         missingDoorRegistry.clear();
         claimedDoorPositions.clear();
         return changed;
@@ -1958,7 +2078,9 @@ public class VillageRecord {
                 farmlandRegistry.add(pos.immutable());
             }
             if (doorRepairEnabled && isDoorBase(state)) {
-                doorRegistry.add(pos.immutable());
+                BlockPos immutablePos = pos.immutable();
+                doorRegistry.add(immutablePos);
+                doorPlacements.put(immutablePos, DoorPlacement.fromState(state));
             }
         }
     }
@@ -2000,7 +2122,9 @@ public class VillageRecord {
                 farmlandRegistry.add(pos.immutable());
             }
             if (doorRepairEnabled && isDoorBase(state)) {
-                doorRegistry.add(pos.immutable());
+                BlockPos immutablePos = pos.immutable();
+                doorRegistry.add(immutablePos);
+                doorPlacements.put(immutablePos, DoorPlacement.fromState(state));
             }
         }
     }

@@ -30,7 +30,6 @@ public final class BankMorningTradeGoal extends Goal {
     private static final long DAY_LENGTH_TICKS = 24_000L;
     private static final long MORNING_END_TICK = 6_000L;
     private static final float SPEED = 0.5F;
-    private static final double ARRIVAL_DIST_SQ = 4.0;
     private static final int ATTEMPT_TICKS = 100;
     private static final int MAX_ATTEMPTS = 3;
     private static final int SUCCESS_COOLDOWN = 100;
@@ -100,7 +99,7 @@ public final class BankMorningTradeGoal extends Goal {
             return;
         }
 
-        if (isAtBank(context.depositPos())) {
+        if (isAtBank()) {
             context = new WorkContext(context.bank(), context.depositPos(), context.depositPos());
             return;
         }
@@ -139,7 +138,7 @@ public final class BankMorningTradeGoal extends Goal {
             return;
         }
 
-        if (isAtBank(context.depositPos())) {
+        if (isAtBank()) {
             executeMorningTrades(level, context.bank());
             finished = true;
             return;
@@ -406,9 +405,9 @@ public final class BankMorningTradeGoal extends Goal {
         return true;
     }
 
-    private boolean isAtBank(BlockPos pos) {
-        return villager.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5,
-                pos.getZ() + 0.5) <= ARRIVAL_DIST_SQ;
+    private boolean isAtBank() {
+        return context != null && BankBlock.isAtDepositApproach(
+                context.bank().getBlockState(), context.bank().getBlockPos(), villager.position());
     }
 
     private record WorkContext(BankBlockEntity bank, BlockPos depositPos, BlockPos navigationTarget) {

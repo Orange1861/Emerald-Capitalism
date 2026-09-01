@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.mojang.authlib.GameProfile;
+import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
@@ -21,6 +22,7 @@ import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -455,6 +457,43 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
+    public static void fullInventoryVillagerUsesOnlyTheBankFront(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        setupMarketBank(helper, Items.EMERALD_ORE, 0);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                helper.absolutePos(new BlockPos(1, 1, 2)));
+        if (chest == null) {
+            helper.fail("bank access-side chest was not created");
+            return;
+        }
+
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 0, 1, 1);
+        villager.getInventory().setItem(0, new ItemStack(Items.STRING, 4));
+        for (int slot = 1; slot < villager.getInventory().getContainerSize(); slot++) {
+            villager.getInventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(villager);
+        helper.assertTrue(goal.canUse(), "back-side villager did not select its bank cleanup task");
+        goal.start();
+        goal.tick();
+        helper.assertValueEqual(countItem(villager, Items.STRING), 4,
+                "villager transferred inventory from the banker-only back side");
+
+        BlockPos front = helper.absolutePos(new BlockPos(2, 1, 1));
+        villager.moveTo(front.getX() + 0.5D, front.getY(), front.getZ() + 0.5D,
+                0.0F, 0.0F);
+        goal.tick();
+        goal.stop();
+
+        helper.assertValueEqual(countItem(villager, Items.STRING), 0,
+                "villager did not transfer inventory from the bank front");
+        helper.assertValueEqual(countItem(chest, Items.STRING), 4,
+                "front-side bank access did not store the villager's items");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
     public static void lumberjackDonatesSticksToBank(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         setupMarketBank(helper, Items.EMERALD_ORE, 0);
@@ -712,7 +751,8 @@ public final class BankGameplayGameTests {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
-        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState()
+                .setValue(BankBlock.FACING, Direction.EAST));
         helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
 
         BankBlockEntity bank = bankAt(helper, bankPos);
