@@ -75,7 +75,7 @@ public final class ZombieVirusEvents {
 
         MobEffectInstance virus = target.getEffect(ECAPEffects.ZOMBIE_VIRUS);
         if (virus != null) {
-            // Only the rotting phase has a countdown. Once the turning phase starts it remains terminal.
+            // Only the turning phase has a countdown. Once the rotting phase starts it remains terminal.
             if (!isPhaseTwo(virus)) {
                 reducePhaseOneDuration(target, virus);
             }

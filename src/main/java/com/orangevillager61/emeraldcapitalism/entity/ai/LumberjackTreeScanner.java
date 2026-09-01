@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.util.LoadedChunkComposition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
@@ -66,6 +67,16 @@ final class LumberjackTreeScanner {
         // Remove disconnected/dead lumberjacks once for the whole search. The
         // old implementation performed this cleanup for every candidate tree.
         LumberjackTreeReservations.prune(level);
+        LoadedChunkComposition composition = LoadedChunkComposition.find(
+                level,
+                origin.getX() - searchRange, origin.getX() + searchRange,
+                origin.getY() - VERTICAL_SEARCH_RANGE, origin.getY() + VERTICAL_SEARCH_RANGE,
+                origin.getZ() - searchRange, origin.getZ() + searchRange,
+                this::isLumberjackLog);
+        if (composition.isEmpty()) {
+            return List.of();
+        }
+
         List<TreeSnapshot> candidates = new ArrayList<>();
         Set<BlockPos> examinedLogs = new HashSet<>();
         BlockPos.MutableBlockPos candidate = new BlockPos.MutableBlockPos();
@@ -81,7 +92,10 @@ final class LumberjackTreeScanner {
                     }
                     for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
                         candidate.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                        BlockState candidateState = getLoadedBlockState(level, candidate);
+                        if (!composition.mayContain(candidate)) {
+                            continue;
+                        }
+                        BlockState candidateState = composition.getBlockStateIfLoaded(candidate);
                         if (!isLumberjackLog(candidateState)) {
                             continue;
                         }

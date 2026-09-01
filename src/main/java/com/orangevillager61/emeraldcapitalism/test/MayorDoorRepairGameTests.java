@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -18,7 +19,11 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -128,6 +133,43 @@ public final class MayorDoorRepairGameTests {
                 "Mayor did not release the door claim after interruption");
         helper.assertFalse(VillageRecord.isDoorBase(level.getBlockState(doorPos)),
                 "Mayor placed a door after repair was disabled");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void nonPlayerDoorRemovalBecomesRepairTarget(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos doorPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos bellPos = helper.absolutePos(new BlockPos(0, 1, 1));
+        for (int x = 0; x <= 2; x++) {
+            level.setBlock(helper.absolutePos(new BlockPos(x, 0, 1)),
+                    Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        }
+
+        BlockState lower = Blocks.OAK_DOOR.defaultBlockState();
+        level.setBlock(doorPos, lower, Block.UPDATE_ALL);
+        level.setBlock(doorPos.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER),
+                Block.UPDATE_ALL);
+
+        VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
+                UUID.randomUUID(), bellPos, new AABB(bellPos).inflate(6.0D));
+        village.fullScan(level);
+        helper.assertTrue(village.getDoorRegistry().contains(doorPos),
+                "door was not present in the published village cache");
+
+        // This is the same direct world mutation used by BreakDoorGoal after
+        // its 240-tick breaking animation completes.
+        level.removeBlock(doorPos, false);
+        level.removeBlock(doorPos.above(), false);
+
+        VillageRegistryManager manager = new VillageRegistryManager(level);
+        for (int tick = 0; tick < 20; tick++) {
+            manager.tick(level);
+        }
+        manager.shutdown();
+
+        helper.assertTrue(village.getMissingDoorRegistry().contains(doorPos),
+                "periodic village verification did not queue the removed door");
         helper.succeed();
     }
 

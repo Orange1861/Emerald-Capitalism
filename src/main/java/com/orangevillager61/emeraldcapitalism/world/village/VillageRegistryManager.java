@@ -151,6 +151,10 @@ public class VillageRegistryManager {
         boolean periodicMayorAudit = tickCounter % 200 == 0;
         for (VillageRecord village : registryData.getVillages().values()) {
             boolean changed = VillageGovernance.refresh(level, village);
+            // Non-player entities such as zombies remove doors directly through
+            // Level.removeBlock, so no player BreakEvent reaches the cache hooks.
+            // Recheck the small published block cache before the next repair pass.
+            changed |= village.verify(level);
             // A normal village already has a recorded Mayor and receives
             // immediate succession checks from villager-death events. Keep a
             // slower reconciliation pass for chunk unloads or missed events,
