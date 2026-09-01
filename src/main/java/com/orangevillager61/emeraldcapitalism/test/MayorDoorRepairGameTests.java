@@ -55,11 +55,17 @@ public final class MayorDoorRepairGameTests {
         mayor.setPos(bankApproach.getX() + 0.5D, bankApproach.getY(), bankApproach.getZ() + 0.5D);
         helper.assertTrue(goal.canUse(), "Mayor did not select the post-sleep door-repair task");
         goal.start();
+        helper.assertTrue(village.getClaimedDoorPositions().contains(doorPos),
+                "Mayor did not claim the selected missing door");
         helper.assertFalse(new MayorDoorRepairGoal(mayor).canUse(),
                 "Mayor retriggered the task without sleeping again");
         goal.tick();
         helper.assertValueEqual(bank.getTotalPlankCount(), 0,
                 "Mayor did not withdraw six planks at the bank");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_PLANKS), 0,
+                "Mayor kept the bank planks instead of crafting with them");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 1,
+                "Mayor did not craft an oak door from the withdrawn planks");
         mayor.setPos(doorPos.getX() + 0.5D, doorPos.getY(), doorPos.getZ() + 0.5D);
         for (int tick = 0; tick < 5; tick++) {
             goal.tick();
@@ -73,6 +79,8 @@ public final class MayorDoorRepairGameTests {
                         + ", doors=" + mayor.getInventory().countItem(Items.OAK_DOOR));
         helper.assertTrue(village.getMissingDoorRegistry().isEmpty(),
                 "repaired door remained in the missing-door registry");
+        helper.assertTrue(village.getClaimedDoorPositions().isEmpty(),
+                "Mayor did not release the repaired door claim");
         helper.assertValueEqual(bank.getTotalPlankCount(), 0,
                 "bank did not provide exactly six plank-equivalents for the repair");
         helper.succeed();
@@ -102,6 +110,8 @@ public final class MayorDoorRepairGameTests {
         helper.assertTrue(goal.canUse(), "Mayor did not select the post-sleep door-repair task");
 
         goal.start();
+        helper.assertTrue(village.getClaimedDoorPositions().contains(doorPos),
+                "Mayor did not claim the selected missing door");
         goal.tick();
         helper.assertValueEqual(bank.getTotalPlankCount(), 0,
                 "Mayor did not withdraw six planks at the bank");
@@ -114,6 +124,8 @@ public final class MayorDoorRepairGameTests {
                 "Mayor did not return the withdrawn planks after repair was disabled");
         helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 0,
                 "Mayor kept a converted door after repair was disabled");
+        helper.assertTrue(village.getClaimedDoorPositions().isEmpty(),
+                "Mayor did not release the door claim after interruption");
         helper.assertFalse(VillageRecord.isDoorBase(level.getBlockState(doorPos)),
                 "Mayor placed a door after repair was disabled");
         helper.succeed();

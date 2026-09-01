@@ -10,10 +10,12 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -23,10 +25,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 
-import java.util.Comparator;
+import javax.annotation.Nullable;
 import java.util.EnumSet;
 
-/** Sends a Mayor to the bank to convert free plank reserves into missing doors after sleeping. */
+/** Makes a mayor collect wood from the bank and rebuild one missing village door. */
 public final class MayorDoorRepairGoal extends Goal {
 
     private static final String SLEPT_SINCE_JOB_SITE_VISIT_KEY =
@@ -34,24 +36,33 @@ public final class MayorDoorRepairGoal extends Goal {
     private static final String JOB_SITE_VISIT_CONSUMED_KEY =
             "emeraldcapitalism_mayor_repair_job_site_visit_consumed";
     private static final int PLANKS_PER_DOOR = 6;
-    private static final float SPEED = 0.5F;
-    private static final double ARRIVAL_DIST_SQ = 4.0D;
-    private static final int ATTEMPT_TICKS = 100;
-    private static final int MAX_ATTEMPTS = 3;
-    private static final int MAX_DOOR_SEARCH_CANDIDATES = 256;
+    private static final double MAX_RANGE = 32.0D;
+    private static final double ARRIVAL_DISTANCE_SQ = 2.25D;
+    private static final float SPEED_MODIFIER = 0.6F;
+    private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
+    private static final int EMPTY_QUEUE_RETRY_TICKS = 100;
+    private static final int NAVIGATION_RADIUS = 2;
 
     private final Villager villager;
-    private WorkContext context;
-    private Stage stage;
+    @Nullable
+    private BlockPos targetPos;
+    @Nullable
     private BlockPos navigationTarget;
-    private int attemptTicks;
-    private int attempts;
+    @Nullable
+    private VillageRecord village;
+    @Nullable
+    private BankBlockEntity bank;
+    @Nullable
+    private Stage stage;
+    private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
+    private boolean failed;
     private boolean finished;
     private boolean carryingRepairDoor;
+    private long nextDoorLookupTick;
 
     public MayorDoorRepairGoal(Villager villager) {
         this.villager = villager;
-        setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
     @Override
@@ -71,7 +82,8 @@ public final class MayorDoorRepairGoal extends Goal {
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
                 || villager.getVillagerData().getProfession() != ECAPVillagerProfessions.MAYOR.get()
                 || !hasSleptSinceJobSiteVisit()
-                || hasConsumedJobSiteVisit()) {
+                || hasConsumedJobSiteVisit()
+                || level.getGameTime() < nextDoorLookupTick) {
             return false;
         }
 
@@ -81,37 +93,26 @@ public final class MayorDoorRepairGoal extends Goal {
         }
 
         WorkContext resolved = resolveContext(level);
-        if (resolved == null || findMissingDoor(level, resolved.village()) == null) {
+        if (resolved == null) {
+            nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
             return false;
         }
 
-        return resolved.bank().getTotalPlankCount() >= PLANKS_PER_DOOR
-                && canStore(Items.OAK_PLANKS, PLANKS_PER_DOOR)
-                && canStore(Items.OAK_DOOR, 1);
-    }
+        BlockPos nearest = findMissingDoor(level, resolved.village());
+        if (nearest == null) {
+            nextDoorLookupTick = level.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
+            return false;
+        }
+        if (resolved.bank().getTotalPlankCount() < PLANKS_PER_DOOR
+                || !canStore(Items.OAK_PLANKS, PLANKS_PER_DOOR)
+                || !canStore(Items.OAK_DOOR, 1)) {
+            return false;
+        }
 
-    @Override
-    public void start() {
-        attemptTicks = 0;
-        attempts = 0;
-        finished = false;
-        stage = Stage.BANK;
-
-        if (!(villager.level() instanceof ServerLevel level)) {
-            finish(null);
-            return;
-        }
-        if (context == null) {
-            context = resolveContext(level);
-        }
-        if (context == null || !beginNextDoor(level)) {
-            finish(level);
-            return;
-        }
-        markJobSiteVisitConsumed();
-        if (!moveTo(context.bankApproach())) {
-            finish(level);
-        }
+        village = resolved.village();
+        bank = resolved.bank();
+        targetPos = nearest;
+        return true;
     }
 
     @Override
@@ -123,76 +124,103 @@ public final class MayorDoorRepairGoal extends Goal {
             }
             return false;
         }
-        return !finished
-                && context != null
+        return !failed
+                && !finished
+                && targetPos != null
+                && navigationTarget != null
+                && village != null
+                && bank != null
                 && stage != null
-                && attempts < MAX_ATTEMPTS
                 && !villager.isTrading()
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
                 && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.MAYOR.get()
-                && context.village().isDoorRepairEnabled()
-                && context.doorTarget() != null
-                && context.village().getMissingDoorRegistry().contains(context.doorTarget())
-                && !context.bank().isRemoved();
+                && village.isDoorRepairEnabled()
+                && village.getMissingDoorRegistry().contains(targetPos)
+                && village.getClaimedDoorPositions().contains(targetPos)
+                && !bank.isRemoved();
+    }
+
+    @Override
+    public void start() {
+        failed = false;
+        finished = false;
+        carryingRepairDoor = false;
+        stage = Stage.BANK;
+        navigationWatchdog.reset();
+
+        if (!(villager.level() instanceof ServerLevel level)
+                || village == null
+                || bank == null
+                || targetPos == null
+                || !village.claimDoorPosition(targetPos)) {
+            failed = true;
+            return;
+        }
+
+        WorkContext context = new WorkContext(village, bank,
+                BankBlock.getDepositApproachPos(bank.getBlockState(), bank.getBlockPos()));
+        navigationTarget = VillagerNavigationTargets.findReachableTarget(
+                villager, context.bankApproach(), NAVIGATION_RADIUS);
+        if (navigationTarget == null) {
+            village.unclaimDoorPosition(targetPos);
+            failed = true;
+            return;
+        }
+
+        markJobSiteVisitConsumed();
+        setWalkTarget();
     }
 
     @Override
     public void tick() {
-        if (!(villager.level() instanceof ServerLevel level)) {
-            finished = true;
-            return;
-        }
-        if (context == null || stage == null) {
-            finish(level);
+        if (!(villager.level() instanceof ServerLevel level)
+                || targetPos == null
+                || navigationTarget == null
+                || village == null
+                || bank == null
+                || stage == null) {
+            failed = true;
             return;
         }
 
-        BlockPos destination = stage == Stage.BANK ? context.bankApproach() : navigationTarget;
-        if (destination != null && (isAt(destination)
-                || stage == Stage.DOOR && isAt(context.doorTarget()))) {
-            if (stage == Stage.BANK) {
-                if (!receiveAndConvertDoor(level)) {
-                    finish(level);
-                    return;
-                }
-                stage = Stage.DOOR;
-                navigationTarget = VillagerNavigationTargets.findReachableTarget(
-                        villager, context.doorTarget(), 2);
-                if (navigationTarget == null) {
-                    navigationTarget = context.doorTarget();
-                }
-                if (!moveTo(navigationTarget)) {
-                    // Keep the target so a later retry can still place the door if
-                    // the pathfinder briefly cannot produce a route.
-                    attemptTicks = 0;
-                }
-            } else if (placeDoor(level)) {
-                if (context.village().markDoorRepaired(context.doorTarget())) {
+        BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
+        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(lookTarget));
+
+        if (stage == Stage.BANK && isAt(navigationTarget)) {
+            if (!receiveAndCraftDoor(level)) {
+                finish(level);
+                return;
+            }
+
+            stage = Stage.DOOR;
+            navigationTarget = VillagerNavigationTargets.findReachableTarget(
+                    villager, targetPos, NAVIGATION_RADIUS);
+            if (navigationTarget == null) {
+                finish(level);
+                return;
+            }
+            navigationWatchdog.reset();
+            setWalkTarget();
+            return;
+        }
+
+        if (stage == Stage.DOOR && (isAt(navigationTarget) || isAt(targetPos))) {
+            if (placeDoor(level)) {
+                if (village.markDoorRepaired(targetPos)) {
                     VillageRegistryData.get(level).setDirty();
                 }
-                if (!beginNextDoor(level)) {
-                    finish(level);
-                } else {
-                    stage = Stage.BANK;
-                    if (!moveTo(context.bankApproach())) {
-                        finish(level);
-                    }
-                }
+                finish(level);
             } else {
                 finish(level);
             }
             return;
         }
 
-        attemptTicks++;
-        if (attemptTicks < ATTEMPT_TICKS) {
+        if (navigationWatchdog.isStuck(villager, navigationTarget)) {
+            finish(level);
             return;
         }
-        attemptTicks = 0;
-        attempts++;
-        if (attempts >= MAX_ATTEMPTS || destination == null || !moveTo(destination)) {
-            finish(level);
-        }
+        setWalkTarget();
     }
 
     @Override
@@ -200,58 +228,58 @@ public final class MayorDoorRepairGoal extends Goal {
         if (villager.level() instanceof ServerLevel level) {
             refundCarriedDoor(level);
         }
+        if (village != null && targetPos != null) {
+            village.unclaimDoorPosition(targetPos);
+        }
         villager.getNavigation().stop();
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        context = null;
-        stage = null;
+        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        targetPos = null;
         navigationTarget = null;
+        village = null;
+        bank = null;
+        stage = null;
+        navigationWatchdog.reset();
+        failed = false;
+        finished = false;
     }
 
+    @Nullable
     private WorkContext resolveContext(ServerLevel level) {
-        VillageRegistryData registry = VillageRegistryData.get(level);
-        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
-        if (bank == null || bank.getVillageId() == null) {
+        BankBlockEntity resolvedBank = BankEmployeeLookup.findVillageBank(level, villager);
+        if (resolvedBank == null || resolvedBank.getVillageId() == null) {
             return null;
         }
-        VillageRecord village = registry.getVillages().get(bank.getVillageId());
-        if (village == null || !village.isDoorRepairEnabled()
-                || (!village.hasMember(villager.getUUID())
-                && !village.getBoundingBox().contains(villager.getX(), villager.getY(), villager.getZ()))) {
+
+        VillageRecord resolvedVillage = VillageRegistryData.get(level).getVillages()
+                .get(resolvedBank.getVillageId());
+        if (resolvedVillage == null
+                || !resolvedVillage.isDoorRepairEnabled()
+                || (!resolvedVillage.hasMember(villager.getUUID())
+                && !resolvedVillage.getBoundingBox().contains(villager.getX(), villager.getY(), villager.getZ()))) {
             return null;
         }
-        BlockPos bankApproach = BankBlock.getDepositApproachPos(bank.getBlockState(), bank.getBlockPos());
-        return new WorkContext(village, bank, bankApproach, null);
+
+        BlockPos bankApproach = BankBlock.getDepositApproachPos(
+                resolvedBank.getBlockState(), resolvedBank.getBlockPos());
+        return new WorkContext(resolvedVillage, resolvedBank, bankApproach);
     }
 
-    private boolean beginNextDoor(ServerLevel level) {
-        if (context == null || !context.village().isDoorRepairEnabled()) {
+    @Nullable
+    private BlockPos findMissingDoor(ServerLevel level, VillageRecord record) {
+        return record.getNearestUnclaimedMissingDoor(villager.blockPosition(), MAX_RANGE,
+                pos -> level.isLoaded(pos)
+                        && level.isLoaded(pos.above())
+                        && level.getBlockState(pos).canBeReplaced()
+                        && level.getBlockState(pos.above()).canBeReplaced());
+    }
+
+    private boolean receiveAndCraftDoor(ServerLevel level) {
+        if (bank == null) {
             return false;
         }
-        BlockPos target = findMissingDoor(level, context.village());
-        if (target == null || context.bank().getTotalPlankCount() < PLANKS_PER_DOOR
-                || !canStore(Items.OAK_PLANKS, PLANKS_PER_DOOR)
-                || !canStore(Items.OAK_DOOR, 1)) {
-            return false;
-        }
-        context = new WorkContext(context.village(), context.bank(), context.bankApproach(), target);
-        attempts = 0;
-        attemptTicks = 0;
-        return true;
-    }
 
-    private BlockPos findMissingDoor(ServerLevel level, VillageRecord village) {
-        return village.getMissingDoorRegistry().stream()
-                .limit(MAX_DOOR_SEARCH_CANDIDATES)
-                .filter(pos -> level.isLoaded(pos) && level.isLoaded(pos.above()))
-                .filter(pos -> level.getBlockState(pos).canBeReplaced()
-                        && level.getBlockState(pos.above()).canBeReplaced())
-                .min(Comparator.comparingDouble(pos -> villager.distanceToSqr(
-                        pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D)))
-                .orElse(null);
-    }
-
-    private boolean receiveAndConvertDoor(ServerLevel level) {
-        ItemStack planks = context.bank().withdrawExactPlanks(level, PLANKS_PER_DOOR);
+        ItemStack planks = bank.withdrawExactPlanks(level, PLANKS_PER_DOOR);
         if (planks.isEmpty()) {
             return false;
         }
@@ -259,10 +287,12 @@ public final class MayorDoorRepairGoal extends Goal {
         int withdrawnCount = planks.getCount();
         ItemStack remainder = villager.getInventory().addItem(planks);
         if (!remainder.isEmpty()) {
-            removeItem(Items.OAK_PLANKS, withdrawnCount - remainder.getCount());
+            int acceptedCount = withdrawnCount - remainder.getCount();
+            removeItem(Items.OAK_PLANKS, acceptedCount);
             returnPlanksToBankOrDrop(level, new ItemStack(Items.OAK_PLANKS, withdrawnCount));
             return false;
         }
+
         int removedPlanks = removeItem(Items.OAK_PLANKS, PLANKS_PER_DOOR);
         if (removedPlanks != PLANKS_PER_DOOR) {
             returnPlanksToBankOrDrop(level,
@@ -276,17 +306,20 @@ public final class MayorDoorRepairGoal extends Goal {
             returnPlanksToBankOrDrop(level, new ItemStack(Items.OAK_PLANKS, PLANKS_PER_DOOR));
             return false;
         }
+
         carryingRepairDoor = true;
         return true;
     }
 
     private boolean placeDoor(ServerLevel level) {
-        BlockPos pos = context.doorTarget();
-        if (!context.village().isDoorRepairEnabled()
-                || !context.village().getMissingDoorRegistry().contains(pos)
+        if (village == null || targetPos == null
+                || !village.isDoorRepairEnabled()
+                || !village.getMissingDoorRegistry().contains(targetPos)
                 || villager.getInventory().countItem(Items.OAK_DOOR) < 1) {
             return false;
         }
+
+        BlockPos pos = targetPos;
         BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
                 .setValue(DoorBlock.FACING, villager.getDirection())
                 .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT);
@@ -320,23 +353,19 @@ public final class MayorDoorRepairGoal extends Goal {
         }
     }
 
-    private boolean moveTo(BlockPos target) {
-        navigationTarget = target;
-        if (!villager.getNavigation().moveTo(target.getX() + 0.5D, target.getY() + 0.5D,
-                target.getZ() + 0.5D, SPEED)) {
-            return false;
+    private void setWalkTarget() {
+        if (navigationTarget != null) {
+            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                    new WalkTarget(navigationTarget, SPEED_MODIFIER, WALK_TARGET_CLOSE_ENOUGH));
         }
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(target, SPEED, 1));
-        return true;
     }
 
     private boolean isAt(BlockPos pos) {
         return villager.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D,
-                pos.getZ() + 0.5D) <= ARRIVAL_DIST_SQ;
+                pos.getZ() + 0.5D) <= ARRIVAL_DISTANCE_SQ;
     }
 
-    private boolean canStore(net.minecraft.world.item.Item item, int amount) {
+    private boolean canStore(Item item, int amount) {
         int capacity = 0;
         for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
             ItemStack stack = villager.getInventory().getItem(slot);
@@ -352,7 +381,7 @@ public final class MayorDoorRepairGoal extends Goal {
         return false;
     }
 
-    private int removeItem(net.minecraft.world.item.Item item, int amount) {
+    private int removeItem(Item item, int amount) {
         int remaining = amount;
         for (int slot = 0; slot < villager.getInventory().getContainerSize() && remaining > 0; slot++) {
             ItemStack stack = villager.getInventory().getItem(slot);
@@ -388,6 +417,7 @@ public final class MayorDoorRepairGoal extends Goal {
         villager.getPersistentData().putBoolean(JOB_SITE_VISIT_CONSUMED_KEY, true);
     }
 
+    @Nullable
     private BlockPos findJobSite(ServerLevel level) {
         return villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
                 .filter(globalPos -> globalPos.dimension().equals(level.dimension()))
@@ -398,7 +428,7 @@ public final class MayorDoorRepairGoal extends Goal {
     }
 
     private void refundCarriedDoor(ServerLevel level) {
-        if (!carryingRepairDoor) {
+        if (!carryingRepairDoor || bank == null) {
             return;
         }
         carryingRepairDoor = false;
@@ -409,9 +439,9 @@ public final class MayorDoorRepairGoal extends Goal {
     }
 
     private void returnPlanksToBankOrDrop(ServerLevel level, ItemStack planks) {
-        if (!planks.isEmpty()
-                && !context.bank().isRemoved()
-                && context.bank().storeItemInLinkedChests(level, planks)) {
+        if (bank != null && !planks.isEmpty()
+                && !bank.isRemoved()
+                && bank.storeItemInLinkedChests(level, planks)) {
             return;
         }
         if (!planks.isEmpty()) {
@@ -420,9 +450,7 @@ public final class MayorDoorRepairGoal extends Goal {
     }
 
     private void finish(ServerLevel level) {
-        if (level != null) {
-            refundCarriedDoor(level);
-        }
+        refundCarriedDoor(level);
         finished = true;
     }
 
@@ -431,7 +459,6 @@ public final class MayorDoorRepairGoal extends Goal {
         DOOR
     }
 
-    private record WorkContext(VillageRecord village, BankBlockEntity bank,
-                               BlockPos bankApproach, BlockPos doorTarget) {
+    private record WorkContext(VillageRecord village, BankBlockEntity bank, BlockPos bankApproach) {
     }
 }

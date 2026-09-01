@@ -422,6 +422,8 @@ public class VillageRecord {
     private final Set<BlockPos> repairQueue = new HashSet<>();
     /** Farmland positions currently claimed by a farmer for repair. Cleared on server load. */
     private final Set<BlockPos> claimedPositions = new HashSet<>();
+    /** Missing-door positions currently claimed by a mayor for repair. Cleared on server load. */
+    private final Set<BlockPos> claimedDoorPositions = new HashSet<>();
     /** Whether farmer repair work is enabled for this village. */
     private boolean farmlandRepairEnabled = Config.enableFarmlandRepair;
     /** Whether door cache repair/tracking is enabled for this village. */
@@ -831,6 +833,7 @@ public class VillageRecord {
         if (!enabled) {
             doorRegistry.clear();
             missingDoorRegistry.clear();
+            claimedDoorPositions.clear();
             if (fullScanState != null) {
                 fullScanState.doors.clear();
             }
@@ -914,6 +917,7 @@ public class VillageRecord {
         missingDoorRegistry.removeIf(pos -> !containsPos(newBox, pos));
         repairQueue.removeIf(pos -> !containsPos(newBox, pos));
         claimedPositions.removeIf(pos -> !containsPos(newBox, pos));
+        claimedDoorPositions.removeIf(pos -> !containsPos(newBox, pos));
 
         // Scan only the delta volume (regions in newBox but not in oldBox)
         scanDeltaArea(level, oldBox, newBox);
@@ -1439,6 +1443,7 @@ public class VillageRecord {
         missingDoorRegistry.addAll(previouslyKnownDoors);
         missingDoorRegistry.removeAll(state.doors);
         missingDoorRegistry.removeIf(pos -> !containsPos(boundingBox, pos));
+        claimedDoorPositions.retainAll(missingDoorRegistry);
         reconcileRepairQueue(level);
         cacheInitialized = true;
         fullScanState = null;
@@ -1568,6 +1573,11 @@ public class VillageRecord {
         return Collections.unmodifiableSet(claimedPositions);
     }
 
+    /** Returns an unmodifiable view of missing-door positions claimed by mayors. */
+    public Set<BlockPos> getClaimedDoorPositions() {
+        return Collections.unmodifiableSet(claimedDoorPositions);
+    }
+
     /**
      * Reconciles the repair queue after a full scan. Positions still in the
      * farmland registry (already farmland again) are removed from the queue.
@@ -1609,6 +1619,7 @@ public class VillageRecord {
         }
         boolean added = doorRegistry.add(pos.immutable());
         missingDoorRegistry.remove(pos);
+        claimedDoorPositions.remove(pos);
         if (fullScanState != null) fullScanState.doors.add(pos.immutable());
         return added;
     }
@@ -1616,6 +1627,7 @@ public class VillageRecord {
     /** Removes a canonical door position from the registry. */
     public void removeDoor(BlockPos pos) {
         doorRegistry.remove(pos);
+        claimedDoorPositions.remove(pos);
         if (fullScanState != null) fullScanState.doors.remove(pos);
     }
 
@@ -1641,6 +1653,7 @@ public class VillageRecord {
         }
         boolean wasMissing = missingDoorRegistry.remove(pos);
         boolean wasAdded = doorRegistry.add(pos.immutable());
+        claimedDoorPositions.remove(pos);
         if (fullScanState != null) {
             fullScanState.doors.add(pos.immutable());
         }
@@ -1651,6 +1664,7 @@ public class VillageRecord {
     public boolean clearMissingDoors() {
         boolean changed = !missingDoorRegistry.isEmpty();
         missingDoorRegistry.clear();
+        claimedDoorPositions.clear();
         return changed;
     }
 
@@ -1692,6 +1706,7 @@ public class VillageRecord {
     /** Clears all claimed positions. Called on server load. */
     public void clearClaimed() {
         claimedPositions.clear();
+        claimedDoorPositions.clear();
     }
 
     /**
@@ -1713,6 +1728,47 @@ public class VillageRecord {
             }
         }
         return nearest;
+    }
+
+    /** Returns the nearest unclaimed missing door within the given range, or null. */
+    @Nullable
+    public BlockPos getNearestUnclaimedMissingDoor(BlockPos origin, double maxRange) {
+        return getNearestUnclaimedMissingDoor(origin, maxRange, ignored -> true);
+    }
+
+    /** Returns the nearest acceptable unclaimed missing door within the given range, or null. */
+    @Nullable
+    public BlockPos getNearestUnclaimedMissingDoor(
+            BlockPos origin, double maxRange, java.util.function.Predicate<BlockPos> acceptable) {
+        Objects.requireNonNull(acceptable, "acceptable");
+        double maxRangeSq = maxRange * maxRange;
+        BlockPos nearest = null;
+        double nearestDistSq = Double.MAX_VALUE;
+        for (BlockPos pos : missingDoorRegistry) {
+            if (claimedDoorPositions.contains(pos) || !acceptable.test(pos)) {
+                continue;
+            }
+            double distSq = origin.distSqr(pos);
+            if (distSq <= maxRangeSq && distSq < nearestDistSq) {
+                nearest = pos;
+                nearestDistSq = distSq;
+            }
+        }
+        return nearest;
+    }
+
+    /** Claims a missing door for one mayor until the repair goal finishes or stops. */
+    public boolean claimDoorPosition(BlockPos pos) {
+        if (missingDoorRegistry.contains(pos) && !claimedDoorPositions.contains(pos)) {
+            claimedDoorPositions.add(pos.immutable());
+            return true;
+        }
+        return false;
+    }
+
+    /** Releases a missing door claim so another mayor can repair it. */
+    public void unclaimDoorPosition(BlockPos pos) {
+        claimedDoorPositions.remove(pos);
     }
 
     // Data retrieval (from cache)
