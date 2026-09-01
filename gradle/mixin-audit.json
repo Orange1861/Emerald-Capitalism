@@ -199,7 +199,7 @@
       "side": "server",
       "auditMode": "gametest",
       "mixins": ["VillagerClimbMixin"],
-      "invariant": "A villager follows the vertical direction required by its ladder path, claims one ladder column at a time, and releases the claim when traversal ends or is disabled.",
+      "invariant": "A villager follows the vertical direction required by its ladder path, walks one block clear at the top, claims one ladder column at a time, and releases the claim when traversal ends or is disabled.",
       "tests": [
         "mixinauditinvariantgametests.villagerclimbsinstalledladderpath",
         "mixinauditinvariantgametests.villagerkeepsladderpathwhilewaitingforanotherclimber"
