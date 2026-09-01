@@ -7,6 +7,9 @@ import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEn
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageLumbermillStructurePlacer;
+import com.orangevillager61.emeraldcapitalism.world.village.VillagePathBlocks;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryManager;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageType;
 import com.orangevillager61.emeraldcapitalism.world.village.naming.worldgen.WorldgenVillageNameAssigner;
 import com.orangevillager61.emeraldcapitalism.world.village.pipeline.VillageGenerationContext;
 import com.orangevillager61.emeraldcapitalism.world.village.pipeline.VillageGenerationPipeline;
@@ -466,6 +469,8 @@ public class VillageDetectionHandler {
         VillageRegistryData data = VillageRegistryData.get(level);
         boolean abandonedVillage = isAbandonedVillage(pieces);
         BlockPos structureCenter = structureCenter(structureBox, pieces);
+        VillageType villageType = VillageType.fromBiomeType(VillagePathBlocks.inferBiomeType(
+                level, bellPos != null ? bellPos : structureCenter, pieces));
         DETECTED_CONTEXTS.put(villageId,
                 new DetectedVillageContext(structureCenter, structureBox, List.copyOf(pieces)));
         VillageFarmSavedData.get(level).markVillageDetected(structureCenter);
@@ -478,7 +483,8 @@ public class VillageDetectionHandler {
                     structureBox.getCenter().getZ()
             );
             AABB villageBounds = clipAgainstExisting(data, center, new AABB(center).inflate(128, 48, 128));
-            VillageRecord village = data.getOrCreateVillage(villageId, center, villageBounds);
+            VillageRecord village = data.getOrCreateVillage(villageId, center, villageBounds, villageType,
+                    level.getRandom());
             village.setInitialScanAnchorBounds(structureAnchorBounds(structureBox));
             if (village.isAbandonedVillage() != abandonedVillage) {
                 village.setAbandonedVillage(abandonedVillage);
@@ -499,7 +505,8 @@ public class VillageDetectionHandler {
         }
 
         AABB villageBounds = clipAgainstExisting(data, bellPos, new AABB(bellPos).inflate(128, 48, 128));
-        VillageRecord village = data.getOrCreateVillage(villageId, bellPos, villageBounds);
+        VillageRecord village = data.getOrCreateVillage(villageId, bellPos, villageBounds, villageType,
+                level.getRandom());
         village.setInitialScanAnchorBounds(structureAnchorBounds(structureBox));
         if (village.isAbandonedVillage() != abandonedVillage) {
             village.setAbandonedVillage(abandonedVillage);
@@ -536,9 +543,12 @@ public class VillageDetectionHandler {
             if (context.pipelineCompletedSuccessfully()) {
                 // Successful finalization follows bank/farm placement, paths, post-processing,
                 // finish hooks, and farm completion persistence. The manager waits until the
-                // pipeline leaves its active set before starting this initial scan.
+                // pipeline leaves its active set before starting this initial scan and bed
+                // recoloring.
                 if (!village.isCacheInitialized()) {
-                    VillageRegistryEvents.getManager(context.level()).requestFullScan(village);
+                    VillageRegistryManager manager = VillageRegistryEvents.getManager(context.level());
+                    manager.requestInitialBedColorization(village);
+                    manager.requestFullScan(village);
                 }
                 if (Config.enableWorldgenVillageRootNaming) {
                     enqueueDelayedNameAssignment(context.level(), context.villageId());

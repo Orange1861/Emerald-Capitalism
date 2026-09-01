@@ -37,6 +37,16 @@ class VillageStatsPresentationTest {
     }
 
     @Test
+    void exposesVillageColor() {
+        var lines = VillageStatsPresentation.lines(new VillageStatsPresentation.Snapshot(
+                0, "none", "none", 1, 1, 1, 0, 0, 0,
+                0, 0, 0, 0, "Pink", ""));
+
+        assertEquals("Pink", lines.stream()
+                .filter(line -> line.label().equals("Village Color")).findFirst().orElseThrow().value());
+    }
+
+    @Test
     void hidesVillageIdentityAndIronGolemOverCapacityRows() {
         var lines = VillageStatsPresentation.lines(new VillageStatsPresentation.Snapshot(
                 0, "hidden-id", "hidden-bell", 12, 12, 12, 4, 0,

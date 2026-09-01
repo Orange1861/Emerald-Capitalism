@@ -718,6 +718,7 @@ public class VillagePOIScreen extends Screen {
                 VillagePOIClientCache.getIronGolemsPresent(),
                 VillagePOIClientCache.getEmeraldGolemsPresent(),
                 VillagePOIClientCache.getEmeraldGolemCapacity(),
+                VillagePOIClientCache.getVillageColor().displayName(),
                 VillagePOIClientCache.getBankName()));
     }
 

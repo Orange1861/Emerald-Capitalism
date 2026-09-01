@@ -16,6 +16,7 @@ import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.phys.AABB;
 
@@ -399,8 +400,34 @@ public class VillageRegistryData extends SavedData {
      * bell position if none exists yet.
      */
     public VillageRecord getOrCreateVillage(UUID villageId, BlockPos bellPos, AABB bounds) {
+        return getOrCreateVillage(villageId, bellPos, bounds, VillageType.PLAINS);
+    }
+
+    /** Creates a village with the palette captured from its vanilla structure pieces. */
+    public VillageRecord getOrCreateVillage(UUID villageId, BlockPos bellPos, AABB bounds,
+                                             VillageType villageType) {
+        Objects.requireNonNull(villageId, "villageId");
+        Objects.requireNonNull(bellPos, "bellPos");
+        Objects.requireNonNull(bounds, "bounds");
+        Objects.requireNonNull(villageType, "villageType");
         return villages.computeIfAbsent(villageId, id -> {
-            VillageRecord record = new VillageRecord(id, bellPos, bounds);
+            VillageRecord record = new VillageRecord(id, bellPos, bounds, villageType);
+            setDirty();
+            return record;
+        });
+    }
+
+    /** Creates a generated village and selects its persisted color exactly once. */
+    public VillageRecord getOrCreateVillage(UUID villageId, BlockPos bellPos, AABB bounds,
+                                             VillageType villageType, RandomSource random) {
+        Objects.requireNonNull(villageId, "villageId");
+        Objects.requireNonNull(bellPos, "bellPos");
+        Objects.requireNonNull(bounds, "bounds");
+        Objects.requireNonNull(villageType, "villageType");
+        Objects.requireNonNull(random, "random");
+        return villages.computeIfAbsent(villageId, id -> {
+            VillageColor villageColor = VillageColor.randomFor(villageType, random);
+            VillageRecord record = new VillageRecord(id, bellPos, bounds, villageType, villageColor);
             setDirty();
             return record;
         });

@@ -13,6 +13,7 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.VillageManagerBlock;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.AdaptiveChunkScanPlan;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.InitialVillageScanChunkLoadPool;
 import net.minecraft.core.BlockPos;
@@ -325,7 +326,15 @@ public class VillageRecord {
                                         input.governorCandidateAttackBankPos))
                                 .flatMap(withGraceBank -> mergeOptionalUuid(ops, withGraceBank,
                                         "governor_candidate_attack_mayor",
-                                        input.governorCandidateAttackMayorId));
+                                        input.governorCandidateAttackMayorId))
+                                .flatMap(withGraceMayor -> VillageType.CODEC.encodeStart(
+                                                ops, input.villageType)
+                                        .flatMap(encodedVillageType -> ops.mergeToMap(withGraceMayor,
+                                                ops.createString("village_type"), encodedVillageType)))
+                                .flatMap(withVillageType -> VillageColor.CODEC.encodeStart(
+                                                ops, input.villageColor)
+                                        .flatMap(encodedVillageColor -> ops.mergeToMap(withVillageType,
+                                                ops.createString("village_color"), encodedVillageColor)));
                     });
                 }
             },
@@ -335,6 +344,14 @@ public class VillageRecord {
                     return BASE_CODEC.decode(ops, input).flatMap(decoded ->
                             ops.getMap(input).flatMap(map -> {
                                 T encodedDoors = map.get(ops.createString("door_registry"));
+                                T encodedVillageType = map.get(ops.createString("village_type"));
+                                DataResult<VillageType> villageTypeResult = encodedVillageType == null
+                                        ? DataResult.success(VillageType.PLAINS)
+                                        : VillageType.CODEC.parse(ops, encodedVillageType);
+                                T encodedVillageColor = map.get(ops.createString("village_color"));
+                                DataResult<VillageColor> villageColorResult = encodedVillageColor == null
+                                        ? DataResult.success(VillageColor.RED)
+                                        : VillageColor.CODEC.parse(ops, encodedVillageColor);
                                 DataResult<List<BlockPos>> doorsResult = encodedDoors == null
                                         ? DataResult.success(List.of())
                                         : DOOR_POSITIONS_CODEC.parse(ops, encodedDoors);
@@ -392,7 +409,13 @@ public class VillageRecord {
                                                     decoded.getFirst().governorCandidateAttackGraceUntil =
                                                             completeGrace ? graceUntil : 0L;
                                                     return decoded;
-                                                }))))))))));
+                                                })))))))))).flatMap(decodedWithDoors ->
+                                        villageTypeResult.flatMap(villageType ->
+                                                villageColorResult.map(villageColor -> {
+                                                    decodedWithDoors.getFirst().villageType = villageType;
+                                                    decodedWithDoors.getFirst().villageColor = villageColor;
+                                                    return decodedWithDoors;
+                                                })));
                             }));
                 }
             }
@@ -447,6 +470,10 @@ public class VillageRecord {
 
     private final UUID villageId;
     private String name;
+    /** Vanilla village palette captured when this village is first generated. */
+    private VillageType villageType = VillageType.PLAINS;
+    /** Random bed color selected from the village palette when it is first generated. */
+    private VillageColor villageColor = VillageColor.RED;
     /** Stable substrate region used for personal pools and profession bynames. */
     private String villagerNamingBiome = "plains";
     /** Drift IDs are assigned once at founding and never recomputed on reload. */
@@ -723,10 +750,22 @@ public class VillageRecord {
     }
 
     public VillageRecord(UUID villageId, BlockPos bellPosition, AABB boundingBox) {
+        this(villageId, bellPosition, boundingBox, VillageType.PLAINS);
+    }
+
+    public VillageRecord(UUID villageId, BlockPos bellPosition, AABB boundingBox,
+                         VillageType villageType) {
+        this(villageId, bellPosition, boundingBox, villageType, VillageColor.RED);
+    }
+
+    public VillageRecord(UUID villageId, BlockPos bellPosition, AABB boundingBox,
+                         VillageType villageType, VillageColor villageColor) {
         this.villageId = villageId;
         this.name = "Village";
         this.bellPosition = bellPosition.immutable();
         this.boundingBox = boundingBox;
+        this.villageType = Objects.requireNonNull(villageType, "villageType");
+        this.villageColor = Objects.requireNonNull(villageColor, "villageColor");
     }
 
     private static VillageRecord fromCodec(
@@ -803,6 +842,14 @@ public class VillageRecord {
 
     public String getName() {
         return name;
+    }
+
+    public VillageType getVillageType() {
+        return villageType;
+    }
+
+    public VillageColor getVillageColor() {
+        return villageColor;
     }
 
     public void setName(String name) {
@@ -1938,6 +1985,47 @@ public class VillageRecord {
     }
 
     /**
+     * Replaces cached vanilla beds with this village's selected color. Emerald Green beds
+     * are intentionally preserved. The cache must already be initialized; this method never
+     * searches the bounding box for beds.
+     */
+    public int recolorCachedBeds(ServerLevel level) {
+        Objects.requireNonNull(level, "level");
+        if (!cacheInitialized) {
+            throw new IllegalStateException("Cannot recolor village beds before the bed cache is initialized");
+        }
+
+        Block replacement = villageColor.bedBlock();
+        int replaced = 0;
+        for (BlockPos headPos : List.copyOf(cachedBedPositions)) {
+            BlockState headState = level.getBlockState(headPos);
+            if (!isBedHead(headState) || headState.is(ECAPBlocks.EMERALD_GREEN_BED.get())) {
+                continue;
+            }
+
+            BlockPos footPos = headPos.relative(BedBlock.getConnectedDirection(headState));
+            BlockState footState = level.getBlockState(footPos);
+            if (!isBedFoot(footState)
+                    || footState.getBlock() != headState.getBlock()
+                    || footState.getValue(BedBlock.FACING) != headState.getValue(BedBlock.FACING)) {
+                continue;
+            }
+            if (headState.getBlock() == replacement && footState.getBlock() == replacement) {
+                continue;
+            }
+
+            // Avoid the transient half-mismatched state causing BedBlock neighbor updates
+            // to remove the other half while both halves are being recolored.
+            level.setBlock(footPos, recoloredBedState(replacement, footState), Block.UPDATE_CLIENTS);
+            level.setBlock(headPos, recoloredBedState(replacement, headState), Block.UPDATE_CLIENTS);
+            replaced++;
+        }
+
+        recacheBedsFromCachedPositions(level);
+        return replaced;
+    }
+
+    /**
      * Returns the current bed count as {@code [totalBeds, availableBeds]}
      * from the cache. The "available" count is based on BedBlock.OCCUPIED
      * state at the moment of the call.
@@ -1956,6 +2044,31 @@ public class VillageRecord {
             }
         }
         return new int[]{total, available};
+    }
+
+    private static boolean isBedFoot(BlockState state) {
+        return state.getBlock() instanceof BedBlock
+                && state.hasProperty(BedBlock.PART)
+                && state.getValue(BedBlock.PART) == BedPart.FOOT;
+    }
+
+    private static BlockState recoloredBedState(Block replacement, BlockState original) {
+        return replacement.defaultBlockState()
+                .setValue(BedBlock.FACING, original.getValue(BedBlock.FACING))
+                .setValue(BedBlock.PART, original.getValue(BedBlock.PART))
+                .setValue(BedBlock.OCCUPIED, original.getValue(BedBlock.OCCUPIED));
+    }
+
+    /** Rebuilds the cache from its existing positions without scanning the village volume. */
+    private void recacheBedsFromCachedPositions(ServerLevel level) {
+        Set<BlockPos> recached = new HashSet<>();
+        for (BlockPos headPos : cachedBedPositions) {
+            if (isBedHead(level.getBlockState(headPos))) {
+                recached.add(headPos.immutable());
+            }
+        }
+        cachedBedPositions.clear();
+        cachedBedPositions.addAll(recached);
     }
 
     /**

@@ -43,6 +43,99 @@ class VillageRegistryDataCodecTest {
     }
 
     @Test
+    void persistsVillageTypeForEveryVanillaVillagePalette() {
+        for (VillageType type : VillageType.values()) {
+            VillageRecord original = new VillageRecord(
+                    UUID.randomUUID(), BlockPos.ZERO, new AABB(-1, -1, -1, 1, 1, 1), type);
+            CompoundTag encoded = (CompoundTag) VillageRecord.CODEC
+                    .encodeStart(NbtOps.INSTANCE, original).result().orElseThrow();
+
+            VillageRecord restored = VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded)
+                    .result().orElseThrow();
+
+            assertEquals(type, restored.getVillageType());
+            assertEquals(type.name(), encoded.getString("village_type"));
+        }
+    }
+
+    @Test
+    void persistsVillageColorForEveryAllowedColor() {
+        for (VillageColor color : VillageColor.values()) {
+            VillageRecord original = new VillageRecord(
+                    UUID.randomUUID(), BlockPos.ZERO, new AABB(-1, -1, -1, 1, 1, 1),
+                    VillageType.PLAINS, color);
+            CompoundTag encoded = (CompoundTag) VillageRecord.CODEC
+                    .encodeStart(NbtOps.INSTANCE, original).result().orElseThrow();
+
+            VillageRecord restored = VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded)
+                    .result().orElseThrow();
+
+            assertEquals(color, restored.getVillageColor());
+            assertEquals(color.name(), encoded.getString("village_color"));
+        }
+    }
+
+    @Test
+    void restrictsVillageColorsToTheirBiomePalettes() {
+        assertEquals(List.of(VillageColor.RED, VillageColor.ORANGE, VillageColor.YELLOW,
+                VillageColor.WHITE, VillageColor.PINK), VillageColor.optionsFor(VillageType.PLAINS));
+        assertEquals(List.of(VillageColor.RED, VillageColor.PINK, VillageColor.ORANGE,
+                VillageColor.WHITE), VillageColor.optionsFor(VillageType.SAVANNA));
+        assertEquals(List.of(VillageColor.RED, VillageColor.PINK, VillageColor.WHITE),
+                VillageColor.optionsFor(VillageType.TAIGA));
+        assertEquals(List.of(VillageColor.RED, VillageColor.PINK, VillageColor.WHITE),
+                VillageColor.optionsFor(VillageType.SNOWY));
+        assertEquals(List.of(VillageColor.RED, VillageColor.PINK, VillageColor.GREEN,
+                VillageColor.LIME, VillageColor.WHITE), VillageColor.optionsFor(VillageType.DESERT));
+    }
+
+    @Test
+    void rejectsUnknownVillageTypeAtTheCodecBoundary() {
+        CompoundTag encoded = encodedMinimalVillage();
+        encoded.putString("village_type", "JUNGLE");
+
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded).error().isPresent());
+    }
+
+    @Test
+    void rejectsOversizedVillageTypeAtTheCodecBoundary() {
+        CompoundTag encoded = encodedMinimalVillage();
+        encoded.putString("village_type", "v".repeat(17));
+
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded).error().isPresent());
+    }
+
+    @Test
+    void rejectsUnknownVillageColorAtTheCodecBoundary() {
+        CompoundTag encoded = encodedMinimalVillage();
+        encoded.putString("village_color", "BLUE");
+
+        assertTrue(VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded).error().isPresent());
+    }
+
+    @Test
+    void missingVillageColorDefaultsToRed() {
+        CompoundTag encoded = encodedMinimalVillage();
+        encoded.remove("village_color");
+
+        VillageRecord restored = VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded)
+                .result().orElseThrow();
+
+        assertEquals(VillageColor.RED, restored.getVillageColor());
+    }
+
+    @Test
+    void missingVillageTypeDefaultsToPlains() {
+        CompoundTag encoded = encodedMinimalVillage();
+        encoded.remove("village_type");
+
+        VillageRecord restored = VillageRecord.CODEC.parse(NbtOps.INSTANCE, encoded)
+                .result().orElseThrow();
+
+        assertEquals(VillageType.PLAINS, restored.getVillageType());
+    }
+
+    @Test
     void codecRoundTripPreservesDurableRegistryStateAndClearsTransientState() {
         VillageRegistryData original = populatedRegistry();
 

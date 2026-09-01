@@ -47,7 +47,7 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         VillageBankStructurePlacer.PlannedBank bank = placer.plan(
                 context.level(), context.bellPos(), context.pieces(),
                 context.plannedManagerPos(), context.chunkLoadBudget(),
-                context.reservations()::intersects);
+                context.reservations()::intersects, context.biomeType());
         if (bank == null) {
             return List.of();
         }

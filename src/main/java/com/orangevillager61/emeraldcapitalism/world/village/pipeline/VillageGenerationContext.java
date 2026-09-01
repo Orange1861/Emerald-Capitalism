@@ -6,6 +6,8 @@ import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEn
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageManagerPlacement;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagePathBlocks;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRoadPathGenerator;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
@@ -38,6 +40,7 @@ public final class VillageGenerationContext {
     private final List<StructurePiece> pieces;
     private final boolean abandonedVillage;
     private final String biomeType;
+    private final VillageColor villageColor;
     private final ChunkLoadBudget chunkLoadBudget = new ChunkLoadBudget();
     private final VillageGenerationReservations reservations = new VillageGenerationReservations();
     private final VillageRoadPathGenerator roadGenerator = new VillageRoadPathGenerator();
@@ -67,7 +70,11 @@ public final class VillageGenerationContext {
         this.villageBox = villageBox;
         this.pieces = List.copyOf(pieces);
         this.abandonedVillage = abandonedVillage;
-        this.biomeType = VillagePathBlocks.inferBiomeType(level, bellPos, pieces);
+        VillageRecord village = VillageRegistryData.get(level).getVillages().get(villageId);
+        this.biomeType = village != null
+                ? village.getVillageType().serializedName()
+                : VillagePathBlocks.inferBiomeType(level, bellPos, pieces);
+        this.villageColor = village != null ? village.getVillageColor() : VillageColor.RED;
     }
 
     /**
@@ -210,6 +217,7 @@ public final class VillageGenerationContext {
     public List<StructurePiece> pieces() { return pieces; }
     public boolean abandonedVillage() { return abandonedVillage; }
     public String biomeType() { return biomeType; }
+    public VillageColor villageColor() { return villageColor; }
     public ChunkLoadBudget chunkLoadBudget() { return chunkLoadBudget; }
     public VillageGenerationReservations reservations() { return reservations; }
     public VillageRoadPathGenerator roadGenerator() { return roadGenerator; }
@@ -232,6 +240,15 @@ public final class VillageGenerationContext {
 
     public VillageRegistryData registryData() {
         return VillageRegistryData.get(level);
+    }
+
+    /** Recolors only the bed positions published by the completed initial bed cache. */
+    public int recolorCachedBeds() {
+        VillageRecord village = registryData().getVillages().get(villageId);
+        if (village == null) {
+            throw new IllegalStateException("Village record disappeared before bed recoloring: " + villageId);
+        }
+        return village.recolorCachedBeds(level);
     }
 
     public VillageFarmSavedData farmSavedData() {

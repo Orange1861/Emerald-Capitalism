@@ -12,7 +12,7 @@ public final class VillageStatsPresentation {
                            int villagers, int totalBeds, int assignedBeds,
                            int farmland, int doors, int repairQueue, int ironGolemCapacity,
                            int ironGolemsPresent, int emeraldGolemsPresent,
-                           int emeraldGolemCapacity, String bankName) {
+                           int emeraldGolemCapacity, String villageColor, String bankName) {
         public Snapshot(int villageOpinion, String villageId, String bellPosition,
                         int villagers, int totalBeds, int assignedBeds,
                         int farmland, int repairQueue, int ironGolemCapacity,
@@ -20,7 +20,17 @@ public final class VillageStatsPresentation {
                         int emeraldGolemCapacity, String bankName) {
             this(villageOpinion, villageId, bellPosition, villagers, totalBeds, assignedBeds,
                     farmland, 0, repairQueue, ironGolemCapacity, ironGolemsPresent,
-                    emeraldGolemsPresent, emeraldGolemCapacity, bankName);
+                    emeraldGolemsPresent, emeraldGolemCapacity, "Red", bankName);
+        }
+
+        public Snapshot(int villageOpinion, String villageId, String bellPosition,
+                        int villagers, int totalBeds, int assignedBeds,
+                        int farmland, int doors, int repairQueue, int ironGolemCapacity,
+                        int ironGolemsPresent, int emeraldGolemsPresent,
+                        int emeraldGolemCapacity, String bankName) {
+            this(villageOpinion, villageId, bellPosition, villagers, totalBeds, assignedBeds,
+                    farmland, doors, repairQueue, ironGolemCapacity, ironGolemsPresent,
+                    emeraldGolemsPresent, emeraldGolemCapacity, "Red", bankName);
         }
     }
 
@@ -31,6 +41,8 @@ public final class VillageStatsPresentation {
         List<StatLine> lines = new ArrayList<>();
         lines.add(new StatLine("Village Opinion of You", String.valueOf(snapshot.villageOpinion()),
                 VillagePOIPresentation.opinionStyle(snapshot.villageOpinion()), false));
+        lines.add(new StatLine("Village Color", snapshot.villageColor(),
+                PresentationStyle.INFRASTRUCTURE, false));
         lines.add(separator());
 
         lines.add(new StatLine("Villagers", String.valueOf(snapshot.villagers()), PresentationStyle.NEUTRAL, false));

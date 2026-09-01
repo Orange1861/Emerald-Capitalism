@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.network;
 
 import com.orangevillager61.emeraldcapitalism.world.village.JobSiteEntry;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRelationship;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import net.minecraft.core.BlockPos;
@@ -38,6 +39,10 @@ public final class VillagePOIClientCache {
 
     public static String getVillageName() {
         return data.identity().villageName();
+    }
+
+    public static VillageColor getVillageColor() {
+        return data.identity().villageColor();
     }
 
     public static boolean isOperator() {

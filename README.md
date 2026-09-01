@@ -23,3 +23,8 @@ Additional Resources:
 ==========
 Community Documentation: https://docs.neoforged.net/  
 NeoForged Discord: https://discord.neoforged.net/
+
+Feature explanation reminders
+==============================
+When a major or top-level feature is implemented, add its name in 2-10 words to
+[Books needed to write](<Books needed to write.md>).

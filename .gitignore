@@ -83,6 +83,7 @@ config/emeraldcapitalism-common-3.toml.bak
 config/emeraldcapitalism-common-2.toml.bak
 config/emeraldcapitalism-common-1.toml.bak
 *.md
+!Books needed to write.md
 /config
 *.gz
 *.bak

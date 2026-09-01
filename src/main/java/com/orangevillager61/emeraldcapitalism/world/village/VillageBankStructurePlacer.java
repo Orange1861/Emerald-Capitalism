@@ -164,6 +164,15 @@ public final class VillageBankStructurePlacer {
     public PlannedBank plan(ServerLevel level, BlockPos bellPos, List<StructurePiece> villagePieces,
                             @Nullable BlockPos managerPos, ChunkLoadBudget loadBudget,
                             Predicate<BoundingBox> reservedCollision) {
+        return plan(level, bellPos, villagePieces, managerPos, loadBudget, reservedCollision,
+                VillagePathBlocks.inferBiomeType(level, bellPos, villagePieces));
+    }
+
+    /** Plans using the village palette captured at world generation. */
+    @Nullable
+    public PlannedBank plan(ServerLevel level, BlockPos bellPos, List<StructurePiece> villagePieces,
+                            @Nullable BlockPos managerPos, ChunkLoadBudget loadBudget,
+                            Predicate<BoundingBox> reservedCollision, String biomeType) {
         StructureTemplateManager templateManager = level.getStructureManager();
         Optional<StructureTemplate> topTemplate = templateManager.get(BANK_TOP);
         Optional<StructureTemplate> vaultTemplate = templateManager.get(BANK_VAULT);
@@ -182,7 +191,6 @@ public final class VillageBankStructurePlacer {
             return null;
         }
 
-        String biomeType = VillagePathBlocks.inferBiomeType(level, bellPos, villagePieces);
         List<BankSite> safeSites = new ArrayList<>();
         for (int distance : DISTANCES_FROM_BELL) {
             for (int[] direction : DIRECTIONS) {

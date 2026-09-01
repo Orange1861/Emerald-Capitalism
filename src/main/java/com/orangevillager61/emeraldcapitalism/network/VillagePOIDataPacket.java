@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.network;
 
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.JobSiteEntry;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRelationship;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import net.minecraft.core.BlockPos;
@@ -63,7 +64,8 @@ public record VillagePOIDataPacket(
                             buf.readUUID(),
                             buf.readUtf(ProtocolStringLimits.MAX_VILLAGE_NAME_LENGTH),
                             buf.readBoolean(),
-                            buf.readBlockPos());
+                            buf.readBlockPos(),
+                            VillageColor.fromNetworkId(buf.readVarInt()));
 
                     int recordCount = readCount(buf, "villager records", MAX_VILLAGER_RECORDS);
                     List<VillagerPOIRecord> records = new ArrayList<>(recordCount);
@@ -123,6 +125,7 @@ public record VillagePOIDataPacket(
                             ProtocolStringLimits.MAX_VILLAGE_NAME_LENGTH);
                     buf.writeBoolean(identity.isOperator());
                     buf.writeBlockPos(identity.bellPosition());
+                    buf.writeVarInt(identity.villageColor().networkId());
 
                     writeRecords(buf, packet.records());
                     Totals totals = packet.totals();
@@ -254,11 +257,17 @@ public record VillagePOIDataPacket(
     }
 
     public record Identity(UUID villageId, String villageName, boolean isOperator,
-                           BlockPos bellPosition) {
+                           BlockPos bellPosition, VillageColor villageColor) {
+        public Identity(UUID villageId, String villageName, boolean isOperator,
+                        BlockPos bellPosition) {
+            this(villageId, villageName, isOperator, bellPosition, VillageColor.RED);
+        }
+
         public Identity {
             villageId = Objects.requireNonNull(villageId, "villageId");
             villageName = Objects.requireNonNull(villageName, "villageName");
             bellPosition = Objects.requireNonNull(bellPosition, "bellPosition").immutable();
+            villageColor = Objects.requireNonNull(villageColor, "villageColor");
         }
     }
 

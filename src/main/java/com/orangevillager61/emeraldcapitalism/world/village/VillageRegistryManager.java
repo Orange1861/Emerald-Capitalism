@@ -54,6 +54,8 @@ public class VillageRegistryManager {
     private final Map<UUID, Set<UUID>> fullScanListeners = new HashMap<>();
     /** Uninitialized-cache scans waiting for bank and farm generation to finish. */
     private final Map<UUID, Boolean> deferredInitialFullScans = new HashMap<>();
+    /** Villages whose initial bed cache must be recolored after its scan publishes. */
+    private final Set<UUID> initialBedColorizationPending = new HashSet<>();
     @Nullable
     private UUID currentFullScanVillageId;
 
@@ -348,6 +350,7 @@ public class VillageRegistryManager {
 
         VillageRecord village = registryData.getVillages().get(currentFullScanVillageId);
         if (village == null) {
+            initialBedColorizationPending.remove(currentFullScanVillageId);
             notifyFullScanUnavailable(currentFullScanVillageId);
             initialScanChunkLoadPool.finishScan(currentFullScanVillageId);
             currentFullScanVillageId = null;
@@ -365,6 +368,12 @@ public class VillageRegistryManager {
                         initialScanChunkLoadPool));
         if (complete) {
             initialScanChunkLoadPool.finishScan(villageId);
+            if (initialBedColorizationPending.remove(villageId)) {
+                int recoloredBeds = village.recolorCachedBeds(level);
+                EmeraldCapitalism.LOGGER.debug(
+                        "[ECAP][BedColor] Recolored {} cached beds for village={}",
+                        recoloredBeds, villageId);
+            }
             registryData.setDirty();
             currentFullScanVillageId = null;
             queueFullScanMemberRefresh(villageId);
@@ -484,6 +493,16 @@ public class VillageRegistryManager {
         return true;
     }
 
+    /** Defers generated-village bed recoloring until the initial bed cache is published. */
+    public void requestInitialBedColorization(VillageRecord village) {
+        Objects.requireNonNull(village, "village");
+        if (village.isCacheInitialized()) {
+            village.recolorCachedBeds(level);
+            return;
+        }
+        initialBedColorizationPending.add(village.getVillageId());
+    }
+
     private void queueFullScan(VillageRecord village, boolean adaptive) {
         UUID villageId = village.getVillageId();
         initialScanChunkLoadPool.finishScan(villageId);
@@ -498,6 +517,7 @@ public class VillageRegistryManager {
     /** Cancels an initial scan that was waiting on a generation pipeline which failed. */
     public void cancelDeferredInitialFullScan(UUID villageId) {
         if (deferredInitialFullScans.remove(villageId) != null) {
+            initialBedColorizationPending.remove(villageId);
             notifyFullScanUnavailable(villageId);
         }
     }

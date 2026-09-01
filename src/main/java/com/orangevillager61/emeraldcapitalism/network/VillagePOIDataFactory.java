@@ -123,7 +123,8 @@ public final class VillagePOIDataFactory {
                         village.isFullScanInProgress(), village.isCacheInitialized()),
                 new VillagePOIDataPacket.Identity(
                         village.getVillageId(), village.getName(), isOp,
-                        includeDetailedCoordinates ? village.getBellPosition() : BlockPos.ZERO),
+                        includeDetailedCoordinates ? village.getBellPosition() : BlockPos.ZERO,
+                        village.getVillageColor()),
                 records,
                 new VillagePOIDataPacket.Totals(
                         occupiedBeds, totalBeds,

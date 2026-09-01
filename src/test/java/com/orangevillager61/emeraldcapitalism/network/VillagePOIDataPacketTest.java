@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.network;
 
 import com.orangevillager61.emeraldcapitalism.world.village.JobSiteEntry;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRelationship;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import io.netty.buffer.Unpooled;
@@ -38,7 +39,7 @@ class VillagePOIDataPacketTest {
                 true,
                 new VillagePOIDataPacket.Status(true, false),
                 new VillagePOIDataPacket.Identity(villageId, "Test Village", true,
-                        new BlockPos(0, 64, 0)),
+                        new BlockPos(0, 64, 0), VillageColor.PINK),
                 List.of(villager),
                 new VillagePOIDataPacket.Totals(12, 5, List.of(jobSite),
                         List.of(new BlockPos(1, 63, 2))),
@@ -143,6 +144,7 @@ class VillagePOIDataPacketTest {
         buffer.writeUtf("Village", ProtocolStringLimits.MAX_VILLAGE_NAME_LENGTH);
         buffer.writeBoolean(false);
         buffer.writeBlockPos(BlockPos.ZERO);
+        buffer.writeVarInt(VillageColor.RED.networkId());
         buffer.writeVarInt(recordCount);
         if (recordCount != 0) {
             return buffer;
