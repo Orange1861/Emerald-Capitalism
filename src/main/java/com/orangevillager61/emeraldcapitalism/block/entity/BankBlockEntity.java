@@ -610,11 +610,11 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             entity.chestCacheDirty = false;
             entity.processorCacheDirty = false;
             entity.nextFullScanTick = gameTime + FULL_SCAN_INTERVAL;
+            entity.convertStoredWheatToBread(serverLevel);
         } else if (gameTime >= entity.nextVerifyTick) {
             entity.verifyCachedChests(serverLevel);
             entity.nextVerifyTick = gameTime + VERIFY_INTERVAL;
         }
-        entity.convertStoredWheatToBread(serverLevel);
     }
 
     /** Converts complete vanilla bread recipes from linked bank storage. */
