@@ -221,9 +221,6 @@ public class VillagerHungerEvents {
         ItemStack expectedItem = stats.getEatingItem().copy();
         int nutrition = stats.finishEating();
 
-        stats.increaseHunger(nutrition);
-        stats.setLastAteTime(villager.level().getGameTime());
-
         // Validate identity before consuming; inventory contents may change mid-animation.
         var inventory = villager.getInventory();
         boolean consumed = false;
@@ -254,7 +251,13 @@ public class VillagerHungerEvents {
                 }
             }
         }
-        // Nutrition still applies when the item was traded or given away before completion.
+        if (!consumed) {
+            stats.setCachedFoodSlot(-1);
+            return;
+        }
+
+        stats.increaseHunger(nutrition);
+        stats.setLastAteTime(villager.level().getGameTime());
 
         villager.playSound(
                 SoundEvents.PLAYER_BURP,

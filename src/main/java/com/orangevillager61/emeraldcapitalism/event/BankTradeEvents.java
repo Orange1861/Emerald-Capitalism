@@ -1,14 +1,13 @@
 package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
+import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
-import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.EmeraldConsolidationUtils;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
-import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,7 +16,6 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -34,8 +32,8 @@ public class BankTradeEvents {
     public static void onTradeWithVillager(TradeWithVillagerEvent event) {
         MerchantOffer offer = event.getMerchantOffer();
         ItemStack result = offer.getResult();
-        if (!result.is(Items.EMERALD)) return;
-        int emeraldsOwed = result.getCount();
+        int emeraldsOwed = EmeraldConsolidationUtils.countEmeraldValue(result);
+        if (emeraldsOwed <= 0) return;
 
         if (!(event.getAbstractVillager() instanceof Villager villager)) return;
         if (!(villager.level() instanceof ServerLevel serverLevel)) return;
@@ -47,52 +45,38 @@ public class BankTradeEvents {
 
         ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
         if (overworld == null) {
-            reverseUnresolvedBankTrade(event, offer, emeraldsOwed, "overworld unavailable");
+            reverseUnresolvedBankTrade(event, offer, "overworld unavailable");
             return;
         }
 
-        VillageRegistryData registryData = VillageRegistryData.get(overworld);
-        VillageRecord village = registryData.getVillageFor(villager.blockPosition());
-        if (village == null) {
-            reverseUnresolvedBankTrade(event, offer, emeraldsOwed, "village unavailable");
-            return;
-        }
-
-        BlockPos vmPos = registryData.getVMPos(village.getVillageId());
-        if (vmPos == null) {
-            reverseUnresolvedBankTrade(event, offer, emeraldsOwed, "village manager position unavailable");
-            return;
-        }
-        if (!(overworld.getBlockEntity(vmPos) instanceof VillageManagerBlockEntity vm)) {
-            reverseUnresolvedBankTrade(event, offer, emeraldsOwed, "village manager unavailable");
-            return;
-        }
-
-        BlockPos bankPos = vm.getBankPos();
-        if (bankPos == null) {
-            reverseUnresolvedBankTrade(event, offer, emeraldsOwed, "bank position unavailable");
-            return;
-        }
-        if (!(overworld.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
-            reverseUnresolvedBankTrade(event, offer, emeraldsOwed, "bank block unavailable");
+        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(overworld, villager);
+        if (bank == null) {
+            reverseUnresolvedBankTrade(event, offer, "bank linkage unavailable");
             return;
         }
 
         SimpleContainer inv = villager.getInventory();
-        int invEmeralds = EmeraldConsolidationUtils.countItem(inv, Items.EMERALD);
+        int invEmeralds = EmeraldConsolidationUtils.countEmeraldValue(inv);
 
-        if (invEmeralds >= emeraldsOwed) {
-            EmeraldConsolidationUtils.removeItems(inv, Items.EMERALD, emeraldsOwed);
-            return;
+        int inventoryContribution = Math.min(invEmeralds, emeraldsOwed);
+        ItemStack[] inventoryBeforePayment = inventoryContribution > 0
+                ? snapshotInventory(inv)
+                : null;
+        if (inventoryContribution > 0
+                && !EmeraldConsolidationUtils.removeEmeraldValueExact(inv, inventoryContribution)) {
+            // A fractional block payment needs room for change. Let the bank fund
+            // the whole result when the villager cannot represent that change.
+            inventoryContribution = 0;
         }
 
-        int shortfall = emeraldsOwed - invEmeralds;
+        int shortfall = emeraldsOwed - inventoryContribution;
 
         if (bank.getLiveEmeraldValue(overworld) < shortfall) {
+            restoreInventory(inv, inventoryBeforePayment);
             // The event is post-exchange and non-cancellable; reclaim the result and
             // refund costs before MerchantResultSlot consumes the cost slots.
             Player player = event.getEntity();
-            reclaimEmeraldsFromPlayer(player, emeraldsOwed);
+            reclaimTradeResultFromPlayer(player, result);
             refundCostItems(player, offer);
             if (player instanceof ServerPlayer serverPlayer) {
                 serverPlayer.sendSystemMessage(
@@ -107,12 +91,12 @@ public class BankTradeEvents {
             return;
         }
 
-        EmeraldConsolidationUtils.removeItems(inv, Items.EMERALD, invEmeralds);
         if (!bank.withdrawFromLinkedChests(overworld, shortfall)) {
+            restoreInventory(inv, inventoryBeforePayment);
             // The live preflight and withdrawal must agree. A chest can be broken
             // between cache refreshes, so do not debit an account for an unpaid trade.
             Player player = event.getEntity();
-            reclaimEmeraldsFromPlayer(player, emeraldsOwed);
+            reclaimTradeResultFromPlayer(player, result);
             refundCostItems(player, offer);
             if (player instanceof ServerPlayer serverPlayer) {
                 serverPlayer.sendSystemMessage(
@@ -125,22 +109,38 @@ public class BankTradeEvents {
             return;
         }
         accountData.withdraw(uuid, shortfall);
+        villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS).markBankTradeResultHandled();
 
         EmeraldCapitalism.LOGGER.debug(
                 "[ECAP/Bank] Villager {} trade: {} from inventory, {} from bank chests",
-                uuid, invEmeralds, shortfall);
+                uuid, inventoryContribution, shortfall);
     }
 
-    /**
-     * Removes up to {@code amount} raw emeralds from the player's {@link Inventory}.
-     * Called when the bank cannot cover the payment.
-     */
-    private static void reclaimEmeraldsFromPlayer(Player player, int amount) {
+    private static ItemStack[] snapshotInventory(SimpleContainer inventory) {
+        ItemStack[] contents = new ItemStack[inventory.getContainerSize()];
+        for (int slot = 0; slot < contents.length; slot++) {
+            contents[slot] = inventory.getItem(slot).copy();
+        }
+        return contents;
+    }
+
+    private static void restoreInventory(SimpleContainer inventory, ItemStack[] contents) {
+        if (contents == null) {
+            return;
+        }
+        for (int slot = 0; slot < contents.length; slot++) {
+            inventory.setItem(slot, contents[slot].copy());
+        }
+        inventory.setChanged();
+    }
+
+    /** Removes the just-completed emerald result when a post-trade reversal is required. */
+    private static void reclaimTradeResultFromPlayer(Player player, ItemStack result) {
         Inventory inv = player.getInventory();
-        int remaining = amount;
+        int remaining = result.getCount();
         for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
             ItemStack stack = inv.getItem(i);
-            if (!stack.is(Items.EMERALD)) continue;
+            if (!ItemStack.isSameItemSameComponents(stack, result)) continue;
             int take = Math.min(stack.getCount(), remaining);
             stack.shrink(take);
             inv.setItem(i, stack.isEmpty() ? ItemStack.EMPTY : stack);
@@ -172,9 +172,13 @@ public class BankTradeEvents {
 
     /** Reverses a post-exchange trade when an existing account has lost its bank linkage. */
     private static void reverseUnresolvedBankTrade(
-            TradeWithVillagerEvent event, MerchantOffer offer, int emeraldsOwed, String reason) {
+            TradeWithVillagerEvent event, MerchantOffer offer, String reason) {
         Player player = event.getEntity();
-        reclaimEmeraldsFromPlayer(player, emeraldsOwed);
+        if (event.getAbstractVillager() instanceof Villager villager) {
+            VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
+            stats.skipNextTradeAccounting();
+        }
+        reclaimTradeResultFromPlayer(player, offer.getResult());
         refundCostItems(player, offer);
         if (player instanceof ServerPlayer serverPlayer) {
             serverPlayer.sendSystemMessage(

@@ -250,11 +250,20 @@ public final class BankMorningTradeGoal extends Goal {
         if (bread.isEmpty()) {
             return false;
         }
+        if (bread.getCount() != quote.quantity()) {
+            if (!bank.storeItemInLinkedChests(level, bread)) {
+                villager.spawnAtLocation(bread);
+            }
+            return false;
+        }
 
+        ItemStack[] inventoryBeforePurchase = snapshotInventory();
         ItemStack remainder = villager.getInventory().addItem(bread);
         if (!remainder.isEmpty()) {
-            if (!bank.storeItemInLinkedChests(level, remainder)) {
-                villager.spawnAtLocation(remainder);
+            restoreInventory(inventoryBeforePurchase);
+            ItemStack withdrawnBread = new ItemStack(Items.BREAD, quote.quantity());
+            if (!bank.storeItemInLinkedChests(level, withdrawnBread)) {
+                villager.spawnAtLocation(withdrawnBread);
             }
             return false;
         }
@@ -262,6 +271,21 @@ public final class BankMorningTradeGoal extends Goal {
         BankAccountData.get(level).withdraw(villager.getUUID(), quote.emeraldAmount());
         bank.markInventoryChanged(level);
         return true;
+    }
+
+    private ItemStack[] snapshotInventory() {
+        ItemStack[] contents = new ItemStack[villager.getInventory().getContainerSize()];
+        for (int slot = 0; slot < contents.length; slot++) {
+            contents[slot] = villager.getInventory().getItem(slot).copy();
+        }
+        return contents;
+    }
+
+    private void restoreInventory(ItemStack[] contents) {
+        for (int slot = 0; slot < contents.length; slot++) {
+            villager.getInventory().setItem(slot, contents[slot].copy());
+        }
+        villager.getInventory().setChanged();
     }
 
     private boolean sellItem(ServerLevel level, BankBlockEntity bank, Item item,

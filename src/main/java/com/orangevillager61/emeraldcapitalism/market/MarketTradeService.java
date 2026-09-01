@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.market;
 
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
+import com.orangevillager61.emeraldcapitalism.util.EmeraldConsolidationUtils;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -92,7 +93,7 @@ public final class MarketTradeService {
     private static Result buy(ServerPlayer player, BankBlockEntity bank, Item item, int quantity,
                               int cost, ServerLevel level) {
         Inventory inventory = player.getInventory();
-        if (countItem(inventory, Items.EMERALD) < cost) {
+        if (EmeraldConsolidationUtils.countEmeraldValue(inventory) < cost) {
             return Result.failed("You cannot afford that trade in emeralds.");
         }
         ItemStack itemStack = new ItemStack(item, quantity);
@@ -107,17 +108,36 @@ public final class MarketTradeService {
         if (withdrawn.isEmpty()) {
             return Result.failed("The bank stock changed; please try again.");
         }
-        removeItem(inventory, Items.EMERALD, cost);
+        ItemStack[] inventoryBeforePayment = snapshotInventory(inventory);
+        if (!EmeraldConsolidationUtils.removeEmeraldValueExact(inventory, cost)) {
+            bank.storeItemInLinkedChests(level, withdrawn);
+            return Result.failed("You do not have enough inventory space for emerald change.");
+        }
         ItemStack payment = new ItemStack(Items.EMERALD, cost);
         if (!bank.storeItemInLinkedChests(level, payment)) {
             // The capacity preflight should make this unreachable; restore both sides if a chest changed.
-            inventory.add(new ItemStack(Items.EMERALD, cost));
+            restoreInventory(inventory, inventoryBeforePayment);
             bank.storeItemInLinkedChests(level, withdrawn);
             return Result.failed("The bank payment transfer failed; nothing was committed.");
         }
         inventory.add(withdrawn);
         bank.markInventoryChanged(level);
         return Result.ok();
+    }
+
+    private static ItemStack[] snapshotInventory(Inventory inventory) {
+        ItemStack[] contents = new ItemStack[inventory.getContainerSize()];
+        for (int slot = 0; slot < contents.length; slot++) {
+            contents[slot] = inventory.getItem(slot).copy();
+        }
+        return contents;
+    }
+
+    private static void restoreInventory(Inventory inventory, ItemStack[] contents) {
+        for (int slot = 0; slot < contents.length; slot++) {
+            inventory.setItem(slot, contents[slot].copy());
+        }
+        inventory.setChanged();
     }
 
     private static Result sell(ServerPlayer player, BankBlockEntity bank, Item item, int quantity,
@@ -203,7 +223,8 @@ public final class MarketTradeService {
 
     private static boolean canAccept(Inventory inventory, ItemStack incoming) {
         int remaining = incoming.getCount();
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+        // Inventory.add targets the main/hotbar item list, not armor or off-hand slots.
+        for (int slot = 0; slot < inventory.items.size(); slot++) {
             ItemStack stored = inventory.getItem(slot);
             if (stored.isEmpty()) {
                 remaining -= incoming.getMaxStackSize();

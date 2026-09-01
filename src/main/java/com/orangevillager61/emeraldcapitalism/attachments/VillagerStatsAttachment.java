@@ -141,6 +141,10 @@ public class VillagerStatsAttachment {
     private int cachedWheatCount   = -1; // raw wheat + hay bale × 9
     private int cachedBreadCount   = -1;
     private int cachedPumpkinCount = -1;
+    // One-event coordination between the bank reversal listener and trade accounting.
+    private boolean skipNextTradeAccounting;
+    // The bank listener has already funded and removed the emerald result for this trade.
+    private boolean bankTradeResultHandled;
 
     // Villager name
     // Regular villager display names remain derived; wandering traders also
@@ -342,6 +346,30 @@ public class VillagerStatsAttachment {
             throw new IllegalArgumentException("Emerald subtraction amount must be positive");
         }
         this.emeraldBalance = checkedBalanceChange(-amount);
+    }
+
+    /** Marks the current completed trade as reversed before the low-priority accounting listener runs. */
+    public void skipNextTradeAccounting() {
+        skipNextTradeAccounting = true;
+    }
+
+    /** Consumes the transient marker used when a post-trade bank reversal was performed. */
+    public boolean consumeSkipNextTradeAccounting() {
+        boolean skip = skipNextTradeAccounting;
+        skipNextTradeAccounting = false;
+        return skip;
+    }
+
+    /** Marks the emerald result as physically handled by the bank trade listener. */
+    public void markBankTradeResultHandled() {
+        bankTradeResultHandled = true;
+    }
+
+    /** Consumes the transient marker used to prevent a second result deduction. */
+    public boolean consumeBankTradeResultHandled() {
+        boolean handled = bankTradeResultHandled;
+        bankTradeResultHandled = false;
+        return handled;
     }
 
     /**

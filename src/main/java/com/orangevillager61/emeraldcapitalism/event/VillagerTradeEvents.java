@@ -44,6 +44,10 @@ public final class VillagerTradeEvents {
 
         MerchantOffer offer = event.getMerchantOffer();
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
+        if (stats.consumeSkipNextTradeAccounting()) {
+            return;
+        }
+        boolean bankHandledResult = stats.consumeBankTradeResultHandled();
 
         int emeraldsGained = countEmeraldsInStack(offer.getCostA())
                 + countEmeraldsInStack(offer.getCostB());
@@ -52,10 +56,18 @@ public final class VillagerTradeEvents {
 
         if (netChange != 0) {
             stats.addEmeralds(netChange);
-            applyEmeraldInventoryChange(villager, netChange);
+            if (bankHandledResult) {
+                if (emeraldsGained > 0) {
+                    addEmeraldValue(villager, villager.getInventory(), emeraldsGained);
+                }
+            } else {
+                applyEmeraldInventoryChange(villager, netChange);
+            }
             EmeraldCapitalism.LOGGER.debug("Villager {} trade: gained={}, lost={}, net={}, new balance={}",
                     villager.getDisplayName().getString(),
                     emeraldsGained, emeraldsLost, netChange, stats.getEmeraldBalance());
+        } else if (bankHandledResult && emeraldsGained > 0) {
+            addEmeraldValue(villager, villager.getInventory(), emeraldsGained);
         }
     }
 
@@ -75,21 +87,36 @@ public final class VillagerTradeEvents {
     private static void applyEmeraldInventoryChange(Villager villager, int netChange) {
         SimpleContainer inventory = villager.getInventory();
         if (netChange > 0) {
-            addEmeraldValue(inventory, netChange);
+            addEmeraldValue(villager, inventory, netChange);
         } else {
             removeEmeraldValue(inventory, -netChange);
         }
         EmeraldConsolidationUtils.consolidateEmeralds(inventory);
     }
 
-    private static void addEmeraldValue(SimpleContainer inventory, int amount) {
+    private static void addEmeraldValue(Villager villager, SimpleContainer inventory, int amount) {
         int blocks = amount / 9;
         int remainder = amount % 9;
         if (blocks > 0) {
-            inventory.addItem(new ItemStack(Items.EMERALD_BLOCK, blocks));
+            addEmeraldStack(villager, inventory, new ItemStack(Items.EMERALD_BLOCK, blocks));
         }
         if (remainder > 0) {
-            inventory.addItem(new ItemStack(Items.EMERALD, remainder));
+            addEmeraldStack(villager, inventory, new ItemStack(Items.EMERALD, remainder));
+        }
+    }
+
+    private static void addEmeraldStack(Villager villager, SimpleContainer inventory, ItemStack stack) {
+        ItemStack remainder = inventory.addItem(stack);
+        if (remainder.isEmpty()) {
+            return;
+        }
+
+        if (villager.spawnAtLocation(remainder) == null) {
+            VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
+            int lostValue = countEmeraldsInStack(remainder);
+            if (lostValue > 0) {
+                stats.subtractEmeralds(lostValue);
+            }
         }
     }
 
