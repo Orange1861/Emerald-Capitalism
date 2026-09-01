@@ -1,5 +1,5 @@
 // Shared build script for the pre-calendar-versioning NeoForge targets:
-// 1.21.1, 1.21.4, 1.21.11 (Java 21, Parchment mappings still required).
+// 1.21.1 and 1.21.4 (Java 21, Parchment mappings still required).
 // The repository's src/ tree is shared. A version folder supplies only its
 // gradle.properties and any explicitly allowlisted target override.
 
@@ -14,8 +14,8 @@ plugins {
     id 'idea'
 }
 
-// Stonecutter shares this build script across three real Gradle subprojects
-// (1.21.1, 1.21.4, 1.21.11), each with its own gradle.properties. Gradle's
+// Stonecutter shares this build script across the active legacy Gradle
+// subprojects (1.21.1 and 1.21.4), each with its own gradle.properties. Gradle's
 // automatic loading of subproject-level gradle.properties files is
 // inconsistent (documented as "limited support" in Gradle's own issue
 // tracker), so load this project's file explicitly instead of relying on it.
@@ -290,7 +290,7 @@ tasks.named('processResources', ProcessResources).configure {
                 return ingredient
             }
 
-            fileTree(destinationDirectory.get().asFile).matching {
+            fileTree(outputs.files.singleFile).matching {
                 include 'data/emeraldcapitalism/recipe/**/*.json'
             }.files.each { File recipeFile ->
                 def recipe = new JsonSlurper().parse(recipeFile)

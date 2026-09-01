@@ -15,12 +15,14 @@ stonecutter.create(rootProject) {
     // One shared src/ tree is compiled for every target. versions/<target>/
     // contains metadata and only explicitly allowlisted API/resource overrides.
     // Java 21, Parchment mappings still required.
-    versions('1.21.1', '1.21.4', '1.21.11')
+    // 1.21.11 remains metadata-only until its API port is complete. Keeping it
+    // out of the Stonecutter project graph prevents the unported shared Mixins
+    // from being compiled or loaded as if that target were supported.
+    versions('1.21.1', '1.21.4')
         .buildscript('build-legacy.gradle')
 
-    // Java 25, no Parchment. 26.1 here covers 26.1/26.1.1/26.1.2 as one target.
-    versions('26.1', '26.2')
-        .buildscript('build-calendar.gradle')
+    // 26.1 and 26.2 remain metadata-only until the calendar-version API port
+    // begins; do not create build projects for these unported targets yet.
 }
 
 include(':core')
