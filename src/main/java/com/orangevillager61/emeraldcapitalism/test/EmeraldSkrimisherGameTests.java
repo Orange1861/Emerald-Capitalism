@@ -335,6 +335,10 @@ public final class EmeraldSkrimisherGameTests {
             helper.fail("Could not add the Emerald Skrimisher for the drop test");
             return;
         }
+        // GameTests in the same server can leave item entities in neighboring
+        // fixtures. Count only the drops created by this death.
+        level.getEntitiesOfClass(ItemEntity.class, skrimisher.getBoundingBox().inflate(2.0D))
+                .forEach(ItemEntity::discard);
         com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils.hurt(
                 skrimisher, level.damageSources().generic(), 100.0F);
 
@@ -383,7 +387,12 @@ public final class EmeraldSkrimisherGameTests {
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos storagePos = helper.absolutePos(new BlockPos(1, 1, 2));
         BlockPos processorPos = helper.absolutePos(new BlockPos(1, 1, 0));
-        BlockPos constructionPos = helper.absolutePos(new BlockPos(5, 1, 1));
+        // Keep the three-block Skrimisher formation inside the three-block
+        // GameTest volume: anchor y=0, chest y=1, pumpkin y=2. An anchor at
+        // y=1 would put the pumpkin in the protected barrier above the test.
+        BlockPos constructionPos = helper.absolutePos(new BlockPos(5, 0, 1));
+        helper.setBlock(new BlockPos(1, 0, 0), Blocks.STONE.defaultBlockState());
+        helper.setBlock(new BlockPos(5, -1, 1), Blocks.STONE.defaultBlockState());
         helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
         helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
         helper.setBlock(new BlockPos(1, 1, 0), ECAPBlocks.EMERALD_ORE_PROCESSOR.get().defaultBlockState());

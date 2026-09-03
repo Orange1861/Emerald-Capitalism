@@ -6,9 +6,12 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.WanderingTraderAvoidBoat
 import com.orangevillager61.emeraldcapitalism.entity.ai.WanderingTraderFenceGateGoal;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.npc.WanderingTrader;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -27,6 +30,7 @@ import java.util.UUID;
 public final class WanderingTraderEvents {
     private static final Map<UUID, Integer> LADDER_DIRECTIONS = new HashMap<>();
     private static final Map<UUID, LadderPathCache> LADDER_PATH_CACHE = new HashMap<>();
+    private static final Map<UUID, BlockPos> LADDER_EXIT_TARGETS = new HashMap<>();
 
     private WanderingTraderEvents() {
     }
@@ -67,6 +71,7 @@ public final class WanderingTraderEvents {
         if (event.getEntity() instanceof WanderingTrader trader) {
             LADDER_DIRECTIONS.remove(trader.getUUID());
             LADDER_PATH_CACHE.remove(trader.getUUID());
+            LADDER_EXIT_TARGETS.remove(trader.getUUID());
         }
     }
 
@@ -74,16 +79,43 @@ public final class WanderingTraderEvents {
     public static void onServerStopping(ServerStoppingEvent event) {
         LADDER_DIRECTIONS.clear();
         LADDER_PATH_CACHE.clear();
+        LADDER_EXIT_TARGETS.clear();
     }
 
     private static void tickLadderTraversal(WanderingTrader trader) {
+        if (!Config.enableLadderTraversal) {
+            LADDER_DIRECTIONS.remove(trader.getUUID());
+            LADDER_PATH_CACHE.remove(trader.getUUID());
+            LADDER_EXIT_TARGETS.remove(trader.getUUID());
+            return;
+        }
+
         BlockPos position = trader.blockPosition();
         boolean onClimbable = trader.onClimbable()
                 || trader.level().getBlockState(position).is(BlockTags.CLIMBABLE)
                 || trader.level().getBlockState(position.below()).is(BlockTags.CLIMBABLE);
-        if (!Config.enableLadderTraversal || !onClimbable) {
+        BlockPos exitTarget = LADDER_EXIT_TARGETS.get(trader.getUUID());
+        if (exitTarget != null) {
+            trader.getNavigation().stop();
+            trader.getBrain().eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            double horizontalDistanceSq = trader.distanceToSqr(
+                    exitTarget.getX() + 0.5D, trader.getY(), exitTarget.getZ() + 0.5D);
+            if (horizontalDistanceSq < 1.0D) {
+                trader.setPos(exitTarget.getX() + 0.5D,
+                        Math.max(trader.getY(), exitTarget.getY()), exitTarget.getZ() + 0.5D);
+                LADDER_EXIT_TARGETS.remove(trader.getUUID());
+                return;
+            }
+            double pullX = (exitTarget.getX() + 0.5D - trader.getX()) * 0.25D;
+            double pullZ = (exitTarget.getZ() + 0.5D - trader.getZ()) * 0.25D;
+            double upwardPull = exitTarget.getY() > trader.getY() + 0.1D ? 0.2D : 0.0D;
+            trader.setDeltaMovement(pullX, upwardPull, pullZ);
+            return;
+        }
+        if (!onClimbable) {
             LADDER_DIRECTIONS.remove(trader.getUUID());
             LADDER_PATH_CACHE.remove(trader.getUUID());
+            LADDER_EXIT_TARGETS.remove(trader.getUUID());
             return;
         }
 
@@ -97,15 +129,15 @@ public final class WanderingTraderEvents {
                     || cached.positionX != position.getX()
                     || cached.positionY != position.getY()
                     || cached.positionZ != position.getZ()) {
-                for (int index = Math.max(0, nextNodeIndex - 1);
-                     index < path.getNodeCount(); index++) {
-                    Node node = path.getNode(index);
-                    if (node.x == position.getX() && node.z == position.getZ()
-                            && node.y != position.getY()) {
-                        direction = node.y > position.getY() ? 1 : -1;
-                        LADDER_DIRECTIONS.put(trader.getUUID(), direction);
-                        break;
-                    }
+                Node end = path.getEndNode();
+                if (end.x == position.getX() && end.z == position.getZ()
+                        && end.y != position.getY()) {
+                    // The next-node cursor can point behind the trader after
+                    // a same-column ladder node is marked reached. The path
+                    // end remains stable and describes the intended vertical
+                    // direction.
+                    direction = end.y > position.getY() ? 1 : -1;
+                    LADDER_DIRECTIONS.put(trader.getUUID(), direction);
                 }
                 LADDER_PATH_CACHE.put(trader.getUUID(),
                         new LadderPathCache(path, nextNodeIndex,
@@ -120,10 +152,31 @@ public final class WanderingTraderEvents {
             return;
         }
 
+        BlockPos ladderPosition = resolveNearbyLadder(trader, position);
+        if (ladderPosition == null) {
+            LADDER_DIRECTIONS.remove(trader.getUUID());
+            LADDER_PATH_CACHE.remove(trader.getUUID());
+            return;
+        }
+
         boolean canContinue = direction > 0
-                ? trader.level().getBlockState(position.above()).is(BlockTags.CLIMBABLE)
-                : trader.level().getBlockState(position.below()).is(BlockTags.CLIMBABLE);
+                ? trader.level().getBlockState(ladderPosition.above()).is(BlockTags.CLIMBABLE)
+                : trader.level().getBlockState(ladderPosition.below()).is(BlockTags.CLIMBABLE);
         if (!canContinue) {
+            BlockState state = trader.level().getBlockState(ladderPosition);
+            if (state.hasProperty(LadderBlock.FACING)) {
+                Direction facing = state.getValue(LadderBlock.FACING);
+                BlockPos exitPos = ladderPosition.relative(facing);
+                if (isClearForTrader(trader, exitPos)) {
+                    LADDER_EXIT_TARGETS.put(trader.getUUID(), exitPos);
+                    LADDER_DIRECTIONS.put(trader.getUUID(), direction);
+                    trader.setDeltaMovement(
+                            (exitPos.getX() + 0.5D - trader.getX()) * 0.2D,
+                            direction > 0 ? 0.08D : 0.0D,
+                            (exitPos.getZ() + 0.5D - trader.getZ()) * 0.2D);
+                    return;
+                }
+            }
             LADDER_DIRECTIONS.remove(trader.getUUID());
             LADDER_PATH_CACHE.remove(trader.getUUID());
             return;
@@ -131,6 +184,41 @@ public final class WanderingTraderEvents {
         double pullX = (position.getX() + 0.5D - trader.getX()) * 0.2D;
         double pullZ = (position.getZ() + 0.5D - trader.getZ()) * 0.2D;
         trader.setDeltaMovement(pullX, direction > 0 ? 0.2D : -0.15D, pullZ);
+    }
+
+    private static boolean isClearForTrader(WanderingTrader trader, BlockPos feetPos) {
+        return trader.level().getBlockState(feetPos)
+                        .getCollisionShape(trader.level(), feetPos).isEmpty()
+                && trader.level().getBlockState(feetPos.above())
+                        .getCollisionShape(trader.level(), feetPos.above()).isEmpty();
+    }
+
+    private static BlockPos resolveNearbyLadder(WanderingTrader trader, BlockPos position) {
+        if (trader.level().getBlockState(position).is(BlockTags.CLIMBABLE)) {
+            return position;
+        }
+        // BlockPos floors the entity's Y coordinate; check both neighboring
+        // rungs so the top and bottom transitions cannot lose the column.
+        if (trader.level().getBlockState(position.above()).is(BlockTags.CLIMBABLE)) {
+            return position.above();
+        }
+        if (trader.level().getBlockState(position.below()).is(BlockTags.CLIMBABLE)) {
+            return position.below();
+        }
+        for (int distance = 1; distance <= 2; distance++) {
+            for (int dx = -distance; dx <= distance; dx++) {
+                for (int dz = -distance; dz <= distance; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != distance) {
+                        continue;
+                    }
+                    BlockPos horizontal = position.offset(dx, 0, dz);
+                    if (trader.level().getBlockState(horizontal).is(BlockTags.CLIMBABLE)) {
+                        return horizontal;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private record LadderPathCache(Path path, int nextNodeIndex,

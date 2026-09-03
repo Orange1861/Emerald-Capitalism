@@ -410,6 +410,7 @@ public final class EmeraldGolemGameTests {
         ServerPlayer otherPlayer = createRegisteredTestPlayer(level);
         controller.moveTo(bankPos.getX() + 2.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
         otherPlayer.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        helper.setBlock(new BlockPos(3, 1, 1), Blocks.STONE.defaultBlockState());
         bank.setController(controller.getUUID());
         BankMenuOpenData.ControlSettings current = bank.getControlSettings();
         bank.setControlSettings(new BankMenuOpenData.ControlSettings(
@@ -443,7 +444,12 @@ public final class EmeraldGolemGameTests {
             foundOtherPlayer = goal.canUse();
         }
         helper.assertTrue(foundOtherPlayer,
-                "enabled bank attack setting did not find a non-controller player on sight");
+                "enabled bank attack setting did not find a non-controller player in range: "
+                        + "golem=" + golem.position() + ", other=" + otherPlayer.position()
+                        + ", distanceSq=" + golem.distanceToSqr(otherPlayer)
+                        + ", otherAlive=" + otherPlayer.isAlive()
+                        + ", otherSpectator=" + otherPlayer.isSpectator()
+                        + ", bankAttackAll=" + bank.isAttackAllPlayersEnabled());
         goal.start();
         helper.assertTrue(golem.getTarget() == otherPlayer,
                 "enabled bank attack setting targeted the controller instead of another player");
@@ -522,6 +528,7 @@ public final class EmeraldGolemGameTests {
 
         ServerPlayer candidate = createRegisteredTestPlayer(level);
         candidate.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        helper.setBlock(new BlockPos(3, 1, 1), Blocks.STONE.defaultBlockState());
         UUID villageId = UUID.randomUUID();
         VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
                 villageId, bankPos, new net.minecraft.world.phys.AABB(bankPos).inflate(8.0D));
@@ -567,7 +574,11 @@ public final class EmeraldGolemGameTests {
             foundCandidate = goal.canUse();
         }
         helper.assertTrue(foundCandidate,
-                "vault golem did not target the player after the candidate hit it");
+                "vault golem did not target the player after the candidate hit it: "
+                        + "golem=" + golem.position() + ", candidate=" + candidate.position()
+                        + ", distanceSq=" + golem.distanceToSqr(candidate)
+                        + ", candidateAlive=" + candidate.isAlive()
+                        + ", candidateSpectator=" + candidate.isSpectator());
         goal.start();
         helper.assertTrue(golem.getTarget() == candidate,
                 "vault golem targeted the wrong player during the contested takeover");
@@ -874,7 +885,7 @@ public final class EmeraldGolemGameTests {
 
             @Override
             public boolean isCreative() {
-                return true;
+                return false;
             }
         };
         Connection connection = new Connection(PacketFlow.SERVERBOUND);

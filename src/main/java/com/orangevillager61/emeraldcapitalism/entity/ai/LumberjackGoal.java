@@ -43,6 +43,8 @@ public final class LumberjackGoal extends Goal {
     private static final int SEARCH_INTERVAL_TICKS = 40;
     private static final int EMPTY_SEARCH_INTERVAL_TICKS = 200;
     private static final int SEARCH_SLICE_INTERVAL_TICKS = 1;
+    private static final int LOCAL_TREE_PROBE_HORIZONTAL_RANGE = 4;
+    private static final int LOCAL_TREE_PROBE_VERTICAL_RANGE = 4;
     private static final int FURNACE_SEARCH_RANGE = 16;
     private static final int FURNACE_VERTICAL_SEARCH_RANGE = 6;
     private static final int FURNACE_SEARCH_INTERVAL_TICKS = 40;
@@ -143,6 +145,25 @@ public final class LumberjackGoal extends Goal {
             return true;
         }
 
+        // A tree beside the lumberjack should not wait behind the bounded
+        // world scan. This probe is deliberately small; the full resumable
+        // scanner remains authoritative for trees farther away.
+        LocalTreeProbeResult localTreeResult = probeLocallyVisibleTrees(level);
+        if (localTreeResult == LocalTreeProbeResult.SELECTED) {
+            treeScanner.resetSearch();
+            searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
+            nextSearchTick = level.getGameTime() + SEARCH_INTERVAL_TICKS;
+            return true;
+        }
+        if (localTreeResult == LocalTreeProbeResult.RESERVED) {
+            // A nearby tree is known to exist, but another lumberjack owns it.
+            // Do not enter the broad scanner and make the second villager wait
+            // behind its long empty-search cooldown. Recheck the local claim
+            // on the next AI pass so it can react immediately after release.
+            nextSearchTick = level.getGameTime() + SEARCH_SLICE_INTERVAL_TICKS;
+            return false;
+        }
+
         if (level.getGameTime() < nextSearchTick) {
             return false;
         }
@@ -205,6 +226,45 @@ public final class LumberjackGoal extends Goal {
         return false;
     }
 
+    private LocalTreeProbeResult probeLocallyVisibleTrees(ServerLevel level) {
+        BlockPos origin = villager.blockPosition();
+        boolean reservedTreeFound = false;
+        for (int dx = -LOCAL_TREE_PROBE_HORIZONTAL_RANGE;
+             dx <= LOCAL_TREE_PROBE_HORIZONTAL_RANGE; dx++) {
+            for (int dy = -LOCAL_TREE_PROBE_VERTICAL_RANGE;
+                 dy <= LOCAL_TREE_PROBE_VERTICAL_RANGE; dy++) {
+                for (int dz = -LOCAL_TREE_PROBE_HORIZONTAL_RANGE;
+                     dz <= LOCAL_TREE_PROBE_HORIZONTAL_RANGE; dz++) {
+                    BlockPos candidatePos = origin.offset(dx, dy, dz);
+                    BlockState state = getLoadedBlockState(level, candidatePos);
+                    if (!treeScanner.isLumberjackLog(state)) {
+                        continue;
+                    }
+                    LumberjackTreeScanner.TreeSnapshot candidate =
+                            treeScanner.findCandidateTreeAt(level, candidatePos);
+                    if (candidate == null) {
+                        continue;
+                    }
+                    if (LumberjackTreeReservations.isReservedByOther(
+                            level, villager.getUUID(), candidate.logs())) {
+                        reservedTreeFound = true;
+                        continue;
+                    }
+                    if (selectTreeFromCandidates(level, List.of(candidate))) {
+                        return LocalTreeProbeResult.SELECTED;
+                    }
+                }
+            }
+        }
+        return reservedTreeFound ? LocalTreeProbeResult.RESERVED : LocalTreeProbeResult.NONE;
+    }
+
+    private enum LocalTreeProbeResult {
+        SELECTED,
+        RESERVED,
+        NONE
+    }
+
     private int nextSearchRange() {
         if (searchRange >= LumberjackTreeScanner.MAX_SEARCH_RANGE) {
             return LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
@@ -254,6 +314,13 @@ public final class LumberjackGoal extends Goal {
     @Nullable
     private BlockPos findReachableTreeApproach(ServerLevel level,
                                                LumberjackTreeScanner.TreeSnapshot candidate) {
+        // A nearby tree is already within the lumberjack's cutting reach. Do
+        // not require a path to the occupied trunk block; a second villager or
+        // a transient navigation update should not prevent immediate work.
+        if (isWithinWorkReach(candidate.base())) {
+            return villager.blockPosition().immutable();
+        }
+
         BlockPos approach = VillagerNavigationTargets.findReachableTarget(
                 villager, candidate.base(), 2,
                 position -> {

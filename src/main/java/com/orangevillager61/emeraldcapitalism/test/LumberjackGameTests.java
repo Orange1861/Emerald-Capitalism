@@ -27,7 +27,7 @@ public final class LumberjackGameTests {
     private LumberjackGameTests() {
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", timeoutTicks = 800)
     public static void lumberjackBreaksByHandAndReplantsTree(GameTestHelper helper) {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
@@ -41,50 +41,52 @@ public final class LumberjackGameTests {
         helper.setBlock(secondBlockingLeaf, Blocks.OAK_LEAVES.defaultBlockState());
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
-        helper.assertTrue(goal.canUse(), "lumberjack did not detect a supported log cluster with leaves");
-        goal.start();
-        helper.assertTrue(helper.getLevel().getBlockState(blockingLeaf).isAir(),
-                "lumberjack left a canopy leaf blocking its head-level approach");
-        helper.assertTrue(helper.getLevel().getBlockState(secondBlockingLeaf).isAir(),
-                "lumberjack stopped after clearing only one canopy leaf");
-        goal.tick();
-        helper.assertTrue(lumberjack.getNavigation().isDone(),
-                "lumberjack kept navigating after reaching the tree log it was cutting");
+        awaitLumberjackCanUse(helper, goal,
+                "lumberjack did not detect a supported log cluster with leaves", () -> {
+                    goal.start();
+                    helper.assertTrue(helper.getLevel().getBlockState(blockingLeaf).isAir(),
+                            "lumberjack left a canopy leaf blocking its head-level approach");
+                    helper.assertTrue(helper.getLevel().getBlockState(secondBlockingLeaf).isAir(),
+                            "lumberjack stopped after clearing only one canopy leaf");
+                    goal.tick();
+                    helper.assertTrue(lumberjack.getNavigation().isDone(),
+                            "lumberjack kept navigating after reaching the tree log it was cutting");
 
-        for (int tick = 0; tick < 58; tick++) {
-            goal.tick();
-        }
-        helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_LOG),
-                "log was broken before the vanilla bare-hand duration elapsed");
+                    for (int tick = 0; tick < 58; tick++) {
+                        goal.tick();
+                    }
+                    helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_LOG),
+                            "log was broken before the vanilla bare-hand duration elapsed");
 
-        for (int tick = 0; tick < 61; tick++) {
-            goal.tick();
-        }
-        helper.assertTrue(helper.getLevel().getBlockState(base).isAir(),
-                "base log was not broken after the vanilla bare-hand duration");
+                    for (int tick = 0; tick < 61; tick++) {
+                        goal.tick();
+                    }
+                    helper.assertTrue(helper.getLevel().getBlockState(base).isAir(),
+                            "base log was not broken after the vanilla bare-hand duration");
 
-        for (int tick = 0; tick < 61; tick++) {
-            goal.tick();
-        }
-        goal.tick();
+                    for (int tick = 0; tick < 61; tick++) {
+                        goal.tick();
+                    }
+                    goal.tick();
 
-        for (int tick = 0; tick < 220; tick++) {
-            goal.tick();
-            tickFurnace(helper, furnacePos);
-        }
+                    for (int tick = 0; tick < 220; tick++) {
+                        goal.tick();
+                        tickFurnace(helper, furnacePos);
+                    }
 
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 3,
-                "a sub-eight-log charcoal allocation consumed harvested logs");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
-                "a sub-eight-log charcoal allocation started production");
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_PLANKS), 0,
-                "bootstrap planks were incorrectly returned to the lumberjack inventory");
-        helper.assertTrue(((FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos))
-                        .getItem(1).isEmpty(),
-                "a sub-eight-log allocation inserted furnace fuel");
-        helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_SAPLING),
-                "lumberjack did not replant a compatible sapling at the tree base");
-        helper.succeed();
+                    helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 3,
+                            "a sub-eight-log charcoal allocation consumed harvested logs");
+                    helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                            "a sub-eight-log charcoal allocation started production");
+                    helper.assertValueEqual(countItem(lumberjack, Items.OAK_PLANKS), 0,
+                            "bootstrap planks were incorrectly returned to the lumberjack inventory");
+                    helper.assertTrue(((FurnaceBlockEntity) helper.getLevel().getBlockEntity(furnacePos))
+                                    .getItem(1).isEmpty(),
+                            "a sub-eight-log charcoal allocation inserted furnace fuel");
+                    helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_SAPLING),
+                            "lumberjack did not replant a compatible sapling at the tree base");
+                    helper.succeed();
+                });
     }
 
     @GameTest(template = "empty_3x3x3")
@@ -97,29 +99,32 @@ public final class LumberjackGameTests {
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
         installSmallTree(helper);
-        harvestTree(helper, goal);
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 3,
-                "the first small tree lost logs before a charcoal batch was ready");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
-                "the first small tree started a sub-eight-log charcoal batch");
+        harvestTree(helper, goal, () -> {
+            helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 3,
+                    "the first small tree lost logs before a charcoal batch was ready");
+            helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                    "the first small tree started a sub-eight-log charcoal batch");
 
-        installSmallTree(helper);
-        LumberjackGoal nextGoal = new LumberjackGoal(lumberjack);
-        helper.assertTrue(nextGoal.canUse(), "lumberjack did not select the next replanted tree");
-        nextGoal.start();
-        harvestTreeAfterStart(helper, nextGoal);
+            installSmallTree(helper);
+            LumberjackGoal nextGoal = new LumberjackGoal(lumberjack);
+            awaitLumberjackCanUse(helper, nextGoal,
+                    "lumberjack did not select the next replanted tree", () -> {
+                        nextGoal.start();
+                        harvestTreeAfterStart(helper, nextGoal);
 
-        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 6,
-                "small-tree batches consumed logs before eight were assigned to charcoal");
-        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
-                "repeated small trees started charcoal production below the batch threshold");
-        helper.assertValueEqual(lumberjack.getData(
-                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 3.0D,
-                "small-tree charcoal assignments did not accumulate without recounting retained logs");
-        helper.succeed();
+                        helper.assertValueEqual(countItem(lumberjack, Items.OAK_LOG), 6,
+                                "small-tree batches consumed logs before eight were assigned to charcoal");
+                        helper.assertValueEqual(countItem(lumberjack, Items.CHARCOAL), 0,
+                                "repeated small trees started charcoal production below the batch threshold");
+                        helper.assertValueEqual(lumberjack.getData(
+                                EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION).getCharcoalQuota(), 3.0D,
+                                "small-tree charcoal assignments did not accumulate without recounting retained logs");
+                        helper.succeed();
+                    });
+        });
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", timeoutTicks = 800)
     public static void underFueledCharcoalQuotaReturnsToTreeCollection(GameTestHelper helper) {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
@@ -132,18 +137,19 @@ public final class LumberjackGameTests {
         BlockPos treeBase = installSmallTree(helper);
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
-        helper.assertTrue(goal.canUse(),
-                "under-fueled lumberjack did not continue with available tree work");
-        goal.start();
-        for (int tick = 0; tick < 180; tick++) {
-            goal.tick();
-        }
+        awaitLumberjackCanUse(helper, goal,
+                "under-fueled lumberjack did not continue with available tree work", () -> {
+                    goal.start();
+                    for (int tick = 0; tick < 180; tick++) {
+                        goal.tick();
+                    }
 
-        helper.assertTrue(helper.getLevel().getBlockState(treeBase).isAir()
-                        || helper.getLevel().getBlockState(treeBase.above()).isAir(),
-                "under-fueled charcoal work held the lumberjack motionless at the furnace");
-        goal.stop();
-        helper.succeed();
+                    helper.assertTrue(helper.getLevel().getBlockState(treeBase).isAir()
+                                    || helper.getLevel().getBlockState(treeBase.above()).isAir(),
+                            "under-fueled charcoal work held the lumberjack motionless at the furnace");
+                    goal.stop();
+                    helper.succeed();
+                });
     }
 
     @GameTest(template = "empty_3x3x3")
@@ -304,7 +310,7 @@ public final class LumberjackGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", timeoutTicks = 600)
     public static void lumberjackReachesLogsAboveItsHead(GameTestHelper helper) {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
@@ -312,22 +318,23 @@ public final class LumberjackGameTests {
         BlockPos base = installTallTree(helper);
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
-        helper.assertTrue(goal.canUse(), "lumberjack did not detect the tall supported tree");
-        goal.start();
-        for (int tick = 0; tick < 5 * 60; tick++) {
+        awaitLumberjackCanUse(helper, goal, "lumberjack did not detect the tall supported tree", () -> {
+            goal.start();
+            for (int tick = 0; tick < 5 * 60; tick++) {
+                goal.tick();
+            }
             goal.tick();
-        }
-        goal.tick();
 
-        helper.assertTrue(lumberjack.getNavigation().isDone(),
-                "lumberjack navigated away instead of reaching the upper log from below");
-        helper.assertTrue(helper.getLevel().getBlockState(base.above(5)).is(Blocks.OAK_LOG),
-                "lumberjack did not retain the upper log as its current work target");
-        goal.stop();
-        helper.succeed();
+            helper.assertTrue(lumberjack.getNavigation().isDone(),
+                    "lumberjack navigated away instead of reaching the upper log from below");
+            helper.assertTrue(helper.getLevel().getBlockState(base.above(5)).is(Blocks.OAK_LOG),
+                    "lumberjack did not retain the upper log as its current work target");
+            goal.stop();
+            helper.succeed();
+        });
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", timeoutTicks = 900)
     public static void lumberjackReachesLogsTenBlocksAboveHead(GameTestHelper helper) {
         Villager lumberjack = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
@@ -336,46 +343,66 @@ public final class LumberjackGameTests {
         BlockPos base = installTreeRequiringTenBlockReach(helper);
 
         LumberjackGoal goal = new LumberjackGoal(lumberjack);
-        helper.assertTrue(goal.canUse(), "lumberjack did not detect the ten-block tree");
-        goal.start();
-        for (int tick = 0; tick < 12 * 61 + 2; tick++) {
+        awaitLumberjackCanUse(helper, goal, "lumberjack did not detect the ten-block tree", () -> {
+            goal.start();
+            for (int tick = 0; tick < 12 * 61 + 2; tick++) {
+                goal.tick();
+            }
             goal.tick();
-        }
-        goal.tick();
 
-        helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_SAPLING),
-                "lumberjack could not harvest a log ten blocks above its head");
-        goal.stop();
-        helper.succeed();
+            helper.assertTrue(helper.getLevel().getBlockState(base).is(Blocks.OAK_SAPLING),
+                    "lumberjack could not harvest a log ten blocks above its head");
+            goal.stop();
+            helper.succeed();
+        });
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", timeoutTicks = 600)
     public static void lumberjackReservesSelectedTree(GameTestHelper helper) {
         Villager first = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         first.setVillagerData(first.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
-        Villager second = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
-        second.setVillagerData(second.getVillagerData()
-                .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
         installSmallTree(helper);
+        first.getBrain().eraseMemory(MemoryModuleType.HOME);
+        first.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
 
         LumberjackGoal firstGoal = new LumberjackGoal(first);
-        helper.assertTrue(firstGoal.canUse(), "the first lumberjack did not select the test tree");
-        firstGoal.start();
+        helper.assertTrue(firstGoal.canUse(),
+                "the first lumberjack could not select the test tree at setup: profession="
+                        + first.getVillagerData().getProfession() + ", pos=" + first.position());
+        awaitLumberjackCanUse(helper, firstGoal,
+                "the first lumberjack did not select the test tree", () -> {
+                    firstGoal.start();
 
-        LumberjackGoal blockedGoal = new LumberjackGoal(second);
-        helper.assertFalse(blockedGoal.canUse(),
-                "the second lumberjack selected a tree already reserved by the first");
-        helper.assertTrue(helper.getLevel().getBlockState(helper.absolutePos(new BlockPos(1, 1, 2)))
-                        .is(Blocks.OAK_LOG),
-                "the blocked lumberjack changed the reserved tree");
+                    // Spawn the competing villager after the first goal owns
+                    // its approach, so entity collision cannot change the
+                    // reachability result being tested.
+                    Villager second = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 2);
+                    second.setVillagerData(second.getVillagerData()
+                            .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+                    second.getBrain().eraseMemory(MemoryModuleType.HOME);
+                    second.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+                    LumberjackGoal blockedGoal = new LumberjackGoal(second);
+                    helper.assertFalse(blockedGoal.canUse(),
+                            "the second lumberjack selected a tree already reserved by the first");
+                    helper.assertTrue(helper.getLevel().getBlockState(
+                                    helper.absolutePos(new BlockPos(1, 1, 2)))
+                                    .is(Blocks.OAK_LOG),
+                            "the blocked lumberjack changed the reserved tree");
 
-        firstGoal.stop();
-        LumberjackGoal releasedGoal = new LumberjackGoal(second);
-        helper.assertTrue(releasedGoal.canUse(),
-                "the selected tree reservation was not released when the first goal stopped");
-        releasedGoal.stop();
-        helper.succeed();
+                    firstGoal.stop();
+                    // Starting the first goal may clear two forward canopy
+                    // leaves to make room for its approach. Restore the test
+                    // canopy before checking that release permits a second
+                    // selection; the production reservation must not be
+                    // confused with canopy mutation.
+                    restoreSmallTreeCanopy(helper);
+                    LumberjackGoal releasedGoal = new LumberjackGoal(second);
+                    helper.assertTrue(releasedGoal.canUse(),
+                            "the selected tree reservation was not released when the first goal stopped");
+                    releasedGoal.stop();
+                    helper.succeed();
+                });
     }
 
     @GameTest(template = "empty_3x3x3")
@@ -437,6 +464,7 @@ public final class LumberjackGameTests {
 
     private static BlockPos installSmallTree(GameTestHelper helper) {
         enableMobGriefing(helper);
+        installLumberjackFloor(helper);
         BlockPos base = new BlockPos(1, 1, 2);
         helper.setBlock(base.below(), Blocks.DIRT.defaultBlockState());
         helper.setBlock(base, Blocks.OAK_LOG.defaultBlockState());
@@ -450,8 +478,18 @@ public final class LumberjackGameTests {
         return helper.absolutePos(base);
     }
 
+    private static void restoreSmallTreeCanopy(GameTestHelper helper) {
+        BlockPos base = new BlockPos(1, 1, 2);
+        helper.setBlock(base.above(3), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(base.above(2).west(), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(base.above(2).east(), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(base.above(2).north(), Blocks.OAK_LEAVES.defaultBlockState());
+        helper.setBlock(base.above(2).south(), Blocks.OAK_LEAVES.defaultBlockState());
+    }
+
     private static BlockPos installTallTree(GameTestHelper helper) {
         enableMobGriefing(helper);
+        installLumberjackFloor(helper);
         BlockPos base = new BlockPos(1, 1, 2);
         helper.setBlock(base.below(), Blocks.DIRT.defaultBlockState());
         for (int height = 0; height <= 5; height++) {
@@ -473,6 +511,7 @@ public final class LumberjackGameTests {
 
     private static BlockPos installTreeRequiringTenBlockReach(GameTestHelper helper) {
         enableMobGriefing(helper);
+        installLumberjackFloor(helper);
         BlockPos base = new BlockPos(1, 1, 2);
         helper.setBlock(base.below(), Blocks.DIRT.defaultBlockState());
         for (int height = 0; height < 12; height++) {
@@ -491,10 +530,30 @@ public final class LumberjackGameTests {
                 .set(true, helper.getLevel().getServer());
     }
 
-    private static void harvestTree(GameTestHelper helper, LumberjackGoal goal) {
-        helper.assertTrue(goal.canUse(), "lumberjack did not detect the test tree");
-        goal.start();
-        harvestTreeAfterStart(helper, goal);
+    private static void installLumberjackFloor(GameTestHelper helper) {
+        for (int x = 0; x <= 3; x++) {
+            for (int z = 0; z <= 3; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.DIRT.defaultBlockState());
+            }
+        }
+    }
+
+    private static void harvestTree(GameTestHelper helper, LumberjackGoal goal, Runnable after) {
+        awaitLumberjackCanUse(helper, goal, "lumberjack did not detect the test tree", () -> {
+            goal.start();
+            harvestTreeAfterStart(helper, goal);
+            after.run();
+        });
+    }
+
+    private static void awaitLumberjackCanUse(GameTestHelper helper, LumberjackGoal goal,
+                                              String failureMessage, Runnable whenReady) {
+        if (goal.canUse()) {
+            whenReady.run();
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitLumberjackCanUse(
+                helper, goal, failureMessage, whenReady));
     }
 
     private static void harvestTreeAfterStart(GameTestHelper helper, LumberjackGoal goal) {

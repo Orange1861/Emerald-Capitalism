@@ -14,6 +14,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.behavior.VillagerMakeLove;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -60,8 +61,7 @@ public final class MixinAuditInvariantGameTests {
 
     @GameTest(template = "empty_3x3x3")
     public static void wanderingTraderKeepsVanillaInventorySize(GameTestHelper helper) {
-        WanderingTrader trader = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
-                EntityType.WANDERING_TRADER, helper.getLevel());
+        WanderingTrader trader = helper.spawnWithNoFreeWill(EntityType.WANDERING_TRADER, 1, 1, 1);
         helper.assertTrue(trader != null, "could not create wandering trader inventory fixture");
         helper.assertValueEqual(trader.getInventory().getContainerSize(), 8,
                 "villager inventory expansion must not affect wandering traders");
@@ -100,9 +100,16 @@ public final class MixinAuditInvariantGameTests {
         ItemEntity emeralds = new ItemEntity(helper.getLevel(), villager.getX(), villager.getY(),
                 villager.getZ(), new ItemStack(Items.EMERALD, 3));
         try {
-            Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ItemEntity.class);
+//? if >=1.21.4 {
+            Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ServerLevel.class,
+                    ItemEntity.class);
+            pickup.setAccessible(true);
+            pickup.invoke(villager, helper.getLevel(), emeralds);
+//?} else {
+/*            Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ItemEntity.class);
             pickup.setAccessible(true);
             pickup.invoke(villager, emeralds);
+ *///?}
         } catch (NoSuchMethodException | IllegalAccessException exception) {
             throw new AssertionError("Could not invoke the villager pickup boundary", exception);
         } catch (InvocationTargetException exception) {
@@ -258,7 +265,7 @@ public final class MixinAuditInvariantGameTests {
         }
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x8x3", timeoutTicks = 400)
     public static void villagerClimbsInstalledLadderPath(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
         Villager villager = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
@@ -271,22 +278,16 @@ public final class MixinAuditInvariantGameTests {
         }
         helper.assertTrue(villager.getNavigation().moveTo(new Path(nodes, ladderBase.above(4), true), 1.0D),
                 "villager ladder path could not be installed");
-        helper.runAfterDelay(40, () -> {
-            helper.assertTrue(villager.getY() > ladderBase.getY() + 1.0D,
-                    "villager did not climb its installed ladder path");
-            helper.assertTrue(villager.getZ() > ladderBase.getZ() + 1.0D,
-                    "villager did not walk off the top of its ladder path");
-            helper.succeed();
-        });
+        awaitVillagerLadderExit(helper, villager, ladderBase, 300);
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x8x3", timeoutTicks = 800)
     public static void villagerKeepsLadderPathWhileWaitingForAnotherClimber(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
-        Villager climber = helper.spawn(EntityType.VILLAGER, 1, 2, 1);
+        Villager climber = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
         climber.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY() + 1.0D,
                 ladderBase.getZ() + 0.5D, 0.0F, 0.0F);
-        Villager waiter = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        Villager waiter = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         waiter.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(),
                 ladderBase.getZ() + 0.5D, 0.0F, 0.0F);
 
@@ -297,8 +298,38 @@ public final class MixinAuditInvariantGameTests {
         helper.runAfterDelay(2, () -> {
             helper.assertTrue(waiter.getNavigation().getPath() != null,
                     "waiting villager lost its ladder path while the column was occupied");
-            helper.succeed();
+            awaitVillagersClearLadder(helper, climber, waiter, ladderBase, 600, 0);
         });
+    }
+
+    private static void awaitVillagersClearLadder(GameTestHelper helper, Villager first,
+                                                  Villager second, BlockPos ladderBase,
+                                                  int remainingTicks, int stableTicks) {
+        boolean firstClear = hasClearedLadderTop(first, ladderBase);
+        boolean secondClear = hasClearedLadderTop(second, ladderBase);
+        if (remainingTicks <= 0) {
+            helper.fail("multiple villagers did not clear the ladder: first=" + first.position()
+                    + ", firstClimbable=" + first.onClimbable()
+                    + ", second=" + second.position()
+                    + ", secondClimbable=" + second.onClimbable()
+                    + ", firstPath=" + first.getNavigation().getPath()
+                    + ", secondPath=" + second.getNavigation().getPath());
+            return;
+        }
+        if (firstClear && secondClear) {
+            // Do not accept a transient step off the top: keep observing long
+            // enough to catch the old up/down oscillation or immediate
+            // re-selection of the completed ladder path.
+            if (stableTicks >= 40) {
+                helper.succeed();
+                return;
+            }
+            helper.runAfterDelay(1, () -> awaitVillagersClearLadder(
+                    helper, first, second, ladderBase, remainingTicks - 1, stableTicks + 1));
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitVillagersClearLadder(
+                helper, first, second, ladderBase, remainingTicks - 1, 0));
     }
 
     private static Path ladderPath(BlockPos ladderBase, int firstOffset) {
@@ -316,6 +347,21 @@ public final class MixinAuditInvariantGameTests {
             helper.getLevel().setBlock(ladderBase.above(y), Blocks.LADDER.defaultBlockState()
                     .setValue(LadderBlock.FACING, Direction.SOUTH), 3);
         }
+        BlockPos exitPos = ladderBase.above(4).relative(Direction.SOUTH);
+        // Give both villagers room to collide on the landing without being
+        // pushed sideways into unsupported air. The assertion still requires
+        // each entity to reach the row one block beyond the ladder top.
+        for (int dx = -1; dx <= 1; dx++) {
+            helper.getLevel().setBlock(exitPos.below().offset(dx, 0, 0),
+                    Blocks.STONE.defaultBlockState(), 3);
+        }
+        // The 3x3x3 template has protective barriers above its nominal volume.
+        // Clear both the exit cell and headroom so the dismount guard sees a
+        // real walkable block in every supported Minecraft version.
+        helper.getLevel().setBlock(exitPos, Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(exitPos.above(), Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(ladderBase.above(5), Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(ladderBase.above(6), Blocks.AIR.defaultBlockState(), 3);
         return ladderBase;
     }
 
@@ -334,11 +380,10 @@ public final class MixinAuditInvariantGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x8x3", timeoutTicks = 800)
     public static void wanderingTraderClimbsInstalledLadderPath(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
-        WanderingTrader trader = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
-                EntityType.WANDERING_TRADER, helper.getLevel());
+        WanderingTrader trader = helper.spawnWithNoFreeWill(EntityType.WANDERING_TRADER, 1, 1, 1);
         helper.assertTrue(trader != null, "could not create wandering trader ladder fixture");
         trader.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
                 0.0F, 0.0F);
@@ -349,11 +394,49 @@ public final class MixinAuditInvariantGameTests {
         }
         helper.assertTrue(trader.getNavigation().moveTo(new Path(nodes, ladderBase.above(4), true), 1.0D),
                 "wandering trader ladder path could not be installed");
-        helper.runAfterDelay(40, () -> {
-            helper.assertTrue(trader.getY() > ladderBase.getY() + 1.0D,
-                    "wandering trader did not climb its installed ladder path");
+        awaitTraderLadderExit(helper, trader, ladderBase, 300);
+    }
+
+    private static void awaitVillagerLadderExit(GameTestHelper helper, Villager villager,
+                                                BlockPos ladderBase, int remainingTicks) {
+        if (hasClearedLadderTop(villager, ladderBase)) {
             helper.succeed();
-        });
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("villager did not complete its ladder exit: pos=" + villager.position()
+                    + ", base=" + ladderBase + ", enabled=" + Config.enableLadderTraversal);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitVillagerLadderExit(
+                helper, villager, ladderBase, remainingTicks - 1));
+    }
+
+    private static void awaitTraderLadderExit(GameTestHelper helper,
+                                               WanderingTrader trader,
+                                               BlockPos ladderBase, int remainingTicks) {
+        if (hasClearedLadderTop(trader, ladderBase)) {
+            helper.succeed();
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("wandering trader did not complete its ladder exit: pos=" + trader.position()
+                    + ", base=" + ladderBase + ", alive=" + trader.isAlive());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitTraderLadderExit(
+                helper, trader, ladderBase, remainingTicks - 1));
+    }
+
+    private static boolean hasClearedLadderTop(LivingEntity entity, BlockPos ladderBase) {
+        // The ladder's top rung is four blocks above its base. The entity must
+        // be at that top-rung height and have physically entered at least one
+        // block beyond the south-facing ladder column before the test accepts
+        // the exit. Checking blockPosition() requires the entity's center to
+        // be in the adjacent exit block, including at negative coordinates.
+        return entity.getY() > ladderBase.getY() + 3.0D
+                && entity.blockPosition().getZ() >= ladderBase.getZ() + 1
+                && !entity.onClimbable();
     }
 
     @GameTest(template = "empty_3x3x3")

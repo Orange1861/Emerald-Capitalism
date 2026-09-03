@@ -14,14 +14,14 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
-/** Makes iron golems attack visible players hostile to their village or bank,
+/** Makes iron golems attack players in range who are hostile to their village or bank,
  * including contested candidates. */
 public final class HostileVillagePlayerTargetGoal extends NearestAttackableTargetGoal<ServerPlayer> {
 
     private final IronGolem golem;
 
     public HostileVillagePlayerTargetGoal(IronGolem golem) {
-        super(golem, ServerPlayer.class, 10, true, false,
+        super(golem, ServerPlayer.class, 10, false, false,
 //? if >=1.21.4 {
                 (target, level) -> target instanceof Player player
 //?} else {
@@ -29,6 +29,31 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
  *///?}
                         && isHostilePlayer(golem, player));
         this.golem = golem;
+    }
+
+    @Override
+    public boolean canUse() {
+        double followDistance = this.getFollowDistance();
+        double followDistanceSq = followDistance * followDistance;
+        ServerPlayer closest = null;
+        double closestDistanceSq = Double.MAX_VALUE;
+        for (ServerPlayer player : golem.level().getEntitiesOfClass(
+                ServerPlayer.class,
+                golem.getBoundingBox().inflate(followDistance, 4.0D, followDistance))) {
+            double distanceSq = golem.distanceToSqr(player);
+            if (distanceSq > followDistanceSq
+                    || !player.isAlive()
+                    || player.isSpectator()
+                    || !isHostilePlayer(golem, player)) {
+                continue;
+            }
+            if (distanceSq < closestDistanceSq) {
+                closest = player;
+                closestDistanceSq = distanceSq;
+            }
+        }
+        this.target = closest;
+        return this.target != null;
     }
 
     private static boolean isHostilePlayer(IronGolem golem, Player player) {
@@ -93,8 +118,9 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
     public boolean canContinueToUse() {
         @Nullable ServerPlayer target = golem.getTarget() instanceof ServerPlayer player ? player : null;
         return target != null
-                && isHostilePlayer(golem, target)
-                && golem.hasLineOfSight(target)
-                && super.canContinueToUse();
+                && golem.distanceToSqr(target) <= this.getFollowDistance() * this.getFollowDistance()
+                && target.isAlive()
+                && !target.isSpectator()
+                && isHostilePlayer(golem, target);
     }
 }

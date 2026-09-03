@@ -56,7 +56,7 @@ import java.util.UUID;
  */
 public class BankBlock extends BaseEntityBlock {
 
-    private static final double ACCESS_DISTANCE = 1.0D;
+    private static final double ACCESS_DISTANCE = 1.25D;
 
     public static final MapCodec<BankBlock> CODEC = simpleCodec(BankBlock::new);
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;

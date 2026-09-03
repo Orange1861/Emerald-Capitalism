@@ -173,7 +173,9 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             return;
         }
 
-        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.processorPos(), 2);
+        BlockPos navigationTarget = isAtProcessor(level)
+                ? context.processorPos()
+                : VillagerNavigationTargets.findReachableTarget(villager, context.processorPos(), 2);
         if (navigationTarget == null) {
             failureReason = "processor has no reachable standing position";
             context.bank().endGolemConstruction(villager.getUUID());

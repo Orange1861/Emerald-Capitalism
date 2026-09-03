@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEnti
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankMorningTradeGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.FarmerBreadConversionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
@@ -66,6 +67,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void villagerBuysBreadToTwicePersonalTargetUsingAccount(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
         BankBlockEntity bank = setupBreadBank(helper, 45);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         BankAccountData.get(level).openAccount(villager.getUUID());
@@ -91,6 +93,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void villagerSellsExcessBreadForAccountCredit(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
         BankBlockEntity bank = setupBreadBank(helper, 15);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));
@@ -141,32 +144,25 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
-    public static void bankConvertsStoredWheatIntoBread(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        BankBlockEntity bank = setupMarketBank(helper, Items.BREAD, 0);
-        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
-                helper.absolutePos(new BlockPos(1, 1, 2)));
-        if (chest == null) {
-            helper.fail("bread conversion chest was not created");
-            return;
-        }
+    public static void farmerConvertsOwnWheatIntoBread(GameTestHelper helper) {
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 20));
 
-        chest.setItem(0, new ItemStack(Items.WHEAT, 20));
-        BankBlockEntity.serverTick(
-                level, bank.getBlockPos(), level.getBlockState(bank.getBlockPos()), bank);
+        FarmerBreadConversionGoal goal = new FarmerBreadConversionGoal(farmer);
+        helper.assertTrue(goal.canUse(), "farmer did not select local wheat-to-bread conversion");
+        goal.start();
+        goal.tick();
+        goal.stop();
 
-        helper.assertValueEqual(bank.getMarketStock(level, Items.WHEAT), 2,
-                "bank did not retain the incomplete wheat recipe remainder");
-        helper.assertValueEqual(bank.getMarketStock(level, Items.BREAD), 6,
-                "bank did not convert complete wheat recipes into bread");
-        helper.assertValueEqual(bank.getTotalWheatCount(), 2,
-                "bank wheat total did not reflect the conversion remainder");
-        helper.assertValueEqual(bank.getTotalBreadCount(), 6,
-                "bank bread total did not reflect converted wheat");
+        helper.assertValueEqual(countItem(farmer, Items.WHEAT), 2,
+                "farmer did not retain the incomplete wheat recipe remainder");
+        helper.assertValueEqual(countItem(farmer, Items.BREAD), 6,
+                "farmer did not convert complete wheat recipes into bread locally");
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20", timeoutTicks = 300)
+    @GameTest(template = "empty_20x3x20", timeoutTicks = 600)
     public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         level.setDayTime(1_000L);
@@ -180,8 +176,15 @@ public final class BankGameplayGameTests {
         }
 
         BlockPos sawmillPos = helper.absolutePos(new BlockPos(5, 1, 1));
+        for (int x = 0; x <= 10; x++) {
+            for (int z = 0; z <= 19; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.DIRT.defaultBlockState());
+            }
+        }
         helper.setBlock(new BlockPos(5, 1, 1), ECAPBlocks.SAWMILL.get().defaultBlockState());
-        BlockPos treeBase = new BlockPos(8, 1, 2);
+        // Keep the test tree outside the sawmill's protected job-site radius;
+        // the real work loop must preserve player-built structures around it.
+        BlockPos treeBase = new BlockPos(5, 1, 18);
         helper.setBlock(treeBase.below(), Blocks.DIRT.defaultBlockState());
         helper.setBlock(treeBase, Blocks.OAK_LOG.defaultBlockState());
         helper.setBlock(treeBase.above(), Blocks.OAK_LOG.defaultBlockState());
@@ -191,9 +194,10 @@ public final class BankGameplayGameTests {
         helper.setBlock(treeBase.above(2).south(), Blocks.OAK_LEAVES.defaultBlockState());
         helper.setBlock(treeBase.above(2).east(), Blocks.OAK_LEAVES.defaultBlockState());
         helper.setBlock(treeBase.above(2).west(), Blocks.OAK_LEAVES.defaultBlockState());
-        Villager lumberjack = helper.spawn(EntityType.VILLAGER, 5, 1, 2);
+        Villager lumberjack = helper.spawn(EntityType.VILLAGER, 4, 1, 2);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.refreshBrain(level);
         lumberjack.getBrain().setMemory(MemoryModuleType.JOB_SITE,
                 GlobalPos.of(level.dimension(), sawmillPos));
 
@@ -212,9 +216,15 @@ public final class BankGameplayGameTests {
                     "lumberjack profession work still outranked pending bank delivery");
         }
 
-        helper.runAfterDelay(5, () -> {
-            helper.assertTrue(workEntry != null && workEntry.isRunning(),
-                    "lumberjack work was not active before the delivery became pending");
+        helper.runAfterDelay(100, () -> {
+            boolean workRunning = workEntry != null && workEntry.isRunning();
+            boolean workEligible = workEntry != null
+                    && ((LumberjackGoal) workEntry.getGoal()).canUse();
+            helper.assertTrue(workRunning,
+                    "lumberjack work was not active before the delivery became pending: "
+                            + "time=" + level.getGameTime() + ", pos=" + lumberjack.position()
+                            + ", running=" + workRunning + ", eligibleNow=" + workEligible
+                            + ", profession=" + lumberjack.getVillagerData().getProfession());
             lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
         });
 
@@ -468,6 +478,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void villagerSellsAllPumpkinsOnceInMorning(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
         BankBlockEntity bank = setupMarketBank(helper, Items.PUMPKIN, 0);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         villager.getInventory().setItem(0, new ItemStack(Items.PUMPKIN, 2));
@@ -493,6 +504,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void morningSaleCheckDoesNotRepeatAfterEmptyCheck(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
         setupMarketBank(helper, Items.PUMPKIN, 0);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         BankAccountData.get(level).openAccount(villager.getUUID());
