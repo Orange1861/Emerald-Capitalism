@@ -54,7 +54,7 @@ public record BankMenuOpenData(
 
     public static BankMenuOpenData empty(BlockPos blockPos) {
         return new BankMenuOpenData(blockPos, "", null, "", true, null, 0,
-                new EntityCounts(0, 0, 0, 0), new Targets(0, 0, 0, 0),
+                new EntityCounts(0, 0, 0), new Targets(0, 0, 0, 0),
                 new ControlSettings(false, 0, 0, BankTargets.INTERNAL_BREAD_DAYS,
                         true, true, true, false, false),
                 new Totals(0, 0, 0, 0, 0, 0, 0, 0), 0,
@@ -83,7 +83,6 @@ public record BankMenuOpenData(
         buf.writeInt(data.bankOpinion());
 
         EntityCounts entityCounts = data.entityCounts();
-        buf.writeVarInt(entityCounts.depositQueueSize());
         buf.writeVarInt(entityCounts.employeeCount());
         buf.writeVarInt(entityCounts.emeraldGolemCount());
         buf.writeVarInt(entityCounts.expectedEmeraldGolemCount());
@@ -128,7 +127,7 @@ public record BankMenuOpenData(
         int bankOpinion = buf.readInt();
 
         EntityCounts entityCounts = new EntityCounts(
-                buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
+                buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
         Targets targets = new Targets(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
         ControlSettings controlSettings = readControlSettings(buf);
         Totals totals = new Totals(buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
@@ -249,7 +248,6 @@ public record BankMenuOpenData(
             buf.writeUtf(clamp(entry.name(), ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH),
                     ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH);
             buf.writeInt(entry.balance());
-            buf.writeInt(entry.queuePosition());
         }
     }
 
@@ -259,7 +257,7 @@ public record BankMenuOpenData(
         for (int i = 0; i < count; i++) {
             accounts.add(new BankMenu.AccountEntry(
                     buf.readUtf(ProtocolStringLimits.MAX_ACCOUNT_NAME_LENGTH),
-                    buf.readInt(), buf.readInt()));
+                    buf.readInt()));
         }
         return List.copyOf(accounts);
     }
@@ -301,8 +299,8 @@ public record BankMenuOpenData(
         return ProtocolStringLimits.clamp(value, maxLength);
     }
 
-    public record EntityCounts(int depositQueueSize, int employeeCount,
-                               int emeraldGolemCount, int expectedEmeraldGolemCount) {
+    public record EntityCounts(int employeeCount, int emeraldGolemCount,
+                               int expectedEmeraldGolemCount) {
     }
 
     public record Targets(int pumpkin, int bread, int plank, int coal) {

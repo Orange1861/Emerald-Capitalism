@@ -39,7 +39,11 @@ import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.storage.ServerLevelData;
@@ -304,6 +308,56 @@ public final class VillagerGoalBehaviorGameTests {
             behavior.tickOrStop(helper.getLevel(), villager, gameTime + 1L);
             helper.assertFalse(helper.getLevel().getBlockState(gatePos).getValue(BlockStateProperties.OPEN),
                     "fence-gate behavior did not close its gate after the villager passed");
+        } finally {
+            Config.enableFenceGateInteraction = previous;
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void fenceGateBehaviorOpensAndClosesThePathEmeraldDoor(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos villagerPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos doorPos = helper.absolutePos(new BlockPos(2, 1, 1));
+        BlockState lowerDoor = ECAPBlocks.REGULAR_EMERALD_DOOR.get().defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.SOUTH)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT)
+                .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+                .setValue(DoorBlock.OPEN, false);
+        level.setBlock(doorPos, lowerDoor, 3);
+        level.setBlock(doorPos.above(), lowerDoor.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+
+        Villager villager = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        Path path = new Path(
+                List.of(
+                        new Node(villagerPos.getX(), villagerPos.getY(), villagerPos.getZ()),
+                        new Node(doorPos.getX(), doorPos.getY(), doorPos.getZ())),
+                doorPos,
+                true);
+        helper.assertTrue(villager.getNavigation().moveTo(path, 0.5D),
+                "test navigation rejected the focused emerald-door path");
+        villager.getBrain().setMemory(MemoryModuleType.PATH, path);
+
+        boolean previous = Config.enableFenceGateInteraction;
+        Config.enableFenceGateInteraction = true;
+        try {
+            BehaviorControl<Villager> behavior = findBehavior(
+                    VillagerGoalPackages.getCorePackage(VillagerProfession.NONE, 0.5F),
+                    InteractWithFenceGateBehavior.class);
+            long gameTime = level.getGameTime();
+            helper.assertTrue(behavior.tryStart(level, villager, gameTime),
+                    "openable behavior did not start for a present emerald-door path");
+            helper.assertTrue(level.getBlockState(doorPos).getValue(BlockStateProperties.OPEN),
+                    "openable behavior did not open the closed emerald door on the path");
+            helper.assertTrue(level.getBlockState(doorPos.above()).getValue(BlockStateProperties.OPEN),
+                    "openable behavior did not open both emerald-door halves");
+
+            villager.moveTo(doorPos.getX() + 6.0D, doorPos.getY(), doorPos.getZ(), 0.0F, 0.0F);
+            behavior.tickOrStop(level, villager, gameTime + 1L);
+            helper.assertFalse(level.getBlockState(doorPos).getValue(BlockStateProperties.OPEN),
+                    "villager did not close the emerald door after passing through");
+            helper.assertFalse(level.getBlockState(doorPos.above()).getValue(BlockStateProperties.OPEN),
+                    "villager did not close the upper emerald-door half after passing through");
         } finally {
             Config.enableFenceGateInteraction = previous;
         }

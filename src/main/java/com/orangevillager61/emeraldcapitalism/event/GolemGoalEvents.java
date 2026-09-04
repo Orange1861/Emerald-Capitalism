@@ -37,7 +37,10 @@ public final class GolemGoalEvents {
         }
         if (golem.targetSelector.getAvailableGoals().stream()
                 .noneMatch(wrapped -> wrapped.getGoal() instanceof HostileVillagePlayerTargetGoal)) {
-            golem.targetSelector.addGoal(1, new HostileVillagePlayerTargetGoal(golem));
+            // This policy must win over vanilla defend-village/hurt-by goals:
+            // those goals can occupy the target flag at the same priority and
+            // prevent a bank's range-based hostility policy from ever running.
+            golem.targetSelector.addGoal(0, new HostileVillagePlayerTargetGoal(golem));
         }
         VaultGolemGoals.suppressWandering(golem);
     }

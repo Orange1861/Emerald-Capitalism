@@ -28,14 +28,14 @@ class BankMenuOpenDataCodecTest {
                 new BlockPos(3, 64, -5), "Central Bank",
                 UUID.fromString("11111111-1111-1111-1111-111111111111"), "Central Village",
                 false, UUID.fromString("22222222-2222-2222-2222-222222222222"), -17,
-                new BankMenuOpenData.EntityCounts(2, 3, 1, 4),
+                new BankMenuOpenData.EntityCounts(3, 1, 4),
                 new BankMenuOpenData.Targets(5, 6, 7, 8),
                 new BankMenuOpenData.ControlSettings(true, 12, 7, 9,
                         true, false, true, true, true),
                 new BankMenuOpenData.Totals(9, 10, 11, 12, 13, 14, 15, 16), 4,
                 List.of(new BlockPos(1, 2, 3), new BlockPos(-4, 5, 6)),
-                List.of(new BankMenu.AccountEntry("Alice", 42, 0),
-                        new BankMenu.AccountEntry("Bob", -3, -1)),
+                List.of(new BankMenu.AccountEntry("Alice", 42),
+                        new BankMenu.AccountEntry("Bob", -3)),
                 List.of(new BankMenu.EmployeeEntry("Alice", "Villager", "Farmer"),
                         new BankMenu.EmployeeEntry("Emerald Golem", "Emerald Golem", "—")),
                 List.of(
@@ -57,7 +57,7 @@ class BankMenuOpenDataCodecTest {
     void roundTripPreservesNullIdsAndEmptyLists() {
         BankMenuOpenData source = new BankMenuOpenData(
                 BlockPos.ZERO, "Independent", null, "", true, null, 0,
-                new BankMenuOpenData.EntityCounts(0, 0, 0, 0),
+                new BankMenuOpenData.EntityCounts(0, 0, 0),
                 new BankMenuOpenData.Targets(0, 0, 0, 0),
                 new BankMenuOpenData.ControlSettings(false, 0, 0, 5,
                         true, true, true, false, false),
@@ -163,7 +163,7 @@ class BankMenuOpenDataCodecTest {
         buffer.writeBoolean(true);
         buffer.writeBoolean(false);
         buffer.writeInt(0);
-        for (int i = 0; i < 4 + 4; i++) {
+        for (int i = 0; i < 3 + 4; i++) {
             buffer.writeVarInt(0);
         }
         buffer.writeBoolean(false);

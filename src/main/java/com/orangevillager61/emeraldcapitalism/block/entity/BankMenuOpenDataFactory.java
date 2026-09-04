@@ -19,7 +19,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,8 +38,8 @@ final class BankMenuOpenDataFactory {
                 bank.getBlockPos(), bank.getBankName(), villageId, villageName,
                 bank.isBankIndependent(), bank.getControllerId(), bankOpinion,
                 new BankMenuOpenData.EntityCounts(
-                        bank.getDepositQueueSizeForMenu(), bank.getEmployeeCount(),
-                        bank.getEmeraldGolemCount(), bank.getExpectedEmeraldGolemCount()),
+                        bank.getEmployeeCount(), bank.getEmeraldGolemCount(),
+                        bank.getExpectedEmeraldGolemCount()),
                 new BankMenuOpenData.Targets(
                         bank.getPumpkinTarget(), bank.getBreadTarget(),
                         bank.getPlankTarget(), bank.getCoalTarget()),
@@ -121,16 +120,6 @@ final class BankMenuOpenDataFactory {
             return List.of();
         }
 
-        Map<UUID, Integer> queuePositions = new HashMap<>();
-        UUID currentDepositor = bank.getCurrentDepositorForMenu();
-        if (currentDepositor != null) {
-            queuePositions.put(currentDepositor, 0);
-        }
-        int position = 1;
-        for (UUID uuid : bank.getDepositQueueSnapshotForMenu()) {
-            queuePositions.put(uuid, position++);
-        }
-
         BankAccountData accountData = BankAccountData.get(serverLevel);
         List<BankMenu.AccountEntry> entries = new ArrayList<>();
         for (Map.Entry<UUID, VillagerPOIRecord> entry : record.getMembers().entrySet()) {
@@ -140,8 +129,7 @@ final class BankMenuOpenDataFactory {
             }
             entries.add(new BankMenu.AccountEntry(
                     entry.getValue().getDisplayName(),
-                    accountData.getBalance(uuid),
-                    queuePositions.getOrDefault(uuid, -1)));
+                    accountData.getBalance(uuid)));
         }
         entries.sort(Comparator.comparing(BankMenu.AccountEntry::name));
         return List.copyOf(entries);

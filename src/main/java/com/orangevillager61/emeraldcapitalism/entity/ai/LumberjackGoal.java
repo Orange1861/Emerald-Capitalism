@@ -114,7 +114,7 @@ public final class LumberjackGoal extends Goal {
         }
 
         BankBlockEntity bank = findVillageBankCached(level);
-        if (!isEligible(level, bank) || isDepositPending(bank)) {
+        if (!isEligible(level, bank)) {
             return false;
         }
 
@@ -571,17 +571,12 @@ public final class LumberjackGoal extends Goal {
 
     private boolean isEligible(ServerLevel level, @Nullable BankBlockEntity bank) {
         return (lumberjackCuttingEnabled(bank) || hasTrackedCharcoalProduction())
-                && (!isDepositPending(bank) || hasActiveWork())
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING);
     }
 
     private boolean lumberjackCuttingEnabled(@Nullable BankBlockEntity bank) {
         return bank == null || (bank.isVillagerDeliveriesEnabled()
                 && bank.isLumberjackDeliveriesEnabled());
-    }
-
-    private boolean isDepositPending(@Nullable BankBlockEntity bank) {
-        return bank != null && bank.isQueued(villager.getUUID());
     }
 
     @Nullable

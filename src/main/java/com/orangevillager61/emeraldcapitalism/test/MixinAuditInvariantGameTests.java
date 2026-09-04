@@ -157,7 +157,7 @@ public final class MixinAuditInvariantGameTests {
         }
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", batch = "ecap_ladder_path_types")
     public static void villagerPathIncludesVerticalLadderNodes(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos ladderBase = installLadder(helper);
@@ -265,10 +265,10 @@ public final class MixinAuditInvariantGameTests {
         }
     }
 
-    @GameTest(template = "empty_3x8x3", timeoutTicks = 400)
+    @GameTest(template = "empty_3x8x3", batch = "ecap_ladder_villager_exit", timeoutTicks = 400)
     public static void villagerClimbsInstalledLadderPath(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
-        Villager villager = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
         villager.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
                 0.0F, 0.0F);
 
@@ -281,7 +281,7 @@ public final class MixinAuditInvariantGameTests {
         awaitVillagerLadderExit(helper, villager, ladderBase, 300);
     }
 
-    @GameTest(template = "empty_3x8x3", timeoutTicks = 800)
+    @GameTest(template = "empty_3x8x3", batch = "ecap_ladder_two_villagers", timeoutTicks = 800)
     public static void villagerKeepsLadderPathWhileWaitingForAnotherClimber(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
         Villager climber = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 2, 1);
@@ -380,7 +380,7 @@ public final class MixinAuditInvariantGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_3x8x3", timeoutTicks = 800)
+    @GameTest(template = "empty_3x8x3", batch = "ecap_ladder_trader_exit", timeoutTicks = 800)
     public static void wanderingTraderClimbsInstalledLadderPath(GameTestHelper helper) {
         BlockPos ladderBase = installLadder(helper);
         WanderingTrader trader = helper.spawnWithNoFreeWill(EntityType.WANDERING_TRADER, 1, 1, 1);

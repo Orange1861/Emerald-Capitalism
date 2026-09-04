@@ -294,7 +294,7 @@ public final class ZombieVirusGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
-    public static void debugZombiePlaguePotionsRepresentBothPhases(GameTestHelper helper) {
+    public static void zombiePlaguePotionDefinitionsRepresentBothPhases(GameTestHelper helper) {
         MobEffectInstance phaseOne = ECAPPotions.ZOMBIE_VIRUS_PHASE_ONE.get().getEffects().getFirst();
         MobEffectInstance phaseTwo = ECAPPotions.ZOMBIE_VIRUS_PHASE_TWO.get().getEffects().getFirst();
         ItemStack phaseOneSplash = PotionContents.createItemStack(
@@ -309,13 +309,13 @@ public final class ZombieVirusGameTests {
         helper.assertTrue(phaseOne.getEffect().equals(ECAPEffects.ZOMBIE_VIRUS)
                         && !phaseOne.isInfiniteDuration()
                         && phaseOne.getDuration() > 0,
-                "phase-one debug potion does not contain a finite Zombkolaps effect");
+                "phase-one potion does not contain a finite Zombkolaps effect");
         helper.assertTrue(phaseTwo.getEffect().equals(ECAPEffects.ZOMBIE_VIRUS)
                         && phaseTwo.isInfiniteDuration(),
-                "phase-two debug potion does not contain an infinite Zombkolaps effect");
+                "phase-two potion does not contain an infinite Zombkolaps effect");
         helper.assertTrue(phaseOneSplash.is(Items.SPLASH_POTION)
                         && phaseTwoSplash.is(Items.SPLASH_POTION),
-                "Zombkolaps debug potions did not produce splash potion variants");
+                "Zombkolaps potions did not produce splash potion variants");
         helper.assertTrue(ItemDescriptionCompat.get(phaseOnePotion).equals(
                                 "item.minecraft.potion.effect.zombie_virus_phase_one")
                         && ItemDescriptionCompat.get(phaseTwoPotion).equals(

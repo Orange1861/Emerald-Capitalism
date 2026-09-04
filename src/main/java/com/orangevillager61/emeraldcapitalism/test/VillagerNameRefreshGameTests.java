@@ -25,7 +25,7 @@ public final class VillagerNameRefreshGameTests {
     private VillagerNameRefreshGameTests() {
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", batch = "ecap_name_profession")
     public static void professionMutationRefreshesDerivedName(GameTestHelper helper) {
         VillageRecord village = createVillage(helper, "Profession Test Village");
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
@@ -46,7 +46,7 @@ public final class VillagerNameRefreshGameTests {
         });
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", batch = "ecap_name_village_rename")
     public static void villageRenameRefreshesOnlyThroughOriginIndex(GameTestHelper helper) {
         VillageRecord village = createVillage(helper, "Old Test Village");
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
@@ -67,7 +67,7 @@ public final class VillagerNameRefreshGameTests {
         });
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", batch = "ecap_name_age_boundary")
     public static void ageBoundaryRefreshesDerivedName(GameTestHelper helper) {
         VillageRecord village = createVillage(helper, "Age Test Village");
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);

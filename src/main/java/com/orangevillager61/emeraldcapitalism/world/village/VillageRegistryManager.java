@@ -744,7 +744,6 @@ public class VillageRegistryManager {
             bank.depositInitialEmeralds(level, villager, initialEmeralds);
             VillagerSpawnEvents.clearPendingInitialEmeralds(villager);
         }
-        bank.queueDepositIfEligible(villager);
     }
 
     /**

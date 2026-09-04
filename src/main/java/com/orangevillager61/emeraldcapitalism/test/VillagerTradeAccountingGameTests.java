@@ -117,7 +117,7 @@ public final class VillagerTradeAccountingGameTests {
             return;
         }
         BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
-        bank.handleDepositorArrival(level, villager);
+        bank.depositVillagerEmeralds(level, villager);
 
         helper.assertValueEqual(emeraldValue(villager.getInventory()), 0,
                 "emerald blocks remained in the villager after deposit");

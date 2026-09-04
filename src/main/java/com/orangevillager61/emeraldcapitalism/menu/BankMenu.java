@@ -53,10 +53,7 @@ public class BankMenu extends AbstractContainerMenu {
     public static final int PLAYER_INV_Y = 151;
     public static final int PLAYER_HOTBAR_Y = 223;
 
-    public record AccountEntry(String name, int balance, int queuePosition) {
-        public boolean isQueued() {
-            return queuePosition >= 0;
-        }
+    public record AccountEntry(String name, int balance) {
     }
 
     /** Server-authoritative employee row shown by the bank screen. */
@@ -352,10 +349,6 @@ public class BankMenu extends AbstractContainerMenu {
 
     public String getVillageName() {
         return openData.villageName();
-    }
-
-    public int getDepositQueueSize() {
-        return openData.entityCounts().depositQueueSize();
     }
 
     public int getEmployeeCount() {

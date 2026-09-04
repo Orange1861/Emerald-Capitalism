@@ -4,7 +4,6 @@ import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.npc.Villager;
-import org.jetbrains.annotations.Nullable;
 
 /** Makes emerald golems and skirmishers attack their village mayor during a contested election. */
 public final class HostileVillageMayorTargetGoal extends NearestAttackableTargetGoal<Villager> {
@@ -12,7 +11,7 @@ public final class HostileVillageMayorTargetGoal extends NearestAttackableTarget
     private final EmeraldGolem golem;
 
     public HostileVillageMayorTargetGoal(EmeraldGolem golem) {
-        super(golem, Villager.class, 10, true, false,
+        super(golem, Villager.class, 10, false, false,
 //? if >=1.21.4 {
                 (target, level) -> target instanceof Villager mayor
 //?} else {
@@ -24,10 +23,6 @@ public final class HostileVillageMayorTargetGoal extends NearestAttackableTarget
 
     @Override
     public boolean canUse() {
-        if (golem.getRandom().nextInt(10) != 0) {
-            return false;
-        }
-
         Villager closestMayor = null;
         double closestDistance = Double.MAX_VALUE;
         for (Villager mayor : golem.level().getEntitiesOfClass(
@@ -46,10 +41,10 @@ public final class HostileVillageMayorTargetGoal extends NearestAttackableTarget
 
     @Override
     public boolean canContinueToUse() {
-        @Nullable Villager target = golem.getTarget() instanceof Villager villager ? villager : null;
+        Villager target = golem.getTarget() instanceof Villager villager ? villager : null;
         return target != null
+                && target.isAlive()
                 && VillageHostility.isHostileMayor(golem, target)
-                && golem.hasLineOfSight(target)
-                && super.canContinueToUse();
+                && golem.distanceToSqr(target) <= getFollowDistance() * getFollowDistance();
     }
 }

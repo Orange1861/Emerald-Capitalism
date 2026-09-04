@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
+import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
@@ -75,7 +76,7 @@ public final class EmeraldSkrimisherGameTests {
                 "Emerald Skrimisher must reject unrelated items");
         helper.assertTrue(skrimisher.goalSelector.getAvailableGoals().stream()
                         .anyMatch(goal -> goal.getGoal() instanceof EmeraldSkrimisherBankDepositGoal),
-                "Emerald Skrimisher must register its morning bank deposit task");
+                "Emerald Skrimisher must register its periodic bank deposit task");
         helper.assertTrue(skrimisher.goalSelector.getAvailableGoals().stream()
                         .anyMatch(goal -> goal.getGoal() instanceof EmeraldSkrimisherPickupGoal),
                 "Emerald Skrimisher must register its item pickup task");
@@ -137,7 +138,7 @@ public final class EmeraldSkrimisherGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
-    public static void emeraldSkrimisherDepositsEntireInventoryAtBankEachMorning(GameTestHelper helper) {
+    public static void emeraldSkrimisherDepositsEntireInventoryOnPeriodicCheck(GameTestHelper helper) {
         var level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
@@ -153,7 +154,7 @@ public final class EmeraldSkrimisherGameTests {
 
         UUID villageId = UUID.randomUUID();
         var registry = com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData.get(level);
-        registry.getOrCreateVillage(villageId, bankPos, new AABB(
+        var village = registry.getOrCreateVillage(villageId, bankPos, new AABB(
                 bankPos.getX() - 4, bankPos.getY() - 2, bankPos.getZ() - 4,
                 bankPos.getX() + 4, bankPos.getY() + 2, bankPos.getZ() + 4));
         registry.registerBankPosition(villageId, bankPos);
@@ -173,25 +174,141 @@ public final class EmeraldSkrimisherGameTests {
         level.setDayTime(1_000L);
 
         EmeraldSkrimisherBankDepositGoal goal = new EmeraldSkrimisherBankDepositGoal(skrimisher);
-        helper.assertTrue(goal.canUse(), "Skrimisher did not select the morning bank deposit task");
+        helper.assertTrue(goal.canUse(), "Skrimisher did not select the periodic bank deposit task");
         goal.start();
         goal.tick();
         goal.stop();
 
         helper.assertValueEqual(countItem(skrimisher, Items.EMERALD), 0,
-                "morning bank deposit left emeralds in the Skrimisher inventory");
+                "periodic bank deposit left emeralds in the Skrimisher inventory");
         helper.assertValueEqual(countItem(skrimisher, Items.IRON_NUGGET), 0,
-                "morning bank deposit left iron nuggets in the Skrimisher inventory");
+                "periodic bank deposit left iron nuggets in the Skrimisher inventory");
         helper.assertValueEqual(countItem(skrimisher, Items.GOLDEN_APPLE), 0,
-                "morning bank deposit left a golden apple in the Skrimisher inventory");
+                "periodic bank deposit left a golden apple in the Skrimisher inventory");
         helper.assertValueEqual(countItem(chest, Items.EMERALD), 4,
                 "bank did not receive the Skrimisher's emeralds");
         helper.assertValueEqual(countItem(chest, Items.IRON_NUGGET), 7,
                 "bank did not receive the Skrimisher's iron nuggets");
         helper.assertValueEqual(countItem(chest, Items.GOLDEN_APPLE), 1,
                 "bank did not receive the Skrimisher's golden apple");
-        helper.assertTrue(!goal.canUse(), "Skrimisher repeated its bank deposit during the same morning");
+        helper.assertTrue(!goal.canUse(), "Skrimisher repeated its bank deposit before the next periodic check");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_skrimisher_real_goal", timeoutTicks = 7_000)
+    public static void emeraldSkrimisherPeriodicDepositRunsThroughRealGoalSelector(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        fillFloor(helper, 20, 20);
+        BlockPos bankPos = helper.absolutePos(new BlockPos(9, 1, 9));
+        BlockPos chestPos = helper.absolutePos(new BlockPos(9, 1, 10));
+        helper.setBlock(new BlockPos(9, 1, 9), ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(new BlockPos(9, 1, 10), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+        // Let the Skrimisher wander around the village during the long timer
+        // wait, while keeping it inside the registered village bounds so the
+        // bank lookup remains valid.
+        for (int coordinate = 0; coordinate < 20; coordinate++) {
+            for (int y = 1; y <= 2; y++) {
+                helper.setBlock(new BlockPos(coordinate, y, 0), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(coordinate, y, 19), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(0, y, coordinate), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(19, y, coordinate), Blocks.STONE.defaultBlockState());
+            }
+        }
+
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(chestPos);
+        if (bank == null || chest == null) {
+            helper.fail("bank or emerald chest block entity was not created");
+            return;
+        }
+
+        UUID villageId = UUID.randomUUID();
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        var village = registry.getOrCreateVillage(villageId, bankPos, new AABB(
+                bankPos.getX() - 10, bankPos.getY() - 2, bankPos.getZ() - 10,
+                bankPos.getX() + 10, bankPos.getY() + 2, bankPos.getZ() + 10));
+        registry.registerBankPosition(villageId, bankPos);
+        bank.setVillageId(villageId);
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+
+        EmeraldSkrimisher skrimisher = create(helper);
+        if (skrimisher == null) {
+            return;
+        }
+        skrimisher.moveTo(bankPos.getX() + 0.5D, bankPos.getY() + 0.5D,
+                bankPos.getZ() - 0.5D, 0.0F, 0.0F);
+        if (!level.addFreshEntity(skrimisher)) {
+            helper.fail("could not add the periodic-deposit Skrimisher");
+            return;
+        }
+
+        var periodicEntry = skrimisher.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof EmeraldSkrimisherBankDepositGoal)
+                .findFirst()
+                .orElse(null);
+        EmeraldSkrimisherBankDepositGoal periodicGoal = periodicEntry == null ? null
+                : (EmeraldSkrimisherBankDepositGoal) periodicEntry.getGoal();
+        helper.assertTrue(periodicGoal != null,
+                "spawned Skrimisher did not receive its periodic bank deposit goal");
+        // Prime the real goal's timer while the inventory is empty. The test
+        // items are then added after that empty check, so the selector must
+        // wait for the full 2,000-tick interval before depositing them.
+        helper.assertFalse(periodicGoal.canUse(),
+                "empty Skrimisher inventory unexpectedly started a periodic deposit");
+
+        // Let the first empty check schedule the 2,000-tick interval, then add
+        // three items. They must remain held until that interval expires.
+        boolean[] testItemsAdded = {false};
+        helper.runAfterDelay(1, () -> {
+            skrimisher.getInventory().setItem(0, new ItemStack(Items.EMERALD));
+            skrimisher.getInventory().setItem(1, new ItemStack(Items.IRON_NUGGET));
+            skrimisher.getInventory().setItem(2, new ItemStack(Items.GOLDEN_APPLE));
+            testItemsAdded[0] = true;
+        });
+        helper.runAfterDelay(100, () -> {
+            helper.assertValueEqual(countItem(skrimisher, Items.EMERALD), 1,
+                    "Skrimisher deposited before its periodic check interval; time="
+                            + level.getGameTime() + ", alive=" + skrimisher.isAlive()
+                            + ", noAi=" + skrimisher.isNoAi() + ", pos=" + skrimisher.position()
+                            + ", running=" + (periodicEntry != null && periodicEntry.isRunning()));
+            helper.assertValueEqual(countItem(chest, Items.EMERALD), 0,
+                    "Skrimisher bank chest changed before its periodic check interval");
+        });
+        // The interval makes the real selector eligible. Poll for completion
+        // so a one-tick difference at the access radius does not turn a
+        // successful return trip into a flaky failure.
+        helper.onEachTick(() -> {
+            if (!testItemsAdded[0] || countItem(skrimisher, Items.EMERALD) != 0) {
+                return;
+            }
+            helper.assertValueEqual(countItem(skrimisher, Items.EMERALD), 0,
+                    "real Skrimisher goal did not deposit emeralds at the periodic check; time="
+                            + level.getGameTime() + ", pos=" + skrimisher.position()
+                            + ", atBank=" + BankBlock.isAtDepositApproach(
+                            level.getBlockState(bankPos), bankPos, skrimisher.position())
+                            + ", running=" + (periodicEntry != null && periodicEntry.isRunning()));
+            helper.assertValueEqual(countItem(skrimisher, Items.IRON_NUGGET), 0,
+                    "real Skrimisher goal did not deposit iron nuggets at the periodic check");
+            helper.assertValueEqual(countItem(skrimisher, Items.GOLDEN_APPLE), 0,
+                    "real Skrimisher goal did not deposit its complete inventory");
+            helper.assertValueEqual(countItem(chest, Items.EMERALD), 1,
+                    "periodic Skrimisher deposit did not reach the bank chest");
+            helper.assertTrue(village.getBoundingBox().contains(
+                            skrimisher.getX(), skrimisher.getY(), skrimisher.getZ()),
+                    "Skrimisher left its village bounds before or during the periodic deposit: pos="
+                            + skrimisher.position() + ", bounds=" + village.getBoundingBox());
+            helper.succeed();
+        });
+        helper.runAfterDelay(EmeraldSkrimisherBankDepositGoal.CHECK_INTERVAL_TICKS + 4_000,
+                () -> {
+                    if (countItem(skrimisher, Items.EMERALD) != 0) {
+                        helper.fail("real Skrimisher goal did not complete its periodic bank return; time="
+                                + level.getGameTime() + ", pos=" + skrimisher.position()
+                                + ", atBank=" + BankBlock.isAtDepositApproach(
+                                level.getBlockState(bankPos), bankPos, skrimisher.position())
+                                + ", running=" + (periodicEntry != null && periodicEntry.isRunning()));
+                    }
+                });
     }
 
     @GameTest(template = "empty_3x3x3")
@@ -462,6 +579,14 @@ public final class EmeraldSkrimisherGameTests {
             helper.fail("Could not create the Emerald Skrimisher");
         }
         return skrimisher;
+    }
+
+    private static void fillFloor(GameTestHelper helper, int width, int depth) {
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < depth; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+            }
+        }
     }
 
     private static int countItem(EmeraldSkrimisher skrimisher, net.minecraft.world.item.Item item) {

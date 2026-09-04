@@ -6,8 +6,6 @@ import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
-import com.orangevillager61.emeraldcapitalism.entity.ai.BankMorningTradeGoal;
-import com.orangevillager61.emeraldcapitalism.entity.ai.BankPumpkinDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.FarmerBreadConversionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankerWorkGoal;
@@ -399,7 +397,6 @@ public class VillageRegistryEvents {
 
         // Profession-specific goals are present before profession assignment so
         // villagers that change profession after spawning/loading are covered as well.
-        injectBankMorningTradeGoal(villager);
         injectVillagerInventoryBankGoal(villager);
         injectMayorDoorRepairGoal(villager);
         injectMayorFollowGovernorCandidateGoal(villager);
@@ -410,19 +407,7 @@ public class VillageRegistryEvents {
         injectEmeraldSmithGoal(villager);
     }
 
-    /** Adds the once-per-morning Bank trade task to villagers when needed. */
-    private static void injectBankMorningTradeGoal(Villager villager) {
-        boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
-                .anyMatch(g -> g.getGoal() instanceof BankMorningTradeGoal);
-        if (!hasGoal) {
-            // Pending bank trades interrupt lower-priority profession work so a
-            // continuously active work loop cannot starve delivery indefinitely.
-            villager.goalSelector.addGoal(BankMorningTradeGoal.GOAL_PRIORITY,
-                    new BankMorningTradeGoal(villager));
-        }
-    }
-
-    /** Adds the full-inventory sale/donation task to villagers when needed. */
+    /** Adds the once-daily/full-inventory bank delivery task to villagers when needed. */
     private static void injectVillagerInventoryBankGoal(Villager villager) {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof VillagerInventoryBankGoal);
@@ -468,23 +453,13 @@ public class VillageRegistryEvents {
         }
     }
 
-    /**
-     * Adds the custom farmer goals to a villager's goal selector if not already present.
-     */
+    /** Adds the custom farmer goals to a villager's goal selector if not already present. */
     private static void injectFarmerGoals(Villager villager) {
         boolean hasBreadConversionGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof FarmerBreadConversionGoal);
         if (!hasBreadConversionGoal) {
             villager.goalSelector.addGoal(FarmerBreadConversionGoal.GOAL_PRIORITY,
                     new FarmerBreadConversionGoal(villager));
-        }
-
-        boolean hasPumpkinDepositGoal = villager.goalSelector.getAvailableGoals().stream()
-                .anyMatch(g -> g.getGoal() instanceof BankPumpkinDepositGoal);
-        if (!hasPumpkinDepositGoal) {
-            // Bank supply delivery takes priority over ordinary farmer work, but
-            // remains below the higher-priority bank routines.
-            villager.goalSelector.addGoal(3, new BankPumpkinDepositGoal(villager));
         }
 
         boolean hasFarmlandRepairGoal = villager.goalSelector.getAvailableGoals().stream()
@@ -674,8 +649,7 @@ public class VillageRegistryEvents {
                     return;
                 }
 
-                // No emeralds: allow the break but first clear the queue and deregister from VM
-                bank.clearQueue();
+                // No emeralds: allow the break and deregister from the village manager.
                 UUID bankVillageId = bank.getVillageId();
                 if (bankVillageId != null) {
                     VillageRegistryData bankData = VillageRegistryData.get(level);

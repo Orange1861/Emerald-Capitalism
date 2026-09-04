@@ -15,15 +15,17 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.EnumSet;
 
-/** Sends an Emerald Skrimisher to its village bank once each morning. */
+/** Periodically sends an Emerald Skrimisher to its village bank to empty its inventory. */
 public final class EmeraldSkrimisherBankDepositGoal extends Goal {
 
-    private static final long DAY_LENGTH_TICKS = 24_000L;
-    private static final long MORNING_END_TICK = 6_000L;
+    public static final long CHECK_INTERVAL_TICKS = 2_000L;
+    private static final int MINIMUM_ITEMS_TO_DEPOSIT = 2;
     private static final float SPEED = 0.5F;
     private static final int ATTEMPT_TICKS = 100;
-    private static final int MAX_ATTEMPTS = 3;
-    private static final int FAILURE_COOLDOWN = 100;
+    // A Skrimisher may wander anywhere inside its village bounds between
+    // checks. Give it enough retry time to return from the far side of that
+    // village before declaring the periodic deposit unreachable.
+    private static final int MAX_ATTEMPTS = 40;
 
     private final EmeraldSkrimisher skrimisher;
 
@@ -31,8 +33,7 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
     private int attemptTicks;
     private int attempts;
     private boolean finished;
-    private long nextActionTick;
-    private long lastMorningDay = -1L;
+    private long nextCheckTick;
 
     public EmeraldSkrimisherBankDepositGoal(EmeraldSkrimisher skrimisher) {
         this.skrimisher = skrimisher;
@@ -44,13 +45,14 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
         if (!(skrimisher.level() instanceof ServerLevel level)
                 || skrimisher.isSleeping()
                 || skrimisher.getTarget() != null
-                || level.getGameTime() < nextActionTick) {
+                || level.getGameTime() < nextCheckTick) {
             return false;
         }
 
-        long day = level.getDayTime() / DAY_LENGTH_TICKS;
-        long timeOfDay = Math.floorMod(level.getDayTime(), DAY_LENGTH_TICKS);
-        if (timeOfDay >= MORNING_END_TICK || day == lastMorningDay) {
+        // Reserve the next check before resolving the bank. This keeps an
+        // unassigned Skrimisher from resolving villages every AI tick.
+        nextCheckTick = level.getGameTime() + CHECK_INTERVAL_TICKS;
+        if (countHeldItems() <= MINIMUM_ITEMS_TO_DEPOSIT) {
             return false;
         }
 
@@ -59,9 +61,7 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
             return false;
         }
 
-        // An empty morning is still a completed check; do not retry it every AI tick.
-        lastMorningDay = day;
-        return hasPendingItems();
+        return true;
     }
 
     @Override
@@ -78,7 +78,6 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
         context = resolveContext(level);
         if (context == null) {
             finished = true;
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
 
@@ -90,15 +89,16 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
         BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(
                 skrimisher, context.depositPos(), 0);
         if (navigationTarget == null) {
-            finished = true;
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
-            return;
+            // The exact preflight probe can be stale while a Skrimisher is
+            // moving at the edge of its village. Let the live navigation
+            // system retry the bank approach instead of abandoning the visit.
+            navigationTarget = context.depositPos();
         }
         context = new WorkContext(context.bank(), context.depositPos(), navigationTarget);
-        if (!moveToBank()) {
-            finished = true;
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
-        }
+        // Navigation can transiently reject a target on the first tick (most
+        // commonly while the entity is still finishing a random-stroll path).
+        // Keep the visit active and let the normal retry cadence try again.
+        moveToBank();
     }
 
     @Override
@@ -128,9 +128,12 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
         if (attemptTicks >= ATTEMPT_TICKS) {
             attemptTicks = 0;
             attempts++;
-            if (attempts >= MAX_ATTEMPTS || !moveToBank()) {
+            if (attempts >= MAX_ATTEMPTS) {
                 finished = true;
-                nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
+            } else {
+                // A failed path request is retryable; it should not discard
+                // the inventory visit while the navigation mesh catches up.
+                moveToBank();
             }
         }
     }
@@ -139,19 +142,14 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
     public void stop() {
         skrimisher.getNavigation().stop();
         skrimisher.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        if (finished && skrimisher.level() instanceof ServerLevel level
-                && nextActionTick < level.getGameTime()) {
-            nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
-        }
     }
 
-    private boolean hasPendingItems() {
+    private int countHeldItems() {
+        int count = 0;
         for (int slot = 0; slot < skrimisher.getInventory().getContainerSize(); slot++) {
-            if (!skrimisher.getInventory().getItem(slot).isEmpty()) {
-                return true;
-            }
+            count += skrimisher.getInventory().getItem(slot).getCount();
         }
-        return false;
+        return count;
     }
 
     private void transferInventory(ServerLevel level, BankBlockEntity bank) {

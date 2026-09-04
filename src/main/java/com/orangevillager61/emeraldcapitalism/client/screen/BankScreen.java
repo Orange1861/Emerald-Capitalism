@@ -62,7 +62,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
     private static final int DARK_GREEN     = 0x2EB84A;
     private static final int WARN_COLOR     = 0xFF5555;
     private static final int SEP_COLOR      = 0xFF555555;
-    private static final int QUEUE_COLOR    = 0xFFAA00;
     private static final int GOLD_COLOR     = 0xFFD700;
 
     // Layout
@@ -100,8 +99,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     // Accounts tab
     private int accountScrollOffset = 0;
-    private List<BankPresentation.AccountRow> accountDisplayItems = List.of();
-    private int accountQueuedCount = 0;
+    private List<BankPresentation.AccountSnapshot> accountDisplayItems = List.of();
 
     // Employees tab
     private int employeeScrollOffset = 0;
@@ -496,7 +494,7 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
             return;
         }
 
-        List<BankPresentation.AccountRow> displayItems = accountDisplayItems;
+        List<BankPresentation.AccountSnapshot> displayItems = accountDisplayItems;
 
         // Column headers
         g.drawString(font, "Villager", LABEL_X, y, 0xFFFFFF);
@@ -510,43 +508,24 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         int totalItems = displayItems.size();
         int visibleCount = Math.min(maxFromSpace, totalItems - accountScrollOffset);
 
-        int rowIndex = 0; // alternating stripe counter (only counts real entry rows)
         for (int i = 0; i < visibleCount; i++) {
-            BankPresentation.AccountRow row = displayItems.get(accountScrollOffset + i);
+            BankPresentation.AccountSnapshot entry = displayItems.get(accountScrollOffset + i);
             int rowY = y + i * ROW_HEIGHT;
 
-            if (row.separator()) {
-                // Thin divider between the queue section and the rest
-                g.fill(LABEL_X, rowY + ROW_HEIGHT / 2 - 1, LABEL_X + imageWidth - PADDING * 2, rowY + ROW_HEIGHT / 2, SEP_COLOR);
-                continue;
-            }
-
-            BankPresentation.AccountSnapshot entry = row.account();
-            boolean isQueued = entry.queued();
-
             // Alternating row background
-            if (rowIndex % 2 == 0) {
-                int stripeColor = isQueued ? 0x28FFAA00 : 0x20FFFFFF;
-                g.fill(LABEL_X - 2, rowY - 1, LABEL_X + imageWidth - PADDING * 2 + 2, rowY + ROW_HEIGHT - 2, stripeColor);
+            if (i % 2 == 0) {
+                g.fill(LABEL_X - 2, rowY - 1, LABEL_X + imageWidth - PADDING * 2 + 2, rowY + ROW_HEIGHT - 2, 0x20FFFFFF);
             }
-            rowIndex++;
 
-            // Queue position prefix for queued entries
             int nameX = LABEL_X + 4;
-            if (isQueued) {
-                String prefix = entry.queuePosition() == 0 ? "\u2192 " : "#" + (entry.queuePosition() + 1) + " ";
-                g.drawString(font, prefix, nameX, rowY, QUEUE_COLOR);
-                nameX += font.width(prefix);
-            }
 
             // Villager name (truncated to fit)
-            int nameColor = isQueued ? QUEUE_COLOR : LABEL_COLOR;
             int maxNameW = VALUE_X - nameX - 2;
             String name = entry.name();
             while (name.length() > 1 && font.width(name) > maxNameW) {
                 name = name.substring(0, name.length() - 1);
             }
-            g.drawString(font, name, nameX, rowY, nameColor);
+            g.drawString(font, name, nameX, rowY, LABEL_COLOR);
 
             // Balance
             int balance = entry.balance();
@@ -569,9 +548,6 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
         // Footer: summary
         int footerY = imageHeight - PADDING - font.lineHeight;
         String footer = accounts.size() + " account" + (accounts.size() != 1 ? "s" : "");
-        if (accountQueuedCount > 0) {
-            footer += "  \u2022  " + accountQueuedCount + " in queue";
-        }
         g.drawString(font, footer, LABEL_X, footerY, 0x888888);
     }
 
@@ -1456,11 +1432,10 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
 
     private void buildAccountDisplayItems() {
         List<BankMenu.AccountEntry> accounts = menu.getAccounts();
-        accountQueuedCount = (int) accounts.stream().filter(BankMenu.AccountEntry::isQueued).count();
-        accountDisplayItems = BankPresentation.accountRows(accounts.stream()
+        accountDisplayItems = accounts.stream()
                 .map(entry -> new BankPresentation.AccountSnapshot(
-                        entry.name(), entry.balance(), entry.isQueued(), entry.queuePosition()))
-                .toList());
+                        entry.name(), entry.balance()))
+                .toList();
     }
 
     private final class MarketItemList extends ObjectSelectionList<MarketItemList.Entry> {

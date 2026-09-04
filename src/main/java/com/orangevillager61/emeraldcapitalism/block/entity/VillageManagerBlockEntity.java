@@ -3,8 +3,6 @@ package com.orangevillager61.emeraldcapitalism.block.entity;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
-import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
-import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
 import com.orangevillager61.emeraldcapitalism.menu.VillageManagerMenu;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
@@ -30,7 +28,6 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
@@ -44,10 +41,7 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
 
     // Constants
 
-    /**
-     * How often the VM scans for eligible depositors and for a bank block (if none is
-     * registered). 12,000 ticks = 10 minutes.
-     */
+    /** How often the VM validates its registered bank link. 12,000 ticks = 10 minutes. */
     public static final int DEPOSIT_SCAN_INTERVAL = 12000;
 
     /**
@@ -56,14 +50,6 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
      * so the bank can be placed a comfortable distance from the VM.
      */
     public static final int BANK_SEARCH_RADIUS = 32;
-
-    /**
-     * Horizontal grace distance (in blocks) applied when scanning for registered
-     * villagers to enqueue for deposits. This captures villagers that step just
-     * outside the strict village boundary (e.g. one chunk over) without expanding
-     * the scan volume vertically.
-     */
-    public static final int DEPOSIT_SCAN_HORIZONTAL_GRACE = 16;
 
     // Persistent state
 
@@ -143,9 +129,7 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
      * <ul>
      *   <li>If no bank is registered: resolves the persisted registered-bank link
      *       and reattaches it if that chunk is currently loaded.</li>
-     *   <li>If a bank is registered: verifies it still exists, then enqueues all
-     *       registered villagers currently holding more than
-     *       {@link BankBlockEntity#MIN_EMERALDS_TO_DEPOSIT} emeralds.</li>
+     *   <li>If a bank is registered: verifies that it still exists and remains linked.</li>
      * </ul>
      */
     private void runPeriodicScan(ServerLevel level) {
@@ -191,7 +175,6 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
                 return;
             }
 
-            populateDepositQueue(level, village, bank);
         }
     }
 
@@ -208,38 +191,6 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
             return null;
         }
         return bank.getBlockPos().immutable();
-    }
-
-    // Deposit queue population
-
-    /**
-     * Finds all registered villagers currently holding more than
-     * {@link BankBlockEntity#MIN_EMERALDS_TO_DEPOSIT} emeralds and
-     * enqueues them with the bank if they are not already in the queue.
-     */
-    private void populateDepositQueue(ServerLevel level, VillageRecord village, BankBlockEntity bank) {
-        AABB villageBounds = village.getBoundingBox();
-        AABB depositScanBounds = new AABB(
-                villageBounds.minX - DEPOSIT_SCAN_HORIZONTAL_GRACE,
-                villageBounds.minY,
-                villageBounds.minZ - DEPOSIT_SCAN_HORIZONTAL_GRACE,
-                villageBounds.maxX + DEPOSIT_SCAN_HORIZONTAL_GRACE,
-                villageBounds.maxY,
-                villageBounds.maxZ + DEPOSIT_SCAN_HORIZONTAL_GRACE
-        );
-
-        for (UUID villagerUUID : village.getMembers().keySet()) {
-            if (!(level.getEntity(villagerUUID) instanceof Villager villager)
-                    || !depositScanBounds.intersects(villager.getBoundingBox())) {
-                continue;
-            }
-            VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
-            stats.refreshInventoryCounts(villager.getInventory());
-            if (stats.getCachedEmeraldCount() > BankBlockEntity.MIN_EMERALDS_TO_DEPOSIT
-                    && !bank.isQueued(villager.getUUID())) {
-                bank.enqueue(villager.getUUID());
-            }
-        }
     }
 
     // Bank registration
@@ -302,12 +253,10 @@ public class VillageManagerBlockEntity extends BlockEntity implements MenuProvid
     public void deregisterBank() {
         if (bankPos == null) return;
 
-        // Clear the bank entity's queue if it is still loaded
         Level lvl = getLevel();
         if (lvl instanceof ServerLevel serverLevel && lvl.isLoaded(bankPos)) {
             BlockEntity be = serverLevel.getBlockEntity(bankPos);
             if (be instanceof BankBlockEntity bank) {
-                bank.clearQueue();
                 if (Objects.equals(bank.getVillageId(), villageId)) {
                     bank.setVillageId(null);
                 }

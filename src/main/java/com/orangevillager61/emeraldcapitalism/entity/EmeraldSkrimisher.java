@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.entity;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherBankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherCombatGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherPickupGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillageBoundedRandomStrollGoal;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.util.VillagerSkrimisherItemPool;
 import net.minecraft.core.registries.Registries;
@@ -62,7 +63,7 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
         this.goalSelector.addGoal(1, new EmeraldSkrimisherCombatGoal(this));
         this.goalSelector.addGoal(2, new EmeraldSkrimisherBankDepositGoal(this));
         this.goalSelector.addGoal(6, new EmeraldSkrimisherPickupGoal(this));
-        this.goalSelector.addGoal(8, new RandomStrollGoal(this, 0.6D));
+        this.goalSelector.addGoal(8, new VillageBoundedRandomStrollGoal(this, 0.6D));
     }
 
     public static AttributeSupplier.Builder createAttributes() {

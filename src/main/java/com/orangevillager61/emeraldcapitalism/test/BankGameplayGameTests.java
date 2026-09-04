@@ -6,7 +6,6 @@ import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
-import com.orangevillager61.emeraldcapitalism.entity.ai.BankMorningTradeGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.FarmerBreadConversionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
@@ -21,6 +20,8 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.ChunkSaveCompat;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
+import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
@@ -72,8 +73,8 @@ public final class BankGameplayGameTests {
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         BankAccountData.get(level).openAccount(villager.getUUID());
 
-        BankMorningTradeGoal goal = new BankMorningTradeGoal(villager);
-        helper.assertTrue(goal.canUse(), "understocked villager did not find its village bank trade");
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(villager);
+        helper.assertTrue(goal.canUse(), "understocked villager did not find its daily bank delivery");
         goal.start();
         helper.assertTrue(goal.canContinueToUse(), "bread trade goal did not reach its active state");
         goal.tick();
@@ -99,8 +100,8 @@ public final class BankGameplayGameTests {
         villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));
         BankAccountData.get(level).openAccount(villager.getUUID());
 
-        BankMorningTradeGoal goal = new BankMorningTradeGoal(villager);
-        helper.assertTrue(goal.canUse(), "overstocked villager did not find its village bank trade");
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(villager);
+        helper.assertTrue(goal.canUse(), "overstocked villager did not find its daily bank delivery");
         goal.start();
         helper.assertTrue(goal.canContinueToUse(), "bread sale goal did not reach its active state");
         goal.tick();
@@ -127,7 +128,7 @@ public final class BankGameplayGameTests {
         farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 64));
         BankAccountData.get(level).openAccount(farmer.getUUID());
 
-        BankMorningTradeGoal goal = new BankMorningTradeGoal(farmer);
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(farmer);
         helper.assertTrue(goal.canUse(), "farmer with excess wheat did not select a daytime bank sale");
         goal.start();
         helper.assertTrue(goal.canContinueToUse(), "wheat sale goal did not reach its active state");
@@ -162,10 +163,126 @@ public final class BankGameplayGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20", timeoutTicks = 600)
-    public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
+    @GameTest(template = "empty_3x3x3", batch = "ecap_farmer_real_goal", timeoutTicks = 100)
+    public static void farmerConvertsOwnWheatThroughRealGoalSelector(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         level.setDayTime(1_000L);
+        fillFloor(helper, 3, 3);
+        Villager farmer = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.refreshBrain(level);
+        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 20));
+
+        var conversionEntry = farmer.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof FarmerBreadConversionGoal)
+                .findFirst()
+                .orElse(null);
+        FarmerBreadConversionGoal conversionGoal = conversionEntry == null ? null
+                : (FarmerBreadConversionGoal) conversionEntry.getGoal();
+        helper.assertTrue(conversionGoal != null,
+                "spawned farmer did not receive the farmer-level bread conversion goal");
+        helper.assertTrue(conversionGoal != null && conversionGoal.canUse(),
+                "spawned farmer's bread conversion goal was not eligible with 20 wheat");
+        helper.runAfterDelay(10, () -> helper.assertTrue(
+                conversionEntry != null && conversionEntry.isRunning()
+                        || countItem(farmer, Items.BREAD) == 6,
+                "farmer goal was eligible but did not start; time=" + level.getGameTime()
+                        + ", alive=" + farmer.isAlive() + ", noAi=" + farmer.isNoAi()
+                        + ", sleeping=" + farmer.isSleeping() + ", pos=" + farmer.position()
+                        + ", running=" + (conversionEntry != null && conversionEntry.isRunning())));
+        helper.succeedWhen(() -> {
+            helper.assertValueEqual(countItem(farmer, Items.WHEAT), 2,
+                    "real farmer goal did not retain the incomplete wheat recipe remainder");
+            helper.assertValueEqual(countItem(farmer, Items.BREAD), 6,
+                    "real farmer goal did not convert wheat into bread");
+        });
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_villager_daily_delivery_real_goal", timeoutTicks = 200)
+    public static void villagerDailyBankDeliveryRunsThroughRealGoalSelector(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.setDayTime(8_000L);
+        fillFloor(helper, 20, 20);
+        BankBlockEntity bank = setupBreadBank(helper, 15);
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                helper.absolutePos(new BlockPos(1, 1, 2)));
+        Villager villager = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
+        villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));
+        BankAccountData.get(level).openAccount(villager.getUUID());
+
+        var tradeEntry = villager.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof VillagerInventoryBankGoal)
+                .findFirst()
+                .orElse(null);
+        VillagerInventoryBankGoal tradeGoal = tradeEntry == null ? null
+                : (VillagerInventoryBankGoal) tradeEntry.getGoal();
+        helper.assertTrue(tradeGoal != null,
+                "spawned villager did not receive the daily bank delivery goal");
+        helper.assertTrue(tradeGoal != null && tradeGoal.canUse(),
+                "spawned villager's daily bank delivery goal was not eligible with 38 bread");
+        helper.runAfterDelay(10, () -> helper.assertTrue(
+                tradeEntry != null && tradeEntry.isRunning()
+                        || countItem(villager, Items.BREAD) == 30,
+                "daily bank delivery goal was eligible but did not start; time=" + level.getGameTime()
+                        + ", alive=" + villager.isAlive() + ", noAi=" + villager.isNoAi()
+                        + ", sleeping=" + villager.isSleeping() + ", pos=" + villager.position()
+                        + ", running=" + (tradeEntry != null && tradeEntry.isRunning())));
+        helper.succeedWhen(() -> {
+            helper.assertValueEqual(countItem(villager, Items.BREAD), 30,
+                    "real goal selector did not run the villager's daily bread delivery");
+            helper.assertValueEqual(countItem(chest, Items.BREAD), 23,
+                    "real goal selector did not update the bank chest after the bread delivery");
+            helper.assertTrue(BankAccountData.get(level).getBalance(villager.getUUID()) > 0,
+                    "real goal selector did not credit the villager's bank account");
+        });
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void bankTripsUseDistanceAwareNightBoundary(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.setDayTime(11_000L);
+        setupMarketBank(helper, Items.PUMPKIN, 0, 32);
+
+        Villager nearby = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        nearby.getInventory().setItem(0, new ItemStack(Items.PUMPKIN, 3));
+        BankAccountData.get(level).openAccount(nearby.getUUID());
+        VillagerInventoryBankGoal nearbyGoal = new VillagerInventoryBankGoal(nearby);
+        helper.assertTrue(nearbyGoal.canUse(), "nearby villager did not start its daytime bank trip");
+        nearbyGoal.start();
+
+        Villager distant = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 1);
+        distant.getInventory().setItem(0, new ItemStack(Items.PUMPKIN, 3));
+        BankAccountData.get(level).openAccount(distant.getUUID());
+        VillagerInventoryBankGoal distantGoal = new VillagerInventoryBankGoal(distant);
+        helper.assertTrue(distantGoal.canUse(), "distant villager did not start its daytime bank trip");
+        distantGoal.start();
+        // Move the active trip beyond the safe night distance before dusk.
+        distant.moveTo(26.5D, distant.getY(), distant.getZ(), 0.0F, 0.0F);
+
+        level.setDayTime(12_000L);
+        helper.assertTrue(nearbyGoal.canContinueToUse(),
+                "villager close to the bank was stopped at night despite being within the safe range");
+        helper.assertFalse(distantGoal.canContinueToUse(),
+                "distant villager continued a dangerous bank trip after night began");
+        nearbyGoal.stop();
+        distantGoal.stop();
+
+        level.setDayTime(18_000L);
+        Villager nightVillager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        nightVillager.getInventory().setItem(0, new ItemStack(Items.PUMPKIN, 3));
+        BankAccountData.get(level).openAccount(nightVillager.getUUID());
+        helper.assertFalse(new VillagerInventoryBankGoal(nightVillager).canUse(),
+                "villager started a new bank trip during the night");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_real_goal", timeoutTicks = 1_200)
+    public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Leave the staggered daily window ahead of the work-cycle callback so
+        // the sticks produced during the cycle are present when this villager
+        // performs its one daily bank check.
+        level.setDayTime(500L);
         level.getGameRules().getRule(GameRules.RULE_MOBGRIEFING).set(true, level.getServer());
         setupMarketBank(helper, Items.STICK, 0);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
@@ -225,12 +342,21 @@ public final class BankGameplayGameTests {
                             + "time=" + level.getGameTime() + ", pos=" + lumberjack.position()
                             + ", running=" + workRunning + ", eligibleNow=" + workEligible
                             + ", profession=" + lumberjack.getVillagerData().getProfession());
+            // Artificially advance this test into the latter part of the
+            // staggered daytime window so the produced sticks are available
+            // for the real selector's daily check.
+            level.setDayTime(8_000L);
             lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
         });
 
         helper.succeedWhen(() -> {
             helper.assertValueEqual(countItem(lumberjack, Items.STICK), 0,
-                    "lumberjack delivery goal did not win after the sawmill work cycle");
+                    "lumberjack delivery goal did not win after the sawmill work cycle: time="
+                            + level.getGameTime() + ", dayTime=" + level.getDayTime()
+                            + ", running=" + (deliveryEntry != null && deliveryEntry.isRunning())
+                            + ", canUse=" + (deliveryEntry != null
+                            && ((VillagerInventoryBankGoal) deliveryEntry.getGoal()).canUse())
+                            + ", pos=" + lumberjack.position());
             helper.assertValueEqual(countItem(chest, Items.STICK), 8,
                     "lumberjack did not deliver its sticks through the real goal selector");
         });
@@ -459,7 +585,7 @@ public final class BankGameplayGameTests {
         villager.getInventory().setItem(0, new ItemStack(Items.BREAD, 38));
         BankAccountData.get(level).openAccount(villager.getUUID());
 
-        BankMorningTradeGoal goal = new BankMorningTradeGoal(villager);
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(villager);
         helper.assertTrue(goal.canUse(), "bank below its reserve rejected an incoming bread sale");
         goal.start();
         helper.assertTrue(goal.canContinueToUse(), "bread refill goal did not reach its active state");
@@ -476,7 +602,7 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
-    public static void villagerSellsAllPumpkinsOnceInMorning(GameTestHelper helper) {
+    public static void villagerDailyBankDeliverySellsAllPumpkins(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         level.setDayTime(8_000L);
         BankBlockEntity bank = setupMarketBank(helper, Items.PUMPKIN, 0);
@@ -484,35 +610,35 @@ public final class BankGameplayGameTests {
         villager.getInventory().setItem(0, new ItemStack(Items.PUMPKIN, 2));
         BankAccountData.get(level).openAccount(villager.getUUID());
 
-        BankMorningTradeGoal goal = new BankMorningTradeGoal(villager);
-        helper.assertTrue(goal.canUse(), "villager did not select the morning pumpkin sale task");
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(villager);
+        helper.assertTrue(goal.canUse(), "villager did not select the daytime pumpkin sale task");
         goal.start();
-        helper.assertTrue(goal.canContinueToUse(), "morning sale goal did not reach its active state");
+        helper.assertTrue(goal.canContinueToUse(), "daytime sale goal did not reach its active state");
         goal.tick();
         goal.stop();
 
         helper.assertValueEqual(countItem(villager, Items.PUMPKIN), 0,
-                "morning sale did not sell all pumpkins held by the villager");
+                "daytime sale did not sell all pumpkins held by the villager");
         helper.assertValueEqual(bank.getMarketStock(level, Items.PUMPKIN), 2,
-                "morning pumpkin sale did not add all pumpkins to the bank");
+                "daytime pumpkin sale did not add all pumpkins to the bank");
         helper.assertTrue(BankAccountData.get(level).getBalance(villager.getUUID()) > 0,
-                "morning pumpkin sale did not credit the villager account");
-        helper.assertTrue(!goal.canUse(), "morning sale task ran more than once during the same morning");
+                "daytime pumpkin sale did not credit the villager account");
+        helper.assertTrue(!goal.canUse(), "daytime sale task ran more than once during the same day");
         helper.succeed();
     }
 
     @GameTest(template = "empty_20x3x20")
-    public static void morningSaleCheckDoesNotRepeatAfterEmptyCheck(GameTestHelper helper) {
+    public static void dailyBankDeliveryCheckDoesNotRepeatAfterEmptyCheck(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         level.setDayTime(8_000L);
         setupMarketBank(helper, Items.PUMPKIN, 0);
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         BankAccountData.get(level).openAccount(villager.getUUID());
 
-        BankMorningTradeGoal goal = new BankMorningTradeGoal(villager);
-        helper.assertTrue(!goal.canUse(), "empty morning sale check unexpectedly started a sale");
+        VillagerInventoryBankGoal goal = new VillagerInventoryBankGoal(villager);
+        helper.assertTrue(!goal.canUse(), "empty daytime sale check unexpectedly started a sale");
         villager.getInventory().setItem(0, new ItemStack(Items.PUMPKIN));
-        helper.assertTrue(!goal.canUse(), "morning sale check repeated after finding no items");
+        helper.assertTrue(!goal.canUse(), "daytime sale check repeated after finding no items");
         helper.succeed();
     }
 
@@ -530,7 +656,6 @@ public final class BankGameplayGameTests {
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         VillagerSpawnEvents.addStructureSpawnSupplies(villager);
         int initialEmeralds = VillagerSpawnEvents.getPendingInitialEmeralds(villager);
-        bank.queueDepositIfEligible(villager);
         bank.depositInitialEmeralds(level, villager, initialEmeralds);
         VillagerSpawnEvents.clearPendingInitialEmeralds(villager);
 
@@ -542,19 +667,38 @@ public final class BankGameplayGameTests {
                 "generated villager initial emeralds were not credited to its account");
         helper.assertValueEqual(countItem(chest, Items.EMERALD), initialEmeralds,
                 "bank did not receive generated villager initial emeralds");
-        helper.assertTrue(!bank.isQueued(villager.getUUID()),
-                "completed initial transfer left the villager in the regular deposit queue");
 
+        // Artificially invoke the daily check after the full stagger range so
+        // this direct goal test does not depend on the villager UUID's slot.
+        level.setDayTime(8_000L);
         villager.getInventory().addItem(new ItemStack(Items.EMERALD, 20));
-        bank.queueDepositIfEligible(villager);
-        helper.assertTrue(bank.isQueued(villager.getUUID()),
-                "regular deposits were disabled after the initial settlement");
-        helper.succeed();
+        helper.runAfterDelay(1, () -> {
+            VillagerInventoryBankGoal dailyGoal = new VillagerInventoryBankGoal(villager);
+            helper.assertTrue(dailyGoal.canUse(),
+                    "unified daily delivery did not detect post-spawn emeralds: time="
+                            + level.getDayTime() + ", gameTime=" + level.getGameTime()
+                            + ", baby=" + villager.isBaby() + ", sleeping=" + villager.isSleeping()
+                            + ", trading=" + villager.isTrading() + ", breedTarget="
+                            + villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET)
+                            + ", yield=" + VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                            + ", bank=" + (BankEmployeeLookup.findVillageBank(level, villager) == bank)
+                            + ", capacity=" + bank.getEmeraldStorageCapacity(level));
+            dailyGoal.start();
+            dailyGoal.tick();
+            dailyGoal.stop();
+            helper.assertValueEqual(BankAccountData.get(level).getBalance(villager.getUUID()),
+                    initialEmeralds + 20,
+                    "unified daily delivery did not credit post-spawn emeralds");
+            helper.assertValueEqual(countItem(chest, Items.EMERALD), initialEmeralds + 20,
+                    "unified daily delivery did not store post-spawn emeralds");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "empty_20x3x20")
     public static void fullVillagerInventorySellsPricedItemsAndDonatesUnpricedItems(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(500L);
         setupMarketBank(helper, Items.EMERALD_ORE, 0);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
                 helper.absolutePos(new BlockPos(1, 1, 2)));
@@ -596,6 +740,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void fullInventoryVillagerUsesOnlyTheBankFront(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(500L);
         setupMarketBank(helper, Items.EMERALD_ORE, 0);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
                 helper.absolutePos(new BlockPos(1, 1, 2)));
@@ -633,6 +778,7 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void lumberjackDonatesSticksToBank(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        level.setDayTime(500L);
         setupMarketBank(helper, Items.EMERALD_ORE, 0);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
                 helper.absolutePos(new BlockPos(1, 1, 2)));
@@ -677,6 +823,7 @@ public final class BankGameplayGameTests {
             helper.fail("bank cleanup chest was not created");
             return;
         }
+        level.setDayTime(500L);
         Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
         farmer.getInventory().setItem(0, new ItemStack(Items.BREAD, 12));
@@ -780,7 +927,6 @@ public final class BankGameplayGameTests {
         }
         BankAccountData.get(level).openAccount(employee.getUUID());
         BankAccountData.get(level).deposit(employee.getUUID(), 7);
-        original.enqueue(employee.getUUID());
 
         BankBlockEntity.serverTick(level, bankPos, bankState, original);
         if (!original.beginGolemConstruction(CONSTRUCTION_VILLAGER)) {
@@ -826,9 +972,8 @@ public final class BankGameplayGameTests {
                 "derived caches were not reset before the next normal scan");
         helper.assertTrue(restored.hasUnverifiedChestCache(),
                 "reloaded bank was allowed to trust totals before its first chest scan");
-        helper.assertTrue(!restored.isQueued(employee.getUUID())
-                        && restored.getActiveGolemConstructionVillager() == null,
-                "transient queue or construction reservation survived reload");
+        helper.assertTrue(restored.getActiveGolemConstructionVillager() == null,
+                "transient construction reservation survived reload");
         helper.assertTrue(bankPos.equals(registry.getBankPos(VILLAGE_ID)),
                 "reloaded bank did not restore the village registry lookup");
         helper.assertTrue(BankAccountData.get(level).hasAccount(employee.getUUID())
@@ -844,9 +989,6 @@ public final class BankGameplayGameTests {
                 "next normal bank scan did not rebuild the pumpkin-count cache");
         helper.assertTrue(restored.beginGolemConstruction(CONSTRUCTION_VILLAGER),
                 "a fresh construction reservation could not be queued after reload");
-        restored.enqueue(employee.getUUID());
-        helper.assertTrue(restored.isQueued(employee.getUUID()),
-                "post-reload deposit queue could not accept a new server-side task");
         helper.succeed();
     }
 
@@ -854,7 +996,20 @@ public final class BankGameplayGameTests {
         return setupMarketBank(helper, Items.BREAD, bread);
     }
 
+    private static void fillFloor(GameTestHelper helper, int width, int depth) {
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < depth; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+            }
+        }
+    }
+
     private static BankBlockEntity setupMarketBank(GameTestHelper helper, Item item, int amount) {
+        return setupMarketBank(helper, item, amount, 4);
+    }
+
+    private static BankBlockEntity setupMarketBank(GameTestHelper helper, Item item, int amount,
+                                                    int villageRadius) {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
@@ -871,8 +1026,8 @@ public final class BankGameplayGameTests {
         UUID villageId = UUID.randomUUID();
         VillageRegistryData registry = VillageRegistryData.get(level);
         registry.getOrCreateVillage(villageId, bankPos, new AABB(
-                bankPos.getX() - 4, bankPos.getY() - 2, bankPos.getZ() - 4,
-                bankPos.getX() + 4, bankPos.getY() + 2, bankPos.getZ() + 4));
+                bankPos.getX() - villageRadius, bankPos.getY() - 2, bankPos.getZ() - villageRadius,
+                bankPos.getX() + villageRadius, bankPos.getY() + 2, bankPos.getZ() + villageRadius));
         registry.registerBankPosition(villageId, bankPos);
         bank.setVillageId(villageId);
         chest.setItem(0, new ItemStack(item, amount));

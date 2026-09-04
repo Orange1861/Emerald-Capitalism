@@ -4,10 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
-import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
-import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
-import com.orangevillager61.emeraldcapitalism.entity.ai.BankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
@@ -38,7 +35,6 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Inventory;
@@ -58,7 +54,6 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -67,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -76,8 +70,8 @@ import java.util.function.Predicate;
  * Block entity for {@link com.orangevillager61.emeraldcapitalism.block.BankBlock}.
  * Caches linked {@link EmeraldChestBlockEntity} positions and the nearest
  * {@link EmeraldOreProcessorBlockEntity} within the search cube.
- * The ticker advances the deposit queue and uses full scans plus cheaper verification
- * passes to keep the cache synchronized.
+ * The ticker uses full scans plus cheaper verification passes to keep the cache
+ * synchronized.
  */
 public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
@@ -94,9 +88,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Ticks between verify passes (default: 40 t = 2 s). */
     public static final int VERIFY_INTERVAL = 40;
-
-    /** Minimum raw emerald count required for a villager to join the deposit queue. */
-    public static final int MIN_EMERALDS_TO_DEPOSIT = 15;
 
     /** Safety bound for the durable list of bank chest locations. */
     public static final int MAX_TRACKED_CHEST_LOCATIONS = 4096;
@@ -170,27 +161,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private boolean chestCacheDirty = true;
     private boolean processorCacheDirty = true;
 
-    // Deposit queue state (not persisted, cleared on chunk reload)
-
-    /** Villagers waiting to make a deposit, in FIFO order. */
-    private final Queue<UUID> depositQueue = new ArrayDeque<>();
-    /** O(1) membership companion for {@link #depositQueue}. */
-    private final Set<UUID> queuedDepositors = new java.util.HashSet<>();
-
-    /** The villager currently being routed to the bank. */
-    @Nullable
-    private UUID currentDepositor = null;
-
-    /** The active {@link BankDepositGoal} attached to the current depositor, or null. */
-    @Nullable
-    private BankDepositGoal activeGoal = null;
-
-    /**
-     * Goals scheduled for removal on the next bank tick.
-     * Deferred to avoid {@link java.util.ConcurrentModificationException} inside the
-     * goal-scheduler iteration loop when {@link BankDepositGoal#stop()} is called.
-     */
-    private final List<BankDepositGoal> pendingGoalRemovals = new ArrayList<>();
     /** Server-side close deadlines for Emerald Chests opened by smith transfers. */
     private final Map<BlockPos, Long> transferChestCloseTicks = new HashMap<>();
 
@@ -230,7 +200,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     private BlockPos composterPos;
 
-    /** Durable mod-owned state; live caches and work queues are rebuilt after reload. */
+    /** Durable mod-owned state; live caches are rebuilt after reload. */
     static record PersistedState(
             Optional<UUID> villageId,
             boolean bankIndependent,
@@ -594,9 +564,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     public static void serverTick(Level level, BlockPos pos, BlockState state, BankBlockEntity entity) {
         if (!(level instanceof ServerLevel serverLevel)) return;
 
-        // Process the deposit queue every tick while there is work to do
-        entity.processDepositQueue(serverLevel);
-
         long gameTime = serverLevel.getGameTime();
         entity.tickTransferChestAnimations(serverLevel, gameTime);
         entity.initializeScanSchedule(gameTime);
@@ -736,56 +703,9 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         LOADED_BANKS.remove(level);
     }
 
-    // Deposit queue
-
     /**
-     * Adds {@code uuid} to the back of the deposit queue if it is not already
-     * queued or currently being processed.
-     */
-    public void enqueue(UUID uuid) {
-        if (!uuid.equals(currentDepositor) && queuedDepositors.add(uuid)) {
-            depositQueue.add(uuid);
-        }
-    }
-
-    /**
-     * Returns {@code true} if {@code uuid} is in the queue or is the current depositor.
-     */
-    public boolean isQueued(UUID uuid) {
-        return uuid.equals(currentDepositor) || queuedDepositors.contains(uuid);
-    }
-
-    /** Read-only queue state used while building a menu snapshot. */
-    int getDepositQueueSizeForMenu() {
-        return depositQueue.size() + (currentDepositor != null ? 1 : 0);
-    }
-
-    @Nullable
-    UUID getCurrentDepositorForMenu() {
-        return currentDepositor;
-    }
-
-    List<UUID> getDepositQueueSnapshotForMenu() {
-        return List.copyOf(depositQueue);
-    }
-
-    /** Queues a loaded villager immediately when their inventory is ready for a deposit. */
-    public void queueDepositIfEligible(Villager villager) {
-        UUID uuid = villager.getUUID();
-        if (isQueued(uuid)) {
-            return;
-        }
-
-        VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
-        stats.refreshInventoryCounts(villager.getInventory());
-        if (stats.getCachedEmeraldCount() > MIN_EMERALDS_TO_DEPOSIT) {
-            enqueue(uuid);
-        }
-    }
-
-    /**
-     * Deposits only the villager's recorded starting amount. Any emeralds above
-     * that amount remain eligible for the regular deposit queue.
+     * Deposits only the villager's recorded starting amount before normal daily
+     * delivery behavior begins.
      */
     public int depositInitialEmeralds(ServerLevel level, Villager villager, int initialEmeralds) {
         if (initialEmeralds <= 0) {
@@ -800,147 +720,17 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         UUID uuid = villager.getUUID();
         BankAccountData.get(level).openAccount(uuid);
-        int deposited = depositEmeralds(level, villager, initialEmeralds);
-        removeQueuedDeposit(uuid);
-        return deposited;
-    }
-
-    private void removeQueuedDeposit(UUID uuid) {
-        queuedDepositors.remove(uuid);
-        depositQueue.remove(uuid);
-    }
-
-    /**
-     * Empties the deposit queue and resets all depositor tracking state.
-     * Called when the bank is deregistered from its village manager.
-     */
-    public void clearQueue() {
-        // Remove the active goal directly: safe here since we are outside goal-scheduler iteration
-        if (activeGoal != null) {
-            activeGoal.removeFromVillager();
-            activeGoal = null;
-        }
-        pendingGoalRemovals.clear();
-        depositQueue.clear();
-        queuedDepositors.clear();
-        currentDepositor = null;
-    }
-
-    /**
-     * Called every tick to orchestrate the deposit queue.
-     * Processes deferred goal removals, then advances to the next villager if idle.
-     */
-    private void processDepositQueue(ServerLevel level) {
-        // Process deferred goal removals from the previous tick's stop() calls
-        for (BankDepositGoal goal : pendingGoalRemovals) {
-            goal.removeFromVillager();
-        }
-        pendingGoalRemovals.clear();
-
-        // Villagers only travel to the Bank during the day. Leave the queue intact
-        // overnight so the next daylight period can resume it.
-        if (!level.isDay()) {
-            return;
-        }
-
-        // Advance to the next queued villager if no current depositor
-        if (currentDepositor == null) {
-            if (depositQueue.isEmpty()) return;
-            advanceToNext(level);
-        } else if (activeGoal == null) {
-            // Goal was not yet attached (e.g. villager was not loaded last tick): retry
-            tryAttachGoal(level, currentDepositor);
-        }
-    }
-
-    // Goal-orchestration methods (called by BankDepositGoal)
-
-    /** Returns {@code true} if {@code uuid} is the villager currently at the front of the queue. */
-    public boolean isCurrentDepositor(UUID uuid) {
-        return uuid.equals(currentDepositor);
-    }
-
-    /**
-     * Called by {@link BankDepositGoal#stop()} on successful arrival.
-     * Nulls out the current depositor and goal so the next tick picks up the next entry.
-     */
-    public void advanceQueue() {
-        currentDepositor = null;
-        activeGoal = null;
-    }
-
-    /** Pauses the current depositor and puts them back at the end of the queue. */
-    public void pauseCurrentDepositor() {
-        if (currentDepositor == null) {
-            return;
-        }
-        UUID pausedDepositor = currentDepositor;
-        currentDepositor = null;
-        activeGoal = null;
-        enqueue(pausedDepositor);
-    }
-
-    /**
-     * Called by {@link BankDepositGoal#stop()} after exhausting all pathfinding attempts.
-     * Logs and skips the current depositor.
-     */
-    public void skipCurrent() {
-        EmeraldCapitalism.LOGGER.warn(
-                "[ECAP/Bank] Villager {} could not reach bank after max attempts, skipping",
-                currentDepositor);
-        currentDepositor = null;
-        activeGoal = null;
-    }
-
-    /**
-     * Schedules {@code goal} for removal from its villager's goal selector on the next bank tick.
-     * Called by {@link BankDepositGoal#stop()} to avoid {@link java.util.ConcurrentModificationException}
-     * inside the goal-scheduler iteration loop.
-     */
-    public void scheduleGoalRemoval(BankDepositGoal goal) {
-        pendingGoalRemovals.add(goal);
-    }
-
-    // Private queue helpers
-
-    /** Polls the next UUID from the queue and tries to attach a goal to that villager. */
-    private void advanceToNext(ServerLevel level) {
-        currentDepositor = depositQueue.poll();
-        if (currentDepositor == null) return;
-        queuedDepositors.remove(currentDepositor);
-        tryAttachGoal(level, currentDepositor);
-    }
-
-    /**
-     * Locates the villager entity for {@code uuid}, verifies they hold more than
-     * {@link #MIN_EMERALDS_TO_DEPOSIT} emeralds,
-     * and adds a new {@link BankDepositGoal} to their goal selector.
-     * If the villager cannot be found or has insufficient emeralds, the slot is skipped.
-     */
-    private void tryAttachGoal(ServerLevel level, UUID uuid) {
-        Villager villager = findVillagerEntity(level, uuid);
-        if (villager == null) {
-            // Villager not loaded or removed: skip
-            currentDepositor = null;
-            return;
-        }
-        VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
-        stats.refreshInventoryCounts(villager.getInventory());
-        if (stats.getCachedEmeraldCount() <= MIN_EMERALDS_TO_DEPOSIT) {
-            // Villager no longer eligible (spent or traded emeralds): skip silently
-            currentDepositor = null;
-            return;
-        }
-        BankDepositGoal goal = new BankDepositGoal(villager, getBlockPos(), this);
-        // Deposits win between profession-work cycles. The goal itself pauses
-        // safely when a protected active lumberjack task owns movement.
-        villager.goalSelector.addGoal(BankDepositGoal.GOAL_PRIORITY, goal);
-        activeGoal = goal;
+        return depositEmeralds(level, villager, initialEmeralds);
     }
 
     /** Credits the villager's emerald inventory and distributes it to linked chests. */
-    public void handleDepositorArrival(ServerLevel level, Villager villager) {
-        depositEmeralds(level, villager, Integer.MAX_VALUE);
+    public int depositVillagerEmeralds(ServerLevel level, Villager villager) {
+        BankAccountData.get(level).openAccount(villager.getUUID());
+        int deposited = depositEmeralds(level, villager, Integer.MAX_VALUE);
+        if (deposited > 0) {
+            markInventoryChanged(level);
+        }
+        return deposited;
     }
 
     private int depositEmeralds(ServerLevel level, Villager villager, int maximumEmeraldValue) {
@@ -1000,7 +790,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /** Returns the number of raw emeralds that can currently fit in linked chests. */
-    private int getEmeraldStorageCapacity(ServerLevel level) {
+    public int getEmeraldStorageCapacity(ServerLevel level) {
         long capacity = 0;
         for (BlockPos chestPos : cachedChestPositions) {
             BlockEntity be = getLoadedBlockEntity(level, chestPos);
@@ -2025,16 +1815,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 jobSitePos.getZ() + 0.5);
     }
 
-    /**
-     * Finds a villager by UUID within the current village's bounding box, or within a
-     * generous radius around the bank if the village record is unavailable.
-     */
-    @Nullable
-    private Villager findVillagerEntity(ServerLevel level, UUID uuid) {
-        Entity entity = level.getEntity(uuid);
-        return entity instanceof Villager villager ? villager : null;
-    }
-
     // Scanning
 
     private void fullScan(ServerLevel level) {
@@ -2086,32 +1866,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             setChanged();
         }
 
-        // Re-populate the deposit queue so newly eligible villagers don't have to wait
-        // for the next VM periodic scan (which runs far less frequently).
-        repopulateDepositQueue(level);
-    }
-
-    /**
-     * Scans all registered village members currently in the world and enqueues any who
-     * hold more than {@link #MIN_EMERALDS_TO_DEPOSIT} emeralds and are not already
-     * in the deposit queue.
-     * Called after every full chest scan.
-     */
-    private void repopulateDepositQueue(ServerLevel level) {
-        if (villageId == null) return;
-        ServerLevel overworld = level.getServer().getLevel(Level.OVERWORLD);
-        if (overworld == null) return;
-        VillageRecord record = VillageRegistryData.get(overworld).getVillages().get(villageId);
-        if (record == null) return;
-
-        AABB bounds = record.getBoundingBox();
-        for (UUID uuid : record.getMembers().keySet()) {
-            Entity entity = level.getEntity(uuid);
-            if (entity instanceof Villager villager
-                    && bounds.intersects(villager.getBoundingBox())) {
-                queueDepositIfEligible(villager);
-            }
-        }
     }
 
     private void verifyCachedChests(ServerLevel level) {
@@ -2740,11 +2494,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         chestCacheDirty = true;
         processorCacheDirty = true;
 
-        depositQueue.clear();
-        queuedDepositors.clear();
-        currentDepositor = null;
-        activeGoal = null;
-        pendingGoalRemovals.clear();
         transferChestCloseTicks.clear();
         activeGolemConstructionVillager = null;
     }

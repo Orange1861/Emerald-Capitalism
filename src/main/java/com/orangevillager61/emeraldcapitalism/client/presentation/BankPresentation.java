@@ -11,17 +11,7 @@ public final class BankPresentation {
     private BankPresentation() {
     }
 
-    public record AccountSnapshot(String name, int balance, boolean queued, int queuePosition) {
-    }
-
-    public record AccountRow(AccountSnapshot account, boolean separator) {
-        public static AccountRow account(AccountSnapshot snapshot) {
-            return new AccountRow(snapshot, false);
-        }
-
-        public static AccountRow separatorRow() {
-            return new AccountRow(null, true);
-        }
+    public record AccountSnapshot(String name, int balance) {
     }
 
     public record ChestPosition(int x, int y, int z) {
@@ -52,23 +42,6 @@ public final class BankPresentation {
         List<T> sorted = new ArrayList<>(entries);
         sorted.sort(Comparator.comparingInt(priority).thenComparing(tieBreaker));
         return List.copyOf(sorted);
-    }
-
-    public static List<AccountRow> accountRows(List<AccountSnapshot> accounts) {
-        List<AccountSnapshot> queued = new ArrayList<>();
-        List<AccountSnapshot> regular = new ArrayList<>();
-        for (AccountSnapshot account : accounts) {
-            (account.queued() ? queued : regular).add(account);
-        }
-        queued.sort(Comparator.comparingInt(AccountSnapshot::queuePosition));
-
-        List<AccountRow> rows = new ArrayList<>(accounts.size() + 1);
-        queued.stream().map(AccountRow::account).forEach(rows::add);
-        if (!queued.isEmpty() && !regular.isEmpty()) {
-            rows.add(AccountRow.separatorRow());
-        }
-        regular.stream().map(AccountRow::account).forEach(rows::add);
-        return List.copyOf(rows);
     }
 
     public static List<String> chestLines(List<ChestPosition> positions, int shownLimit, int totalCount) {

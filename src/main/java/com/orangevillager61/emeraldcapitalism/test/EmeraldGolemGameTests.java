@@ -276,7 +276,7 @@ public final class EmeraldGolemGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_3x3x3")
+    @GameTest(template = "empty_3x3x3", batch = "ecap_vault_golem_ladder")
     public static void vaultEmeraldGolemDoesNotRetreatButCanClimbLadder(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos ladderBase = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -453,6 +453,8 @@ public final class EmeraldGolemGameTests {
         goal.start();
         helper.assertTrue(golem.getTarget() == otherPlayer,
                 "enabled bank attack setting targeted the controller instead of another player");
+        helper.assertTrue(goal.canContinueToUse(),
+                "bank golem stopped targeting a player solely because an obstruction blocked line of sight");
         goal.stop();
         golem.setTarget(null);
 
@@ -464,6 +466,50 @@ public final class EmeraldGolemGameTests {
         helper.assertFalse(goal.canUse(),
                 "disabled bank attack setting still targeted a neutral player");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", timeoutTicks = 200)
+    public static void bankGolemTargetSelectorFindsPlayerThroughObstruction(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
+            helper.fail("Could not create the bank for the real target-selector test");
+            return;
+        }
+
+        ServerPlayer controller = createRegisteredTestPlayer(level);
+        ServerPlayer otherPlayer = createRegisteredTestPlayer(level);
+        controller.moveTo(bankPos.getX() + 2.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        otherPlayer.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        helper.setBlock(new BlockPos(3, 1, 1), Blocks.STONE.defaultBlockState());
+        bank.setController(controller.getUUID());
+        BankMenuOpenData.ControlSettings current = bank.getControlSettings();
+        bank.setControlSettings(new BankMenuOpenData.ControlSettings(
+                current.manualTargets(), current.emeraldGolemTarget(),
+                current.emeraldSkrimisherTarget(), current.foodDays(),
+                current.villagerDeliveriesEnabled(), current.randomDeliveriesEnabled(),
+                current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(), true));
+
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+        if (golem == null) {
+            helper.fail("Could not create the golem for the real target-selector test");
+            return;
+        }
+        golem.setBankEmployeePos(bankPos);
+        VaultGolemGoals.markAsVaultGuard(golem);
+        golem.moveTo(bankPos.getX() + 0.5D, bankPos.getY(), bankPos.getZ() + 0.5D,
+                0.0F, 0.0F);
+        if (!level.addFreshEntity(golem)) {
+            helper.fail("Could not add the golem for the real target-selector test");
+            return;
+        }
+
+        helper.assertTrue(findHostilePlayerGoal(golem) != null,
+                "real target-selector fixture did not receive a hostile-player goal");
+        helper.succeedWhen(() -> helper.assertTrue(golem.getTarget() == otherPlayer,
+                "real target selector did not acquire the non-controller player through the obstruction"));
     }
 
     @GameTest(template = "empty_20x3x20")
@@ -582,6 +628,8 @@ public final class EmeraldGolemGameTests {
         goal.start();
         helper.assertTrue(golem.getTarget() == candidate,
                 "vault golem targeted the wrong player during the contested takeover");
+        helper.assertTrue(goal.canContinueToUse(),
+                "vault golem stopped targeting the contested candidate solely because an obstruction blocked line of sight");
 
         goal.stop();
         golem.setTarget(null);
@@ -589,6 +637,67 @@ public final class EmeraldGolemGameTests {
         helper.assertFalse(goal.canUse(),
                 "vault golem remained hostile after the bank began supporting its candidate");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_governor_candidate_real_goal", timeoutTicks = 200)
+    public static void bankGolemRealSelectorTargetsContestedGovernorCandidateThroughObstruction(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+        if (!(level.getBlockEntity(bankPos) instanceof BankBlockEntity bank)) {
+            helper.fail("Could not create the bank for the real contested-candidate test");
+            return;
+        }
+
+        ServerPlayer candidate = createRegisteredTestPlayer(level);
+        candidate.moveTo(bankPos.getX() + 4.5D, bankPos.getY(), bankPos.getZ() + 0.5D);
+        helper.setBlock(new BlockPos(3, 1, 1), Blocks.STONE.defaultBlockState());
+        UUID villageId = UUID.randomUUID();
+        VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
+                villageId, bankPos, new net.minecraft.world.phys.AABB(bankPos).inflate(20.0D));
+        bank.setVillageId(villageId);
+        VillageRegistryData.get(level).registerBankPosition(villageId, bankPos);
+        // Keep the Mayor in the registered village but outside the golem's
+        // target range, so this end-to-end test isolates the candidate target.
+        var mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 13, 1, 1);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        helper.assertTrue(village.becomeGovernorCandidate(
+                        candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
+                        level.getGameTime()),
+                "could not establish the contested candidate for the real-selector test");
+        helper.assertTrue(VillageGovernance.bindGovernorCandidateAttackGrace(level, village),
+                "could not bind the real-selector candidate to its bank and Mayor");
+
+        EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+        if (golem == null) {
+            helper.fail("Could not create the golem for the real contested-candidate test");
+            return;
+        }
+        golem.setBankEmployeePos(bankPos);
+        VaultGolemGoals.markAsVaultGuard(golem);
+        golem.moveTo(bankPos.getX() + 0.5D, bankPos.getY(), bankPos.getZ() + 0.5D,
+                0.0F, 0.0F);
+        if (!level.addFreshEntity(golem)) {
+            helper.fail("Could not add the golem for the real contested-candidate test");
+            return;
+        }
+
+        helper.assertTrue(findHostilePlayerGoal(golem) != null,
+                "real target selector did not receive its hostile-player goal");
+        helper.runAfterDelay(1, () -> helper.assertTrue(
+                EntityDamageUtils.hurt(golem, level.damageSources().playerAttack(candidate), 1.0F),
+                "candidate could not hit the real-selector golem"));
+        // The damage event ends the election grace period. Tick the actual
+        // target selector once after that event so the test checks selector
+        // wiring, not the scheduler's ordering for the same server tick.
+        helper.runAfterDelay(2, () -> golem.targetSelector.tick());
+        helper.succeedWhen(() -> helper.assertTrue(golem.getTarget() == candidate,
+                "real target selector did not acquire the contested candidate through the obstruction; "
+                        + "golem=" + golem.position() + ", candidate=" + candidate.position()
+                        + ", distanceSq=" + golem.distanceToSqr(candidate)
+                        + ", target=" + golem.getTarget()));
     }
 
     @GameTest(template = "empty_20x3x20", timeoutTicks = 1_105)
@@ -630,6 +739,10 @@ public final class EmeraldGolemGameTests {
         emeraldGolem.setBankEmployeePos(bankPos);
         VaultGolemGoals.markAsVaultGuard(emeraldGolem);
         emeraldGolem.moveTo(center.offset(0, 0, 2), 0.0F, 0.0F);
+        // This test invokes the target goal directly after a long grace
+        // period. Freeze the Skrimisher so its unrelated idle stroll cannot
+        // leave the registered village before the election check runs.
+        skrimisher.setNoAi(true);
         skrimisher.moveTo(center.offset(2, 0, 0), 0.0F, 0.0F);
         ironGolem.moveTo(center.offset(-2, 0, 0), 0.0F, 0.0F);
         level.addFreshEntity(emeraldGolem);
