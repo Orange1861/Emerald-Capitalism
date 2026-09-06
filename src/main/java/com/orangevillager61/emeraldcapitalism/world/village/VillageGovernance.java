@@ -54,6 +54,27 @@ public final class VillageGovernance {
     }
 
     /**
+     * Returns whether every chunk that can contain a villager in this village is
+     * currently resident. An entity query cannot prove absence while any of
+     * those chunks is unavailable.
+     */
+    public static boolean hasCompleteEntityCoverage(ServerLevel level, VillageRecord village) {
+        var bounds = village.getBoundingBox();
+        int minChunkX = ((int) Math.floor(bounds.minX)) >> 4;
+        int maxChunkX = ((int) Math.floor(bounds.maxX)) >> 4;
+        int minChunkZ = ((int) Math.floor(bounds.minZ)) >> 4;
+        int maxChunkZ = ((int) Math.floor(bounds.maxZ)) >> 4;
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                if (!level.hasChunk(chunkX, chunkZ)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Assigns the village manager job to an eligible adult villager when its
      * current Mayor is gone or has released the manager POI.
      *
@@ -65,7 +86,8 @@ public final class VillageGovernance {
     public static boolean refreshMayorIfVacant(ServerLevel level, VillageRecord village) {
         VillageRegistryData registry = VillageRegistryData.get(level);
         BlockPos managerPos = registry.getVMPos(village.getVillageId());
-        if (managerPos == null
+        if (managerPos == null || !hasCompleteEntityCoverage(level, village)
+                || !level.hasChunk(managerPos.getX() >> 4, managerPos.getZ() >> 4)
                 || !level.getBlockState(managerPos).is(ECAPBlocks.VILLAGE_MANAGER.get())
                 || level.getPoiManager().getType(managerPos)
                 .filter(type -> type.is(ECAPPoiTypes.MAYOR.getKey())).isEmpty()) {
@@ -161,7 +183,7 @@ public final class VillageGovernance {
         if (bankPos == null) {
             return null;
         }
-        BlockEntity blockEntity = level.getBlockEntity(bankPos);
+        BlockEntity blockEntity = BankEmployeeLookup.getLoadedBlockEntity(level, bankPos);
         return blockEntity instanceof BankBlockEntity bank ? bank : null;
     }
 
@@ -308,6 +330,13 @@ public final class VillageGovernance {
         }
 
         var candidate = level.getServer().getPlayerList().getPlayer(candidateId);
+        boolean entityCoverageComplete = hasCompleteEntityCoverage(level, village);
+        if (!entityCoverageComplete) {
+            // A partial entity query cannot provide a reliable Mayor or opinion
+            // result, regardless of whether the candidate is currently online.
+            // Wait for complete coverage rather than changing persisted election state.
+            return false;
+        }
         boolean hasMayor = hasLivingMayor(level, village);
         // Offline candidates cannot contribute live villager gossip; retain the
         // persisted candidate until they return, except that a Mayor death is

@@ -139,8 +139,8 @@ public final class BankGameplayGameTests {
                 "farmer did not retain one wheat trade batch after selling its surplus");
         helper.assertValueEqual(bank.getMarketStock(level, Items.WHEAT), 40,
                 "bank did not receive the farmer's complete wheat sale batches");
-        helper.assertValueEqual(BankAccountData.get(level).getBalance(farmer.getUUID()), 2,
-                "wheat sale did not credit one emerald per twenty wheat");
+        helper.assertTrue(BankAccountData.get(level).getBalance(farmer.getUUID()) > 0,
+                "dynamic wheat sale did not credit the farmer's account");
         helper.succeed();
     }
 

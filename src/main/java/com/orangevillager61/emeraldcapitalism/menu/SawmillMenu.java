@@ -22,6 +22,7 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.level.Level;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 
@@ -66,6 +67,7 @@ public class SawmillMenu extends AbstractContainerMenu {
         super(ECAPMenuTypes.SAWMILL_MENU.get(), containerId);
         this.access = access;
         this.level = playerInventory.player.level();
+        this.selectedRecipeIndex.set(-1);
         this.inputSlot = this.addSlot(new Slot(this.container, INPUT_SLOT, 20, 33));
         this.resultSlot = this.addSlot(new Slot(this.resultContainer, RESULT_SLOT, 143, 33) {
             @Override
@@ -153,8 +155,9 @@ public class SawmillMenu extends AbstractContainerMenu {
         ItemStack stack = this.inputSlot.getItem();
         if (!ItemStack.isSameItemSameComponents(stack, this.input)
                 || stack.getCount() != this.input.getCount()) {
+            ResourceLocation selectedRecipeId = this.getSelectedRecipeId();
             this.input = stack.copy();
-            this.setupRecipeList(inventory, stack);
+            this.setupRecipeList(inventory, stack, selectedRecipeId);
         }
     }
 
@@ -162,14 +165,41 @@ public class SawmillMenu extends AbstractContainerMenu {
         return new SingleRecipeInput(container.getItem(INPUT_SLOT));
     }
 
-    private void setupRecipeList(Container container, ItemStack stack) {
-        this.recipes.clear();
-        this.selectedRecipeIndex.set(-1);
+    private void setupRecipeList(Container container, ItemStack stack,
+                                 ResourceLocation selectedRecipeId) {
+        this.recipes = Lists.newArrayList();
         this.resultSlot.set(ItemStack.EMPTY);
         if (!stack.isEmpty()) {
             this.recipes = com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.getRecipesFor(
                     this.level, ECAPRecipeTypes.SAWMILL.get(), createRecipeInput(container));
         }
+
+        int restoredIndex = -1;
+        if (selectedRecipeId != null) {
+            for (int index = 0; index < this.recipes.size(); index++) {
+                if (selectedRecipeId.equals(this.getRecipeId(this.recipes.get(index)))) {
+                    restoredIndex = index;
+                    break;
+                }
+            }
+        }
+        this.selectedRecipeIndex.set(restoredIndex);
+        if (restoredIndex >= 0) {
+            this.setupResultSlot();
+        }
+    }
+
+    private ResourceLocation getSelectedRecipeId() {
+        RecipeHolder<SawmillRecipe> selected = this.getSelectedRecipe();
+        return selected == null ? null : this.getRecipeId(selected);
+    }
+
+    private ResourceLocation getRecipeId(RecipeHolder<SawmillRecipe> recipe) {
+//? if >=1.21.4 {
+        /*return recipe.id().location();
+*///?} else {
+        return recipe.id();
+ //?}
     }
 
     private RecipeHolder<SawmillRecipe> getSelectedRecipe() {

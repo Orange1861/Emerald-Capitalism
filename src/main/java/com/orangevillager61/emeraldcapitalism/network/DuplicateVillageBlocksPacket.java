@@ -9,25 +9,25 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /** Client request to receive another Village Manager and Bank block. */
 public record DuplicateVillageBlocksPacket(UUID villageId) implements CustomPacketPayload {
 
     /** Ten minutes at Minecraft's standard 20 ticks per second. */
     public static final long DUPLICATE_COOLDOWN_TICKS = 12_000L;
-
-    private static final Map<UUID, Long> LAST_DUPLICATE_TICK_BY_PLAYER = new ConcurrentHashMap<>();
+    private static final String LAST_DUPLICATE_TICK_KEY =
+            "emeraldcapitalism_last_duplicate_village_blocks_tick";
 
     public DuplicateVillageBlocksPacket {
         villageId = Objects.requireNonNull(villageId, "villageId");
@@ -70,20 +70,22 @@ public record DuplicateVillageBlocksPacket(UUID villageId) implements CustomPack
             }
 
             long now = level.getGameTime();
-            Long lastDuplicateTick = LAST_DUPLICATE_TICK_BY_PLAYER.get(player.getUUID());
-            if (lastDuplicateTick != null
-                    && now >= lastDuplicateTick
-                    && now - lastDuplicateTick < DUPLICATE_COOLDOWN_TICKS) {
-                long remainingTicks = DUPLICATE_COOLDOWN_TICKS - (now - lastDuplicateTick);
-                player.sendSystemMessage(Component.literal(String.format(
-                        "[ECAP] Please wait %.1f seconds before duplicating village blocks again.",
-                        remainingTicks / 20.0D)));
-                return;
+            var persistentData = player.getPersistentData();
+            if (persistentData.contains(LAST_DUPLICATE_TICK_KEY, Tag.TAG_LONG)) {
+                long lastDuplicateTick = persistentData.getLong(LAST_DUPLICATE_TICK_KEY);
+                if (now >= lastDuplicateTick
+                        && now - lastDuplicateTick < DUPLICATE_COOLDOWN_TICKS) {
+                    long remainingTicks = DUPLICATE_COOLDOWN_TICKS - (now - lastDuplicateTick);
+                    player.sendSystemMessage(Component.literal(String.format(
+                            "[ECAP] Please wait %.1f seconds before duplicating village blocks again.",
+                            remainingTicks / 20.0D)));
+                    return;
+                }
             }
 
             giveItem(player, ECAPItems.VILLAGE_MANAGER.get());
             giveItem(player, ECAPItems.BANK.get());
-            LAST_DUPLICATE_TICK_BY_PLAYER.put(player.getUUID(), now);
+            persistentData.putLong(LAST_DUPLICATE_TICK_KEY, now);
             player.sendSystemMessage(Component.literal(
                     "[ECAP] You received a Village Manager and Bank."));
         });
@@ -96,11 +98,11 @@ public record DuplicateVillageBlocksPacket(UUID villageId) implements CustomPack
         }
     }
 
-    public static void onPlayerDisconnect(UUID playerId) {
-        LAST_DUPLICATE_TICK_BY_PLAYER.remove(playerId);
-    }
-
-    public static void clearCooldowns() {
-        LAST_DUPLICATE_TICK_BY_PLAYER.clear();
+    /** Preserves the economic cooldown when a player entity is cloned on death. */
+    public static void copyCooldown(Player original, Player clone) {
+        if (original.getPersistentData().contains(LAST_DUPLICATE_TICK_KEY, Tag.TAG_LONG)) {
+            clone.getPersistentData().putLong(LAST_DUPLICATE_TICK_KEY,
+                    original.getPersistentData().getLong(LAST_DUPLICATE_TICK_KEY));
+        }
     }
 }

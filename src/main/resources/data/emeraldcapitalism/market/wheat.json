@@ -1,13 +1,15 @@
 {
   "id": "wheat",
-  "fixedEmeraldOutput": 1,
-  "baseRate": 20.0,
-  "dailyConsumptionRate": 1.0,
-  "dailyConsumptionScalesWithPopulation": false,
-  "lowMult": 1.0,
-  "highMult": 1.0,
-  "floorRate": 20.0,
-  "ceilingRate": 20.0,
-  "bidAskSpread": 0.0,
-  "minimumTradeSize": 20
+  "baseRate": 18.0,
+  "dailyConsumptionRate": 9.0,
+  "dailyConsumptionScalesWithPopulation": true,
+  "lowMult": 9.0,
+  "highMult": 13.0,
+  "kScarcity": 0.13,
+  "floorRate": 5.4,
+  "kGlut": 0.10,
+  "ceilingRate": 108.0,
+  "bidAskSpread": 0.10,
+  "minimumTradeSize": 1,
+  "metric": "DAYS"
 }

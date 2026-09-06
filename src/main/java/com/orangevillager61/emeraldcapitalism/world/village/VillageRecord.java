@@ -545,6 +545,8 @@ public class VillageRecord {
     private FullScanState fullScanState;
     /** True until the manager has refreshed villagers and published the completed scan. */
     private boolean fullScanCompletionPending;
+    /** Round-robin cursor for bounded loaded-cache verification. */
+    private int verificationCursor;
 
     private static final class FullScanState {
         private final int minX, minY, minZ, maxX, maxY, maxZ;
@@ -1620,37 +1622,76 @@ public class VillageRecord {
      * @return true when this persistent record was changed.
      */
     public boolean verify(ServerLevel level) {
+        return verifyLoaded(level, Integer.MAX_VALUE).changed();
+    }
+
+    /** Result of one bounded pass over the loaded portion of the block cache. */
+    public record VerificationResult(boolean changed, int positionsChecked) {
+    }
+
+    /**
+     * Verifies at most {@code budget} cached positions without loading chunks.
+     * Positions in unloaded chunks remain cached for a later pass.
+     */
+    public VerificationResult verifyLoaded(ServerLevel level, int budget) {
         if (!cacheInitialized) {
-            return false;
+            return new VerificationResult(false, 0);
+        }
+        if (budget <= 0) {
+            return new VerificationResult(false, 0);
         }
 
-        boolean bedsChanged = cachedBedPositions.removeIf(pos -> {
-            BlockState state = level.getBlockState(pos);
-            return !isBedHead(state);
-        });
+        List<BlockPos> beds = new ArrayList<>(cachedBedPositions);
+        List<Map.Entry<BlockPos, String>> jobSites = new ArrayList<>(cachedJobSitePositions.entrySet());
+        List<BlockPos> doors = doorRepairEnabled ? new ArrayList<>(doorRegistry) : List.of();
+        int total = beds.size() + jobSites.size() + doors.size();
+        if (total == 0) {
+            verificationCursor = 0;
+            return new VerificationResult(false, 0);
+        }
 
-        boolean jobSitesChanged = cachedJobSitePositions.entrySet().removeIf(entry -> {
-            BlockState state = level.getBlockState(entry.getKey());
-            String type = WORKSTATION_BLOCKS.get(state.getBlock().getClass());
-            return type == null;
-        });
-        boolean doorsChanged = false;
-        if (doorRepairEnabled) {
-            Iterator<BlockPos> doors = doorRegistry.iterator();
-            while (doors.hasNext()) {
-                BlockPos pos = doors.next();
-                if (!isDoorBase(level.getBlockState(pos))) {
-                    BlockState liveState = level.getBlockState(pos);
-                    doors.remove();
+        int start = Math.floorMod(verificationCursor, total);
+        int checks = Math.min(budget, total);
+        boolean changed = false;
+        for (int offset = 0; offset < checks; offset++) {
+            int index = (start + offset) % total;
+            if (index < beds.size()) {
+                BlockPos pos = beds.get(index);
+                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)
+                        && !isBedHead(level.getBlockState(pos))) {
+                    changed |= cachedBedPositions.remove(pos);
+                }
+                continue;
+            }
+
+            index -= beds.size();
+            if (index < jobSites.size()) {
+                Map.Entry<BlockPos, String> entry = jobSites.get(index);
+                BlockPos pos = entry.getKey();
+                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                    BlockState state = level.getBlockState(pos);
+                    String type = WORKSTATION_BLOCKS.get(state.getBlock().getClass());
+                    if (type == null) {
+                        changed |= cachedJobSitePositions.remove(pos) != null;
+                    }
+                }
+                continue;
+            }
+
+            BlockPos pos = doors.get(index - jobSites.size());
+            if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                BlockState liveState = level.getBlockState(pos);
+                if (!isDoorBase(liveState) && doorRegistry.remove(pos)) {
                     missingDoorRegistry.add(pos.immutable());
-                    doorsChanged = true;
+                    changed = true;
                     EmeraldCapitalism.LOGGER.info(
                             "[ECAP][DoorCache] VERIFY found missing door village={} base={} liveState={} missingCount={}",
                             villageId, pos, liveState, missingDoorRegistry.size());
                 }
             }
         }
-        return bedsChanged || jobSitesChanged || doorsChanged;
+        verificationCursor = (start + checks) % total;
+        return new VerificationResult(changed, checks);
     }
 
     // Event-driven cache updates

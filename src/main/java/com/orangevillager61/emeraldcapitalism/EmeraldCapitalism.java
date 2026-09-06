@@ -13,7 +13,6 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackTreeReservatio
 import com.orangevillager61.emeraldcapitalism.network.ECAPNetworking;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
-import com.orangevillager61.emeraldcapitalism.network.DuplicateVillageBlocksPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestExpandBoundsPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestFullScanPacket;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIDataCache;
@@ -113,7 +112,6 @@ public class EmeraldCapitalism {
     private static void clearServerSessionState() {
         RequestFullScanPacket.clearCooldowns();
         RequestExpandBoundsPacket.clearCooldowns();
-        DuplicateVillageBlocksPacket.clearCooldowns();
         ManualVillageScanBudget.clearAll();
         VillagePOIDataCache.clearAll();
         POIOverlaySubscriptions.clearAll();

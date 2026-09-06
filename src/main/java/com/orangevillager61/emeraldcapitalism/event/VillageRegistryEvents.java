@@ -517,12 +517,17 @@ public class VillageRegistryEvents {
             POIOverlaySubscriptions.onPlayerDisconnect(player.getUUID());
             RequestFullScanPacket.onPlayerDisconnect(player.getUUID());
             RequestExpandBoundsPacket.onPlayerDisconnect(player.getUUID());
-            DuplicateVillageBlocksPacket.onPlayerDisconnect(player.getUUID());
             RequestVillagePOIDynamicDataPacket.onPlayerDisconnect(player.getUUID());
             BankReputationEvents.clearPlayer(player.getUUID());
             VillagePOIDataCache.invalidateViewer(player.getUUID());
             PLAYER_VILLAGE_MAP.remove(player.getUUID());
         }
+    }
+
+    /** Preserves persisted player economic cooldowns when the player entity is cloned. */
+    @SubscribeEvent
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        DuplicateVillageBlocksPacket.copyCooldown(event.getOriginal(), event.getEntity());
     }
 
     /**

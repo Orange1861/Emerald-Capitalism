@@ -81,6 +81,8 @@ public final class AbandonedVaultLocator {
         long seed = level.getChunkSource().getGeneratorState().getLevelSeed();
         int sourceChunkX = SectionPos.blockToSectionCoord(origin.getX());
         int sourceChunkZ = SectionPos.blockToSectionCoord(origin.getZ());
+        int sourceCellX = Math.floorDiv(sourceChunkX, placement.spacing());
+        int sourceCellZ = Math.floorDiv(sourceChunkZ, placement.spacing());
 
         int cellRadius = Math.ceilDiv(SEARCH_RADIUS_CHUNKS, placement.spacing()) + 1;
         for (int radius = 0; radius <= cellRadius; radius++) {
@@ -90,8 +92,8 @@ public final class AbandonedVaultLocator {
                         continue;
                     }
                     ChunkPos candidate = placement.getPotentialStructureChunk(
-                            seed, Math.floorDiv(sourceChunkX, placement.spacing()) + gridX,
-                            Math.floorDiv(sourceChunkZ, placement.spacing()) + gridZ);
+                            seed, (sourceCellX + gridX) * placement.spacing(),
+                            (sourceCellZ + gridZ) * placement.spacing());
                     if (Math.max(Math.abs(candidate.x - sourceChunkX),
                             Math.abs(candidate.z - sourceChunkZ)) > SEARCH_RADIUS_CHUNKS) {
                         continue;

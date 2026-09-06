@@ -37,6 +37,8 @@ public class VillageRegistryManager {
 
     /** Limits the entity-query portion of a scan to a small number of chunks per tick. */
     private static final int ENTITY_QUERY_CHUNKS_PER_TICK = 2;
+    /** Total cached block positions verified during one governance tick. */
+    private static final int GOVERNANCE_VERIFICATION_BUDGET = 128;
 
     private final ServerLevel level;
     private final InitialVillageScanChunkLoadPool initialScanChunkLoadPool;
@@ -79,6 +81,8 @@ public class VillageRegistryManager {
 
     /** Whether all chunk-sized entity queries have completed for the current scan. */
     private boolean entityQueryDone;
+    /** False when one or more chunks were unavailable during the entity scan. */
+    private boolean entityQueryHasCompleteCoverage;
 
     private boolean entityScanInitialized;
     private int scanMinChunkX;
@@ -89,6 +93,8 @@ public class VillageRegistryManager {
     private int nextScanChunkZ;
     @Nullable
     private AABB entityScanBox;
+    /** Round-robin starting point for the bounded verification pass. */
+    private int verificationVillageIndex;
 
     /** Whether departure processing has been performed for the current village. */
     private boolean departuresDone;
@@ -153,17 +159,6 @@ public class VillageRegistryManager {
         boolean periodicMayorAudit = tickCounter % 200 == 0;
         for (VillageRecord village : registryData.getVillages().values()) {
             boolean changed = VillageGovernance.refresh(level, village);
-            // Non-player entities such as zombies remove doors directly through
-            // Level.removeBlock, so no player BreakEvent reaches the cache hooks.
-            // Recheck the small published block cache before the next repair pass.
-            boolean doorCacheChanged = village.verify(level);
-            changed |= doorCacheChanged;
-            if (doorCacheChanged) {
-                EmeraldCapitalism.LOGGER.info(
-                        "[ECAP][DoorCache] MANAGER verification changed village={} doors={} missingDoors={} gameTime={}",
-                        village.getVillageId(), village.getDoorRegistry().size(),
-                        village.getMissingDoorRegistry().size(), level.getGameTime());
-            }
             // A normal village already has a recorded Mayor and receives
             // immediate succession checks from villager-death events. Keep a
             // slower reconciliation pass for chunk unloads or missed events,
@@ -178,6 +173,40 @@ public class VillageRegistryManager {
                 registryData.setDirty();
                 VillagePOIDataCache.invalidateVillage(village.getVillageId());
             }
+        }
+        verifyVillageCaches();
+    }
+
+    /**
+     * Rechecks cached blocks with one shared budget. This keeps a large number of
+     * registered villages from turning the once-per-second governance pass into
+     * an unbounded synchronous read, while VillageRecord retains the position
+     * cursor between passes.
+     */
+    private void verifyVillageCaches() {
+        List<VillageRecord> villages = new ArrayList<>(registryData.getVillages().values());
+        if (villages.isEmpty()) {
+            verificationVillageIndex = 0;
+            return;
+        }
+
+        verificationVillageIndex = Math.floorMod(verificationVillageIndex, villages.size());
+        int remaining = GOVERNANCE_VERIFICATION_BUDGET;
+        int villagesVisited = 0;
+        while (remaining > 0 && villagesVisited < villages.size()) {
+            VillageRecord village = villages.get(verificationVillageIndex);
+            verificationVillageIndex = (verificationVillageIndex + 1) % villages.size();
+            VillageRecord.VerificationResult result = village.verifyLoaded(level, remaining);
+            remaining -= result.positionsChecked();
+            if (result.changed()) {
+                registryData.setDirty();
+                VillagePOIDataCache.invalidateVillage(village.getVillageId());
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][DoorCache] MANAGER verification changed village={} doors={} missingDoors={} gameTime={}",
+                        village.getVillageId(), village.getDoorRegistry().size(),
+                        village.getMissingDoorRegistry().size(), level.getGameTime());
+            }
+            villagesVisited++;
         }
     }
 
@@ -209,6 +238,7 @@ public class VillageRegistryManager {
         foundInWorld.clear();
         queuedEntityIds.clear();
         entityQueryDone = false;
+        entityQueryHasCompleteCoverage = true;
         entityScanInitialized = false;
         entityScanBox = null;
         departuresDone = false;
@@ -257,7 +287,9 @@ public class VillageRegistryManager {
 
         // Step 3: Handle departures (once, after all entities processed)
         if (!departuresDone) {
-            processDepartures(village);
+            if (entityQueryHasCompleteCoverage) {
+                processDepartures(village);
+            }
             departuresDone = true;
         }
 
@@ -271,6 +303,7 @@ public class VillageRegistryManager {
         foundInWorld.clear();
         queuedEntityIds.clear();
         entityScanBox = null;
+        entityQueryHasCompleteCoverage = false;
 
         if (finishedVillageId != null && fullScanCompletionPending.remove(finishedVillageId)) {
             VillageRecord village = registryData.getVillages().get(finishedVillageId);
@@ -290,6 +323,7 @@ public class VillageRegistryManager {
         foundInWorld.clear();
         queuedEntityIds.clear();
         entityScanBox = null;
+        entityQueryHasCompleteCoverage = false;
     }
 
     private void initializeEntityScan(AABB box) {
@@ -322,6 +356,8 @@ public class VillageRegistryManager {
                         pendingEntities.add(villager);
                     }
                 }
+            } else {
+                entityQueryHasCompleteCoverage = false;
             }
             advanceEntityScanCursor();
         }

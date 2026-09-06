@@ -96,10 +96,6 @@ public final class MarketTradeService {
         if (EmeraldConsolidationUtils.countEmeraldValue(inventory) < cost) {
             return Result.failed("You cannot afford that trade in emeralds.");
         }
-        ItemStack itemStack = new ItemStack(item, quantity);
-        if (!canAccept(inventory, itemStack)) {
-            return Result.failed("You do not have enough inventory space.");
-        }
         if (bank.getItemStorageCapacity(level, new ItemStack(Items.EMERALD, cost)) < cost) {
             return Result.failed("The bank has no room for the payment.");
         }
@@ -108,21 +104,41 @@ public final class MarketTradeService {
         if (withdrawn.isEmpty()) {
             return Result.failed("The bank stock changed; please try again.");
         }
-        ItemStack[] inventoryBeforePayment = snapshotInventory(inventory);
+        ItemStack withdrawnForRestore = withdrawn.copy();
+        ItemStack[] inventoryBeforeTrade = snapshotInventory(inventory);
         if (!EmeraldConsolidationUtils.removeEmeraldValueExact(inventory, cost)) {
-            bank.storeItemInLinkedChests(level, withdrawn);
+            restoreWithdrawnItem(bank, level, withdrawnForRestore);
             return Result.failed("You do not have enough inventory space for emerald change.");
         }
+
+        // Breaking an emerald block can consume the last free slot with change, so
+        // delivery must be checked against the post-payment inventory.
+        if (!canAccept(inventory, withdrawn)) {
+            restoreInventory(inventory, inventoryBeforeTrade);
+            restoreWithdrawnItem(bank, level, withdrawnForRestore);
+            return Result.failed("You do not have enough inventory space.");
+        }
+        if (!inventory.add(withdrawn) || !withdrawn.isEmpty()) {
+            restoreInventory(inventory, inventoryBeforeTrade);
+            restoreWithdrawnItem(bank, level, withdrawnForRestore);
+            return Result.failed("The purchase could not be added; nothing was committed.");
+        }
+
         ItemStack payment = new ItemStack(Items.EMERALD, cost);
         if (!bank.storeItemInLinkedChests(level, payment)) {
             // The capacity preflight should make this unreachable; restore both sides if a chest changed.
-            restoreInventory(inventory, inventoryBeforePayment);
-            bank.storeItemInLinkedChests(level, withdrawn);
+            restoreInventory(inventory, inventoryBeforeTrade);
+            restoreWithdrawnItem(bank, level, withdrawnForRestore);
             return Result.failed("The bank payment transfer failed; nothing was committed.");
         }
-        inventory.add(withdrawn);
         bank.markInventoryChanged(level);
         return Result.ok();
+    }
+
+    private static void restoreWithdrawnItem(BankBlockEntity bank, ServerLevel level, ItemStack withdrawn) {
+        if (!withdrawn.isEmpty() && !bank.storeItemInLinkedChests(level, withdrawn)) {
+            throw new IllegalStateException("Could not restore withdrawn market item after a failed purchase");
+        }
     }
 
     private static ItemStack[] snapshotInventory(Inventory inventory) {

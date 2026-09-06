@@ -24,7 +24,10 @@ public record RequestVillagePOIDynamicDataPacket(
 ) implements CustomPacketPayload {
 
     private static final long REQUEST_COOLDOWN_TICKS = 10L;
+    /** Limits the larger completion snapshot independently of the small delta cadence. */
+    private static final long FULL_SNAPSHOT_COOLDOWN_TICKS = 200L;
     private static final Map<UUID, DynamicRequestState> REQUEST_STATES = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> LAST_FULL_SNAPSHOT_TICKS = new ConcurrentHashMap<>();
 
     private record DynamicRequestState(long lastRequestTick, UUID villageId,
                                       VillagePOIDynamicDataPacket response) {
@@ -65,7 +68,8 @@ public record RequestVillagePOIDynamicDataPacket(
             long gameTime = level.getGameTime();
             DynamicRequestState previous = REQUEST_STATES.get(player.getUUID());
             if (previous != null
-                    && gameTime < previous.lastRequestTick() + REQUEST_COOLDOWN_TICKS) {
+                    && gameTime >= previous.lastRequestTick()
+                    && gameTime - previous.lastRequestTick() < REQUEST_COOLDOWN_TICKS) {
                 // Re-send the most recent response for the same village. A
                 // different village gets an empty delta rather than causing a
                 // fresh dynamic scan during the cooldown window.
@@ -77,6 +81,18 @@ public record RequestVillagePOIDynamicDataPacket(
             // A screen opened before its first full scan needs one new static
             // snapshot at the completion transition, then returns to deltas.
             if (!packet.clientHasCompletedScan() && village.isCacheInitialized()) {
+                // Record admission before selecting the response type. Repeated
+                // false flags therefore cannot bypass request throttling.
+                REQUEST_STATES.put(player.getUUID(), new DynamicRequestState(
+                        gameTime, packet.villageId(), VillagePOIDynamicDataPacket.empty()));
+                Long lastFullSnapshotTick = LAST_FULL_SNAPSHOT_TICKS.get(player.getUUID());
+                if (lastFullSnapshotTick != null
+                        && gameTime >= lastFullSnapshotTick
+                        && gameTime - lastFullSnapshotTick < FULL_SNAPSHOT_COOLDOWN_TICKS) {
+                    PacketDistributor.sendToPlayer(player, VillagePOIDynamicDataPacket.empty());
+                    return;
+                }
+                LAST_FULL_SNAPSHOT_TICKS.put(player.getUUID(), gameTime);
                 PacketDistributor.sendToPlayer(player,
                         VillagePOIDataCache.getOrBuild(level, village, isOp, player));
                 return;
@@ -93,5 +109,6 @@ public record RequestVillagePOIDynamicDataPacket(
 
     public static void onPlayerDisconnect(UUID playerId) {
         REQUEST_STATES.remove(playerId);
+        LAST_FULL_SNAPSHOT_TICKS.remove(playerId);
     }
 }
