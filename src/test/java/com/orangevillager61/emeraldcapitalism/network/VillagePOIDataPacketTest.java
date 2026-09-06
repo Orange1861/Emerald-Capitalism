@@ -4,11 +4,13 @@ import com.orangevillager61.emeraldcapitalism.world.village.JobSiteEntry;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRelationship;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
+import com.orangevillager61.emeraldcapitalism.test.MinecraftTestBootstrapExtension;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(MinecraftTestBootstrapExtension.class)
 class VillagePOIDataPacketTest {
 
     @AfterEach

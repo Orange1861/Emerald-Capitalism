@@ -1,9 +1,11 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
+import com.orangevillager61.emeraldcapitalism.test.MinecraftTestBootstrapExtension;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.UUID;
 
@@ -11,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(MinecraftTestBootstrapExtension.class)
 class VillageRelationshipTest {
 
     @Test

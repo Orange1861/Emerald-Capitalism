@@ -4,8 +4,10 @@ import com.orangevillager61.emeraldcapitalism.client.renderer.BankOwnershipOverl
 import com.orangevillager61.emeraldcapitalism.client.renderer.VillagePOIOverlayRenderer;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIClientCache;
 import com.orangevillager61.emeraldcapitalism.network.VillagePOIDataPacket;
+import com.orangevillager61.emeraldcapitalism.test.MinecraftTestBootstrapExtension;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -18,6 +20,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(MinecraftTestBootstrapExtension.class)
 class ClientBoundaryTest {
 
     private static final String CLIENT_PACKAGE_PATH =
