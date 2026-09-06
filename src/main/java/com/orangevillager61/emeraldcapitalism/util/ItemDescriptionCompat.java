@@ -12,7 +12,7 @@ public final class ItemDescriptionCompat {
 
     public static String get(ItemStack stack) {
 //? if >=1.21.4 {
-        String baseDescriptionId = stack.getItem().getDescriptionId();
+        /*String baseDescriptionId = stack.getItem().getDescriptionId();
         if (!stack.is(Items.POTION) && !stack.is(Items.SPLASH_POTION)) {
             return baseDescriptionId;
         }
@@ -21,8 +21,8 @@ public final class ItemDescriptionCompat {
                 .flatMap(potion -> potion.unwrapKey()
                         .map(key -> baseDescriptionId + ".effect." + key.location().getPath()))
                 .orElse(baseDescriptionId);
-//?} else {
-/*        return stack.getDescriptionId();
- *///?}
+*///?} else {
+        return stack.getDescriptionId();
+ //?}
     }
 }

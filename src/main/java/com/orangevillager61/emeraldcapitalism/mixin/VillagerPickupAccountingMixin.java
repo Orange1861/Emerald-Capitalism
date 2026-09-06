@@ -19,13 +19,13 @@ public class VillagerPickupAccountingMixin {
     @Unique private int emeraldcapitalism$inventoryEmeraldsBeforePickup;
 
 //? if >=1.21.4 {
-    @Inject(method = "pickUpItem", at = @At("HEAD"))
+    /*@Inject(method = "pickUpItem", at = @At("HEAD"))
     private void emeraldcapitalism$beforePickup(net.minecraft.server.level.ServerLevel level,
                                                 ItemEntity itemEntity, CallbackInfo ci) {
-//?} else {
-/*    @Inject(method = "pickUpItem", at = @At("HEAD"))
+*///?} else {
+    @Inject(method = "pickUpItem", at = @At("HEAD"))
     private void emeraldcapitalism$beforePickup(ItemEntity itemEntity, CallbackInfo ci) {
- *///?}
+ //?}
         ItemStack stack = itemEntity.getItem();
         emeraldcapitalism$pendingPickupEmeralds = EmeraldConsolidationUtils.countEmeraldValue(stack);
         emeraldcapitalism$inventoryEmeraldsBeforePickup = EmeraldConsolidationUtils.countEmeraldValue(
@@ -33,13 +33,13 @@ public class VillagerPickupAccountingMixin {
     }
 
 //? if >=1.21.4 {
-    @Inject(method = "pickUpItem", at = @At("TAIL"))
+    /*@Inject(method = "pickUpItem", at = @At("TAIL"))
     private void emeraldcapitalism$afterPickup(net.minecraft.server.level.ServerLevel level,
                                                ItemEntity itemEntity, CallbackInfo ci) {
-//?} else {
-/*    @Inject(method = "pickUpItem", at = @At("TAIL"))
+*///?} else {
+    @Inject(method = "pickUpItem", at = @At("TAIL"))
     private void emeraldcapitalism$afterPickup(ItemEntity itemEntity, CallbackInfo ci) {
- *///?}
+ //?}
         Villager villager = (Villager) (Object) this;
         int attempted = emeraldcapitalism$pendingPickupEmeralds;
         int before = emeraldcapitalism$inventoryEmeraldsBeforePickup;

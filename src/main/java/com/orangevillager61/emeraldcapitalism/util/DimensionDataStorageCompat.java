@@ -14,17 +14,17 @@ public final class DimensionDataStorageCompat {
     public static DimensionDataStorage create(Path directory, DataFixer fixer,
                                                HolderLookup.Provider registries) {
 //? if >=1.21.4 {
-        return new DimensionDataStorage(directory, fixer, registries);
-//?} else {
-/*        return new DimensionDataStorage(directory.toFile(), fixer, registries);
- *///?}
+        /*return new DimensionDataStorage(directory, fixer, registries);
+*///?} else {
+        return new DimensionDataStorage(directory.toFile(), fixer, registries);
+ //?}
     }
 
     public static void save(DimensionDataStorage storage) {
 //? if >=1.21.4 {
-        storage.saveAndJoin();
-//?} else {
-/*        storage.save();
- *///?}
+        /*storage.saveAndJoin();
+*///?} else {
+        storage.save();
+ //?}
     }
 }

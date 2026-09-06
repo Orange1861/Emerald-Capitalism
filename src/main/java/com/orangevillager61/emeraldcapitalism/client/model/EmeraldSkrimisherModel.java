@@ -10,18 +10,18 @@ import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
 //? if >=1.21.4 {
-import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
-//?} else {
-/*import com.mojang.blaze3d.vertex.PoseStack;
+/*import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+*///?} else {
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
- *///?}
+ //?}
 
 /** Client model converted from the supplied Blockbench Emerald Skrimisher export. */
 //? if >=1.21.4 {
-public final class EmeraldSkrimisherModel extends EntityModel<LivingEntityRenderState> {
-//?} else {
-/*public final class EmeraldSkrimisherModel extends EntityModel<EmeraldSkrimisher> {
- *///?}
+/*public final class EmeraldSkrimisherModel extends EntityModel<LivingEntityRenderState> {
+*///?} else {
+public final class EmeraldSkrimisherModel extends EntityModel<EmeraldSkrimisher> {
+ //?}
 
     private final ModelPart head;
     private final ModelPart body;
@@ -32,8 +32,8 @@ public final class EmeraldSkrimisherModel extends EntityModel<LivingEntityRender
 
     public EmeraldSkrimisherModel(ModelPart root) {
 //? if >=1.21.4 {
-        super(root);
-//?}
+        /*super(root);
+*///?}
         this.head = root.getChild("head");
         this.body = root.getChild("body");
         this.leftArm = root.getChild("left_arm");
@@ -76,20 +76,20 @@ public final class EmeraldSkrimisherModel extends EntityModel<LivingEntityRender
     }
 
 //? if >=1.21.4 {
-    @Override
+    /*@Override
     public void setupAnim(LivingEntityRenderState state) {
         super.setupAnim(state);
-//?} else {
-/*    @Override
+*///?} else {
+    @Override
     public void setupAnim(EmeraldSkrimisher entity, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
- *///?}
+ //?}
         // The supplied export contains no authored animation.
     }
 
 //? if >=1.21.4 {
 //?} else {
-/*    @Override
+    @Override
     public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer,
                                int packedLight, int packedOverlay, int packedColor) {
         head.render(poseStack, vertexConsumer, packedLight, packedOverlay, packedColor);
@@ -99,5 +99,5 @@ public final class EmeraldSkrimisherModel extends EntityModel<LivingEntityRender
         leftLeg.render(poseStack, vertexConsumer, packedLight, packedOverlay, packedColor);
         rightLeg.render(poseStack, vertexConsumer, packedLight, packedOverlay, packedColor);
     }
- *///?}
+ //?}
 }

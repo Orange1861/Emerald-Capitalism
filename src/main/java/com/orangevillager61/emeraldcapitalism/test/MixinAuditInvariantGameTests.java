@@ -101,15 +101,15 @@ public final class MixinAuditInvariantGameTests {
                 villager.getZ(), new ItemStack(Items.EMERALD, 3));
         try {
 //? if >=1.21.4 {
-            Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ServerLevel.class,
+            /*Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ServerLevel.class,
                     ItemEntity.class);
             pickup.setAccessible(true);
             pickup.invoke(villager, helper.getLevel(), emeralds);
-//?} else {
-/*            Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ItemEntity.class);
+*///?} else {
+            Method pickup = Villager.class.getDeclaredMethod("pickUpItem", ItemEntity.class);
             pickup.setAccessible(true);
             pickup.invoke(villager, emeralds);
- *///?}
+ //?}
         } catch (NoSuchMethodException | IllegalAccessException exception) {
             throw new AssertionError("Could not invoke the villager pickup boundary", exception);
         } catch (InvocationTargetException exception) {

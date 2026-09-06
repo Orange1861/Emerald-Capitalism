@@ -28,11 +28,11 @@ public final class ECAPEntityTypes {
                     .sized(1.0F, 2.0F)  // Exactly 1 block wide and 2 blocks tall
                     .clientTrackingRange(10)
 //? if >=1.21.4 {
-                    .build(ResourceKey.create(Registries.ENTITY_TYPE,
+                    /*.build(ResourceKey.create(Registries.ENTITY_TYPE,
                             ResourceLocation.fromNamespaceAndPath(EmeraldCapitalism.MODID, "emerald_golem")))
-//?} else {
-/*                    .build("emerald_golem")
- *///?}
+*///?} else {
+                    .build("emerald_golem")
+ //?}
     );
 
     public static final Supplier<EntityType<EmeraldSkrimisher>> EMERALD_SKRIMISHER = ENTITY_TYPES.register(
@@ -41,10 +41,10 @@ public final class ECAPEntityTypes {
                     .sized(0.75F, 1.0F)
                     .clientTrackingRange(10)
 //? if >=1.21.4 {
-                    .build(ResourceKey.create(Registries.ENTITY_TYPE,
+                    /*.build(ResourceKey.create(Registries.ENTITY_TYPE,
                             ResourceLocation.fromNamespaceAndPath(EmeraldCapitalism.MODID, "emerald_skrimisher")))
-//?} else {
-/*                    .build("emerald_skrimisher")
- *///?}
+*///?} else {
+                    .build("emerald_skrimisher")
+ //?}
     );
 }

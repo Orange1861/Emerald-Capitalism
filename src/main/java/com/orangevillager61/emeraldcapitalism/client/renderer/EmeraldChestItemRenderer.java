@@ -1,11 +1,11 @@
 package com.orangevillager61.emeraldcapitalism.client.renderer;
 
 //? if >=1.21.4 {
-/** The 1.21.4 item-model pipeline renders the block item directly. */
+/*/^* The 1.21.4 item-model pipeline renders the block item directly. ^/
 public final class EmeraldChestItemRenderer {
 }
-//?} else {
-/*
+*///?} else {
+
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
@@ -44,5 +44,5 @@ public class EmeraldChestItemRenderer extends BlockEntityWithoutLevelRenderer {
                 .renderItem(this.chestEntity, poseStack, buffer, packedLight, packedOverlay);
     }
 }
-*/
+
 //?}

@@ -21,10 +21,10 @@ public class SawmillRecipe extends SingleItemRecipe {
 
     public SawmillRecipe(String group, Ingredient ingredient, int inputCount, ItemStack result) {
 //? if >=1.21.4 {
-        super(group, ingredient, result);
-//?} else {
-/*        super(ECAPRecipeTypes.SAWMILL.get(), ECAPRecipeSerializers.SAWMILL.get(), group, ingredient, result);
- *///?}
+        /*super(group, ingredient, result);
+*///?} else {
+        super(ECAPRecipeTypes.SAWMILL.get(), ECAPRecipeSerializers.SAWMILL.get(), group, ingredient, result);
+ //?}
         this.inputCount = inputCount;
     }
 
@@ -33,7 +33,7 @@ public class SawmillRecipe extends SingleItemRecipe {
     }
 
 //? if >=1.21.4 {
-    @Override
+    /*@Override
     public net.minecraft.world.item.crafting.RecipeSerializer<? extends SawmillRecipe> getSerializer() {
         return ECAPRecipeSerializers.SAWMILL.get();
     }
@@ -47,65 +47,65 @@ public class SawmillRecipe extends SingleItemRecipe {
     public net.minecraft.world.item.crafting.RecipeBookCategory recipeBookCategory() {
         return net.minecraft.world.item.crafting.RecipeBookCategories.STONECUTTER;
     }
-//?} else {
+*///?} else {
 //?}
 
     @Override
     public boolean matches(SingleRecipeInput input, Level level) {
         return input.item().getCount() >= this.inputCount &&
 //? if >=1.21.4 {
-                this.input().test(input.item());
-//?} else {
-/*                this.ingredient.test(input.item());
- *///?}
+                /*this.input().test(input.item());
+*///?} else {
+                this.ingredient.test(input.item());
+ //?}
     }
 
 //? if >=1.21.4 {
 //?} else {
-/*    @Override
+    @Override
     public ItemStack getToastSymbol() {
         return new ItemStack(ECAPBlocks.SAWMILL.get());
     }
- *///?}
+ //?}
 
     public static final class Serializer implements net.minecraft.world.item.crafting.RecipeSerializer<SawmillRecipe> {
         private final MapCodec<SawmillRecipe> codec = RecordCodecBuilder.mapCodec(instance -> instance.group(
 //? if >=1.21.4 {
-                Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::group),
+                /*Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::group),
                 Ingredient.CODEC.fieldOf("ingredient").forGetter(SawmillRecipe::input),
-//?} else {
-/*                Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::getGroup),
+*///?} else {
+                Codec.STRING.optionalFieldOf("group", "").forGetter(SawmillRecipe::getGroup),
                 Ingredient.CODEC_NONEMPTY.fieldOf("ingredient").forGetter(recipe -> recipe.ingredient),
- *///?}
+ //?}
                 Codec.intRange(1, 64).fieldOf("count").forGetter(SawmillRecipe::getInputCount),
 //? if >=1.21.4 {
-                ItemStack.STRICT_CODEC.fieldOf("result").forGetter(SawmillRecipe::result)
-//?} else {
-/*                ItemStack.STRICT_CODEC.fieldOf("result").forGetter(recipe -> recipe.result)
- *///?}
+                /*ItemStack.STRICT_CODEC.fieldOf("result").forGetter(SawmillRecipe::result)
+*///?} else {
+                ItemStack.STRICT_CODEC.fieldOf("result").forGetter(recipe -> recipe.result)
+ //?}
         ).apply(instance, SawmillRecipe::new));
 
         private final StreamCodec<RegistryFriendlyByteBuf, SawmillRecipe> streamCodec = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8,
 //? if >=1.21.4 {
-                SawmillRecipe::group,
-//?} else {
-/*                SawmillRecipe::getGroup,
- *///?}
+                /*SawmillRecipe::group,
+*///?} else {
+                SawmillRecipe::getGroup,
+ //?}
                 Ingredient.CONTENTS_STREAM_CODEC,
 //? if >=1.21.4 {
-                SawmillRecipe::input,
-//?} else {
-/*                recipe -> recipe.ingredient,
- *///?}
+                /*SawmillRecipe::input,
+*///?} else {
+                recipe -> recipe.ingredient,
+ //?}
                 ByteBufCodecs.VAR_INT,
                 SawmillRecipe::getInputCount,
                 ItemStack.STREAM_CODEC,
 //? if >=1.21.4 {
-                SawmillRecipe::result,
-//?} else {
-/*                recipe -> recipe.result,
- *///?}
+                /*SawmillRecipe::result,
+*///?} else {
+                recipe -> recipe.result,
+ //?}
                 SawmillRecipe::new
         );
 

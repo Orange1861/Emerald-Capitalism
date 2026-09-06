@@ -132,7 +132,7 @@ public class BankBlock extends BaseEntityBlock {
     }
 
 //? if <1.21.4 {
-/*    @Override
+    @Override
     protected @NotNull VoxelShape getOcclusionShape(@NotNull BlockState state, @NotNull BlockGetter level,
                                                       @NotNull BlockPos pos) {
         return SHAPE;
@@ -142,7 +142,7 @@ public class BankBlock extends BaseEntityBlock {
     protected boolean useShapeForLightOcclusion(@NotNull BlockState state) {
         return true;
     }
- *///?}
+ //?}
 
     @Nullable
     @Override

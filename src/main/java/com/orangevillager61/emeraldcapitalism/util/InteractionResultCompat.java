@@ -9,9 +9,9 @@ public final class InteractionResultCompat {
 
     public static InteractionResult sidedSuccess(boolean clientSide) {
 //? if >=1.21.4 {
-        return clientSide ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
-//?} else {
-/*        return InteractionResult.sidedSuccess(clientSide);
- *///?}
+        /*return clientSide ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
+*///?} else {
+        return InteractionResult.sidedSuccess(clientSide);
+ //?}
     }
 }

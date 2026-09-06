@@ -9,9 +9,9 @@ public final class ChunkSaveCompat {
 
     public static void markClean(LevelChunk chunk) {
 //? if >=1.21.4 {
-        chunk.tryMarkSaved();
-//?} else {
-/*        chunk.setUnsaved(false);
- *///?}
+        /*chunk.tryMarkSaved();
+*///?} else {
+        chunk.setUnsaved(false);
+ //?}
     }
 }

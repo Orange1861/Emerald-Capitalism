@@ -11,8 +11,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 //? if >=1.21.4 {
 //?} else {
-/*import net.neoforged.neoforge.common.world.poi.ExtendPoiTypesEvent;
- *///?}
+import net.neoforged.neoforge.common.world.poi.ExtendPoiTypesEvent;
+ //?}
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.bus.api.IEventBus;
@@ -56,7 +56,7 @@ public final class ECAPPoiTypes {
 
 //? if >=1.21.4 {
 //?} else {
-/*
+
     // Adds the custom bed to the vanilla home POI used by villager housing and breeding.
     public static void extendVanillaPoiTypes(ExtendPoiTypesEvent event) {
         Set<BlockState> headStates =
@@ -65,7 +65,7 @@ public final class ECAPPoiTypes {
                         .collect(Collectors.toUnmodifiableSet());
         event.addStatesToPoi(PoiTypes.HOME, headStates);
     }
- *///?}
+ //?}
 
     private static PoiType createJobSite(Block block) {
         return createJobSite(block, ignored -> true);

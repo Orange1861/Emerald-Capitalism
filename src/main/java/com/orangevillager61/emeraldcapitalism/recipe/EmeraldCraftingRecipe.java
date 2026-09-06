@@ -21,7 +21,7 @@ public final class EmeraldCraftingRecipe extends ShapedRecipe {
     }
 
 //? if >=1.21.4 {
-    @Override
+    /*@Override
     public RecipeType<CraftingRecipe> getType() {
         return ECAPRecipeTypes.EMERALD_CRAFTING.get();
     }
@@ -31,8 +31,8 @@ public final class EmeraldCraftingRecipe extends ShapedRecipe {
         return ECAPRecipeSerializers.EMERALD_CRAFTING.get();
     }
 
-//?} else {
-/*    @Override
+*///?} else {
+    @Override
     public RecipeSerializer<?> getSerializer() {
         return ECAPRecipeSerializers.EMERALD_CRAFTING.get();
     }
@@ -41,29 +41,29 @@ public final class EmeraldCraftingRecipe extends ShapedRecipe {
     public RecipeType<?> getType() {
         return ECAPRecipeTypes.EMERALD_CRAFTING.get();
     }
- *///?}
+ //?}
 
     public static final class Serializer implements RecipeSerializer<EmeraldCraftingRecipe> {
         private static EmeraldCraftingRecipe fromShaped(ShapedRecipe recipe) {
 //? if >=1.21.4 {
-            return new EmeraldCraftingRecipe(recipe.group(), recipe.category(), recipe.pattern,
+            /*return new EmeraldCraftingRecipe(recipe.group(), recipe.category(), recipe.pattern,
                     recipe.assemble(net.minecraft.world.item.crafting.CraftingInput.EMPTY, null),
                     recipe.showNotification());
-//?} else {
-/*            return new EmeraldCraftingRecipe(recipe.getGroup(), recipe.category(), recipe.pattern,
+*///?} else {
+            return new EmeraldCraftingRecipe(recipe.getGroup(), recipe.category(), recipe.pattern,
                     recipe.getResultItem(null), recipe.showNotification());
- *///?}
+ //?}
         }
 
         private static ShapedRecipe toShaped(EmeraldCraftingRecipe recipe) {
 //? if >=1.21.4 {
-            return new ShapedRecipe(recipe.group(), recipe.category(), recipe.pattern,
+            /*return new ShapedRecipe(recipe.group(), recipe.category(), recipe.pattern,
                     recipe.assemble(net.minecraft.world.item.crafting.CraftingInput.EMPTY, null),
                     recipe.showNotification());
-//?} else {
-/*            return new ShapedRecipe(recipe.getGroup(), recipe.category(), recipe.pattern,
+*///?} else {
+            return new ShapedRecipe(recipe.getGroup(), recipe.category(), recipe.pattern,
                     recipe.getResultItem(null), recipe.showNotification());
- *///?}
+ //?}
         }
 
         @Override

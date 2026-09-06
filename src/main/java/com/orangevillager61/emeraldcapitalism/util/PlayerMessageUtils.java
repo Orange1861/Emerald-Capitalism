@@ -10,13 +10,13 @@ public final class PlayerMessageUtils {
 
     public static void send(Player player, Component message) {
 //? if >=1.21.4 {
-        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+        /*if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
             serverPlayer.sendSystemMessage(message);
         } else {
             player.displayClientMessage(message, false);
         }
-//?} else {
-/*        player.sendSystemMessage(message);
- *///?}
+*///?} else {
+        player.sendSystemMessage(message);
+ //?}
     }
 }

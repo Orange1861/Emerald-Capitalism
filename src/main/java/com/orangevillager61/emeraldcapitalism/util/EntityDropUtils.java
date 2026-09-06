@@ -12,17 +12,17 @@ public final class EntityDropUtils {
 
     public static ItemEntity spawn(Entity entity, ServerLevel level, ItemStack stack) {
 //? if >=1.21.4 {
-        return entity.spawnAtLocation(level, stack);
-//?} else {
-/*        return entity.spawnAtLocation(stack);
- *///?}
+        /*return entity.spawnAtLocation(level, stack);
+*///?} else {
+        return entity.spawnAtLocation(stack);
+ //?}
     }
 
     public static ItemEntity spawn(Entity entity, ServerLevel level, ItemStack stack, float yOffset) {
 //? if >=1.21.4 {
-        return entity.spawnAtLocation(level, stack, yOffset);
-//?} else {
-/*        return entity.spawnAtLocation(stack, yOffset);
- *///?}
+        /*return entity.spawnAtLocation(level, stack, yOffset);
+*///?} else {
+        return entity.spawnAtLocation(stack, yOffset);
+ //?}
     }
 }

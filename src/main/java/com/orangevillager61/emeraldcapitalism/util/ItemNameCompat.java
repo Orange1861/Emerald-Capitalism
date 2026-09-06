@@ -10,9 +10,9 @@ public final class ItemNameCompat {
 
     public static Component get(Item item) {
 //? if >=1.21.4 {
-        return item.getName();
-//?} else {
-/*        return item.getDescription();
- *///?}
+        /*return item.getName();
+*///?} else {
+        return item.getDescription();
+ //?}
     }
 }

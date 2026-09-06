@@ -18,14 +18,14 @@ public class VillagerPickupPolicyMixin {
     private static final int RESERVED_FOOD_SLOTS = 3;
 
 //? if >=1.21.4 {
-    @Inject(method = "wantsToPickUp", at = @At("HEAD"), cancellable = true)
+    /*@Inject(method = "wantsToPickUp", at = @At("HEAD"), cancellable = true)
     private void emeraldcapitalism$wantsToPickUp(net.minecraft.server.level.ServerLevel level,
                                                  ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
-//?} else {
-/*    @Inject(method = "wantsToPickUp", at = @At("HEAD"), cancellable = true)
+*///?} else {
+    @Inject(method = "wantsToPickUp", at = @At("HEAD"), cancellable = true)
     private void emeraldcapitalism$wantsToPickUp(ItemStack stack,
                                                  CallbackInfoReturnable<Boolean> cir) {
- *///?}
+ //?}
         Villager villager = (Villager) (Object) this;
         SimpleContainer inventory = villager.getInventory();
         if (!VillagerSkrimisherItemPool.contains(stack)

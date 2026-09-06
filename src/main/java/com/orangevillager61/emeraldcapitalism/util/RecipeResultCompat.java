@@ -12,9 +12,9 @@ public final class RecipeResultCompat {
 
     public static ItemStack getSawmillResult(SawmillRecipe recipe, HolderLookup.Provider registries) {
 //? if >=1.21.4 {
-        return recipe.assemble(new SingleRecipeInput(ItemStack.EMPTY), registries);
-//?} else {
-/*        return recipe.getResultItem(registries);
- *///?}
+        /*return recipe.assemble(new SingleRecipeInput(ItemStack.EMPTY), registries);
+*///?} else {
+        return recipe.getResultItem(registries);
+ //?}
     }
 }

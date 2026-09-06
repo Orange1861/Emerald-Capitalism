@@ -14,10 +14,10 @@ public final class EntityCreation {
     public static <T extends Entity> T create(EntityType<T> type, ServerLevel level) {
         T entity;
 //? if >=1.21.4 {
-        entity = type.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
-//?} else {
-/*        entity = type.create(level);
- *///?}
+        /*entity = type.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+*///?} else {
+        entity = type.create(level);
+ //?}
         return Objects.requireNonNull(entity, "Entity type cannot create an instance: " + type);
     }
 }

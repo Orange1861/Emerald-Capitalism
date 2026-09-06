@@ -42,10 +42,10 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.common.NeoForge;
 //? if >=1.21.4 {
-import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
-//?} else {
-/*import net.neoforged.neoforge.event.AddReloadListenerEvent;
- *///?}
+/*import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
+*///?} else {
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
+ //?}
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
@@ -61,8 +61,8 @@ public class EmeraldCapitalism {
         ECAPRegistries.registerAll(modEventBus);
 //? if >=1.21.4 {
 //?} else {
-/*        modEventBus.addListener(ECAPPoiTypes::extendVanillaPoiTypes);
- *///?}
+        modEventBus.addListener(ECAPPoiTypes::extendVanillaPoiTypes);
+ //?}
 
         EmeraldGolemEvents.register(modEventBus, NeoForge.EVENT_BUS);
 
@@ -80,15 +80,15 @@ public class EmeraldCapitalism {
 
     @SubscribeEvent
 //? if >=1.21.4 {
-    public void onAddReloadListeners(AddServerReloadListenersEvent event) {
-//?} else {
-/*    public void onAddReloadListeners(AddReloadListenerEvent event) {
- *///?}
+    /*public void onAddReloadListeners(AddServerReloadListenersEvent event) {
+*///?} else {
+    public void onAddReloadListeners(AddReloadListenerEvent event) {
+ //?}
 //? if >=1.21.4 {
-        event.addListener(ModIds.id("resource_reload"), new SimplePreparableReloadListener<Void>() {
-//?} else {
-/*        event.addListener(new SimplePreparableReloadListener<Void>() {
- *///?}
+        /*event.addListener(ModIds.id("resource_reload"), new SimplePreparableReloadListener<Void>() {
+*///?} else {
+        event.addListener(new SimplePreparableReloadListener<Void>() {
+ //?}
             @Override
             protected Void prepare(ResourceManager resourceManager, ProfilerFiller profiler) {
                 return null;

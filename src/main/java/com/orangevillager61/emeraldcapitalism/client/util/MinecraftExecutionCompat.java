@@ -9,9 +9,9 @@ public final class MinecraftExecutionCompat {
 
     public static void execute(Minecraft minecraft, Runnable action) {
 //? if >=1.21.4 {
-        minecraft.execute(action);
-//?} else {
-/*        minecraft.tell(action);
- *///?}
+        /*minecraft.execute(action);
+*///?} else {
+        minecraft.tell(action);
+ //?}
     }
 }

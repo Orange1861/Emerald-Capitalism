@@ -90,16 +90,16 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
     }
 
 //? if >=1.21.4 {
-    @Override
+    /*@Override
     public boolean wantsToPickUp(ServerLevel level, ItemStack stack) {
         return canHoldItem(stack);
     }
-//?} else {
-/*    @Override
+*///?} else {
+    @Override
     protected ResourceKey<LootTable> getDefaultLootTable() {
         return LOOT_TABLE;
     }
- *///?}
+ //?}
 
     @Override
     protected void dropCustomDeathLoot(ServerLevel level, DamageSource damageSource, boolean recentlyHit) {
@@ -109,16 +109,16 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
     }
 
 //? if >=1.21.4 {
-    @Override
+    /*@Override
     protected void pickUpItem(ServerLevel level, ItemEntity itemEntity) {
         InventoryCarrier.pickUpItem(level, this, this, itemEntity);
     }
-//?} else {
-/*    @Override
+*///?} else {
+    @Override
     protected void pickUpItem(ItemEntity itemEntity) {
         InventoryCarrier.pickUpItem(this, this, itemEntity);
     }
- *///?}
+ //?}
 
     /** Entry point used by the pickup goal, which cannot call Mob's protected method. */
     public void pickUpItemForGoal(ItemEntity itemEntity) {
@@ -126,10 +126,10 @@ public class EmeraldSkrimisher extends EmeraldGolem implements InventoryCarrier 
             return;
         }
 //? if >=1.21.4 {
-        pickUpItem(level, itemEntity);
-//?} else {
-/*        pickUpItem(itemEntity);
- *///?}
+        /*pickUpItem(level, itemEntity);
+*///?} else {
+        pickUpItem(itemEntity);
+ //?}
     }
 
     /** Returns whether another emerald or iron golem is within eight blocks of the target. */

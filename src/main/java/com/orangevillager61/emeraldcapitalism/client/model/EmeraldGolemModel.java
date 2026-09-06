@@ -18,10 +18,10 @@ import net.minecraft.client.model.geom.builders.PartDefinition;
  * unchanged.</p>
  */
 //? if >=1.21.4 {
-public class EmeraldGolemModel extends IronGolemModel {
-//?} else {
-/*public class EmeraldGolemModel<T extends EmeraldGolem> extends IronGolemModel<T> {
- *///?}
+/*public class EmeraldGolemModel extends IronGolemModel {
+*///?} else {
+public class EmeraldGolemModel<T extends EmeraldGolem> extends IronGolemModel<T> {
+ //?}
 
     public EmeraldGolemModel(ModelPart root) {
         super(root);

@@ -24,12 +24,12 @@ public final class ECAPRecipeTypes {
             "sawmill", () -> RecipeType.simple(ModIds.id("sawmill")));
 
 //? if >=1.21.4 {
-    public static final Supplier<RecipeType<CraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
+    /*public static final Supplier<RecipeType<CraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
             "emerald_crafting", () -> RecipeType.simple(ModIds.id("emerald_crafting")));
-//?} else {
-/*    public static final Supplier<RecipeType<EmeraldCraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
+*///?} else {
+    public static final Supplier<RecipeType<EmeraldCraftingRecipe>> EMERALD_CRAFTING = RECIPE_TYPES.register(
             "emerald_crafting", () -> RecipeType.simple(ModIds.id("emerald_crafting")));
- *///?}
+ //?}
 
     private ECAPRecipeTypes() {}
 }

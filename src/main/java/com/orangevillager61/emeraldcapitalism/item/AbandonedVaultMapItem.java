@@ -8,10 +8,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
 //? if >=1.21.4 {
-import net.minecraft.world.InteractionResult;
-//?} else {
-/*import net.minecraft.world.InteractionResultHolder;
- *///?}
+/*import net.minecraft.world.InteractionResult;
+*///?} else {
+import net.minecraft.world.InteractionResultHolder;
+ //?}
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -42,17 +42,17 @@ public final class AbandonedVaultMapItem extends Item {
 
     @Override
 //? if >=1.21.4 {
-    public InteractionResult use(Level level, Player player, InteractionHand hand) {
-//?} else {
-/*    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
- *///?}
+    /*public InteractionResult use(Level level, Player player, InteractionHand hand) {
+*///?} else {
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+ //?}
         ItemStack ticket = player.getItemInHand(hand);
         if (level.isClientSide()) {
 //? if >=1.21.4 {
-            return InteractionResult.SUCCESS;
-//?} else {
-/*            return InteractionResultHolder.success(ticket);
- *///?}
+            /*return InteractionResult.SUCCESS;
+*///?} else {
+            return InteractionResultHolder.success(ticket);
+ //?}
         }
 
         ServerLevel serverLevel = (ServerLevel) level;
@@ -65,10 +65,10 @@ public final class AbandonedVaultMapItem extends Item {
                     ? "No second abandoned vault could be found nearby."
                     : "No abandoned vault could be found nearby."), true);
 //? if >=1.21.4 {
-            return InteractionResult.FAIL;
-//?} else {
-/*            return InteractionResultHolder.fail(ticket);
- *///?}
+            /*return InteractionResult.FAIL;
+*///?} else {
+            return InteractionResultHolder.fail(ticket);
+ //?}
         }
 
         BlockPos vault = targetPosition.get();
@@ -89,9 +89,9 @@ public final class AbandonedVaultMapItem extends Item {
         }
         player.awardStat(Stats.ITEM_USED.get(this));
 //? if >=1.21.4 {
-        return InteractionResult.CONSUME;
-//?} else {
-/*        return InteractionResultHolder.consume(ticket);
- *///?}
+        /*return InteractionResult.CONSUME;
+*///?} else {
+        return InteractionResultHolder.consume(ticket);
+ //?}
     }
 }

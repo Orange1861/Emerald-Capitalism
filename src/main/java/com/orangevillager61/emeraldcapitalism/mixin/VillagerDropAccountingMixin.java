@@ -18,7 +18,7 @@ public class VillagerDropAccountingMixin {
 
     /** Accounts for each successful spawned stack through Entity's drop API. */
 //? if >=1.21.4 {
-    @Inject(
+    /*@Inject(
             method = "spawnAtLocation(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;",
             at = @At("RETURN"),
             require = 1)
@@ -27,8 +27,8 @@ public class VillagerDropAccountingMixin {
                                    float yOffset, CallbackInfoReturnable<ItemEntity> cir) {
         recordEmeraldDropResult(cir);
     }
-//?} else {
-/*    @Inject(
+*///?} else {
+    @Inject(
             method = "spawnAtLocation(Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;",
             at = @At("RETURN"),
             require = 1)
@@ -36,7 +36,7 @@ public class VillagerDropAccountingMixin {
     private void recordEmeraldDrop(ItemStack stack, float yOffset, CallbackInfoReturnable<ItemEntity> cir) {
         recordEmeraldDropResult(cir);
     }
- *///?}
+ //?}
 
     private void recordEmeraldDropResult(CallbackInfoReturnable<ItemEntity> cir) {
         Entity entity = (Entity) (Object) this;

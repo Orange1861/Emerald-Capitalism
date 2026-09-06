@@ -170,13 +170,13 @@ public final class RegistrationGameTests {
 
         Item egg = ECAPItems.EMERALD_GOLEM_SPAWN_EGG.get();
 //? if >=1.21.4 {
-        if (!(egg instanceof SpawnEggItem spawnEgg)
+        /*if (!(egg instanceof SpawnEggItem spawnEgg)
                 || spawnEgg.getType(helper.getLevel().registryAccess(), egg.getDefaultInstance())
                 != ECAPEntityTypes.EMERALD_GOLEM.get()) {
-//?} else {
-/*        if (!(egg instanceof DeferredSpawnEggItem deferredEgg)
+*///?} else {
+        if (!(egg instanceof DeferredSpawnEggItem deferredEgg)
                 || deferredEgg.getType(egg.getDefaultInstance()) != ECAPEntityTypes.EMERALD_GOLEM.get()) {
- *///?}
+ //?}
             helper.fail("Emerald golem egg is not the intended deferred spawn egg");
             return;
         }

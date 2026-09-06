@@ -9,9 +9,9 @@ public final class BlockAtlasCompat {
 
     public static ResourceLocation location() {
 //? if >=1.21.4 {
-        return ResourceLocation.withDefaultNamespace("textures/atlas/blocks.png");
-//?} else {
-/*        return net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS;
- *///?}
+        /*return ResourceLocation.withDefaultNamespace("textures/atlas/blocks.png");
+*///?} else {
+        return net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS;
+ //?}
     }
 }

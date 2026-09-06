@@ -8,10 +8,10 @@ import com.orangevillager61.emeraldcapitalism.client.renderer.layer.EmeraldGolem
 import com.orangevillager61.emeraldcapitalism.client.renderer.layer.EmeraldGolemFlowerLayer;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 //? if >=1.21.4 {
-import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
-//?} else {
-/*import net.minecraft.client.model.geom.ModelPart;
- *///?}
+/*import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
+*///?} else {
+import net.minecraft.client.model.geom.ModelPart;
+ //?}
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
@@ -20,10 +20,10 @@ import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import org.jetbrains.annotations.NotNull;
 
 //? if >=1.21.4 {
-public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, IronGolemRenderState, EmeraldGolemModel> {
-//?} else {
-/*public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, EmeraldGolemModel<EmeraldGolem>> {
- *///?}
+/*public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, IronGolemRenderState, EmeraldGolemModel> {
+*///?} else {
+public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, EmeraldGolemModel<EmeraldGolem>> {
+ //?}
 
     // The authored mesh is 16 px wide by 33 px tall. Keep its cuboids intact,
     // but render it at exactly 1 block wide by 2 blocks tall.
@@ -37,16 +37,16 @@ public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, IronGolemRen
 
     public EmeraldGolemRenderer(EntityRendererProvider.Context context) {
 //? if >=1.21.4 {
-        super(context, new EmeraldGolemModel(context.bakeLayer(EMERALD_GOLEM_LAYER)), 0.5F);
-//?} else {
-/*        super(context, new EmeraldGolemModel<>(context.bakeLayer(EMERALD_GOLEM_LAYER)), 0.5F);
- *///?}
+        /*super(context, new EmeraldGolemModel(context.bakeLayer(EMERALD_GOLEM_LAYER)), 0.5F);
+*///?} else {
+        super(context, new EmeraldGolemModel<>(context.bakeLayer(EMERALD_GOLEM_LAYER)), 0.5F);
+ //?}
         this.addLayer(new EmeraldGolemCrackLayer(this));
         this.addLayer(new EmeraldGolemFlowerLayer(this, context.getBlockRenderDispatcher()));
     }
 
 //? if >=1.21.4 {
-    @Override
+    /*@Override
     protected void scale(@NotNull IronGolemRenderState state, @NotNull PoseStack poseStack) {
         poseStack.scale(1.0F, MODEL_HEIGHT_SCALE, 1.0F);
     }
@@ -81,8 +81,8 @@ public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, IronGolemRen
                     6.5F * walkSpeed * (float) Math.cos(walkPos)));
         }
     }
-//?} else {
-/*    @Override
+*///?} else {
+    @Override
     protected void scale(@NotNull EmeraldGolem entity, @NotNull PoseStack poseStack, float partialTick) {
         poseStack.scale(1.0F, MODEL_HEIGHT_SCALE, 1.0F);
     }
@@ -101,5 +101,5 @@ public class EmeraldGolemRenderer extends MobRenderer<EmeraldGolem, IronGolemRen
             poseStack.mulPose(Axis.ZP.rotationDegrees(6.5F * walkSpeed * (float) Math.cos(walkPos)));
         }
     }
- *///?}
+ //?}
 }

@@ -235,10 +235,10 @@ public final class VillagerGoalBehaviorGameTests {
         beggar.getBrain().setMemory(
                 MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES,
 //? if >=1.21.4 {
-                new NearestVisibleLivingEntities(helper.getLevel(), beggar, List.<LivingEntity>of(donor)));
-//?} else {
-/*                new NearestVisibleLivingEntities(beggar, List.<LivingEntity>of(donor)));
- *///?}
+                /*new NearestVisibleLivingEntities(helper.getLevel(), beggar, List.<LivingEntity>of(donor)));
+*///?} else {
+                new NearestVisibleLivingEntities(beggar, List.<LivingEntity>of(donor)));
+ //?}
 
         BehaviorControl<Villager> behavior = findBehavior(
                 VillagerGoalPackages.getIdlePackage(VillagerProfession.NONE, 0.5F),
@@ -371,10 +371,10 @@ public final class VillagerGoalBehaviorGameTests {
         }
         Villager villager = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
 //? if >=1.21.4 {
-        Boat boat = helper.spawn(EntityType.OAK_BOAT, 2, 1, 1);
-//?} else {
-/*        Boat boat = helper.spawn(EntityType.BOAT, 2, 1, 1);
- *///?}
+        /*Boat boat = helper.spawn(EntityType.OAK_BOAT, 2, 1, 1);
+*///?} else {
+        Boat boat = helper.spawn(EntityType.BOAT, 2, 1, 1);
+ //?}
         boolean previous = Config.enableBoatAvoidance;
         Config.enableBoatAvoidance = true;
         try {

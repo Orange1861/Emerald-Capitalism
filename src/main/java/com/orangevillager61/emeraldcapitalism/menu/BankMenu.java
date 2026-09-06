@@ -222,7 +222,7 @@ public class BankMenu extends AbstractContainerMenu {
 
     private Optional<RecipeHolder<? extends CraftingRecipe>> findRecipe(Level level, CraftingInput input) {
 //? if >=1.21.4 {
-        Optional<RecipeHolder<CraftingRecipe>> emeraldRecipe =
+        /*Optional<RecipeHolder<CraftingRecipe>> emeraldRecipe =
                 com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(level).getRecipeFor(
                         ECAPRecipeTypes.EMERALD_CRAFTING.get(), input, level);
         if (emeraldRecipe.isPresent()) {
@@ -235,8 +235,8 @@ public class BankMenu extends AbstractContainerMenu {
         return vanillaRecipe.isPresent()
                 ? Optional.<RecipeHolder<? extends CraftingRecipe>>of(vanillaRecipe.get())
                 : Optional.empty();
-//?} else {
-/*        Optional<RecipeHolder<EmeraldCraftingRecipe>> emeraldRecipe =
+*///?} else {
+        Optional<RecipeHolder<EmeraldCraftingRecipe>> emeraldRecipe =
                 com.orangevillager61.emeraldcapitalism.util.RecipeManagerCompat.get(level).getRecipeFor(
                 ECAPRecipeTypes.EMERALD_CRAFTING.get(), input, level);
         if (emeraldRecipe.isPresent()) {
@@ -249,7 +249,7 @@ public class BankMenu extends AbstractContainerMenu {
         return vanillaRecipe.isPresent()
                 ? Optional.<RecipeHolder<? extends CraftingRecipe>>of(vanillaRecipe.get())
                 : Optional.empty();
- *///?}
+ //?}
     }
 
     public void beginPlacingRecipe() {

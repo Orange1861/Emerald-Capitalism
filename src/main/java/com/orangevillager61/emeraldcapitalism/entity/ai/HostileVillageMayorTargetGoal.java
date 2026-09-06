@@ -13,10 +13,10 @@ public final class HostileVillageMayorTargetGoal extends NearestAttackableTarget
     public HostileVillageMayorTargetGoal(EmeraldGolem golem) {
         super(golem, Villager.class, 10, false, false,
 //? if >=1.21.4 {
-                (target, level) -> target instanceof Villager mayor
-//?} else {
-/*                target -> target instanceof Villager mayor
- *///?}
+                /*(target, level) -> target instanceof Villager mayor
+*///?} else {
+                target -> target instanceof Villager mayor
+ //?}
                         && VillageHostility.isHostileMayor(golem, mayor));
         this.golem = golem;
     }

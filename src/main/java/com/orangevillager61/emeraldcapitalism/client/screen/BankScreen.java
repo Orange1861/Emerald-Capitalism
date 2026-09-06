@@ -1205,12 +1205,12 @@ public class BankScreen extends AbstractContainerScreen<BankMenu> {
                 ? ResourceLocation.parse(entry.itemId())
                 : ResourceLocation.withDefaultNamespace(entry.itemId());
 //? if >=1.21.4 {
-        return BuiltInRegistries.ITEM.get(id)
+        /*return BuiltInRegistries.ITEM.get(id)
                 .map(holder -> new ItemStack(holder.value()))
                 .orElse(ItemStack.EMPTY);
-//?} else {
-/*        return new ItemStack(BuiltInRegistries.ITEM.get(id));
- *///?}
+*///?} else {
+        return new ItemStack(BuiltInRegistries.ITEM.get(id));
+ //?}
     }
 
     private MarketTradeQuote currentMarketQuote(BankMenu.MarketEntry entry) {

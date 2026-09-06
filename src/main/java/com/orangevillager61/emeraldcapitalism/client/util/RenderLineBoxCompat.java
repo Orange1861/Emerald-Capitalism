@@ -12,11 +12,11 @@ public final class RenderLineBoxCompat {
     public static void render(PoseStack poseStack, VertexConsumer buffer, AABB box,
                               float red, float green, float blue, float alpha) {
 //? if >=1.21.4 {
-        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(
+        /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(
                 poseStack, buffer, box, red, green, blue, alpha);
-//?} else {
-/*        net.minecraft.client.renderer.LevelRenderer.renderLineBox(
+*///?} else {
+        net.minecraft.client.renderer.LevelRenderer.renderLineBox(
                 poseStack, buffer, box, red, green, blue, alpha);
- *///?}
+ //?}
     }
 }

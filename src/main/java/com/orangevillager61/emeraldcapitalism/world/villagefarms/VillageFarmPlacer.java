@@ -157,12 +157,12 @@ public class VillageFarmPlacer {
                     com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
                             level.registryAccess(), Registries.PROCESSOR_LIST);
 //? if >=1.21.4 {
-            StructureProcessorList processors =
+            /*StructureProcessorList processors =
                     com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getValue(
                             processorRegistry, placement.processorList());
-//?} else {
-/*            StructureProcessorList processors = processorRegistry.get(placement.processorList());
- *///?}
+*///?} else {
+            StructureProcessorList processors = processorRegistry.get(placement.processorList());
+ //?}
             if (processors != null) {
                 for (var processor : processors.list()) {
                     settings.addProcessor(processor);

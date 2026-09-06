@@ -180,10 +180,10 @@ public class VillagerHungerEvents {
         
         villager.playSound(
 //? if >=1.21.4 {
-                SoundEvents.GENERIC_EAT.value(),
-//?} else {
-/*                SoundEvents.GENERIC_EAT,
- *///?}
+                /*SoundEvents.GENERIC_EAT.value(),
+*///?} else {
+                SoundEvents.GENERIC_EAT,
+ //?}
                 0.5F + 0.5F * random.nextFloat(),
                 pitch
         );

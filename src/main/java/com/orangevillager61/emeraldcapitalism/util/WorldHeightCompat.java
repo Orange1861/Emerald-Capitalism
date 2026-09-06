@@ -9,17 +9,17 @@ public final class WorldHeightCompat {
 
     public static int min(LevelHeightAccessor level) {
 //? if >=1.21.4 {
-        return level.getMinY();
-//?} else {
-/*        return level.getMinBuildHeight();
- *///?}
+        /*return level.getMinY();
+*///?} else {
+        return level.getMinBuildHeight();
+ //?}
     }
 
     public static int max(LevelHeightAccessor level) {
 //? if >=1.21.4 {
-        return level.getMaxY();
-//?} else {
-/*        return level.getMaxBuildHeight();
- *///?}
+        /*return level.getMaxY();
+*///?} else {
+        return level.getMaxBuildHeight();
+ //?}
     }
 }

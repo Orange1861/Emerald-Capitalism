@@ -13,26 +13,26 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.minecraft.world.level.block.Blocks;
 //? if >=1.21.4 {
-import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
-//?}
+/*import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
+*///?}
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Renders a poppy in the Emerald Golem's hand when it is offering a flower.
  */
 //? if >=1.21.4 {
-public class EmeraldGolemFlowerLayer extends RenderLayer<IronGolemRenderState, EmeraldGolemModel> {
-//?} else {
-/*public class EmeraldGolemFlowerLayer extends RenderLayer<EmeraldGolem, EmeraldGolemModel<EmeraldGolem>> {
- *///?}
+/*public class EmeraldGolemFlowerLayer extends RenderLayer<IronGolemRenderState, EmeraldGolemModel> {
+*///?} else {
+public class EmeraldGolemFlowerLayer extends RenderLayer<EmeraldGolem, EmeraldGolemModel<EmeraldGolem>> {
+ //?}
 
     private final BlockRenderDispatcher blockRenderer;
 
 //? if >=1.21.4 {
-    public EmeraldGolemFlowerLayer(RenderLayerParent<IronGolemRenderState, EmeraldGolemModel> parent,
-//?} else {
-/*    public EmeraldGolemFlowerLayer(RenderLayerParent<EmeraldGolem, EmeraldGolemModel<EmeraldGolem>> parent,
- *///?}
+    /*public EmeraldGolemFlowerLayer(RenderLayerParent<IronGolemRenderState, EmeraldGolemModel> parent,
+*///?} else {
+    public EmeraldGolemFlowerLayer(RenderLayerParent<EmeraldGolem, EmeraldGolemModel<EmeraldGolem>> parent,
+ //?}
                                   BlockRenderDispatcher blockRenderer) {
         super(parent);
         this.blockRenderer = blockRenderer;
@@ -40,7 +40,7 @@ public class EmeraldGolemFlowerLayer extends RenderLayer<IronGolemRenderState, E
 
     @Override
 //? if >=1.21.4 {
-    public void render(@NotNull PoseStack poseStack, @NotNull MultiBufferSource bufferSource, int packedLight,
+    /*public void render(@NotNull PoseStack poseStack, @NotNull MultiBufferSource bufferSource, int packedLight,
                        IronGolemRenderState state, float yRot, float xRot) {
         if (state.offerFlowerTick != 0) {
             poseStack.pushPose();
@@ -53,17 +53,17 @@ public class EmeraldGolemFlowerLayer extends RenderLayer<IronGolemRenderState, E
             poseStack.mulPose(Axis.XP.rotationDegrees(-90.0F));
             poseStack.translate(-0.5F, -0.5F, -0.5F);
 //? if >=1.21.4 {
-            this.blockRenderer.renderSingleBlock(Blocks.POPPY.defaultBlockState(), poseStack, bufferSource,
+            /^this.blockRenderer.renderSingleBlock(Blocks.POPPY.defaultBlockState(), poseStack, bufferSource,
                     packedLight, OverlayTexture.NO_OVERLAY, ModelData.EMPTY, null);
-//?} else {
-/*            this.blockRenderer.renderSingleBlock(Blocks.POPPY.defaultBlockState(), poseStack, bufferSource,
+^///?} else {
+            this.blockRenderer.renderSingleBlock(Blocks.POPPY.defaultBlockState(), poseStack, bufferSource,
                     packedLight, OverlayTexture.NO_OVERLAY);
- *///?}
+ //?}
             poseStack.popPose();
         }
     }
-//?} else {
-/*    public void render(@NotNull PoseStack poseStack, @NotNull MultiBufferSource bufferSource, int packedLight,
+*///?} else {
+    public void render(@NotNull PoseStack poseStack, @NotNull MultiBufferSource bufferSource, int packedLight,
                        EmeraldGolem entity, float limbSwing, float limbSwingAmount,
                        float partialTick, float ageInTicks, float netHeadYaw, float headPitch) {
         if (entity.getOfferFlowerTick() != 0) {
@@ -82,5 +82,5 @@ public class EmeraldGolemFlowerLayer extends RenderLayer<IronGolemRenderState, E
             poseStack.popPose();
         }
     }
- *///?}
+ //?}
 }

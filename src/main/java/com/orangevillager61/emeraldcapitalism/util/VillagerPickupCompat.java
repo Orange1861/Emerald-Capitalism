@@ -12,12 +12,12 @@ public final class VillagerPickupCompat {
 
     public static boolean wants(Villager villager, Level level, ItemStack stack) {
 //? if >=1.21.4 {
-        if (!(level instanceof ServerLevel serverLevel)) {
+        /*if (!(level instanceof ServerLevel serverLevel)) {
             return false;
         }
         return villager.wantsToPickUp(serverLevel, stack);
-//?} else {
-/*        return villager.wantsToPickUp(stack);
- *///?}
+*///?} else {
+        return villager.wantsToPickUp(stack);
+ //?}
     }
 }

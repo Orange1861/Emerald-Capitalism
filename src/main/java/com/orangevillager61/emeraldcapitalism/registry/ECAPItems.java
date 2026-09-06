@@ -30,7 +30,7 @@ public final class ECAPItems {
 
     // Spawn Eggs
 //? if >=1.21.4 {
-    public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.registerItem(
+    /*public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.registerItem(
             "emerald_golem_spawn_egg",
             properties -> new SpawnEggItem(
                     ECAPEntityTypes.EMERALD_GOLEM.get(),
@@ -45,8 +45,8 @@ public final class ECAPItems {
                     properties
             )
     );
-//?} else {
-/*    public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.register(
+*///?} else {
+    public static final DeferredItem<SpawnEggItem> EMERALD_GOLEM_SPAWN_EGG = ITEMS.register(
             "emerald_golem_spawn_egg",
             () -> new net.neoforged.neoforge.common.DeferredSpawnEggItem(
                     ECAPEntityTypes.EMERALD_GOLEM,
@@ -65,7 +65,7 @@ public final class ECAPItems {
                     new Item.Properties()
             )
     );
- *///?}
+ //?}
 
     public static final DeferredItem<BlockItem> VILLAGE_MANAGER = ITEMS.registerSimpleBlockItem(
             "village_manager",

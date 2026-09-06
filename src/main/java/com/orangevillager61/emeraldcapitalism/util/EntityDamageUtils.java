@@ -11,12 +11,12 @@ public final class EntityDamageUtils {
 
     public static boolean hurt(LivingEntity target, DamageSource source, float amount) {
 //? if >=1.21.4 {
-        if (!(target.level() instanceof ServerLevel level)) {
+        /*if (!(target.level() instanceof ServerLevel level)) {
             return false;
         }
         return target.hurtServer(level, source, amount);
-//?} else {
-/*        return target.hurt(source, amount);
- *///?}
+*///?} else {
+        return target.hurt(source, amount);
+ //?}
     }
 }

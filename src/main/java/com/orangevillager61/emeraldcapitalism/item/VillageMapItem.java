@@ -13,10 +13,10 @@ import net.minecraft.stats.Stats;
 import net.minecraft.tags.StructureTags;
 import net.minecraft.world.InteractionHand;
 //? if >=1.21.4 {
-import net.minecraft.world.InteractionResult;
-//?} else {
-/*import net.minecraft.world.InteractionResultHolder;
- *///?}
+/*import net.minecraft.world.InteractionResult;
+*///?} else {
+import net.minecraft.world.InteractionResultHolder;
+ //?}
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -40,17 +40,17 @@ public final class VillageMapItem extends Item {
 
     @Override
 //? if >=1.21.4 {
-    public InteractionResult use(Level level, Player player, InteractionHand hand) {
-//?} else {
-/*    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
- *///?}
+    /*public InteractionResult use(Level level, Player player, InteractionHand hand) {
+*///?} else {
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+ //?}
         ItemStack ticket = player.getItemInHand(hand);
         if (level.isClientSide()) {
 //? if >=1.21.4 {
-            return InteractionResult.SUCCESS;
-//?} else {
-/*            return InteractionResultHolder.success(ticket);
- *///?}
+            /*return InteractionResult.SUCCESS;
+*///?} else {
+            return InteractionResultHolder.success(ticket);
+ //?}
         }
 
         ServerLevel serverLevel = (ServerLevel) level;
@@ -59,10 +59,10 @@ public final class VillageMapItem extends Item {
         if (locatedVillage == null) {
             player.displayClientMessage(Component.translatable("item.emeraldcapitalism.village_map.not_found"), true);
 //? if >=1.21.4 {
-            return InteractionResult.FAIL;
-//?} else {
-/*            return InteractionResultHolder.fail(ticket);
- *///?}
+            /*return InteractionResult.FAIL;
+*///?} else {
+            return InteractionResultHolder.fail(ticket);
+ //?}
         }
 
         BlockPos village = locatedVillage.position();
@@ -78,10 +78,10 @@ public final class VillageMapItem extends Item {
         replaceTicketWithMap(player, hand, ticket, map);
         player.awardStat(Stats.ITEM_USED.get(this));
 //? if >=1.21.4 {
-        return InteractionResult.CONSUME;
-//?} else {
-/*        return InteractionResultHolder.consume(map);
- *///?}
+        /*return InteractionResult.CONSUME;
+*///?} else {
+        return InteractionResultHolder.consume(map);
+ //?}
     }
 
     static void replaceTicketWithMap(Player player, InteractionHand hand,
