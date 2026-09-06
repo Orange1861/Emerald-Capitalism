@@ -14,12 +14,21 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Client request for the small, frequently-changing part of a POI snapshot. */
 public record RequestVillagePOIDynamicDataPacket(
         UUID villageId,
         boolean clientHasCompletedScan
 ) implements CustomPacketPayload {
+
+    private static final long REQUEST_COOLDOWN_TICKS = 10L;
+    private static final Map<UUID, DynamicRequestState> REQUEST_STATES = new ConcurrentHashMap<>();
+
+    private record DynamicRequestState(long lastRequestTick, UUID villageId,
+                                      VillagePOIDynamicDataPacket response) {
+    }
 
     public static final Type<RequestVillagePOIDynamicDataPacket> TYPE =
             new Type<>(ModIds.id("request_village_poi_dynamic_data"));
@@ -53,6 +62,18 @@ public record RequestVillagePOIDynamicDataPacket(
             }
 
             boolean isOp = player.hasPermissions(Config.villageCommandPermissionLevel);
+            long gameTime = level.getGameTime();
+            DynamicRequestState previous = REQUEST_STATES.get(player.getUUID());
+            if (previous != null
+                    && gameTime < previous.lastRequestTick() + REQUEST_COOLDOWN_TICKS) {
+                // Re-send the most recent response for the same village. A
+                // different village gets an empty delta rather than causing a
+                // fresh dynamic scan during the cooldown window.
+                PacketDistributor.sendToPlayer(player,
+                        previous.villageId().equals(packet.villageId())
+                                ? previous.response() : VillagePOIDynamicDataPacket.empty());
+                return;
+            }
             // A screen opened before its first full scan needs one new static
             // snapshot at the completion transition, then returns to deltas.
             if (!packet.clientHasCompletedScan() && village.isCacheInitialized()) {
@@ -61,9 +82,16 @@ public record RequestVillagePOIDynamicDataPacket(
                 return;
             }
 
-            PacketDistributor.sendToPlayer(player, PerformanceTimingCounters.measure(
+            VillagePOIDynamicDataPacket response = PerformanceTimingCounters.measure(
                     PerformanceTimingCounters.Operation.POI_DYNAMIC_REFRESH,
-                    () -> VillagePOIDynamicDataPacket.build(village, level, player, isOp)));
+                    () -> VillagePOIDynamicDataPacket.build(village, level, player, isOp));
+            REQUEST_STATES.put(player.getUUID(),
+                    new DynamicRequestState(gameTime, packet.villageId(), response));
+            PacketDistributor.sendToPlayer(player, response);
         });
+    }
+
+    public static void onPlayerDisconnect(UUID playerId) {
+        REQUEST_STATES.remove(playerId);
     }
 }

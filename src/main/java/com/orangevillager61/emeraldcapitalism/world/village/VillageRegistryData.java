@@ -45,6 +45,7 @@ public class VillageRegistryData extends SavedData {
     private static final int MAX_PERSISTED_VILLAGE_NUMBER = 2_000_000_000;
     static final int MAX_PERSISTED_VILLAGES = 65_536;
     static final int MAX_PERSISTED_REGISTRY_ENTRIES = 65_536;
+    private static final long MAX_SPATIAL_INDEX_CHUNKS_PER_VILLAGE = 4096L;
 
     private record BankPosition(UUID villageId, BlockPos bankPosition) {
         private static final Codec<BankPosition> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -179,6 +180,11 @@ public class VillageRegistryData extends SavedData {
     private final List<PendingManagerPlacement> pendingManagerPlacements = new ArrayList<>();
     private int nextVillageNumber = 1;
 
+    /** Transient chunk → village candidates used by hot position ownership lookups. */
+    private final Map<Long, Set<UUID>> villagesByChunk = new HashMap<>();
+    /** Very large bounds are kept out of the chunk map and checked as a small fallback set. */
+    private final Set<UUID> oversizedSpatialIndexVillages = new HashSet<>();
+
     /**
      * Transient (never persisted) map of villageId → VillageManagerBlockEntity position.
      * Populated when a {@link com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity}
@@ -231,6 +237,7 @@ public class VillageRegistryData extends SavedData {
             data.pendingManagerPlacements.add(pending.toPendingPlacement());
         }
         data.nextVillageNumber = normalizeNextVillageNumber(nextVillageNumber);
+        data.rebuildSpatialIndex();
         return data;
     }
 
@@ -412,6 +419,7 @@ public class VillageRegistryData extends SavedData {
         Objects.requireNonNull(villageType, "villageType");
         return villages.computeIfAbsent(villageId, id -> {
             VillageRecord record = new VillageRecord(id, bellPos, bounds, villageType);
+            indexVillage(record);
             setDirty();
             return record;
         });
@@ -428,6 +436,7 @@ public class VillageRegistryData extends SavedData {
         return villages.computeIfAbsent(villageId, id -> {
             VillageColor villageColor = VillageColor.randomFor(villageType, random);
             VillageRecord record = new VillageRecord(id, bellPos, bounds, villageType, villageColor);
+            indexVillage(record);
             setDirty();
             return record;
         });
@@ -521,26 +530,82 @@ public class VillageRegistryData extends SavedData {
         double nearestDistance = Double.MAX_VALUE;
         UUID nearestId = null;
         boolean nearestHasBank = false;
-        for (VillageRecord village : villages.values()) {
-            if (!village.getBoundingBox().contains(x, y, z)) {
+        Set<UUID> candidateIds = villagesByChunk.get(
+                ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4));
+        if (candidateIds == null && oversizedSpatialIndexVillages.isEmpty()) {
+            return null;
+        }
+        for (int pass = 0; pass < 2; pass++) {
+            Set<UUID> ids = pass == 0 ? candidateIds : oversizedSpatialIndexVillages;
+            if (ids == null) {
                 continue;
             }
-            boolean hasBank = bankPositions.containsKey(village.getVillageId());
-            double distance = village.getBellPosition().distSqr(pos);
-            UUID villageId = village.getVillageId();
-            if (nearest == null
-                    || (hasBank && !nearestHasBank)
-                    || (hasBank == nearestHasBank
-                    && (distance < nearestDistance
-                    || (Double.compare(distance, nearestDistance) == 0
-                    && (nearestId == null || villageId.toString().compareTo(nearestId.toString()) < 0))))) {
-                nearest = village;
-                nearestDistance = distance;
-                nearestId = villageId;
-                nearestHasBank = hasBank;
+            for (UUID candidateVillageId : ids) {
+                VillageRecord village = villages.get(candidateVillageId);
+                if (village == null || !village.getBoundingBox().contains(x, y, z)) {
+                    continue;
+                }
+                boolean hasBank = bankPositions.containsKey(village.getVillageId());
+                double distance = village.getBellPosition().distSqr(pos);
+                UUID villageId = village.getVillageId();
+                if (nearest == null
+                        || (hasBank && !nearestHasBank)
+                        || (hasBank == nearestHasBank
+                        && (distance < nearestDistance
+                        || (Double.compare(distance, nearestDistance) == 0
+                        && (nearestId == null
+                        || villageId.toString().compareTo(nearestId.toString()) < 0))))) {
+                    nearest = village;
+                    nearestDistance = distance;
+                    nearestId = villageId;
+                    nearestHasBank = hasBank;
+                }
             }
         }
         return nearest;
+    }
+
+    /** Rebuilds the transient chunk index after loading or a bounding-box update. */
+    public void rebuildSpatialIndex() {
+        villagesByChunk.clear();
+        oversizedSpatialIndexVillages.clear();
+        for (VillageRecord village : villages.values()) {
+            indexVillage(village);
+        }
+    }
+
+    /** Refreshes one village after its bounding box changes. */
+    public void refreshVillageSpatialIndex(UUID villageId) {
+        villagesByChunk.entrySet().removeIf(entry -> {
+            Set<UUID> ids = entry.getValue();
+            ids.remove(villageId);
+            return ids.isEmpty();
+        });
+        oversizedSpatialIndexVillages.remove(villageId);
+        VillageRecord village = villages.get(villageId);
+        if (village != null) {
+            indexVillage(village);
+        }
+    }
+
+    private void indexVillage(VillageRecord village) {
+        AABB bounds = village.getBoundingBox();
+        int minChunkX = ((int) Math.floor(bounds.minX)) >> 4;
+        int maxChunkX = ((int) Math.floor(bounds.maxX)) >> 4;
+        int minChunkZ = ((int) Math.floor(bounds.minZ)) >> 4;
+        int maxChunkZ = ((int) Math.floor(bounds.maxZ)) >> 4;
+        long chunkCount = ((long) maxChunkX - minChunkX + 1L)
+                * ((long) maxChunkZ - minChunkZ + 1L);
+        if (chunkCount > MAX_SPATIAL_INDEX_CHUNKS_PER_VILLAGE) {
+            oversizedSpatialIndexVillages.add(village.getVillageId());
+            return;
+        }
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                villagesByChunk.computeIfAbsent(ChunkPos.asLong(chunkX, chunkZ), ignored -> new HashSet<>())
+                        .add(village.getVillageId());
+            }
+        }
     }
 
     /**
@@ -653,6 +718,8 @@ public class VillageRegistryData extends SavedData {
      */
     public void clearAll() {
         villages.clear();
+        villagesByChunk.clear();
+        oversizedSpatialIndexVillages.clear();
         processedStartChunks.clear();
         generatedBankVillages.clear();
         generatedLibraryVillages.clear();

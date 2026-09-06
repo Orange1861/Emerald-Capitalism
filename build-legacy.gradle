@@ -6,6 +6,8 @@
 import com.orangevillager61.emeraldcapitalism.build.MixinAuditTask
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import java.nio.file.Files
+import java.nio.file.Path
 
 plugins {
     id 'java-library'
@@ -161,11 +163,17 @@ neoForge {
     }
 }
 
-// ModDevGradle creates this task lazily; attach Stonecutter generation to it
-// so compileJava/processResources always consume fresh target-specific output.
+// ModDevGradle creates these tasks lazily; attach Stonecutter generation to
+// every task that consumes generated target-specific output.
 tasks.configureEach {
     if (name == 'createMinecraftArtifacts' || name == 'processResources') {
         dependsOn 'stonecutterGenerate'
+    }
+    if (name == 'compileTestJava') {
+        // Some targets have no generated tests. A filtered task collection
+        // keeps those targets valid while ordering test compilation after the
+        // generator wherever it exists.
+        dependsOn tasks.matching { it.name == 'stonecutterGenerateTest' }
     }
 }
 
@@ -173,7 +181,10 @@ tasks.register('auditMixins', MixinAuditTask) {
     group = 'verification'
     description = 'Validates and subtractively audits every configured mixin in isolated GameTest JVMs.'
     dependsOn tasks.named('classes')
-    dependsOn tasks.named('prepareGameTestServer')
+    // The legacy 1.21.1 ModDev setup does not register this preparation task.
+    // Keep the audit task configurable for that target while retaining the
+    // dependency where the task is available.
+    dependsOn tasks.matching { it.name == 'prepareGameTestServer' }
     notCompatibleWithConfigurationCache('The task intentionally launches a sequential matrix of isolated JVMs.')
 
     repositoryDirectory.set(rootProject.layout.projectDirectory)
@@ -264,6 +275,9 @@ idea {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+    // Shared tests resolve source fixtures from the repository root rather
+    // than from versions/<target>/.
+    workingDir rootProject.projectDir
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -290,29 +304,40 @@ tasks.named('processResources', ProcessResources).configure {
                 return ingredient
             }
 
-            fileTree(outputs.files.singleFile).matching {
-                include 'data/emeraldcapitalism/recipe/**/*.json'
-            }.files.each { File recipeFile ->
-                def recipe = new JsonSlurper().parse(recipeFile)
-                switch (recipe.type) {
-                    case 'minecraft:crafting_shaped':
-                    case 'emeraldcapitalism:emerald_crafting':
-                        recipe.key = recipe.key.collectEntries { key, ingredient ->
-                            [(key): modernizeIngredient(ingredient)]
-                        }
-                        break
-                    case 'minecraft:crafting_shapeless':
-                        recipe.ingredients = recipe.ingredients.collect { ingredient ->
-                            modernizeIngredient(ingredient)
-                        }
-                        break
-                    case 'emeraldcapitalism:sawmill':
-                        recipe.ingredient = modernizeIngredient(recipe.ingredient)
-                        break
-                    default:
-                        return
+            Path outputDirectory = outputs.files.singleFile.toPath()
+            Path recipeDirectory = outputDirectory.resolve('data/emeraldcapitalism/recipe')
+            if (Files.isDirectory(outputDirectory)) {
+                try (def recipePaths = Files.walk(outputDirectory)) {
+                    recipePaths
+                            .filter { Path recipePath ->
+                                Files.isRegularFile(recipePath)
+                                        && recipePath.startsWith(recipeDirectory)
+                                        && recipePath.toString().endsWith('.json')
+                            }
+                            .forEach { Path recipePath ->
+                                File recipeFile = recipePath.toFile()
+                                def recipe = new JsonSlurper().parse(recipeFile)
+                                switch (recipe.type) {
+                                    case 'minecraft:crafting_shaped':
+                                    case 'emeraldcapitalism:emerald_crafting':
+                                        recipe.key = recipe.key.collectEntries { key, ingredient ->
+                                            [(key): modernizeIngredient(ingredient)]
+                                        }
+                                        break
+                                    case 'minecraft:crafting_shapeless':
+                                        recipe.ingredients = recipe.ingredients.collect { ingredient ->
+                                            modernizeIngredient(ingredient)
+                                        }
+                                        break
+                                    case 'emeraldcapitalism:sawmill':
+                                        recipe.ingredient = modernizeIngredient(recipe.ingredient)
+                                        break
+                                    default:
+                                        return
+                                }
+                                recipeFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(recipe)) + '\n', 'UTF-8')
+                            }
                 }
-                recipeFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(recipe)) + '\n', 'UTF-8')
             }
         }
     }

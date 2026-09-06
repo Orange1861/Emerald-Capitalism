@@ -35,7 +35,9 @@ import net.minecraft.world.level.pathfinder.PathComputationType;
 
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Bounded lumberjack work loop for tree collection, replanting, and furnace production. */
 public final class LumberjackGoal extends Goal {
@@ -45,6 +47,11 @@ public final class LumberjackGoal extends Goal {
     private static final int SEARCH_SLICE_INTERVAL_TICKS = 1;
     private static final int LOCAL_TREE_PROBE_HORIZONTAL_RANGE = 4;
     private static final int LOCAL_TREE_PROBE_VERTICAL_RANGE = 4;
+    private static final int LOCAL_TREE_PROBE_MAX_POSITIONS =
+            (LOCAL_TREE_PROBE_HORIZONTAL_RANGE * 2 + 1)
+                    * (LOCAL_TREE_PROBE_VERTICAL_RANGE * 2 + 1)
+                    * (LOCAL_TREE_PROBE_HORIZONTAL_RANGE * 2 + 1);
+    private static final int LOCAL_RESERVED_RETRY_INTERVAL_TICKS = 10;
     private static final int FURNACE_SEARCH_RANGE = 16;
     private static final int FURNACE_VERTICAL_SEARCH_RANGE = 6;
     private static final int FURNACE_SEARCH_INTERVAL_TICKS = 40;
@@ -145,10 +152,16 @@ public final class LumberjackGoal extends Goal {
             return true;
         }
 
+        if (level.getGameTime() < nextSearchTick) {
+            return false;
+        }
+
         // A tree beside the lumberjack should not wait behind the bounded
         // world scan. This probe is deliberately small; the full resumable
         // scanner remains authoritative for trees farther away.
-        LocalTreeProbeResult localTreeResult = probeLocallyVisibleTrees(level);
+        LocalTreeProbeResult localTreeResult = PerformanceTimingCounters.measure(
+                PerformanceTimingCounters.Operation.LUMBERJACK_LOCAL_TREE_PROBE,
+                () -> probeLocallyVisibleTrees(level));
         if (localTreeResult == LocalTreeProbeResult.SELECTED) {
             treeScanner.resetSearch();
             searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
@@ -160,11 +173,7 @@ public final class LumberjackGoal extends Goal {
             // Do not enter the broad scanner and make the second villager wait
             // behind its long empty-search cooldown. Recheck the local claim
             // on the next AI pass so it can react immediately after release.
-            nextSearchTick = level.getGameTime() + SEARCH_SLICE_INTERVAL_TICKS;
-            return false;
-        }
-
-        if (level.getGameTime() < nextSearchTick) {
+            nextSearchTick = level.getGameTime() + LOCAL_RESERVED_RETRY_INTERVAL_TICKS;
             return false;
         }
 
@@ -229,19 +238,26 @@ public final class LumberjackGoal extends Goal {
     private LocalTreeProbeResult probeLocallyVisibleTrees(ServerLevel level) {
         BlockPos origin = villager.blockPosition();
         boolean reservedTreeFound = false;
+        int positionsToCheck = LumberjackTreeScanner.claimScanBudget(
+                level, LOCAL_TREE_PROBE_MAX_POSITIONS);
+        Set<BlockPos> examinedLogs = new HashSet<>();
+        BlockPos.MutableBlockPos candidatePos = new BlockPos.MutableBlockPos();
         for (int dx = -LOCAL_TREE_PROBE_HORIZONTAL_RANGE;
              dx <= LOCAL_TREE_PROBE_HORIZONTAL_RANGE; dx++) {
             for (int dy = -LOCAL_TREE_PROBE_VERTICAL_RANGE;
                  dy <= LOCAL_TREE_PROBE_VERTICAL_RANGE; dy++) {
                 for (int dz = -LOCAL_TREE_PROBE_HORIZONTAL_RANGE;
                      dz <= LOCAL_TREE_PROBE_HORIZONTAL_RANGE; dz++) {
-                    BlockPos candidatePos = origin.offset(dx, dy, dz);
+                    if (positionsToCheck-- <= 0) {
+                        return reservedTreeFound ? LocalTreeProbeResult.RESERVED : LocalTreeProbeResult.NONE;
+                    }
+                    candidatePos.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
                     BlockState state = getLoadedBlockState(level, candidatePos);
                     if (!treeScanner.isLumberjackLog(state)) {
                         continue;
                     }
                     LumberjackTreeScanner.TreeSnapshot candidate =
-                            treeScanner.findCandidateTreeAt(level, candidatePos);
+                            treeScanner.findCandidateTreeAt(level, candidatePos, examinedLogs);
                     if (candidate == null) {
                         continue;
                     }
@@ -950,33 +966,54 @@ public final class LumberjackGoal extends Goal {
     @Nullable
     private FurnaceBlockEntity findNearestUsableFurnaceCached(ServerLevel level) {
         long gameTime = level.getGameTime();
-        if (gameTime < nextFurnaceSearchTick && cachedFurnaceSearchResult != null) {
-            FurnaceBlockEntity cached = getUsableFurnace(level, cachedFurnaceSearchResult);
-            if (cached != null) {
-                return cached;
+        if (cachedFurnaceSearchResult != null) {
+            FurnaceCacheLookup cached = inspectCachedFurnace(level, cachedFurnaceSearchResult);
+            if (cached.status() != FurnaceCacheStatus.MISSING) {
+                nextFurnaceSearchTick = gameTime + FURNACE_SEARCH_INTERVAL_TICKS;
+                return cached.furnace();
             }
-            // The cached furnace became unavailable; immediately look for the
-            // next candidate rather than waiting for the normal refresh interval.
+            // The cached position is gone or no longer contains a furnace. It
+            // is the only case that permits a new broad search.
+            cachedFurnaceSearchResult = null;
             nextFurnaceSearchTick = gameTime;
-        } else if (gameTime < nextFurnaceSearchTick) {
+        }
+        if (gameTime < nextFurnaceSearchTick) {
             return null;
         }
 
-        FurnaceBlockEntity furnace = findNearestUsableFurnace(level);
+        FurnaceBlockEntity furnace = PerformanceTimingCounters.measure(
+                PerformanceTimingCounters.Operation.LUMBERJACK_FURNACE_SEARCH,
+                () -> findNearestUsableFurnace(level));
         cachedFurnaceSearchResult = furnace == null ? null : furnace.getBlockPos().immutable();
         nextFurnaceSearchTick = gameTime + (furnace == null
                 ? EMPTY_FURNACE_SEARCH_INTERVAL_TICKS : FURNACE_SEARCH_INTERVAL_TICKS);
         return furnace;
     }
 
-    @Nullable
-    private FurnaceBlockEntity getUsableFurnace(ServerLevel level, @Nullable BlockPos pos) {
-        if (pos == null || !(BankEmployeeLookup.getLoadedBlockEntity(level, pos)
-                instanceof FurnaceBlockEntity furnace)) {
-            return null;
+    private FurnaceCacheLookup inspectCachedFurnace(ServerLevel level, BlockPos pos) {
+        if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            return new FurnaceCacheLookup(null, FurnaceCacheStatus.UNLOADED);
         }
-        return furnace.getItem(FURNACE_INPUT_SLOT).isEmpty()
-                && furnace.getItem(FURNACE_RESULT_SLOT).isEmpty() ? furnace : null;
+        if (!(BankEmployeeLookup.getLoadedBlockEntity(level, pos)
+                instanceof FurnaceBlockEntity furnace)) {
+            return new FurnaceCacheLookup(null, FurnaceCacheStatus.MISSING);
+        }
+        if (!furnace.getItem(FURNACE_INPUT_SLOT).isEmpty()
+                || !furnace.getItem(FURNACE_RESULT_SLOT).isEmpty()) {
+            return new FurnaceCacheLookup(null, FurnaceCacheStatus.BUSY);
+        }
+        return new FurnaceCacheLookup(furnace, FurnaceCacheStatus.READY);
+    }
+
+    private enum FurnaceCacheStatus {
+        READY,
+        BUSY,
+        UNLOADED,
+        MISSING
+    }
+
+    private record FurnaceCacheLookup(@Nullable FurnaceBlockEntity furnace,
+                                      FurnaceCacheStatus status) {
     }
 
     @Nullable

@@ -457,6 +457,7 @@ public class VillageDetectionHandler {
                         clippedOther.maxX, clippedOther.maxY, clippedOther.maxZ);
             }
             existing.setBoundingBox(clippedOther);
+            data.refreshVillageSpatialIndex(existing.getVillageId());
             data.setDirty();
         }
 
@@ -609,6 +610,7 @@ public class VillageDetectionHandler {
             AABB villageBounds = clipAgainstExisting(data, bellPos, new AABB(bellPos).inflate(128, 48, 128), pending.villageId());
             village.setBellPosition(bellPos);
             village.setBoundingBox(villageBounds, level);
+            data.refreshVillageSpatialIndex(village.getVillageId());
             village.setInitialScanAnchorBounds(structureAnchorBounds(pending.structureBox()));
             data.setDirty();
         }

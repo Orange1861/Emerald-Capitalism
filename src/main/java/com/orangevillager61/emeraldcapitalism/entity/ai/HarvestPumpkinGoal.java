@@ -20,7 +20,9 @@ import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Lets farmers harvest pumpkins that are demonstrably part of a pumpkin plant.
@@ -32,6 +34,7 @@ public class HarvestPumpkinGoal extends Goal {
     private static final int VERTICAL_SEARCH_RANGE = 4;
     private static final int SEARCH_INTERVAL_TICKS = 40;
     private static final int EMPTY_SEARCH_INTERVAL_TICKS = 100;
+    private static final int POSITIVE_CACHE_INTERVAL_TICKS = 80;
     private static final double ARRIVAL_DISTANCE_SQ = 2.25;
     private static final float SPEED_MODIFIER = 0.6F;
 
@@ -41,6 +44,11 @@ public class HarvestPumpkinGoal extends Goal {
     @Nullable
     private BlockPos navigationTarget;
     private long nextSearchTick;
+    /** Reusable attached-pumpkin candidates for this farmer's current area. */
+    private List<BlockPos> cachedPumpkinCandidates = List.of();
+    @Nullable
+    private BlockPos cachedPumpkinOrigin;
+    private long pumpkinCacheExpiresTick = Long.MIN_VALUE;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
     private boolean failed;
 
@@ -119,6 +127,22 @@ public class HarvestPumpkinGoal extends Goal {
     @Nullable
     private BlockPos findNearestAttachedPumpkin(ServerLevel level) {
         BlockPos origin = villager.blockPosition();
+        long gameTime = level.getGameTime();
+        if (cachedPumpkinOrigin == null
+                || cachedPumpkinOrigin.distSqr(origin) > 256.0D) {
+            cachedPumpkinCandidates = List.of();
+            cachedPumpkinOrigin = origin.immutable();
+            pumpkinCacheExpiresTick = Long.MIN_VALUE;
+        }
+        if (gameTime < pumpkinCacheExpiresTick) {
+            BlockPos cached = nearestAttachedPumpkin(level, origin, cachedPumpkinCandidates);
+            if (cached != null || cachedPumpkinCandidates.isEmpty()) {
+                return cached;
+            }
+            // Every cached candidate disappeared, so do not wait for the
+            // positive-cache expiry before rebuilding this local result.
+        }
+
         LoadedChunkComposition composition = LoadedChunkComposition.find(
                 level,
                 origin.getX() - SEARCH_RANGE, origin.getX() + SEARCH_RANGE,
@@ -126,11 +150,15 @@ public class HarvestPumpkinGoal extends Goal {
                 origin.getZ() - SEARCH_RANGE, origin.getZ() + SEARCH_RANGE,
                 state -> state.is(Blocks.PUMPKIN));
         if (composition.isEmpty()) {
+            cachedPumpkinCandidates = List.of();
+            cachedPumpkinOrigin = origin.immutable();
+            pumpkinCacheExpiresTick = gameTime + EMPTY_SEARCH_INTERVAL_TICKS;
             return null;
         }
 
         BlockPos nearest = null;
         double nearestDistanceSq = Double.MAX_VALUE;
+        List<BlockPos> foundCandidates = new ArrayList<>();
 
         for (int x = -SEARCH_RANGE; x <= SEARCH_RANGE; x++) {
             for (int z = -SEARCH_RANGE; z <= SEARCH_RANGE; z++) {
@@ -140,12 +168,39 @@ public class HarvestPumpkinGoal extends Goal {
                             || !isAttachedPumpkin(composition, candidate)) {
                         continue;
                     }
+                    BlockPos immutableCandidate = candidate.immutable();
+                    foundCandidates.add(immutableCandidate);
                     double distanceSq = origin.distSqr(candidate);
                     if (distanceSq < nearestDistanceSq) {
-                        nearest = candidate.immutable();
+                        nearest = immutableCandidate;
                         nearestDistanceSq = distanceSq;
                     }
                 }
+            }
+        }
+        cachedPumpkinCandidates = List.copyOf(foundCandidates);
+        cachedPumpkinOrigin = origin.immutable();
+        pumpkinCacheExpiresTick = gameTime
+                + (foundCandidates.isEmpty() ? EMPTY_SEARCH_INTERVAL_TICKS : POSITIVE_CACHE_INTERVAL_TICKS);
+        return nearest;
+    }
+
+    @Nullable
+    private BlockPos nearestAttachedPumpkin(ServerLevel level, BlockPos origin,
+                                            List<BlockPos> candidates) {
+        BlockPos nearest = null;
+        double nearestDistanceSq = Double.MAX_VALUE;
+        for (BlockPos candidate : candidates) {
+            if (Math.abs(candidate.getX() - origin.getX()) > SEARCH_RANGE
+                    || Math.abs(candidate.getY() - origin.getY()) > VERTICAL_SEARCH_RANGE
+                    || Math.abs(candidate.getZ() - origin.getZ()) > SEARCH_RANGE
+                    || !isAttachedPumpkin(level, candidate)) {
+                continue;
+            }
+            double distanceSq = origin.distSqr(candidate);
+            if (distanceSq < nearestDistanceSq) {
+                nearest = candidate;
+                nearestDistanceSq = distanceSq;
             }
         }
         return nearest;

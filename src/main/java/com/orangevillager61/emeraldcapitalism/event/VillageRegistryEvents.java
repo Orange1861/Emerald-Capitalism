@@ -25,6 +25,7 @@ import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.DuplicateVillageBlocksPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestExpandBoundsPacket;
 import com.orangevillager61.emeraldcapitalism.network.RequestFullScanPacket;
+import com.orangevillager61.emeraldcapitalism.network.RequestVillagePOIDynamicDataPacket;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
@@ -264,17 +265,15 @@ public class VillageRegistryEvents {
      */
     private static void applyOpinionBasedGolemTargets(ServerLevel level) {
         VillageRegistryData data = VillageRegistryData.get(level);
-        List<ServerPlayer> players = level.players();
-        if (players.isEmpty()) {
+        if (level.players().isEmpty()) {
             return;
         }
-
         for (VillageRecord village : data.getVillages().values()) {
             AABB searchArea = village.getBoundingBox().inflate(BANK_GOLEM_CONNECTION_RADIUS);
-            List<ServerPlayer> nearbyPlayers = players.stream()
-                    .filter(player -> !player.isSpectator()
-                            && searchArea.contains(player.getX(), player.getY(), player.getZ()))
-                    .toList();
+            // Use the world's spatial entity index instead of testing every
+            // connected player against every village on each reconciliation.
+            List<ServerPlayer> nearbyPlayers = level.getEntitiesOfClass(
+                    ServerPlayer.class, searchArea, player -> !player.isSpectator());
             if (nearbyPlayers.isEmpty()) {
                 continue;
             }
@@ -519,6 +518,7 @@ public class VillageRegistryEvents {
             RequestFullScanPacket.onPlayerDisconnect(player.getUUID());
             RequestExpandBoundsPacket.onPlayerDisconnect(player.getUUID());
             DuplicateVillageBlocksPacket.onPlayerDisconnect(player.getUUID());
+            RequestVillagePOIDynamicDataPacket.onPlayerDisconnect(player.getUUID());
             BankReputationEvents.clearPlayer(player.getUUID());
             VillagePOIDataCache.invalidateViewer(player.getUUID());
             PLAYER_VILLAGE_MAP.remove(player.getUUID());
@@ -535,6 +535,7 @@ public class VillageRegistryEvents {
             POIOverlaySubscriptions.onPlayerDisconnect(player.getUUID());
             RequestFullScanPacket.onPlayerDisconnect(player.getUUID());
             RequestExpandBoundsPacket.onPlayerDisconnect(player.getUUID());
+            RequestVillagePOIDynamicDataPacket.onPlayerDisconnect(player.getUUID());
             BankReputationEvents.clearPlayer(player.getUUID());
             VillagePOIDataCache.invalidateViewer(player.getUUID());
             PLAYER_VILLAGE_MAP.remove(player.getUUID());
@@ -590,9 +591,10 @@ public class VillageRegistryEvents {
                         basePos, village.getDoorRegistry().contains(basePos),
                         village.getMissingDoorRegistry().contains(basePos), village.getVillageId());
             }
-            if (isBed && !level.canSeeSky(pos.above())
+            if (isBed && state.getBlock() == village.getVillageColor().bedBlock()
+                    && !level.canSeeSky(pos.above())
                     && event.getEntity() instanceof Player player) {
-                // Placing a bed in a village improves that player's village opinion by 3.
+                // Placing a correctly colored bed in a village improves that player's village opinion by 3.
                 village.adjustOpinionModifier(player.getUUID(), BED_PLACED_OPINION_DELTA);
                 data.setDirty();
             }

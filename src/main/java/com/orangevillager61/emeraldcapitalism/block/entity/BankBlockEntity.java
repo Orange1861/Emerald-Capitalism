@@ -160,6 +160,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private long nextVerifyTick = Long.MIN_VALUE;
     private boolean chestCacheDirty = true;
     private boolean processorCacheDirty = true;
+    /** True when aggregate totals need one event-batched refresh. */
+    private boolean inventoryTotalsDirty = true;
+    /** True when a chest content/structure change invalidates capacity answers. */
+    private boolean chestStorageDirty = true;
 
     /** Server-side close deadlines for Emerald Chests opened by smith transfers. */
     private final Map<BlockPos, Long> transferChestCloseTicks = new HashMap<>();
@@ -574,15 +578,14 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             entity.chestCacheDirty = false;
             entity.processorCacheDirty = false;
             entity.nextFullScanTick = gameTime + FULL_SCAN_INTERVAL;
-        } else {
-            // Processor slots are live inventories. Refresh them every tick so a
-            // direct processor mutation cannot leave market queries on old totals
-            // until the next area scan or verification pass.
-            entity.refreshInventoryTotals(serverLevel);
-            if (gameTime >= entity.nextVerifyTick) {
-                entity.verifyCachedChests(serverLevel);
-                entity.nextVerifyTick = gameTime + VERIFY_INTERVAL;
-            }
+        } else if (entity.inventoryTotalsDirty) {
+            PerformanceTimingCounters.measure(
+                    PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH,
+                    () -> entity.refreshInventoryTotals(serverLevel, entity.chestStorageDirty));
+        }
+        if (gameTime >= entity.nextVerifyTick) {
+            entity.verifyCachedChests(serverLevel);
+            entity.nextVerifyTick = gameTime + VERIFY_INTERVAL;
         }
     }
 
@@ -597,6 +600,15 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Marks every loaded bank whose search cube contains a changed chest or processor. */
     public static void markChestCachesDirtyNear(ServerLevel level, BlockPos chestPos) {
+        markCachesDirtyNear(level, chestPos, true);
+    }
+
+    /** Marks nearby banks after a processor inventory mutation without forcing a cube rescan. */
+    public static void markProcessorInventoryChangedNear(ServerLevel level, BlockPos processorPos) {
+        markCachesDirtyNear(level, processorPos, false);
+    }
+
+    private static void markCachesDirtyNear(ServerLevel level, BlockPos changedPos, boolean structuralChange) {
         Set<BankBlockEntity> banks = LOADED_BANKS.get(level);
         if (banks == null) {
             return;
@@ -604,20 +616,26 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         // Preserve the inclusive range used by the existing full-scan loop while
         // checking only loaded banks rather than every block in the surrounding cube.
-        int minBankX = chestPos.getX() - SEARCH_RADIUS - 1;
-        int minBankY = chestPos.getY() - SEARCH_RADIUS - 1;
-        int minBankZ = chestPos.getZ() - SEARCH_RADIUS - 1;
-        int maxBankX = chestPos.getX() + SEARCH_RADIUS;
-        int maxBankY = chestPos.getY() + SEARCH_RADIUS;
-        int maxBankZ = chestPos.getZ() + SEARCH_RADIUS;
+        int minBankX = changedPos.getX() - SEARCH_RADIUS - 1;
+        int minBankY = changedPos.getY() - SEARCH_RADIUS - 1;
+        int minBankZ = changedPos.getZ() - SEARCH_RADIUS - 1;
+        int maxBankX = changedPos.getX() + SEARCH_RADIUS;
+        int maxBankY = changedPos.getY() + SEARCH_RADIUS;
+        int maxBankZ = changedPos.getZ() + SEARCH_RADIUS;
         for (BankBlockEntity bank : banks) {
             BlockPos bankPos = bank.getBlockPos();
             if (bankPos.getX() >= minBankX && bankPos.getX() <= maxBankX
                     && bankPos.getY() >= minBankY && bankPos.getY() <= maxBankY
                     && bankPos.getZ() >= minBankZ && bankPos.getZ() <= maxBankZ) {
-                bank.chestCacheDirty = true;
-                bank.processorCacheDirty = true;
-                bank.missingChestCountTick = Long.MIN_VALUE;
+                if (structuralChange) {
+                    bank.chestCacheDirty = true;
+                    bank.processorCacheDirty = true;
+                    bank.chestStorageDirty = true;
+                }
+                bank.inventoryTotalsDirty = true;
+                if (structuralChange) {
+                    bank.missingChestCountTick = Long.MIN_VALUE;
+                }
             }
         }
     }
@@ -1058,7 +1076,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return ItemStack.EMPTY;
         }
 
-        refreshInventoryTotals(level);
+        refreshInventoryTotals(level, true);
         setChanged();
         return new ItemStack(item, amount);
     }
@@ -1879,7 +1897,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return true;
         });
         if (removed) {
-            refreshInventoryTotals(level);
+            chestStorageDirty = true;
+            inventoryTotalsDirty = true;
         }
         BlockState composterState = composterPos == null
                 ? null : BankEmployeeLookup.getLoadedBlockState(level, composterPos);
@@ -1893,21 +1912,30 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                 && !processorState.is(ECAPBlocks.EMERALD_ORE_PROCESSOR.get())) {
             closestEmeraldProcessorPos = null;
             processorCacheDirty = true;
+            inventoryTotalsDirty = true;
         }
         if (removed) {
             setChanged();
         }
-        // Processor slots are live inventory rather than event-driven snapshots.
-        // Refresh here so completed processing and fuel/input changes reach the bank
-        // resource totals without waiting for the next full-area scan.
-        refreshInventoryTotals(level);
     }
 
     /** Aggregates cached chest totals and the nearest processor's live inventory. */
     private void refreshInventoryTotals(ServerLevel level) {
-        inventoryRevision++;
-        capacityCache.clear();
-        capacityCacheRevision = inventoryRevision;
+        refreshInventoryTotals(level, true);
+    }
+
+    /**
+     * Rebuilds aggregate totals. Processor-only updates do not invalidate chest
+     * capacity answers, so they can use {@code invalidateCapacity=false}.
+     */
+    private void refreshInventoryTotals(ServerLevel level, boolean invalidateCapacity) {
+        if (invalidateCapacity) {
+            inventoryRevision++;
+            capacityCache.clear();
+            capacityCacheRevision = inventoryRevision;
+            chestStorageDirty = false;
+        }
+        inventoryTotalsDirty = false;
         cachedChestItemTotals.clear();
         cachedChestLogCount = 0;
         cachedChestCoalCount = 0;

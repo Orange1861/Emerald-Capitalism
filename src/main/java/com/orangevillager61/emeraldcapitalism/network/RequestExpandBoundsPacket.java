@@ -101,6 +101,7 @@ public record RequestExpandBoundsPacket() implements CustomPacketPayload {
             // Reset bounding box to full scan area, then fullScan will shrink to fit
             AABB fullArea = new AABB(village.getBellPosition()).inflate(128, 48, 128);
             village.setBoundingBox(fullArea);
+            data.refreshVillageSpatialIndex(village.getVillageId());
             data.setDirty();
 
             VillageRegistryManager manager = VillageRegistryEvents.getManager(level);

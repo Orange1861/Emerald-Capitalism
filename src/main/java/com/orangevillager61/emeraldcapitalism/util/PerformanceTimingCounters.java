@@ -13,9 +13,12 @@ public final class PerformanceTimingCounters {
         VILLAGE_FULL_SCAN,
         VILLAGE_GENERATION,
         LUMBERJACK_SEARCH,
+        LUMBERJACK_LOCAL_TREE_PROBE,
+        LUMBERJACK_FURNACE_SEARCH,
         PUMPKIN_SEARCH,
         POI_DYNAMIC_REFRESH,
-        BANK_CHEST_CACHE_REBUILD
+        BANK_CHEST_CACHE_REBUILD,
+        BANK_INVENTORY_TOTAL_REFRESH
     }
 
     public record Snapshot(long calls, long totalNanos, long maximumNanos) {

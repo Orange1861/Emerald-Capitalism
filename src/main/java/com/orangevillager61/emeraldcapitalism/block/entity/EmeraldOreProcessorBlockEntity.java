@@ -377,10 +377,10 @@ public class EmeraldOreProcessorBlockEntity extends BlockEntity implements MenuP
         nextIdleCheckTick = Long.MIN_VALUE;
     }
 
-    /** Invalidates nearby bank processor scans after a server-side inventory mutation. */
+    /** Invalidates nearby bank totals after a server-side inventory mutation. */
     private void markNearbyBankCachesDirty() {
         if (level instanceof ServerLevel serverLevel) {
-            BankBlockEntity.markChestCachesDirtyNear(serverLevel, worldPosition);
+            BankBlockEntity.markProcessorInventoryChangedNear(serverLevel, worldPosition);
         }
     }
 

@@ -179,7 +179,7 @@ final class LumberjackTreeScanner {
         searchComplete = activeComposition.isEmpty();
     }
 
-    private static int claimScanBudget(ServerLevel level, int requested) {
+    static int claimScanBudget(ServerLevel level, int requested) {
         ScanBudget budget = SCAN_BUDGETS.computeIfAbsent(level, ignored -> new ScanBudget());
         long gameTime = level.getGameTime();
         if (budget.gameTime != gameTime) {
@@ -198,11 +198,20 @@ final class LumberjackTreeScanner {
 
     @Nullable
     TreeSnapshot findCandidateTreeAt(ServerLevel level, BlockPos seed) {
+        return findCandidateTreeAt(level, seed, new HashSet<>());
+    }
+
+    @Nullable
+    TreeSnapshot findCandidateTreeAt(ServerLevel level, BlockPos seed, Set<BlockPos> examinedLogs) {
         BlockState state = getLoadedBlockState(level, seed);
         if (!isLumberjackLog(state)) {
             return null;
         }
-        return scanTree(level, seed.immutable(), new HashSet<>());
+        BlockPos immutableSeed = seed.immutable();
+        if (examinedLogs.contains(immutableSeed)) {
+            return null;
+        }
+        return scanTree(level, immutableSeed, examinedLogs);
     }
 
     boolean isNaturalLeaf(BlockState state) {
