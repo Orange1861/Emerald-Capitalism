@@ -264,13 +264,14 @@ public final class VillagerInventoryBankGoal extends Goal {
                     break;
                 }
 
+                Item deliveredItem = held.getItem();
                 held.shrink(quantity);
                 villager.getInventory().setItem(slot, held.isEmpty() ? ItemStack.EMPTY : held);
                 transferableCount -= quantity;
                 plannedQuantity -= quantity;
-                if (held.is(Items.WHEAT)) {
+                if (deliveredItem == Items.WHEAT) {
                     wheatToSell -= quantity;
-                } else if (held.is(Items.BREAD)) {
+                } else if (deliveredItem == Items.BREAD) {
                     breadToSell -= quantity;
                 }
                 if (quote != null) {

@@ -71,44 +71,50 @@ public class BankTradeEvents {
 
         int shortfall = emeraldsOwed - inventoryContribution;
 
-        if (bank.getLiveEmeraldValue(overworld) < shortfall) {
-            restoreInventory(inv, inventoryBeforePayment);
-            // The event is post-exchange and non-cancellable; reclaim the result and
-            // refund costs before MerchantResultSlot consumes the cost slots.
-            Player player = event.getEntity();
-            reclaimTradeResultFromPlayer(player, result);
-            refundCostItems(player, offer);
-            if (player instanceof ServerPlayer serverPlayer) {
-                serverPlayer.sendSystemMessage(
-                        Component.literal("The bank has insufficient funds.")
-                                .withStyle(ChatFormatting.RED));
+        if (shortfall > 0) {
+            if (bank.getLiveEmeraldValue(overworld) < shortfall) {
+                restoreInventory(inv, inventoryBeforePayment);
+                // The event is post-exchange and non-cancellable; reclaim the result and
+                // refund costs before MerchantResultSlot consumes the cost slots.
+                Player player = event.getEntity();
+                villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS)
+                        .skipNextTradeAccounting();
+                reclaimTradeResultFromPlayer(player, result);
+                refundCostItems(player, offer);
+                if (player instanceof ServerPlayer serverPlayer) {
+                    serverPlayer.sendSystemMessage(
+                            Component.literal("The bank has insufficient funds.")
+                                    .withStyle(ChatFormatting.RED));
+                }
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP/Bank] Trade reversed for {}, "
+                                + "bank chests hold {}, shortfall was {}",
+                        player.getDisplayName().getString(),
+                        bank.getTotalEmeraldCount(), shortfall);
+                return;
             }
-            EmeraldCapitalism.LOGGER.info(
-                    "[ECAP/Bank] Trade reversed for {}, "
-                            + "bank chests hold {}, shortfall was {}",
-                    player.getDisplayName().getString(),
-                    bank.getTotalEmeraldCount(), shortfall);
-            return;
-        }
 
-        if (!bank.withdrawFromLinkedChests(overworld, shortfall)) {
-            restoreInventory(inv, inventoryBeforePayment);
-            // The live preflight and withdrawal must agree. A chest can be broken
-            // between cache refreshes, so do not debit an account for an unpaid trade.
-            Player player = event.getEntity();
-            reclaimTradeResultFromPlayer(player, result);
-            refundCostItems(player, offer);
-            if (player instanceof ServerPlayer serverPlayer) {
-                serverPlayer.sendSystemMessage(
-                        Component.literal("The bank funds changed; the trade was reversed.")
-                                .withStyle(ChatFormatting.RED));
+            if (!bank.withdrawFromLinkedChests(overworld, shortfall)) {
+                restoreInventory(inv, inventoryBeforePayment);
+                // The live preflight and withdrawal must agree. A chest can be broken
+                // between cache refreshes, so do not debit an account for an unpaid trade.
+                Player player = event.getEntity();
+                villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS)
+                        .skipNextTradeAccounting();
+                reclaimTradeResultFromPlayer(player, result);
+                refundCostItems(player, offer);
+                if (player instanceof ServerPlayer serverPlayer) {
+                    serverPlayer.sendSystemMessage(
+                            Component.literal("The bank funds changed; the trade was reversed.")
+                                    .withStyle(ChatFormatting.RED));
+                }
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP/Bank] Trade reversed for {} because bank withdrawal failed",
+                        player.getDisplayName().getString());
+                return;
             }
-            EmeraldCapitalism.LOGGER.info(
-                    "[ECAP/Bank] Trade reversed for {} because bank withdrawal failed",
-                    player.getDisplayName().getString());
-            return;
+            accountData.withdraw(uuid, shortfall);
         }
-        accountData.withdraw(uuid, shortfall);
         villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS).markBankTradeResultHandled();
 
         EmeraldCapitalism.LOGGER.debug(
@@ -136,8 +142,20 @@ public class BankTradeEvents {
 
     /** Removes the just-completed emerald result when a post-trade reversal is required. */
     private static void reclaimTradeResultFromPlayer(Player player, ItemStack result) {
-        Inventory inv = player.getInventory();
         int remaining = result.getCount();
+        ItemStack carried = player.containerMenu.getCarried();
+        if (ItemStack.isSameItemSameComponents(carried, result)) {
+            int take = Math.min(carried.getCount(), remaining);
+            carried.shrink(take);
+            player.containerMenu.setCarried(carried.isEmpty() ? ItemStack.EMPTY : carried);
+            remaining -= take;
+        }
+
+        if (remaining <= 0) {
+            return;
+        }
+
+        Inventory inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
             ItemStack stack = inv.getItem(i);
             if (!ItemStack.isSameItemSameComponents(stack, result)) continue;

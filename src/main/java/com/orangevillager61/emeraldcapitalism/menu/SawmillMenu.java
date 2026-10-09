@@ -276,7 +276,9 @@ public class SawmillMenu extends AbstractContainerMenu {
             if (stack.getCount() == moved.getCount()) {
                 return ItemStack.EMPTY;
             }
-            slot.onTake(player, stack);
+            if (index != RESULT_SLOT || stack.isEmpty()) {
+                slot.onTake(player, stack);
+            }
             this.broadcastChanges();
         }
         return moved;
