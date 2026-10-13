@@ -70,6 +70,12 @@ public final class VillagerNavigationTargets {
         int pathAttempts = Math.min(MAX_PATH_ATTEMPTS, candidates.size());
         for (int index = 0; index < pathAttempts; index++) {
             BlockPos candidate = candidates.get(index);
+            double distancePenalty = candidate.distSqr(desired) * 100.0D;
+
+            if (best != null && distancePenalty >= bestScore) {
+                break;
+            }
+
             Path path = navigation.createPath(candidate, 1);
             if (path == null || !path.canReach()) {
                 continue;
@@ -77,8 +83,7 @@ public final class VillagerNavigationTargets {
 
             // Prefer the task block and then shorter routes to avoid unnecessary
             // detours around an otherwise reachable workstation or crop.
-            double score = candidate.distSqr(desired) * 100.0D
-                    + path.getNodeCount();
+            double score = distancePenalty + path.getNodeCount();
             if (score < bestScore) {
                 best = candidate.immutable();
                 bestScore = score;

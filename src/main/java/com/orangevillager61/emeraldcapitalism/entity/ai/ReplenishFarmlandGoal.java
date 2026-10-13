@@ -17,6 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Goal that makes farmer villagers pathfind to trampled or degraded farmland
@@ -34,6 +37,7 @@ public class ReplenishFarmlandGoal extends Goal {
     /** Close-enough distance for the brain's WalkTarget (in blocks). */
     private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
     private static final int EMPTY_QUEUE_RETRY_TICKS = 100;
+    private static final int FAILED_TARGET_RETRY_TICKS = 100;
 
     private final Villager villager;
     @Nullable
@@ -43,7 +47,9 @@ public class ReplenishFarmlandGoal extends Goal {
     @Nullable
     private VillageRecord village;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
+    private final Map<BlockPos, Long> failedTargetExpiryTicks = new HashMap<>();
     private boolean failed;
+    private boolean tryAlternativeRepairsDuringCooldown;
     private long nextQueueLookupTick;
 
     public ReplenishFarmlandGoal(Villager villager) {
@@ -62,7 +68,9 @@ public class ReplenishFarmlandGoal extends Goal {
         if (!(villager.level() instanceof ServerLevel serverLevel)) {
             return false;
         }
-        if (serverLevel.getGameTime() < nextQueueLookupTick) {
+        long gameTime = serverLevel.getGameTime();
+        removeExpiredFailedTargets(gameTime);
+        if (gameTime < nextQueueLookupTick && !tryAlternativeRepairsDuringCooldown) {
             return false;
         }
 
@@ -72,17 +80,20 @@ public class ReplenishFarmlandGoal extends Goal {
             found = data.getNearestVillage(villager.blockPosition());
         }
         if (found == null) {
-            nextQueueLookupTick = serverLevel.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
+            scheduleNextQueueLookup(gameTime);
+            tryAlternativeRepairsDuringCooldown = false;
             return false;
         }
         if (!found.isFarmlandRepairEnabled()) {
-            nextQueueLookupTick = serverLevel.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
+            scheduleNextQueueLookup(gameTime);
+            tryAlternativeRepairsDuringCooldown = false;
             return false;
         }
 
-        BlockPos nearest = found.getNearestUnclaimedRepair(villager.blockPosition(), MAX_RANGE);
+        BlockPos nearest = findNearestAvailableRepair(found, villager.blockPosition(), gameTime);
         if (nearest == null) {
-            nextQueueLookupTick = serverLevel.getGameTime() + EMPTY_QUEUE_RETRY_TICKS;
+            tryAlternativeRepairsDuringCooldown = false;
+            scheduleNextQueueLookup(gameTime);
             return false;
         }
 
@@ -121,6 +132,7 @@ public class ReplenishFarmlandGoal extends Goal {
             navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, targetPos, 2);
             if (navigationTarget == null) {
                 village.unclaimPosition(targetPos);
+                rememberFailedTarget(targetPos);
                 targetPos = null;
                 village = null;
                 failed = true;
@@ -147,6 +159,7 @@ public class ReplenishFarmlandGoal extends Goal {
         if (distSq <= ARRIVAL_DISTANCE_SQ) {
             restoreFarmland();
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
+            rememberFailedTarget(targetPos);
             failed = true;
             villager.getNavigation().stop();
         } else {
@@ -216,6 +229,51 @@ public class ReplenishFarmlandGoal extends Goal {
 
         targetPos = null;
         village = null;
+    }
+
+    private void rememberFailedTarget(BlockPos pos) {
+        long gameTime = villager.level().getGameTime();
+        failedTargetExpiryTicks.put(pos.immutable(), gameTime + FAILED_TARGET_RETRY_TICKS);
+        nextQueueLookupTick = gameTime + FAILED_TARGET_RETRY_TICKS;
+        tryAlternativeRepairsDuringCooldown = true;
+    }
+
+    private void removeExpiredFailedTargets(long gameTime) {
+        Iterator<Map.Entry<BlockPos, Long>> iterator = failedTargetExpiryTicks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next().getValue() <= gameTime) {
+                iterator.remove();
+            }
+        }
+    }
+
+    @Nullable
+    private BlockPos findNearestAvailableRepair(VillageRecord found, BlockPos origin, long gameTime) {
+        double maxRangeSq = MAX_RANGE * MAX_RANGE;
+        BlockPos nearest = null;
+        double nearestDistSq = Double.MAX_VALUE;
+        for (BlockPos pos : found.getRepairQueue()) {
+            if (found.getClaimedPositions().contains(pos)
+                    || failedTargetExpiryTicks.getOrDefault(pos, Long.MIN_VALUE) > gameTime) {
+                continue;
+            }
+            double distSq = origin.distSqr(pos);
+            if (distSq <= maxRangeSq && distSq < nearestDistSq) {
+                nearestDistSq = distSq;
+                nearest = pos;
+            }
+        }
+        return nearest;
+    }
+
+    private void scheduleNextQueueLookup(long gameTime) {
+        long earliestExpiry = Long.MAX_VALUE;
+        for (long expiry : failedTargetExpiryTicks.values()) {
+            earliestExpiry = Math.min(earliestExpiry, expiry);
+        }
+        nextQueueLookupTick = earliestExpiry == Long.MAX_VALUE
+                ? gameTime + EMPTY_QUEUE_RETRY_TICKS
+                : earliestExpiry;
     }
 
     /** Returns the current target position, for testing purposes. */

@@ -37,6 +37,7 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
         double followDistanceSq = followDistance * followDistance;
         ServerPlayer closest = null;
         double closestDistanceSq = Double.MAX_VALUE;
+        HostilityContext hostilityContext = new HostilityContext(golem);
         for (ServerPlayer player : golem.level().getEntitiesOfClass(
                 ServerPlayer.class,
                 golem.getBoundingBox().inflate(followDistance, 4.0D, followDistance))) {
@@ -44,7 +45,7 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
             if (distanceSq > followDistanceSq
                     || !player.isAlive()
                     || player.isSpectator()
-                    || !isHostilePlayer(golem, player)) {
+                    || !isHostilePlayer(golem, player, hostilityContext)) {
                 continue;
             }
             if (distanceSq < closestDistanceSq) {
@@ -57,14 +58,20 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
     }
 
     private static boolean isHostilePlayer(IronGolem golem, Player player) {
+        return isHostilePlayer(golem, player, new HostilityContext(golem));
+    }
+
+    private static boolean isHostilePlayer(
+            IronGolem golem, Player player, HostilityContext hostilityContext) {
         if (golem instanceof EmeraldGolem emeraldGolem
                 && emeraldGolem.isOwnedByBank(player.getUUID())) {
             return false;
         }
-        if (VaultGolemGoals.isVaultGuard(golem)
-                && golem.level() instanceof ServerLevel level
-                && BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank
-                && bank.isAttackAllPlayersEnabled()) {
+
+        boolean vaultGuard = hostilityContext.isVaultGuard();
+        ServerLevel level = vaultGuard ? hostilityContext.getServerLevel() : null;
+        BankBlockEntity bank = vaultGuard && level != null ? hostilityContext.getBank() : null;
+        if (bank != null && bank.isAttackAllPlayersEnabled()) {
             if (bank.getVillageId() != null) {
                 VillageRecord village = VillageRegistryData.get(level).getVillages().get(bank.getVillageId());
                 if (village != null
@@ -77,31 +84,36 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
             return player.isAlive() && !player.isSpectator()
                     && !bank.isControlledBy(player.getUUID());
         }
-        if (isContestedGovernorCandidate(golem, player)) {
+        if (isContestedGovernorCandidate(player, hostilityContext)) {
             return true;
         }
         if (VillageHostility.isHostilePlayer(golem, player)) {
             return true;
         }
-        if (!VaultGolemGoals.isVaultGuard(golem)
+        if (!vaultGuard
                 || !player.isAlive()
                 || player.isSpectator()
-                || !(golem.level() instanceof ServerLevel level)) {
+                || level == null) {
             return false;
         }
-        BankBlockEntity bank = BankBlockEntity.findBankForGolem(level, golem);
         int opinion = bank == null
                 ? BankReputationData.get(level).getReputation(player.getUUID())
                 : BankReputationData.get(level).getBankOpinion(bank, player.getUUID());
         return opinion <= BankReputationData.HOSTILITY_THRESHOLD;
     }
 
-    private static boolean isContestedGovernorCandidate(IronGolem golem, Player player) {
-        if (!VaultGolemGoals.isVaultGuard(golem)
+    private static boolean isContestedGovernorCandidate(
+            Player player, HostilityContext hostilityContext) {
+        if (!hostilityContext.isVaultGuard()
                 || !player.isAlive()
                 || player.isSpectator()
-                || !(golem.level() instanceof ServerLevel level)
-                || !(BankBlockEntity.findBankForGolem(level, golem) instanceof BankBlockEntity bank)
+                || hostilityContext.getServerLevel() == null) {
+            return false;
+        }
+
+        ServerLevel level = hostilityContext.getServerLevel();
+        BankBlockEntity bank = hostilityContext.getBank();
+        if (bank == null
                 || bank.getVillageId() == null) {
             return false;
         }
@@ -112,6 +124,52 @@ public final class HostileVillagePlayerTargetGoal extends NearestAttackableTarge
                         level, village, bank, player.getUUID())
                 && VillageGovernance.isContestedGovernorAttackAllowed(
                         level, village, bank, player.getUUID());
+    }
+
+    private static final class HostilityContext {
+
+        private final IronGolem golem;
+        private boolean vaultGuardResolved;
+        private boolean vaultGuard;
+        private boolean serverLevelResolved;
+        @Nullable
+        private ServerLevel serverLevel;
+        private boolean bankResolved;
+        @Nullable
+        private BankBlockEntity bank;
+
+        private HostilityContext(IronGolem golem) {
+            this.golem = golem;
+        }
+
+        private boolean isVaultGuard() {
+            if (!vaultGuardResolved) {
+                vaultGuard = VaultGolemGoals.isVaultGuard(golem);
+                vaultGuardResolved = true;
+            }
+            return vaultGuard;
+        }
+
+        @Nullable
+        private ServerLevel getServerLevel() {
+            if (!serverLevelResolved) {
+                serverLevel = golem.level() instanceof ServerLevel level ? level : null;
+                serverLevelResolved = true;
+            }
+            return serverLevel;
+        }
+
+        @Nullable
+        private BankBlockEntity getBank() {
+            if (!bankResolved) {
+                ServerLevel level = getServerLevel();
+                if (isVaultGuard() && level != null) {
+                    bank = BankBlockEntity.findBankForGolem(level, golem);
+                }
+                bankResolved = true;
+            }
+            return bank;
+        }
     }
 
     @Override
