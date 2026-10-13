@@ -7,8 +7,6 @@ import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 
 import java.util.EnumSet;
@@ -27,6 +25,7 @@ public final class BankerWorkGoal extends Goal {
     private boolean failed;
     private long nextContextLookupTick;
     private long nextRepairAttemptTick = Long.MIN_VALUE;
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
     public BankerWorkGoal(Villager villager) {
         this.villager = villager;
@@ -75,7 +74,8 @@ public final class BankerWorkGoal extends Goal {
                 && context != null
                 && !failed
                 && context.bank().isBankIndependent()
-                && context.bank().isEmployee(villager.getUUID());
+                && context.bank().isEmployee(villager.getUUID())
+                && movement.isActive(villager);
     }
 
     @Override
@@ -86,8 +86,11 @@ public final class BankerWorkGoal extends Goal {
 
         // Keep the brain's target on the designated work side instead of
         // allowing vanilla job-site pathing to pull the banker into the bank.
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(context.navigationTarget(), SPEED, WALK_TARGET_CLOSE_ENOUGH));
+        if (!moveToWorkSide()) {
+            failed = true;
+            nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
+            return;
+        }
         boolean atWorkPos = BankBlock.isAtBankerWorkPos(
                 context.bank().getBlockState(), context.bank().getBlockPos(), villager.position());
         if (atWorkPos) {
@@ -101,8 +104,7 @@ public final class BankerWorkGoal extends Goal {
         if (!atWorkPos && navigationWatchdog.isStuck(villager, context.navigationTarget())) {
             failed = true;
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
-            villager.getNavigation().stop();
-            villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            movement.cancel(villager, true);
         } else if (villager.getNavigation().isDone()
                 && villager.distanceToSqr(context.navigationTarget().getX() + 0.5D,
                 context.navigationTarget().getY() + 0.5D,
@@ -116,8 +118,7 @@ public final class BankerWorkGoal extends Goal {
 
     @Override
     public void stop() {
-        villager.getNavigation().stop();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        movement.cancel(villager, true);
         context = null;
         navigationWatchdog.reset();
         failed = false;
@@ -150,11 +151,16 @@ public final class BankerWorkGoal extends Goal {
 
     private boolean moveToWorkSide() {
         BlockPos target = context.navigationTarget();
-        return villager.getNavigation().moveTo(
-                target.getX() + 0.5D,
-                target.getY() + 0.5D,
-                target.getZ() + 0.5D,
-                SPEED);
+        return movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:banker_work",
+                "banker-side:" + context.workPos().toShortString(),
+                target,
+                SPEED,
+                WALK_TARGET_CLOSE_ENOUGH,
+                "bank-side-floor-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                context.workPos()));
     }
 
     private record WorkContext(BankBlockEntity bank, BlockPos workPos, BlockPos navigationTarget) {

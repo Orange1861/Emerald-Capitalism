@@ -97,12 +97,9 @@ public final class WanderingTraderEvents {
         BlockPos exitTarget = LADDER_EXIT_TARGETS.get(trader.getUUID());
         if (exitTarget != null) {
             trader.getNavigation().stop();
-            trader.getBrain().eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
             double horizontalDistanceSq = trader.distanceToSqr(
                     exitTarget.getX() + 0.5D, trader.getY(), exitTarget.getZ() + 0.5D);
-            if (horizontalDistanceSq < 1.0D) {
-                trader.setPos(exitTarget.getX() + 0.5D,
-                        Math.max(trader.getY(), exitTarget.getY()), exitTarget.getZ() + 0.5D);
+            if (horizontalDistanceSq < 0.25D) {
                 LADDER_EXIT_TARGETS.remove(trader.getUUID());
                 return;
             }

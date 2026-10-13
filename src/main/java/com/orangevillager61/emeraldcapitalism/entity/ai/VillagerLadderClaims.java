@@ -44,6 +44,11 @@ public final class VillagerLadderClaims {
         CLAIMS.values().removeIf(villagerId::equals);
     }
 
+    /** Drops claims for a dimension before its server level is unloaded. */
+    public static void releaseDimension(ResourceKey<Level> dimension) {
+        CLAIMS.keySet().removeIf(column -> column.dimension().equals(dimension));
+    }
+
     public static void clear() {
         CLAIMS.clear();
     }

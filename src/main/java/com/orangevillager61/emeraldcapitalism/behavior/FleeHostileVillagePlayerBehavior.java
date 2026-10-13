@@ -1,17 +1,19 @@
 package com.orangevillager61.emeraldcapitalism.behavior;
 
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.behavior.Behavior;
-import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -39,6 +41,8 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
     private BlockPos escapeTarget;
     private long nextThreatLookupTick = Long.MIN_VALUE;
     private long nextEscapeSearchTick = Long.MIN_VALUE;
+    @Nullable
+    private MovementRequestHandle movementHandle;
 
     public FleeHostileVillagePlayerBehavior() {
         super(
@@ -77,13 +81,16 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
         escapeTarget = null;
         nextThreatLookupTick = Long.MIN_VALUE;
         nextEscapeSearchTick = Long.MIN_VALUE;
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        if (movementHandle != null) {
+            MovementRequestManager.cancel(villager, movementHandle, true);
+            movementHandle = null;
+        }
     }
 
     @Override
     protected boolean canStillUse(ServerLevel level, Villager villager, long gameTime) {
-        return findClosestThreat(level, villager) != null;
+        return findClosestThreat(level, villager) != null
+                && MovementRequestManager.isActive(villager, movementHandle);
     }
 
     private void updatePathAwayFromThreat(ServerLevel level, Villager villager, long gameTime) {
@@ -120,12 +127,33 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
             nextEscapeSearchTick = gameTime + 10L;
         }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(threat, true));
         if (escapeTarget != null) {
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(new BlockPosTracker(escapeTarget), SPEED_MODIFIER, 0));
+            MovementRequestSpec spec = new MovementRequestSpec(
+                    "emeraldcapitalism:hostile_player_flee",
+                    "flee:" + escapeTarget.toShortString(),
+                    escapeTarget,
+                    SPEED_MODIFIER,
+                    0,
+                    "escape-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_ESCAPE,
+                    null,
+                    true);
+            MovementRequestSubmission submission = movementHandle == null
+                    ? MovementRequestManager.submit(villager, spec)
+                    : MovementRequestManager.maintain(villager, movementHandle, spec);
+            if (submission.accepted()) {
+                movementHandle = submission.handle();
+                villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                        new EntityTracker(threat, true));
+            } else {
+                movementHandle = null;
+            }
         } else {
-            villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            if (movementHandle != null) {
+                MovementRequestManager.cancel(villager, movementHandle, true);
+                movementHandle = null;
+            }
         }
     }
 

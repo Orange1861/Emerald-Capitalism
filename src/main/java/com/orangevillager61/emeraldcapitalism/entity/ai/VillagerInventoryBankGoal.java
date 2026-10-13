@@ -22,8 +22,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.Item;
@@ -59,6 +57,7 @@ public final class VillagerInventoryBankGoal extends Goal {
     private long lastDailyCheckDay = -1L;
     private boolean fullInventoryTrigger;
     private boolean finished;
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
     public VillagerInventoryBankGoal(Villager villager) {
         this.villager = villager;
@@ -150,7 +149,8 @@ public final class VillagerInventoryBankGoal extends Goal {
                 && bank.isVillagerDeliveriesEnabled()
                 && isDeliveryModeEnabled()
                 && villager.level() instanceof ServerLevel level
-                && (isDaytime(level) || isWithinNightSafeBankDistance());
+                && (isDaytime(level) || isWithinNightSafeBankDistance())
+                && (isAtBank() || movement.isActive(villager));
     }
 
     @Override
@@ -174,8 +174,19 @@ public final class VillagerInventoryBankGoal extends Goal {
         }
 
         if (navigationTarget != null) {
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED, 0));
+            if (!movement.submit(villager, new MovementRequestSpec(
+                    "emeraldcapitalism:inventory_bank_visit",
+                    "bank-deposit:" + depositPos.toShortString(),
+                    navigationTarget,
+                    SPEED,
+                    0,
+                    "bank-deposit-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_WORK,
+                    depositPos))) {
+                finish(level, FAILURE_COOLDOWN);
+                return;
+            }
         }
         attemptTicks++;
         if (attemptTicks >= ATTEMPT_TICKS) {
@@ -189,8 +200,7 @@ public final class VillagerInventoryBankGoal extends Goal {
 
     @Override
     public void stop() {
-        villager.getNavigation().stop();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        movement.cancel(villager, true);
         if (finished && villager.level() instanceof ServerLevel level
                 && nextActionTick < level.getGameTime()) {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
@@ -600,16 +610,16 @@ public final class VillagerInventoryBankGoal extends Goal {
         if (navigationTarget == null) {
             return false;
         }
-        if (!villager.getNavigation().moveTo(
-                navigationTarget.getX() + 0.5D,
-                navigationTarget.getY() + 0.5D,
-                navigationTarget.getZ() + 0.5D,
-                SPEED)) {
-            return false;
-        }
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(navigationTarget, SPEED, 0));
-        return true;
+        return movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:inventory_bank_visit",
+                "bank-deposit:" + depositPos.toShortString(),
+                navigationTarget,
+                SPEED,
+                0,
+                "bank-deposit-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                depositPos));
     }
 
     private boolean isAtBank() {

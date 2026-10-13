@@ -3,8 +3,13 @@ package com.orangevillager61.emeraldcapitalism.behavior;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
@@ -22,6 +27,7 @@ import net.minecraft.world.item.ItemStack;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
+import org.jetbrains.annotations.Nullable;
 
 /** Brain behavior that lets starving adult villagers seek nearby food donors. */
 public class BegForFoodBehavior extends Behavior<Villager> {
@@ -39,6 +45,11 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     private static final int BEG_DURATION = 30;
 
     private static final int BEGGING_COOLDOWN = 600;
+
+    private MovementRequestHandle movementHandle;
+
+    @Nullable
+    private Villager lookTargetDonor;
 
     public BegForFoodBehavior() {
         super(
@@ -97,12 +108,13 @@ public class BegForFoodBehavior extends Behavior<Villager> {
             return;
         }
         
-        Brain<?> brain = villager.getBrain();
-        brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(donorVillager, true));
-        
         double distSq = villager.distanceToSqr(donorVillager);
         if (distSq > INTERACTION_DISTANCE * INTERACTION_DISTANCE) {
-            BehaviorUtils.setWalkAndLookTargetMemories(villager, donorVillager, SPEED_MODIFIER, 1);
+            if (submitMovement(villager, donorVillager)) {
+                setDonorLookTarget(villager, donorVillager);
+            }
+        } else {
+            setDonorLookTarget(villager, donorVillager);
         }
     }
 
@@ -116,9 +128,6 @@ public class BegForFoodBehavior extends Behavior<Villager> {
             return;
         }
 
-        Brain<?> brain = villager.getBrain();
-        brain.setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(donorVillager, true));
-
         if (!canDonate(donorVillager)) {
             this.doStop(level, villager, gameTime);
             return;
@@ -127,6 +136,7 @@ public class BegForFoodBehavior extends Behavior<Villager> {
         double distSq = villager.distanceToSqr(donorVillager);
 
         if (distSq <= INTERACTION_DISTANCE * INTERACTION_DISTANCE) {
+            setDonorLookTarget(villager, donorVillager);
             stats.setBegTime(stats.getBegTime() + 1);
             
             donorVillager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(villager, true));
@@ -138,7 +148,9 @@ public class BegForFoodBehavior extends Behavior<Villager> {
             }
         } else {
             stats.setBegTime(0);
-            BehaviorUtils.setWalkAndLookTargetMemories(villager, donorVillager, SPEED_MODIFIER, 1);
+            if (submitMovement(villager, donorVillager)) {
+                setDonorLookTarget(villager, donorVillager);
+            }
         }
     }
 
@@ -146,7 +158,18 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
         stats.resetBeggingState();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        MovementRequestManager.cancel(villager, movementHandle, true);
+        movementHandle = null;
+        if (lookTargetDonor != null) {
+            EntityTracker current = villager.getBrain().getMemory(MemoryModuleType.LOOK_TARGET)
+                    .filter(EntityTracker.class::isInstance)
+                    .map(EntityTracker.class::cast)
+                    .orElse(null);
+            if (current != null && current.getEntity() == lookTargetDonor) {
+                villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+            }
+            lookTargetDonor = null;
+        }
     }
 
     @Override
@@ -163,7 +186,44 @@ public class BegForFoodBehavior extends Behavior<Villager> {
         return donorVillager != null 
             && donorVillager.isAlive() 
             && canDonate(donorVillager)
-            && villager.distanceToSqr(donorVillager) < MAX_DISTANCE * MAX_DISTANCE;
+            && villager.distanceToSqr(donorVillager) < MAX_DISTANCE * MAX_DISTANCE
+            && (villager.distanceToSqr(donorVillager)
+                    <= INTERACTION_DISTANCE * INTERACTION_DISTANCE
+                    || MovementRequestManager.isActive(villager, movementHandle));
+    }
+
+    private boolean submitMovement(Villager villager, Villager donorVillager) {
+        BlockPos donorPosition = donorVillager.blockPosition();
+        MovementRequestSpec spec = new MovementRequestSpec(
+                "emeraldcapitalism:beg_for_food",
+                "donor:" + donorVillager.getUUID(),
+                donorPosition,
+                SPEED_MODIFIER,
+                1,
+                "social-interaction-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_AMBIENT,
+                null,
+                true);
+        if (movementHandle != null) {
+            if (!MovementRequestManager.isActive(villager, movementHandle)) {
+                movementHandle = null;
+                return false;
+            }
+            MovementRequestSubmission submission = MovementRequestManager.maintain(
+                    villager, movementHandle, spec);
+            movementHandle = submission.accepted() ? submission.handle() : null;
+            return submission.accepted();
+        }
+        MovementRequestSubmission submission = MovementRequestManager.submit(villager, spec);
+        movementHandle = submission.accepted() ? submission.handle() : null;
+        return submission.accepted();
+    }
+
+    private void setDonorLookTarget(Villager villager, Villager donorVillager) {
+        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                new EntityTracker(donorVillager, true));
+        lookTargetDonor = donorVillager;
     }
 
     /** Resolves a visible nearby donor within the configured search radius. */

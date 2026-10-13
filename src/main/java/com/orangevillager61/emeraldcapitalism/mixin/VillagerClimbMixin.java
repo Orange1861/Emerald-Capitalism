@@ -151,17 +151,11 @@ public abstract class VillagerClimbMixin {
             villager.getNavigation().stop();
             villager.getMoveControl().setWantedPosition(
                     target.getX() + 0.5D, target.getY(), target.getZ() + 0.5D, 1.0D);
-            if (distanceSq <= 1.25D
+            if (distanceSq <= 0.25D
                     && villager.tickCount > emeraldcapitalism$ladderExitStartedTick) {
-                // Once the clear exit is close, correct the small collision
-                // drift directly. Otherwise gravity can pull the villager
-                // back onto the last rung before the exit block gains ground.
-                villager.setPos(target.getX() + 0.5D,
-                        target.getY(), target.getZ() + 0.5D);
-                if (!emeraldcapitalism$isSafeExitForVillager(villager, target)) {
-                    emeraldcapitalism$recoverFromLadderExit(villager);
-                    return;
-                }
+                // Finish only after ordinary movement has reached the
+                // collision-validated exit. No position correction or brain
+                // memory clearing is allowed at this traversal boundary.
                 emeraldcapitalism$releaseLadder(villager);
                 emeraldcapitalism$ladderExitTarget = null;
                 emeraldcapitalism$activeLadderColumn = null;
@@ -170,7 +164,6 @@ public abstract class VillagerClimbMixin {
                 emeraldcapitalism$resetLadderExitProgress();
                 villager.getNavigation().stop();
                 villager.setDeltaMovement(0.0D, 0.0D, 0.0D);
-                villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
                 return;
             }
             double pullX = (target.getX() + 0.5D - villager.getX()) * 0.25D;

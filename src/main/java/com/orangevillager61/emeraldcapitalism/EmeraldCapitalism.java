@@ -8,8 +8,10 @@ import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
 import com.orangevillager61.emeraldcapitalism.event.SteveGraveEvents;
 import com.orangevillager61.emeraldcapitalism.event.VillageDetectionHandler;
 import com.orangevillager61.emeraldcapitalism.event.VillageRegistryEvents;
+import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackTreeReservations;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.network.ECAPNetworking;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
@@ -123,6 +125,8 @@ public class EmeraldCapitalism {
         PerformanceTimingCounters.clear();
         VillageDetectionHandler.clearPendingWork();
         SteveGraveEvents.clearPendingWork();
+        VillagerBehaviorRegistry.clearBindings();
+        MovementRequestManager.clearAll();
     }
 
     @SubscribeEvent

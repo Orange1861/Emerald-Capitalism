@@ -1,0 +1,134 @@
+# Incremental navigation refactor implementation
+
+This note records the implemented contract for the revised navigation plan. It
+is intentionally separate from the strategy documents: it describes the code
+that is present in the supported source set, not a future design.
+
+## Ownership boundary
+
+Villager task code owns intent. `MovementRequestManager` owns the transient
+owner/generation token and the handoff boundary. Minecraft's
+`MoveToTargetSink` remains the route planner and path executor. A migrated task
+submits a `MovementRequestSpec`, then only reasserts its `WALK_TARGET` and
+optional `LOOK_TARGET` while its handle is current. It does not call
+`PathNavigation.moveTo` or mutate `PATH` during ordinary task ticks.
+
+Requests compare owner, destination identity, exact destination, speed,
+arrival policy, traversal policy, priority, and optional look target. An
+unchanged submission is idempotent. A speed-only or nearby-destination change
+creates a new generation; only a strictly higher-priority owner can preempt a
+different active owner. Equal- and lower-priority owners are rejected. Cleanup
+is handle-guarded, so delayed cleanup from an old task cannot stop a newer
+request aimed at the same block.
+
+Task intent, route state, and traversal state are separate. A route ending is
+not task completion. Ladder traversal may temporarily stop the live route, but
+it leaves the task request memory available for retry and never teleports the
+villager into the exit block. Ladder claims are dimension-aware and are
+released on entity leave, level unload, and server stop.
+
+## Migrated production callers
+
+The following villager producers use the bridge:
+
+- pumpkin harvest, farmland repair, banker positioning, inventory-bank visits;
+- emerald processor and golem construction;
+- mayor door repair and moving-target candidate following;
+- lumberjack job-site, tree, and production-furnace movement;
+- hostile-player flee, zombie-plague avoidance, boat avoidance, and begging.
+
+The wandering trader and Emerald Skrimisher/golem families retain their
+entity-specific goal-driven executor where they do not use the villager brain
+sink. Their shared path/ladder geometry remains in the narrow navigation
+helpers. Skrimisher bank delivery no longer writes unused villager brain
+movement metadata; its direct goal navigation remains intentional.
+
+## Future villager behavior API
+
+`VillagerBehaviorDefinition` is the registration unit. A definition declares a
+stable id, eligibility predicate, required controls, memories it owns,
+priority, interruption policy, and a `VillagerBehaviorLifecycle`. Definitions
+are shared and deterministic; `VillagerBehaviorRegistry` stores only
+per-villager bindings. `refresh` is idempotent and is called on join and at a
+bounded tick cadence so profession changes, enablement changes, and brain
+refreshes do not duplicate bindings. Conflicting controls or owned memories
+are resolved by priority; lower-priority definitions are suspended or canceled
+according to their interruption policy. Bound definitions also receive a small
+per-tick callback for request-memory maintenance; route planning still belongs
+to the vanilla sink. Removal, replacement, entity leave, and server shutdown
+invoke lifecycle cancellation.
+
+The worked extension is the test-only definition in
+`VillagerBehaviorExtensionGameTests`; it declares MOVE and WALK_TARGET
+ownership, submits a `MovementRequestSpec`, survives refresh and profession
+changes, and cleans up its request through the lifecycle. A future task should
+use that definition shape and keep reservations and economic effects in the
+task rather than in the movement manager.
+
+## Diagnostics and performance evidence
+
+Set the JVM property `emeraldcapitalism.navigationDiagnostics=true` for
+opt-in transition, cleanup, and route-generation logs. The counters in
+`PerformanceTimingCounters` record request submissions, replans, preemptions,
+rejections, and existing expensive searches without logging every tick.
+Planning helpers retain bounded candidate attempts and do not force-load
+chunks.
+
+The final verification report must include equivalent multi-mob workload
+snapshots for both supported targets. A faster run is not considered an
+improvement if it only abandons more work; successful task outcomes and retry
+counts are part of the comparison.
+
+The 2026-10-13 disposable-server snapshots were:
+
+- 1.21.1: 209 tests, 1.263 minutes; the new navigation regression and
+  extension journeys passed.
+- 1.21.4: 209 tests, 1.166 minutes; the same new journeys passed.
+
+These are workload smoke snapshots, not a controlled before/after benchmark:
+the repository has no stored baseline run or fixed hardware benchmark harness.
+Both runs reported the same two unrelated existing failures,
+`resourcescanincludesnearestemeraldprocessorinventory` and
+`emeraldskrimisherperiodicdepositrunsthroughrealgoalselector`; neither test
+touches the migrated villager movement bridge.
+
+### Likely cost relative to the pre-refactor code
+
+The source-level migration removes eight direct villager `moveTo` calls from
+the audited goal set and reduces direct `WALK_TARGET` writers there from 15 to
+the single manager-owned writer. One helper-mediated writer remains in
+`BankAwarePotentialJobSiteBehavior`, but it is limited to pre-profession
+potential-job-site assignment rather than an active migrated work journey.
+This should reduce competing route starts, stale-path cleanup, and repeated
+executor fights during active work.
+
+The steady-state cost is higher per active migrated task: each request tick now
+does a synchronized ownership lookup, creates request/spec objects, and
+compares a full intent. Matching block-position walk/look memories are now
+left in place instead of allocating replacement trackers every tick; meaningful
+target changes still stop the current route and make the vanilla sink plan
+again. Manual entity-look producers explicitly mark their look memory as owned
+so handoff cleanup does not leave stale focus behind. The registry is skipped
+entirely when no extension definitions are registered, and its shared priority
+ordering is cached; when active it still adds one synchronized per-villager
+binding check each server tick and a definition reconciliation every 20 ticks.
+
+Therefore the likely result is a small CPU/allocation regression for idle or
+lightly active villagers when extension definitions are enabled, a neutral to
+slightly positive result for normal work-heavy villages where the old code was
+fighting over navigation, and a possible pathfinding-cost increase for rapidly
+moving threats or targets. The existing counters expose submissions, replans,
+preemptions, and rejections, but not total per-tick manager/registry time; a
+controlled before/after multi-villager run is still required before claiming a
+numeric performance improvement.
+
+## Test layers
+
+Pure ownership rules live in `core` ledger tests. Minecraft GameTests retain
+component coverage for ladder geometry and bounded candidate selection, and
+the navigation regression suite is the place for normal-AI journeys that
+assert actual world effects. Component tests may install a handcrafted path;
+they are not evidence that normal brain/goal registration completed a task.
+
+The supported Gradle targets are 1.21.1 and 1.21.4. Later Stonecutter entries
+are metadata-only and are not activated by this refactor.

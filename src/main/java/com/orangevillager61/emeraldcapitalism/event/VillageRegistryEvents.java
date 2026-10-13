@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEn
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.FarmerBreadConversionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
+import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankerWorkGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithProcessorGoal;
@@ -393,6 +394,9 @@ public class VillageRegistryEvents {
         VillageRegistryManager manager = MANAGERS.computeIfAbsent(
                 serverLevel, VillageRegistryManager::new);
         manager.handleVillagerSpawnOrLoad(villager);
+        if (VillagerBehaviorRegistry.hasDefinitions()) {
+            VillagerBehaviorRegistry.refresh(villager);
+        }
 
         // Profession-specific goals are present before profession assignment so
         // villagers that change profession after spawning/loading are covered as well.

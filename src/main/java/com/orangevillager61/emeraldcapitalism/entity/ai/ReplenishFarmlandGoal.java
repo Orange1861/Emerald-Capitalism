@@ -6,10 +6,7 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.level.block.Blocks;
@@ -51,6 +48,7 @@ public class ReplenishFarmlandGoal extends Goal {
     private boolean failed;
     private boolean tryAlternativeRepairsDuringCooldown;
     private long nextQueueLookupTick;
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
     public ReplenishFarmlandGoal(Villager villager) {
         this.villager = villager;
@@ -116,7 +114,8 @@ public class ReplenishFarmlandGoal extends Goal {
         //   and allow normal arbitration to pick a fresh target next tick.
         return !failed
                 && village.getRepairQueue().contains(targetPos)
-                && village.getClaimedPositions().contains(targetPos);
+                && village.getClaimedPositions().contains(targetPos)
+                && movement.isActive(villager);
     }
 
     @Override
@@ -150,10 +149,6 @@ public class ReplenishFarmlandGoal extends Goal {
             return;
         }
 
-        // Look at target
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
-                new BlockPosTracker(targetPos));
-
         // Check if arrived
         double distSq = villager.blockPosition().distSqr(targetPos);
         if (distSq <= ARRIVAL_DISTANCE_SQ) {
@@ -161,7 +156,7 @@ public class ReplenishFarmlandGoal extends Goal {
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
             rememberFailedTarget(targetPos);
             failed = true;
-            villager.getNavigation().stop();
+            movement.cancel(villager, true);
         } else {
             // Keep the brain's walk target pointed at our repair position.
             // This must be re-set each tick so brain behaviors don't override it.
@@ -179,8 +174,7 @@ public class ReplenishFarmlandGoal extends Goal {
         village = null;
         navigationWatchdog.reset();
         failed = false;
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        movement.cancel(villager, true);
     }
 
     /**
@@ -188,9 +182,19 @@ public class ReplenishFarmlandGoal extends Goal {
      * The brain's built-in SetWalkTargetFromMemory behavior handles navigation.
      */
     private void setWalkTarget() {
-        if (targetPos != null) {
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED_MODIFIER, WALK_TARGET_CLOSE_ENOUGH));
+        if (targetPos != null && navigationTarget != null) {
+            if (!movement.submit(villager, new MovementRequestSpec(
+                    "emeraldcapitalism:farmland_repair",
+                    "farmland:" + targetPos.toShortString(),
+                    navigationTarget,
+                    SPEED_MODIFIER,
+                    WALK_TARGET_CLOSE_ENOUGH,
+                    "farmland-interaction-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_WORK,
+                    targetPos))) {
+                failed = true;
+            }
         }
     }
 

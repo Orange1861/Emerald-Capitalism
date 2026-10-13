@@ -8,8 +8,6 @@ import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -36,6 +34,7 @@ public final class EmeraldSmithProcessorGoal extends Goal {
     private int attempts;
     private boolean finished;
     private long nextActionTick;
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
     public EmeraldSmithProcessorGoal(Villager villager) {
         this.villager = villager;
@@ -101,7 +100,8 @@ public final class EmeraldSmithProcessorGoal extends Goal {
                 && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.EMERALDSMITH.get()
                 && !villager.isSleeping()
                 && !villager.isTrading()
-                && !VillagerBreedingSessions.shouldYieldCustomWork(villager);
+                && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                && (isAtProcessor() || movement.isActive(villager));
     }
 
     @Override
@@ -138,8 +138,7 @@ public final class EmeraldSmithProcessorGoal extends Goal {
 
     @Override
     public void stop() {
-        villager.getNavigation().stop();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        movement.cancel(villager, true);
         if (finished && villager.level() instanceof ServerLevel level
                 && nextActionTick < level.getGameTime()) {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
@@ -273,16 +272,20 @@ public final class EmeraldSmithProcessorGoal extends Goal {
 
     private boolean moveToProcessor() {
         BlockPos pos = context.navigationTarget();
-        if (!villager.getNavigation().moveTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, SPEED)) {
-            return false;
-        }
-        setProcessorWalkTarget();
-        return true;
+        return movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:smith_processor",
+                "processor:" + context.processorPos().toShortString(),
+                pos,
+                SPEED,
+                1,
+                "processor-interaction-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                context.processorPos()));
     }
 
     private void setProcessorWalkTarget() {
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(context.navigationTarget(), SPEED, 1));
+        moveToProcessor();
     }
 
     private boolean isAtProcessor() {

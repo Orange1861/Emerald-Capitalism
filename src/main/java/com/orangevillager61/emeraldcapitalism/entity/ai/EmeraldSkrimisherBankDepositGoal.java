@@ -9,8 +9,6 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.EnumSet;
@@ -141,7 +139,6 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
     @Override
     public void stop() {
         skrimisher.getNavigation().stop();
-        skrimisher.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
     }
 
     private int countHeldItems() {
@@ -189,8 +186,6 @@ public final class EmeraldSkrimisherBankDepositGoal extends Goal {
                 pos.getZ() + 0.5D, SPEED)) {
             return false;
         }
-        skrimisher.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(pos, SPEED, 0));
         return true;
     }
 

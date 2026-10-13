@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -32,6 +33,9 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     private UUID failedCandidateId;
     private long nextPathAttemptTick;
     private boolean pathingFailed;
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
+    @Nullable
+    private BlockPos lastRequestedCandidatePosition;
 
     public MayorFollowGovernorCandidateGoal(Villager mayor) {
         this(mayor, null);
@@ -77,6 +81,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     public void start() {
         pathingFailed = false;
         candidate = null;
+        lastRequestedCandidatePosition = null;
 
         if (!(mayor.level() instanceof ServerLevel level)) {
             pathingFailed = true;
@@ -118,7 +123,8 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         }
 
         candidate = resolvedCandidate;
-        return true;
+        return mayor.distanceToSqr(resolvedCandidate) > STOP_DISTANCE_SQ
+                && movement.isActive(mayor);
     }
 
     @Override
@@ -130,11 +136,12 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
 
         mayor.getLookControl().setLookAt(candidate);
         if (mayor.distanceToSqr(candidate) <= STOP_DISTANCE_SQ) {
-            mayor.getNavigation().stop();
             return;
         }
 
-        if (mayor.getNavigation().isDone() && !tryPathToCandidate(level)) {
+        boolean targetMoved = lastRequestedCandidatePosition == null
+                || !lastRequestedCandidatePosition.equals(candidate.blockPosition());
+        if ((mayor.getNavigation().isDone() || targetMoved) && !tryPathToCandidate(level)) {
             markPathFailure(level, candidate);
         }
     }
@@ -143,8 +150,9 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     public void stop() {
         EmeraldCapitalism.LOGGER.debug("[ECAP][MayorFollow] STOP mayor={} candidate={} pathingFailed={}",
                 mayor.getUUID(), candidate == null ? null : candidate.getUUID(), pathingFailed);
-        mayor.getNavigation().stop();
+        movement.cancel(mayor, true);
         candidate = null;
+        lastRequestedCandidatePosition = null;
         pathingFailed = false;
     }
 
@@ -192,15 +200,34 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
             return false;
         }
 
+        // Preserve the old task-specific reachability gate. The request
+        // bridge owns execution only after the moving target has a usable
+        // route; an accepted memory alone is not evidence that following can
+        // continue.
         Path path = mayor.getNavigation().createPath(candidate.blockPosition(), PATH_NODE_MALUS);
-        return path != null && path.canReach()
-                && mayor.getNavigation().moveTo(path, SPEED);
+        if (path == null || !path.canReach()) {
+            return false;
+        }
+        boolean submitted = movement.submit(mayor, new MovementRequestSpec(
+                "emeraldcapitalism:mayor_follow_candidate",
+                "candidate:" + candidate.getUUID(),
+                candidate.blockPosition(),
+                (float) SPEED,
+                3,
+                "follow-moving-target-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_ESCAPE,
+                candidate.blockPosition()));
+        if (submitted) {
+            lastRequestedCandidatePosition = candidate.blockPosition().immutable();
+        }
+        return submitted;
     }
 
     private void markPathFailure(ServerLevel level, ServerPlayer failedCandidate) {
         pathingFailed = true;
         failedCandidateId = failedCandidate.getUUID();
         nextPathAttemptTick = level.getGameTime() + PATH_FAILURE_COOLDOWN;
-        mayor.getNavigation().stop();
+        movement.cancel(mayor, true);
     }
 }

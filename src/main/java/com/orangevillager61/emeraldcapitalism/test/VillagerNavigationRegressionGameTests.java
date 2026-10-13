@@ -96,6 +96,30 @@ public final class VillagerNavigationRegressionGameTests {
         helper.runAfterDelay(1, () -> verifyOuterNavigationCandidate(helper, farmer, pumpkin));
     }
 
+    @GameTest(template = "empty_20x3x20", batch = "ecap_navigation_regressions", timeoutTicks = 700)
+    public static void normalVillagerAiHarvestsPumpkinAtAbsolutePosition(GameTestHelper helper) {
+        // Keep the target well inside the disposable floor so ordinary villager
+        // wandering cannot leave the loaded fixture before the custom work goal
+        // gets its first route admission.
+        BlockPos localPumpkin = new BlockPos(6, 1, 1);
+        installFloor(helper, 20);
+        installAttachedPumpkin(helper, localPumpkin);
+
+        // This is deliberately a normal villager with normal goal/brain
+        // registration. No goal is installed manually and the actor is never
+        // moved to the selected endpoint after the journey starts.
+        Villager farmer = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setOnGround(true);
+        helper.getLevel().setDayTime(1000L);
+        farmer.refreshBrain(helper.getLevel());
+        helper.assertTrue(farmer.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(wrapper -> wrapper.getGoal() instanceof HarvestPumpkinGoal),
+                "normal villager registration did not install the pumpkin goal");
+        BlockPos absolutePumpkin = helper.absolutePos(localPumpkin);
+        awaitAutonomousPumpkinHarvest(helper, farmer, absolutePumpkin, 680);
+    }
+
     private static void verifyOuterNavigationCandidate(GameTestHelper helper, Villager farmer,
                                                         BlockPos pumpkin) {
         BlockPos absolutePumpkin = helper.absolutePos(pumpkin);
@@ -113,7 +137,7 @@ public final class VillagerNavigationRegressionGameTests {
         farmer.moveTo(selected.getX() + 0.5D, selected.getY(), selected.getZ() + 0.5D,
                 0.0F, 0.0F);
         goal.tick();
-        helper.assertTrue(helper.getLevel().getBlockState(pumpkin).isAir(),
+        helper.assertTrue(helper.getLevel().getBlockState(absolutePumpkin).isAir(),
                 "the selected navigation endpoint did not allow the farmer to execute the job");
         goal.stop();
         helper.succeed();
@@ -324,14 +348,15 @@ public final class VillagerNavigationRegressionGameTests {
             return;
         }
         if (hasClearedLadder(villager, ladderBase) && !startedWork) {
-            helper.runAfterDelay(1, () -> {
-                helper.assertTrue(villager.getNavigation().moveTo(
-                                workPosition.getX() + 0.5D, workPosition.getY(),
-                                workPosition.getZ() + 0.5D, 1.0D),
-                        "navigation could not continue from the ladder landing to the workstation");
-                awaitLandingAndWork(helper, villager, ladderBase, workPosition,
-                        remainingTicks - 1, true);
-            });
+            // The landing bridge deliberately avoids teleporting the entity;
+            // the first post-exit tick may still be airborne, so retry the
+            // ordinary navigator until it can adopt the continuation route.
+            boolean continuationStarted = villager.getNavigation().moveTo(
+                    workPosition.getX() + 0.5D, workPosition.getY(),
+                    workPosition.getZ() + 0.5D, 1.0D);
+            helper.runAfterDelay(1, () -> awaitLandingAndWork(
+                    helper, villager, ladderBase, workPosition,
+                    remainingTicks - 1, continuationStarted));
             return;
         }
         if (startedWork && villager.blockPosition().distSqr(workPosition) <= 2.25D) {
@@ -341,6 +366,24 @@ public final class VillagerNavigationRegressionGameTests {
         boolean nextStartedWork = startedWork;
         helper.runAfterDelay(1, () -> awaitLandingAndWork(
                 helper, villager, ladderBase, workPosition, remainingTicks - 1, nextStartedWork));
+    }
+
+    private static void awaitAutonomousPumpkinHarvest(GameTestHelper helper, Villager farmer,
+                                                       BlockPos absolutePumpkin,
+                                                       int remainingTicks) {
+        if (helper.getLevel().getBlockState(absolutePumpkin).isAir()
+                && farmer.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN) > 0) {
+            helper.succeed();
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("normal villager AI did not harvest the absolute pumpkin position; villager="
+                    + farmer.position() + " target=" + absolutePumpkin
+                    + " block=" + helper.getLevel().getBlockState(absolutePumpkin));
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitAutonomousPumpkinHarvest(
+                helper, farmer, absolutePumpkin, remainingTicks - 1));
     }
 
     private static void awaitDescent(GameTestHelper helper, Villager villager,

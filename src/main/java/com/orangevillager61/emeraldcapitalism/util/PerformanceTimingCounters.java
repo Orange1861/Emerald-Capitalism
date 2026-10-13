@@ -16,6 +16,10 @@ public final class PerformanceTimingCounters {
         LUMBERJACK_LOCAL_TREE_PROBE,
         LUMBERJACK_FURNACE_SEARCH,
         PUMPKIN_SEARCH,
+        MOVEMENT_REQUEST_SUBMISSION,
+        MOVEMENT_REQUEST_REPLAN,
+        MOVEMENT_REQUEST_PREEMPTION,
+        MOVEMENT_REQUEST_REJECTION,
         POI_DYNAMIC_REFRESH,
         BANK_CHEST_CACHE_REBUILD,
         BANK_INVENTORY_TOTAL_REFRESH
@@ -66,6 +70,11 @@ public final class PerformanceTimingCounters {
 
     public static void clear() {
         COUNTERS.values().forEach(Counter::clear);
+    }
+
+    /** Records a bounded state transition that has no useful duration. */
+    public static void recordEvent(Operation operation) {
+        COUNTERS.get(operation).record(0L);
     }
 
     private static void record(Operation operation, long elapsedNanos) {

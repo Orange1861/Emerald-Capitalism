@@ -10,10 +10,8 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -62,6 +60,7 @@ public final class MayorDoorRepairGoal extends Goal {
     private String lastEligibilityDiagnostic;
     private long nextEligibilityDiagnosticTick;
     private long nextProgressDiagnosticTick;
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
     @Nullable
     private Stage lastLoggedStage;
     @Nullable
@@ -165,7 +164,7 @@ public final class MayorDoorRepairGoal extends Goal {
         if (bank.isRemoved()) {
             return stopBecause("bank block entity was removed: " + bank.getBlockPos());
         }
-        return true;
+        return movement.isActive(villager);
     }
 
     @Override
@@ -244,9 +243,6 @@ public final class MayorDoorRepairGoal extends Goal {
 
         logProgress(level);
         clearSocialInteractionMemories();
-        BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(lookTarget));
-
         if (stage == Stage.BANK && BankBlock.isAtDepositApproach(
                 bank.getBlockState(), bank.getBlockPos(), villager.position())) {
             EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at bank approach={} bank={} mayor={}",
@@ -306,10 +302,8 @@ public final class MayorDoorRepairGoal extends Goal {
         if (village != null && targetPos != null) {
             village.unclaimDoorPosition(targetPos);
         }
-        villager.getNavigation().stop();
+        movement.cancel(villager, true);
         clearSocialInteractionMemories();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         targetPos = null;
         navigationTarget = null;
         village = null;
@@ -540,9 +534,20 @@ public final class MayorDoorRepairGoal extends Goal {
     }
 
     private void setWalkTarget() {
-        if (navigationTarget != null) {
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED_MODIFIER, WALK_TARGET_CLOSE_ENOUGH));
+        if (navigationTarget != null && stage != null && targetPos != null) {
+            BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
+            if (!movement.submit(villager, new MovementRequestSpec(
+                    "emeraldcapitalism:mayor_door_repair",
+                    "mayor-door:" + stage + ":" + targetPos.toShortString(),
+                    navigationTarget,
+                    SPEED_MODIFIER,
+                    WALK_TARGET_CLOSE_ENOUGH,
+                    "door-repair-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_WORK,
+                    lookTarget))) {
+                failed = true;
+            }
         } else {
             EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] WALK_TARGET not set: navigation target is null mayor={}",
                     villager.getUUID());

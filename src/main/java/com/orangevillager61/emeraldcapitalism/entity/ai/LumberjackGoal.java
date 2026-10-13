@@ -18,10 +18,8 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
-import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -102,6 +100,7 @@ public final class LumberjackGoal extends Goal {
     private int nextCandidateIndex;
     private int searchRange = LumberjackTreeScanner.INITIAL_SEARCH_RANGE;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
     private boolean furnaceInputInserted;
     private boolean returningToJobSite;
     private boolean failed;
@@ -445,12 +444,12 @@ public final class LumberjackGoal extends Goal {
             return;
         }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(target));
         if (clearLeafBlockingApproach(level, target)) {
             // The old path may have ended at the leaf we just removed. Replan
             // from the villager's current position before trying to approach
             // the next log again.
             navigationTarget = null;
+            movement.cancel(villager, true);
             navigationWatchdog.reset();
             navigationFailures = 0;
         }
@@ -469,7 +468,7 @@ public final class LumberjackGoal extends Goal {
                 navigationTarget = null;
                 navigationWatchdog.reset();
                 recordNavigationFailure(level);
-                villager.getNavigation().stop();
+                movement.cancel(villager, true);
             } else if (villager.getNavigation().isDone()
                     && level.getGameTime() >= nextNavigationRetryTick) {
                 // Re-evaluate a completed path from the villager's new position,
@@ -526,8 +525,7 @@ public final class LumberjackGoal extends Goal {
     }
 
     private void holdPositionWhileWorking() {
-        villager.getNavigation().stop();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        movement.cancel(villager, true);
         navigationTarget = null;
         navigationFailures = 0;
         navigationWatchdog.reset();
@@ -550,9 +548,7 @@ public final class LumberjackGoal extends Goal {
 
     @Override
     public void stop() {
-        villager.getNavigation().stop();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        movement.cancel(villager, true);
         clearBreakingProgress();
         releaseTreeReservation();
         if (logsCollectedThisTree > 0 && villager.level() instanceof ServerLevel level) {
@@ -652,11 +648,11 @@ public final class LumberjackGoal extends Goal {
 
         if (jobSiteTarget == null && !moveToJobSite()) {
             failed = true;
-            villager.getNavigation().stop();
+            movement.cancel(villager, true);
         } else if (jobSiteTarget != null
                 && navigationWatchdog.isStuck(villager, jobSiteTarget)) {
             failed = true;
-            villager.getNavigation().stop();
+            movement.cancel(villager, true);
         } else if (villager.getNavigation().isDone()
                 && level.getGameTime() >= nextNavigationRetryTick) {
             jobSiteTarget = null;
@@ -678,27 +674,32 @@ public final class LumberjackGoal extends Goal {
     }
 
     private boolean moveToJobSite() {
+        if (!(villager.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        BlockPos jobSite = getJobSite(level);
+        if (jobSite == null || isWithinWorkReach(jobSite)) {
+            return true;
+        }
         if (jobSiteTarget == null) {
-            if (!(villager.level() instanceof ServerLevel level)) {
-                return false;
-            }
-            BlockPos jobSite = getJobSite(level);
-            if (jobSite == null || isWithinWorkReach(jobSite)) {
-                return true;
-            }
             jobSiteTarget = VillagerNavigationTargets.findReachableTarget(villager, jobSite, 2);
             if (jobSiteTarget == null) {
                 return false;
             }
         }
 
-        boolean started = villager.getNavigation().moveTo(
-                jobSiteTarget.getX() + 0.5D, jobSiteTarget.getY() + 0.5D,
-                jobSiteTarget.getZ() + 0.5D, SPEED_MODIFIER);
+        boolean started = movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:lumberjack_job_site",
+                "job-site:" + jobSite.toShortString(),
+                jobSiteTarget,
+                SPEED_MODIFIER,
+                1,
+                "job-site-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                jobSite));
         if (started) {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(jobSiteTarget, SPEED_MODIFIER, 1));
         }
         return started;
     }
@@ -729,13 +730,18 @@ public final class LumberjackGoal extends Goal {
                 return false;
             }
         }
-        boolean started = villager.getNavigation().moveTo(
-                    navigationTarget.getX() + 0.5D, navigationTarget.getY() + 0.5D,
-                    navigationTarget.getZ() + 0.5D, SPEED_MODIFIER);
+        boolean started = movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:lumberjack_tree",
+                "tree-work:" + target.toShortString(),
+                navigationTarget,
+                SPEED_MODIFIER,
+                1,
+                "lumberjack-reach-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                target));
         if (started) {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED_MODIFIER, 1));
         } else {
             navigationTarget = null;
         }
@@ -751,7 +757,7 @@ public final class LumberjackGoal extends Goal {
                 searchRange = nextSearchRange();
                 nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
                 failed = true;
-                villager.getNavigation().stop();
+                movement.cancel(villager, true);
             }
         }
     }
@@ -1061,16 +1067,14 @@ public final class LumberjackGoal extends Goal {
             return;
         }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
-                new BlockPosTracker(productionFurnace));
         if (!isWithinWorkReach(productionFurnace)) {
             if (navigationTarget == null && !moveToProductionFurnace()) {
                 failed = true;
-                villager.getNavigation().stop();
+                movement.cancel(villager, true);
             } else if (navigationTarget != null
                     && navigationWatchdog.isStuck(villager, navigationTarget)) {
                 failed = true;
-                villager.getNavigation().stop();
+                movement.cancel(villager, true);
             } else if (villager.getNavigation().isDone()
                     && level.getGameTime() >= nextNavigationRetryTick) {
                 navigationTarget = null;
@@ -1264,13 +1268,18 @@ public final class LumberjackGoal extends Goal {
                 return false;
             }
         }
-        boolean started = villager.getNavigation().moveTo(
-                navigationTarget.getX() + 0.5D, navigationTarget.getY() + 0.5D,
-                navigationTarget.getZ() + 0.5D, SPEED_MODIFIER);
+        boolean started = movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:lumberjack_furnace",
+                "furnace-work:" + productionFurnace.toShortString(),
+                navigationTarget,
+                SPEED_MODIFIER,
+                1,
+                "furnace-interaction-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                productionFurnace));
         if (started) {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED_MODIFIER, 1));
         }
         return started;
     }

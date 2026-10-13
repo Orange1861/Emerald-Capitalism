@@ -2,15 +2,17 @@ package com.orangevillager61.emeraldcapitalism.behavior;
 
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.Behavior;
-import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.behavior.EntityTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.phys.Vec3;
@@ -44,6 +46,8 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     @Nullable
     private BlockPos escapeTarget;
     private long nextEscapeSearchTick = Long.MIN_VALUE;
+    @Nullable
+    private MovementRequestHandle movementHandle;
 
     public AvoidBoatBehavior() {
         super(
@@ -80,8 +84,10 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     @Override
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         escapeTarget = null;
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        if (movementHandle != null) {
+            MovementRequestManager.cancel(villager, movementHandle, true);
+            movementHandle = null;
+        }
     }
 
     @Override
@@ -90,7 +96,8 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
             return false;
         }
         Boat boat = findClosestBoat(villager);
-        return boat != null && isTooClose(villager, boat);
+        return boat != null && isTooClose(villager, boat)
+                && MovementRequestManager.isActive(villager, movementHandle);
     }
 
     private void updatePathAwayFromBoat(Villager villager, long gameTime) {
@@ -133,12 +140,33 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
             nextEscapeSearchTick = gameTime + 10L;
         }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(boat, true));
         if (escapeTarget != null) {
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(new BlockPosTracker(escapeTarget), SPEED_MODIFIER, 0));
+            MovementRequestSpec spec = new MovementRequestSpec(
+                    "emeraldcapitalism:boat_avoidance",
+                    "boat:" + escapeTarget.toShortString(),
+                    escapeTarget,
+                    SPEED_MODIFIER,
+                    0,
+                    "boat-avoidance-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_ESCAPE - 10,
+                    null,
+                    true);
+            MovementRequestSubmission submission = movementHandle == null
+                    ? MovementRequestManager.submit(villager, spec)
+                    : MovementRequestManager.maintain(villager, movementHandle, spec);
+            if (submission.accepted()) {
+                movementHandle = submission.handle();
+                villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                        new EntityTracker(boat, true));
+            } else {
+                movementHandle = null;
+            }
         } else {
-            villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            if (movementHandle != null) {
+                MovementRequestManager.cancel(villager, movementHandle, true);
+                movementHandle = null;
+            }
         }
     }
 

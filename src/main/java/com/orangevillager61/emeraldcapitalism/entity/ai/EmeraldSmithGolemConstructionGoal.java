@@ -17,8 +17,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -69,6 +67,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     private long nextDiagnosticTick;
     private String lastDiagnosticReason = "";
     private String failureReason = "unspecified failure";
+    private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
     public EmeraldSmithGolemConstructionGoal(Villager villager) {
         this.villager = villager;
@@ -201,7 +200,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                 && stage != null
                 && attempts < MAX_ATTEMPTS
                 && villager.getVillagerData().getProfession() == ECAPVillagerProfessions.EMERALDSMITH.get()
-                && !VillagerBreedingSessions.shouldYieldCustomWork(villager);
+                && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
+                && (stage != Stage.PROCESSOR || movement.isActive(villager));
     }
 
     @Override
@@ -228,8 +228,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             attemptTicks = 0;
             attempts = 0;
             nextPlacementTick = level.getGameTime();
-            villager.getNavigation().stop();
-            villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            movement.cancel(villager, true);
             EmeraldCapitalism.LOGGER.debug(
                     "[EmeraldsmithGolem] STAGE villager={} carved pumpkin at processor={}; constructing at marker={}",
                     villager.getName().getString(), context.processorPos(), context.constructionPos());
@@ -252,8 +251,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
     @Override
     public void stop() {
-        villager.getNavigation().stop();
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        movement.cancel(villager, true);
 
         if (villager.level() instanceof ServerLevel level && context != null) {
             if (!finished) {
@@ -671,13 +669,20 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
     private void moveToProcessor() {
         BlockPos pos = context.navigationTarget();
-        villager.getNavigation().moveTo(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D, SPEED);
-        setProcessorWalkTarget();
+        movement.submit(villager, new MovementRequestSpec(
+                "emeraldcapitalism:smith_golem_construction",
+                "construction-processor:" + context.processorPos().toShortString(),
+                pos,
+                SPEED,
+                1,
+                "processor-interaction-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                context.processorPos()));
     }
 
     private void setProcessorWalkTarget() {
-        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                new WalkTarget(context.navigationTarget(), SPEED, 1));
+        moveToProcessor();
     }
 
     private boolean isAtProcessor(ServerLevel level) {

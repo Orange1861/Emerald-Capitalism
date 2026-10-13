@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.event;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
+import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFamilyUtils;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameManager;
 import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
@@ -144,6 +145,16 @@ public class VillagerSpawnEvents {
         }
         if (villager.level().isClientSide()) {
             return;
+        }
+
+        if (VillagerBehaviorRegistry.hasDefinitions()) {
+            // Profession/config changes and brain rebuilds do not necessarily
+            // emit an entity-join event. Reconcile the stable definition registry
+            // at a bounded cadence so each villager keeps one lifecycle binding.
+            if (villager.tickCount % 20 == 0) {
+                VillagerBehaviorRegistry.refresh(villager);
+            }
+            VillagerBehaviorRegistry.tick(villager);
         }
 
         if (!villager.isBaby()) {

@@ -1,15 +1,13 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.util.LoadedChunkComposition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
@@ -57,6 +55,8 @@ public class HarvestPumpkinGoal extends Goal {
     private final Map<BlockPos, Long> failedTargetExpiryTicks = new HashMap<>();
     private boolean failed;
     private boolean tryAlternativePumpkinsDuringCooldown;
+    @Nullable
+    private MovementRequestHandle movementHandle;
 
     public HarvestPumpkinGoal(Villager villager) {
         this.villager = villager;
@@ -93,7 +93,8 @@ public class HarvestPumpkinGoal extends Goal {
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
                 && canStorePumpkin()
-                && isAttachedPumpkin(level, targetPos);
+                && isAttachedPumpkin(level, targetPos)
+                && MovementRequestManager.isActive(villager, movementHandle);
     }
 
     @Override
@@ -106,6 +107,11 @@ public class HarvestPumpkinGoal extends Goal {
             rememberFailedTarget(targetPos);
         }
         navigationWatchdog.reset();
+        if (Boolean.getBoolean("emeraldcapitalism.navigationDiagnostics")) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][Navigation] pumpkin-start entity={} target={} navigationTarget={} failed={}",
+                    villager.getUUID(), targetPos, navigationTarget, failed);
+        }
         setWalkTarget();
     }
 
@@ -115,13 +121,12 @@ public class HarvestPumpkinGoal extends Goal {
             return;
         }
 
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new BlockPosTracker(targetPos));
         if (villager.blockPosition().distSqr(targetPos) <= ARRIVAL_DISTANCE_SQ) {
             harvestPumpkin(level);
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
             rememberFailedTarget(targetPos);
             failed = true;
-            villager.getNavigation().stop();
+            cancelMovement();
         } else {
             setWalkTarget();
         }
@@ -129,12 +134,16 @@ public class HarvestPumpkinGoal extends Goal {
 
     @Override
     public void stop() {
+        if (Boolean.getBoolean("emeraldcapitalism.navigationDiagnostics") && targetPos != null) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][Navigation] pumpkin-stop entity={} target={} navigationTarget={} failed={} pos={}",
+                    villager.getUUID(), targetPos, navigationTarget, failed, villager.blockPosition());
+        }
+        cancelMovement();
         targetPos = null;
         navigationTarget = null;
         navigationWatchdog.reset();
         failed = false;
-        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
     }
 
     @Nullable
@@ -293,9 +302,34 @@ public class HarvestPumpkinGoal extends Goal {
     }
 
     private void setWalkTarget() {
-        if (targetPos != null && navigationTarget != null) {
-            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
-                    new WalkTarget(navigationTarget, SPEED_MODIFIER, 1));
+        if (targetPos == null || navigationTarget == null) {
+            return;
+        }
+        MovementRequestSpec spec = new MovementRequestSpec(
+                "emeraldcapitalism:pumpkin_harvest",
+                targetPos.toShortString(),
+                navigationTarget,
+                SPEED_MODIFIER,
+                0,
+                "pumpkin-interaction-v1",
+                "ground-ladder-v1",
+                MovementRequestManager.PRIORITY_WORK,
+                targetPos);
+        MovementRequestSubmission submission = movementHandle == null
+                ? MovementRequestManager.submit(villager, spec)
+                : MovementRequestManager.maintain(villager, movementHandle, spec);
+        if (submission.accepted()) {
+            movementHandle = submission.handle();
+        } else {
+            movementHandle = null;
+            failed = true;
+        }
+    }
+
+    private void cancelMovement() {
+        if (movementHandle != null) {
+            MovementRequestManager.cancel(villager, movementHandle, true);
+            movementHandle = null;
         }
     }
 
