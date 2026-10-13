@@ -22,7 +22,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Lets farmers harvest pumpkins that are demonstrably part of a pumpkin plant.
@@ -35,6 +38,7 @@ public class HarvestPumpkinGoal extends Goal {
     private static final int SEARCH_INTERVAL_TICKS = 40;
     private static final int EMPTY_SEARCH_INTERVAL_TICKS = 100;
     private static final int POSITIVE_CACHE_INTERVAL_TICKS = 80;
+    private static final int FAILED_TARGET_RETRY_TICKS = 100;
     private static final double ARRIVAL_DISTANCE_SQ = 2.25;
     private static final float SPEED_MODIFIER = 0.6F;
 
@@ -50,7 +54,9 @@ public class HarvestPumpkinGoal extends Goal {
     private BlockPos cachedPumpkinOrigin;
     private long pumpkinCacheExpiresTick = Long.MIN_VALUE;
     private final VillagerNavigationWatchdog navigationWatchdog = new VillagerNavigationWatchdog();
+    private final Map<BlockPos, Long> failedTargetExpiryTicks = new HashMap<>();
     private boolean failed;
+    private boolean tryAlternativePumpkinsDuringCooldown;
 
     public HarvestPumpkinGoal(Villager villager) {
         this.villager = villager;
@@ -63,16 +69,19 @@ public class HarvestPumpkinGoal extends Goal {
                 || !(villager.level() instanceof ServerLevel level)
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)
                 || !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
-                || level.getGameTime() < nextSearchTick
+                || (level.getGameTime() < nextSearchTick && !tryAlternativePumpkinsDuringCooldown)
                 || !canStorePumpkin()) {
             return false;
         }
 
+        long gameTime = level.getGameTime();
+        removeExpiredFailedTargets(gameTime);
         targetPos = PerformanceTimingCounters.measure(
                 PerformanceTimingCounters.Operation.PUMPKIN_SEARCH,
                 () -> findNearestAttachedPumpkin(level));
         nextSearchTick = level.getGameTime()
                 + (targetPos == null ? EMPTY_SEARCH_INTERVAL_TICKS : SEARCH_INTERVAL_TICKS);
+        tryAlternativePumpkinsDuringCooldown = false;
         return targetPos != null;
     }
 
@@ -93,6 +102,9 @@ public class HarvestPumpkinGoal extends Goal {
                 ? null
                 : VillagerNavigationTargets.findReachableTarget(villager, targetPos, 2);
         failed = navigationTarget == null;
+        if (failed && targetPos != null) {
+            rememberFailedTarget(targetPos);
+        }
         navigationWatchdog.reset();
         setWalkTarget();
     }
@@ -107,6 +119,7 @@ public class HarvestPumpkinGoal extends Goal {
         if (villager.blockPosition().distSqr(targetPos) <= ARRIVAL_DISTANCE_SQ) {
             harvestPumpkin(level);
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
+            rememberFailedTarget(targetPos);
             failed = true;
             villager.getNavigation().stop();
         } else {
@@ -128,6 +141,7 @@ public class HarvestPumpkinGoal extends Goal {
     private BlockPos findNearestAttachedPumpkin(ServerLevel level) {
         BlockPos origin = villager.blockPosition();
         long gameTime = level.getGameTime();
+        removeExpiredFailedTargets(gameTime);
         if (cachedPumpkinOrigin == null
                 || cachedPumpkinOrigin.distSqr(origin) > 256.0D) {
             cachedPumpkinCandidates = List.of();
@@ -165,6 +179,7 @@ public class HarvestPumpkinGoal extends Goal {
                 for (int y = -VERTICAL_SEARCH_RANGE; y <= VERTICAL_SEARCH_RANGE; y++) {
                     BlockPos candidate = origin.offset(x, y, z);
                     if (!composition.mayContain(candidate)
+                            || isCoolingDown(candidate, gameTime)
                             || !isAttachedPumpkin(composition, candidate)) {
                         continue;
                     }
@@ -194,6 +209,7 @@ public class HarvestPumpkinGoal extends Goal {
             if (Math.abs(candidate.getX() - origin.getX()) > SEARCH_RANGE
                     || Math.abs(candidate.getY() - origin.getY()) > VERTICAL_SEARCH_RANGE
                     || Math.abs(candidate.getZ() - origin.getZ()) > SEARCH_RANGE
+                    || isCoolingDown(candidate, level.getGameTime())
                     || !isAttachedPumpkin(level, candidate)) {
                 continue;
             }
@@ -204,6 +220,26 @@ public class HarvestPumpkinGoal extends Goal {
             }
         }
         return nearest;
+    }
+
+    private void rememberFailedTarget(BlockPos pos) {
+        long gameTime = villager.level().getGameTime();
+        failedTargetExpiryTicks.put(pos.immutable(), gameTime + FAILED_TARGET_RETRY_TICKS);
+        nextSearchTick = gameTime + FAILED_TARGET_RETRY_TICKS;
+        tryAlternativePumpkinsDuringCooldown = true;
+    }
+
+    private void removeExpiredFailedTargets(long gameTime) {
+        Iterator<Map.Entry<BlockPos, Long>> iterator = failedTargetExpiryTicks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next().getValue() <= gameTime) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private boolean isCoolingDown(BlockPos pos, long gameTime) {
+        return failedTargetExpiryTicks.getOrDefault(pos, Long.MIN_VALUE) > gameTime;
     }
 
     private boolean isAttachedPumpkin(ServerLevel level, BlockPos pumpkinPos) {
@@ -276,5 +312,11 @@ public class HarvestPumpkinGoal extends Goal {
             }
         }
         targetPos = null;
+    }
+
+    /** Returns the current pumpkin target for focused navigation regressions. */
+    @Nullable
+    public BlockPos getTargetPos() {
+        return targetPos;
     }
 }

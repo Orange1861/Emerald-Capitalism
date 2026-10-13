@@ -1,9 +1,14 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -17,6 +22,7 @@ public final class VillagerNavigationTargets {
 
     private static final int MAX_SEARCH_RADIUS = 8;
     private static final int MAX_PATH_ATTEMPTS = 16;
+    private static final double INTERACTION_RANGE_SQ = 2.25D;
 
     private VillagerNavigationTargets() {
     }
@@ -44,40 +50,46 @@ public final class VillagerNavigationTargets {
 
         PathNavigation navigation = mob.getNavigation();
         if (radius == 0) {
-            if (!acceptable.test(desired)) {
+            if (!acceptable.test(desired) || !isValidStandingSpace(mob, desired)) {
                 return null;
             }
             Path exactPath = navigation.createPath(desired, 0);
-            return exactPath != null && exactPath.canReach() ? desired.immutable() : null;
+            return exactPath != null && exactPath.canReach()
+                    && endsWithinInteractionRange(exactPath, desired)
+                    ? desired.immutable() : null;
         }
 
-        List<BlockPos> candidates = new ArrayList<>((radius * 2 + 1) * (radius * 2 + 1) * 3);
+        List<List<BlockPos>> candidatesByRing = new ArrayList<>(radius + 1);
+        for (int ring = 0; ring <= radius; ring++) {
+            candidatesByRing.add(new ArrayList<>());
+        }
         for (int dy = -1; dy <= 1; dy++) {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos candidate = desired.offset(dx, dy, dz);
-                    if (acceptable.test(candidate)) {
-                        candidates.add(candidate);
+                    int ring = Math.max(Math.abs(dx), Math.abs(dz));
+                    if (acceptable.test(candidate)
+                            && isValidStandingSpace(mob, candidate)) {
+                        candidatesByRing.get(ring).add(candidate);
                     }
                 }
             }
         }
-        candidates.sort(Comparator.comparingDouble(candidate -> candidate.distSqr(desired)));
+
+        List<BlockPos> candidates = distributeAttempts(candidatesByRing, desired);
 
         BlockPos best = null;
         double bestScore = Double.MAX_VALUE;
 
-        int pathAttempts = Math.min(MAX_PATH_ATTEMPTS, candidates.size());
-        for (int index = 0; index < pathAttempts; index++) {
-            BlockPos candidate = candidates.get(index);
+        for (BlockPos candidate : candidates) {
             double distancePenalty = candidate.distSqr(desired) * 100.0D;
 
-            if (best != null && distancePenalty >= bestScore) {
-                break;
-            }
-
-            Path path = navigation.createPath(candidate, 1);
-            if (path == null || !path.canReach()) {
+            // Require the navigation result to arrive at the candidate itself;
+            // a one-block createPath tolerance can otherwise return an
+            // endpoint that is not usable by the interaction goal.
+            Path path = navigation.createPath(candidate, 0);
+            if (path == null || !path.canReach()
+                    || !endsWithinInteractionRange(path, desired)) {
                 continue;
             }
 
@@ -90,5 +102,102 @@ public final class VillagerNavigationTargets {
             }
         }
         return best;
+    }
+
+    /**
+     * Gives every non-empty horizontal search ring an attempt before spending
+     * the remaining budget. Sampling within each ring keeps the bounded search
+     * from being consumed by the positions immediately beside the task block.
+     */
+    private static List<BlockPos> distributeAttempts(List<List<BlockPos>> candidatesByRing,
+                                                       BlockPos desired) {
+        int nonEmptyRings = 0;
+        for (List<BlockPos> ring : candidatesByRing) {
+            if (!ring.isEmpty()) {
+                ring.sort(Comparator.comparingDouble(candidate -> candidate.distSqr(desired)));
+                nonEmptyRings++;
+            }
+        }
+        if (nonEmptyRings == 0) {
+            return List.of();
+        }
+
+        int[] quotas = new int[candidatesByRing.size()];
+        int remaining = MAX_PATH_ATTEMPTS;
+        for (int ring = 0; ring < candidatesByRing.size(); ring++) {
+            if (!candidatesByRing.get(ring).isEmpty()) {
+                quotas[ring] = 1;
+                remaining--;
+            }
+        }
+        while (remaining > 0) {
+            boolean added = false;
+            for (int ring = 0; ring < candidatesByRing.size() && remaining > 0; ring++) {
+                if (quotas[ring] < candidatesByRing.get(ring).size()) {
+                    quotas[ring]++;
+                    remaining--;
+                    added = true;
+                }
+            }
+            if (!added) {
+                break;
+            }
+        }
+
+        List<BlockPos> selected = new ArrayList<>(MAX_PATH_ATTEMPTS);
+        for (int ring = 0; ring < candidatesByRing.size(); ring++) {
+            List<BlockPos> candidates = candidatesByRing.get(ring);
+            int quota = quotas[ring];
+            if (quota == 0) {
+                continue;
+            }
+            for (int sample = 0; sample < quota; sample++) {
+                int index = (int) (((long) sample * candidates.size()) / quota);
+                selected.add(candidates.get(index));
+            }
+        }
+        return selected;
+    }
+
+    /** Rejects positions that cannot hold a villager before invoking pathfinding. */
+    private static boolean isValidStandingSpace(Mob mob, BlockPos candidate) {
+        var level = mob.level();
+        BlockState feet = level.getBlockState(candidate);
+        BlockState head = level.getBlockState(candidate.above());
+        BlockPos supportPos = candidate.below();
+        BlockState support = level.getBlockState(supportPos);
+
+        boolean clear = feet.getCollisionShape(level, candidate).isEmpty()
+                && head.getCollisionShape(level, candidate.above()).isEmpty();
+        if (!clear) {
+            return false;
+        }
+
+        boolean supported = support.isFaceSturdy(level, supportPos, Direction.UP)
+                || support.is(BlockTags.CLIMBABLE)
+                || feet.is(BlockTags.CLIMBABLE);
+        if (!supported) {
+            return false;
+        }
+
+        return feet.isPathfindable(PathComputationType.LAND)
+                || feet.is(BlockTags.CLIMBABLE)
+                || support.is(BlockTags.CLIMBABLE);
+    }
+
+    /**
+     * PathNavigation's reach parameter is intentionally one block for these
+     * searches. Its canReach flag is therefore insufficient by itself: the
+     * actual final node must still be close enough to the task block to use it.
+     */
+    private static boolean endsWithinInteractionRange(Path path, BlockPos desired) {
+        Node end = path.getEndNode();
+        if (end == null) {
+            return false;
+        }
+        double dx = end.x - desired.getX();
+        double dy = end.y - desired.getY();
+        double dz = end.z - desired.getZ();
+        return dx * dx + dy * dy + dz * dz <= INTERACTION_RANGE_SQ;
     }
 }

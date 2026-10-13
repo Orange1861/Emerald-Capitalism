@@ -1,0 +1,377 @@
+package com.orangevillager61.emeraldcapitalism.test;
+
+import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.Path;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** Regression coverage for bounded navigation, ladder exits, pumpkin retries, and watchdog progress. */
+@GameTestHolder("emeraldcapitalism")
+@PrefixGameTestTemplate(false)
+public final class VillagerNavigationRegressionGameTests {
+
+    private VillagerNavigationRegressionGameTests() {
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_regressions", timeoutTicks = 600)
+    public static void villagerClimbsToLandingAndReachesOffsetWorkstation(GameTestHelper helper) {
+        BlockPos ladderBase = installLadder(helper);
+        BlockPos workPosition = helper.absolutePos(new BlockPos(1, 5, 2));
+        helper.setBlock(new BlockPos(1, 4, 2), Blocks.COMPOSTER.defaultBlockState());
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        villager.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
+                0.0F, 0.0F);
+
+        List<Node> nodes = verticalRoute(ladderBase, true);
+        nodes.add(new Node(ladderBase.getX(), ladderBase.getY() + 4, ladderBase.getZ() + 1));
+        nodes.add(new Node(workPosition.getX(), workPosition.getY(), workPosition.getZ()));
+        helper.assertTrue(villager.getNavigation().moveTo(new Path(nodes, workPosition, true), 1.0D),
+                "ascending route with an offset landing could not be installed");
+        awaitLandingAndWork(helper, villager, ladderBase, workPosition, 500, false);
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_regressions", timeoutTicks = 500)
+    public static void villagerDescendsLadderAndLeavesOnSupportedFooting(GameTestHelper helper) {
+        BlockPos ladderBase = installLadder(helper);
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 5, 0);
+        villager.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY() + 4.0D,
+                ladderBase.getZ() + 0.5D, 0.0F, 0.0F);
+
+        List<Node> nodes = verticalRoute(ladderBase, false);
+        nodes.add(new Node(ladderBase.getX(), ladderBase.getY(), ladderBase.getZ() + 1));
+        BlockPos bottomExit = ladderBase.relative(Direction.SOUTH);
+        helper.assertTrue(villager.getNavigation().moveTo(new Path(nodes, bottomExit, true), 1.0D),
+                "descending route could not be installed");
+        awaitDescent(helper, villager, ladderBase, 400);
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_navigation_regressions", timeoutTicks = 300)
+    public static void outerNavigationCandidateStillAllowsPumpkinWork(GameTestHelper helper) {
+        BlockPos pumpkin = new BlockPos(6, 1, 1);
+        installFloor(helper, 20);
+        installAttachedPumpkin(helper, pumpkin);
+
+        // Leave only a valid west approach open among the inner candidates.
+        // The outer ring remains available to prove the bounded search does
+        // not spend its whole budget on the nearest cells.
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                int x = pumpkin.getX() + dx;
+                int z = pumpkin.getZ() + dz;
+                if ((dx == 0 && dz == 0) || dx == -1) {
+                    continue;
+                }
+                if (x == pumpkin.getX() && z == pumpkin.getZ() + 1) {
+                    helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE.defaultBlockState());
+                } else {
+                    helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE.defaultBlockState());
+                    helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        BlockPos pumpkinStem = pumpkin.relative(Direction.SOUTH);
+        helper.setBlock(pumpkinStem, Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState()
+                .setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH));
+        helper.setBlock(pumpkinStem.above(), Blocks.STONE.defaultBlockState());
+
+        Villager farmer = helper.spawn(EntityType.VILLAGER, 3, 1, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setOnGround(true);
+        helper.runAfterDelay(1, () -> verifyOuterNavigationCandidate(helper, farmer, pumpkin));
+    }
+
+    private static void verifyOuterNavigationCandidate(GameTestHelper helper, Villager farmer,
+                                                        BlockPos pumpkin) {
+        BlockPos absolutePumpkin = helper.absolutePos(pumpkin);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setOnGround(true);
+        HarvestPumpkinGoal goal = new HarvestPumpkinGoal(farmer);
+        helper.assertTrue(goal.canUse(), "farmer did not select the attached pumpkin");
+        BlockPos selected = VillagerNavigationTargets.findReachableTarget(
+                farmer, absolutePumpkin, 2);
+        helper.assertTrue(selected != null && selected.getX() == absolutePumpkin.getX() - 1,
+                "bounded search did not reserve an outer standing candidate: " + selected
+                        + " at=" + farmer.blockPosition());
+
+        goal.start();
+        farmer.moveTo(selected.getX() + 0.5D, selected.getY(), selected.getZ() + 0.5D,
+                0.0F, 0.0F);
+        goal.tick();
+        helper.assertTrue(helper.getLevel().getBlockState(pumpkin).isAir(),
+                "the selected navigation endpoint did not allow the farmer to execute the job");
+        goal.stop();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_navigation_regressions", timeoutTicks = 260)
+    public static void inaccessiblePumpkinCooldownAllowsFartherTargetAndExpires(GameTestHelper helper) {
+        BlockPos nearby = new BlockPos(6, 1, 1);
+        BlockPos farther = new BlockPos(12, 1, 1);
+        installFloor(helper, 20);
+        installAttachedPumpkin(helper, nearby);
+        installAttachedPumpkin(helper, farther);
+        BlockPos absoluteNearby = helper.absolutePos(nearby);
+        helper.assertTrue(helper.getLevel().getBlockState(absoluteNearby).is(Blocks.PUMPKIN)
+                        && helper.getLevel().getBlockState(absoluteNearby.relative(Direction.SOUTH))
+                        .is(Blocks.ATTACHED_PUMPKIN_STEM)
+                        && helper.getLevel().getBlockState(absoluteNearby.relative(Direction.SOUTH))
+                        .getValue(HorizontalDirectionalBlock.FACING) == Direction.NORTH,
+                "nearby pumpkin fixture lost its attached stem: "
+                        + helper.getLevel().getBlockState(absoluteNearby.relative(Direction.SOUTH)));
+
+        // Remove every standing cell in the nearby target's search cube while
+        // leaving the farther plant on the open side of the structure.
+        for (int x = 4; x <= 8; x++) {
+            for (int z = -1; z <= 3; z++) {
+                if (x == nearby.getX() && z == nearby.getZ()) {
+                    continue;
+                }
+                if (x == nearby.getX() && z == nearby.getZ() + 1) {
+                    helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE.defaultBlockState());
+                    continue;
+                }
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE.defaultBlockState());
+            }
+        }
+        helper.setBlock(nearby.relative(Direction.SOUTH), Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState()
+                .setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH));
+        helper.setBlock(nearby.relative(Direction.SOUTH).above(), Blocks.STONE.defaultBlockState());
+
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        HarvestPumpkinGoal goal = new HarvestPumpkinGoal(farmer);
+        helper.assertTrue(goal.canUse(), "nearby inaccessible pumpkin was not selected for the first attempt");
+        helper.assertValueEqual(goal.getTargetPos(), helper.absolutePos(nearby),
+                "the first pumpkin target was not the nearby plant");
+        goal.start();
+        helper.assertTrue(!goal.canContinueToUse(),
+                "a pumpkin without a navigation target remained active");
+        goal.stop();
+
+        helper.assertTrue(goal.canUse(),
+                "a farther reachable pumpkin was not attempted during the failed target cooldown");
+        helper.assertValueEqual(goal.getTargetPos(), helper.absolutePos(farther),
+                "failed nearby pumpkin prevented selection of the farther plant");
+        goal.stop();
+
+        for (int x = 4; x <= 8; x++) {
+            for (int z = -1; z <= 3; z++) {
+                if (x == nearby.getX() && z == nearby.getZ()) {
+                    continue;
+                }
+                if (x == nearby.getX() && z == nearby.getZ() + 1) {
+                    helper.setBlock(new BlockPos(x, 2, z), Blocks.AIR.defaultBlockState());
+                    continue;
+                }
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.AIR.defaultBlockState());
+                helper.setBlock(new BlockPos(x, 2, z), Blocks.AIR.defaultBlockState());
+            }
+        }
+        helper.setBlock(nearby.relative(Direction.SOUTH), Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState()
+                .setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH));
+        helper.runAfterDelay(120, () -> {
+            helper.assertTrue(goal.canUse(),
+                    "the previously obstructed pumpkin did not become eligible after cooldown expiry");
+            helper.assertValueEqual(goal.getTargetPos(), helper.absolutePos(nearby),
+                    "cooldown expiry did not restore the nearer pumpkin candidate");
+            goal.stop();
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_regressions", timeoutTicks = 450)
+    public static void watchdogDetectsStationaryAndOscillatingButAllowsDetourAndLadderProgress(
+            GameTestHelper helper) {
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        VillagerNavigationWatchdog watchdog = new VillagerNavigationWatchdog();
+        BlockPos target = helper.absolutePos(new BlockPos(2, 1, 1));
+        for (int tick = 0; tick < 100; tick++) {
+            helper.assertFalse(watchdog.isStuck(villager, target),
+                    "stationary villager timed out before the full watchdog window");
+        }
+        helper.assertTrue(watchdog.isStuck(villager, target),
+                "stationary villager did not time out");
+
+        watchdog.reset();
+        for (int tick = 0; tick < 120; tick++) {
+            double offset = (tick & 1) == 0 ? 0.5D : 0.0D;
+            villager.moveTo(1.5D + offset, villager.getY(), 1.5D, 0.0F, 0.0F);
+            if (watchdog.isStuck(villager, target)) {
+                break;
+            }
+            if (tick == 119) {
+                helper.fail("oscillating villager never timed out");
+                return;
+            }
+        }
+
+        watchdog.reset();
+        for (int tick = 0; tick < 30; tick++) {
+            villager.moveTo(1.5D, 1.0D + tick * 0.3D, 1.5D, 0.0F, 0.0F);
+            helper.assertFalse(watchdog.isStuck(villager, target),
+                    "legitimate ladder-like progress was treated as a straight-line stall");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_regressions", timeoutTicks = 600)
+    public static void obstructedLadderExitReleasesClaimAndRecovers(GameTestHelper helper) {
+        BlockPos ladderBase = installLadder(helper);
+        Villager first = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        first.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY() + 4.0D,
+                ladderBase.getZ() + 0.5D,
+                0.0F, 0.0F);
+        BlockPos exit = ladderBase.relative(Direction.SOUTH).above(4);
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(new Node(ladderBase.getX(), ladderBase.getY() + 3, ladderBase.getZ()));
+        nodes.add(new Node(ladderBase.getX(), ladderBase.getY() + 4, ladderBase.getZ()));
+        nodes.add(new Node(exit.getX(), exit.getY(), exit.getZ()));
+        helper.assertTrue(first.getNavigation().moveTo(
+                        new Path(nodes, exit, true), 1.0D),
+                "obstructed-exit ladder route could not be installed");
+
+        helper.runAfterDelay(1, () -> {
+            helper.setBlock(new BlockPos(1, 5, 1), Blocks.STONE.defaultBlockState());
+            helper.runAfterDelay(50, () -> {
+                helper.assertTrue(helper.getLevel().noCollision(first, first.getBoundingBox()),
+                        "villager retained a colliding bounding box after exit obstruction");
+                helper.setBlock(new BlockPos(1, 5, 1), Blocks.AIR.defaultBlockState());
+                Villager second = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+                second.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
+                        0.0F, 0.0F);
+                List<Node> retryNodes = verticalRoute(ladderBase, true);
+                retryNodes.add(new Node(exit.getX(), exit.getY(), exit.getZ()));
+                helper.assertTrue(second.getNavigation().moveTo(
+                                new Path(retryNodes, exit, true), 1.0D),
+                        "retry route could not be installed after the first exit recovered");
+                awaitLadderClear(helper, second, ladderBase, 450);
+            });
+        });
+    }
+
+    private static BlockPos installLadder(GameTestHelper helper) {
+        BlockPos base = helper.absolutePos(new BlockPos(1, 1, 0));
+        helper.setBlock(new BlockPos(1, 0, 0), Blocks.STONE.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 0, 1), Blocks.STONE.defaultBlockState());
+        for (int y = 0; y < 5; y++) {
+            helper.setBlock(new BlockPos(1, 1 + y, 0), Blocks.LADDER.defaultBlockState()
+                    .setValue(LadderBlock.FACING, Direction.SOUTH));
+        }
+        helper.setBlock(new BlockPos(1, 4, 1), Blocks.STONE.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 4, 2), Blocks.STONE.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 5, 1), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 5, 2), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 6, 0), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 6, 1), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 6, 2), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 7, 0), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 7, 1), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 7, 2), Blocks.AIR.defaultBlockState());
+        return base;
+    }
+
+    private static List<Node> verticalRoute(BlockPos base, boolean ascending) {
+        List<Node> nodes = new ArrayList<>();
+        if (ascending) {
+            for (int y = 0; y < 5; y++) {
+                nodes.add(new Node(base.getX(), base.getY() + y, base.getZ()));
+            }
+        } else {
+            for (int y = 3; y >= 0; y--) {
+                nodes.add(new Node(base.getX(), base.getY() + y, base.getZ()));
+            }
+        }
+        return nodes;
+    }
+
+    private static void installAttachedPumpkin(GameTestHelper helper, BlockPos pumpkin) {
+        helper.setBlock(pumpkin, Blocks.PUMPKIN.defaultBlockState());
+        helper.setBlock(pumpkin.relative(Direction.SOUTH), Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState()
+                .setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH));
+    }
+
+    private static void installFloor(GameTestHelper helper, int size) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+            }
+        }
+    }
+
+    private static void awaitLandingAndWork(GameTestHelper helper, Villager villager,
+                                             BlockPos ladderBase, BlockPos workPosition,
+                                             int remainingTicks, boolean startedWork) {
+        if (remainingTicks <= 0) {
+            helper.fail("villager did not leave the ladder and reach the offset workstation: "
+                    + villager.position());
+            return;
+        }
+        if (hasClearedLadder(villager, ladderBase) && !startedWork) {
+            helper.runAfterDelay(1, () -> {
+                helper.assertTrue(villager.getNavigation().moveTo(
+                                workPosition.getX() + 0.5D, workPosition.getY(),
+                                workPosition.getZ() + 0.5D, 1.0D),
+                        "navigation could not continue from the ladder landing to the workstation");
+                awaitLandingAndWork(helper, villager, ladderBase, workPosition,
+                        remainingTicks - 1, true);
+            });
+            return;
+        }
+        if (startedWork && villager.blockPosition().distSqr(workPosition) <= 2.25D) {
+            helper.succeed();
+            return;
+        }
+        boolean nextStartedWork = startedWork;
+        helper.runAfterDelay(1, () -> awaitLandingAndWork(
+                helper, villager, ladderBase, workPosition, remainingTicks - 1, nextStartedWork));
+    }
+
+    private static void awaitDescent(GameTestHelper helper, Villager villager,
+                                      BlockPos ladderBase, int remainingTicks) {
+        if (remainingTicks <= 0) {
+            helper.fail("villager did not complete the ladder descent: " + villager.position());
+            return;
+        }
+        if (hasClearedLadder(villager, ladderBase)
+                && villager.blockPosition().getY() <= ladderBase.getY() + 1) {
+            helper.succeed();
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitDescent(helper, villager, ladderBase, remainingTicks - 1));
+    }
+
+    private static void awaitLadderClear(GameTestHelper helper, Villager villager,
+                                          BlockPos ladderBase, int remainingTicks) {
+        if (remainingTicks <= 0) {
+            helper.fail("retry villager did not clear the ladder after claim recovery");
+            return;
+        }
+        if (hasClearedLadder(villager, ladderBase)) {
+            helper.succeed();
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitLadderClear(helper, villager, ladderBase, remainingTicks - 1));
+    }
+
+    private static boolean hasClearedLadder(Villager villager, BlockPos ladderBase) {
+        return !villager.onClimbable()
+                && villager.blockPosition().getZ() > ladderBase.getZ();
+    }
+}
