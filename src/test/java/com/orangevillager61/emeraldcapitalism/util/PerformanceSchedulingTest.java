@@ -16,14 +16,20 @@ class PerformanceSchedulingTest {
 
     @Test
     void timingCountersRecordCallsAndDurations() {
-        assertEquals(7, PerformanceTimingCounters.measure(
-                PerformanceTimingCounters.Operation.PUMPKIN_SEARCH, () -> 7));
+        boolean previous = PerformanceTimingCounters.isDetailedTimingEnabled();
+        PerformanceTimingCounters.setDetailedTimingEnabled(true);
+        try {
+            assertEquals(7, PerformanceTimingCounters.measure(
+                    PerformanceTimingCounters.Operation.PUMPKIN_SEARCH, () -> 7));
 
-        PerformanceTimingCounters.Snapshot snapshot = PerformanceTimingCounters.snapshot()
-                .get(PerformanceTimingCounters.Operation.PUMPKIN_SEARCH);
-        assertEquals(1L, snapshot.calls());
-        assertTrue(snapshot.totalNanos() >= 0L);
-        assertTrue(snapshot.maximumNanos() >= 0L);
+            PerformanceTimingCounters.Snapshot snapshot = PerformanceTimingCounters.snapshot()
+                    .get(PerformanceTimingCounters.Operation.PUMPKIN_SEARCH);
+            assertEquals(1L, snapshot.calls());
+            assertTrue(snapshot.totalNanos() >= 0L);
+            assertTrue(snapshot.maximumNanos() >= 0L);
+        } finally {
+            PerformanceTimingCounters.setDetailedTimingEnabled(previous);
+        }
     }
 
     @Test

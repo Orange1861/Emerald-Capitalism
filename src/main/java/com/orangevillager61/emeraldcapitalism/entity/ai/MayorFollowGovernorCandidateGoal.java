@@ -238,7 +238,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         // a second time. Failed sink attempts are retried on the bounded
         // interval in tick().
         boolean retry = lastRequestedCandidatePosition != null;
-        boolean submitted = movement.submit(mayor, new MovementRequestSpec(
+        boolean submitted = movement.submit(mayor,
                 "emeraldcapitalism:mayor_follow_candidate",
                 "candidate:" + candidate.getUUID(),
                 candidate.blockPosition(),
@@ -247,7 +247,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
                 "follow-moving-target-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_ESCAPE,
-                candidate.blockPosition()));
+                candidate.blockPosition());
         if (submitted) {
             lastRequestedCandidatePosition = candidate.blockPosition().immutable();
             lastPathRequestTick = level.getGameTime();

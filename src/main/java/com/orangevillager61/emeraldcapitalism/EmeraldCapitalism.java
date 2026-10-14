@@ -12,6 +12,7 @@ import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackTreeReservations;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.network.ECAPNetworking;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
@@ -76,7 +77,7 @@ public class EmeraldCapitalism {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        clearServerSessionState();
+        clearServerSessionState(false);
     }
 
     @SubscribeEvent
@@ -108,11 +109,11 @@ public class EmeraldCapitalism {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
+        clearServerSessionState(true);
         LOGGER.info("[ECAP][Performance] {}", PerformanceTimingCounters.formatSnapshot());
-        clearServerSessionState();
     }
 
-    private static void clearServerSessionState() {
+    private static void clearServerSessionState(boolean recordServerShutdown) {
         RequestFullScanPacket.clearCooldowns();
         RequestExpandBoundsPacket.clearCooldowns();
         ManualVillageScanBudget.clearAll();
@@ -123,11 +124,14 @@ public class EmeraldCapitalism {
         LumberjackTreeReservations.clearAll();
         LumberjackSaplingCache.clearAll();
         SharedScanGenerationBudget.clearAll();
-        PerformanceTimingCounters.clear();
+        if (!recordServerShutdown) {
+            PerformanceTimingCounters.clear();
+        }
         VillageDetectionHandler.clearPendingWork();
         SteveGraveEvents.clearPendingWork();
         VillagerBehaviorRegistry.clearBindings();
-        MovementRequestManager.clearAll();
+        MovementRequestManager.clearAll(recordServerShutdown
+                ? MovementRequestTerminationReason.SERVER_SHUTDOWN : null);
     }
 
     @SubscribeEvent

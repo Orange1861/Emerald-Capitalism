@@ -1,8 +1,11 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestOutcome;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -40,7 +43,8 @@ public final class MovementRequestManagerRegressionGameTests {
                 spec("regression:low-priority", "low", firstDestination,
                         MovementRequestManager.PRIORITY_WORK));
         helper.assertTrue(first.accepted(), "initial brain journey was rejected");
-        waitForLivePathBeforePreemption(helper, villager, first, higherDestination, 180);
+        waitForLivePathBeforePreemption(helper, villager, first, firstDestination,
+                higherDestination, 180);
     }
 
     @GameTest(template = "empty_20x3x20", timeoutTicks = 500)
@@ -92,6 +96,44 @@ public final class MovementRequestManagerRegressionGameTests {
         awaitVanillaFailure(helper, villager, failed, 160);
     }
 
+    @GameTest(template = "empty_3x3x3", timeoutTicks = 300)
+    public static void maintainedUnreachableRequestUsesBoundedRetryCooldown(
+            GameTestHelper helper) {
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        BlockPos unreachable = villager.blockPosition().above(12);
+        MovementRequestSpec request = spec("regression:bounded-failure", "unreachable",
+                unreachable, MovementRequestManager.PRIORITY_WORK);
+        MovementRequestSubmission submission = MovementRequestManager.submit(villager, request);
+        helper.assertTrue(submission.accepted(), "bounded-failure request was rejected");
+        boolean previousEvents = PerformanceTimingCounters.isEventCountingEnabled();
+        PerformanceTimingCounters.setEventCountingEnabled(true);
+        PerformanceTimingCounters.clear();
+        WalkTarget ownedTarget = villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
+                .orElseThrow();
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        long failureTime = helper.getLevel().getGameTime();
+        villager.getBrain().setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+                failureTime);
+        MovementRequestManager.observeVanillaPathPlan(villager, ownedTarget, failureTime, false);
+
+        for (int maintenance = 0; maintenance < 64; maintenance++) {
+            MovementRequestSubmission maintained = MovementRequestManager.maintain(
+                    villager, submission.handle(), request);
+            helper.assertTrue(maintained.accepted(), "active unreachable request lost its owner");
+            helper.assertValueEqual(villager.getBrain().getMemory(
+                            MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null),
+                    failureTime, "active failure timestamp changed during retry cooldown");
+            helper.assertFalse(villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET),
+                    "unreachable maintained request restored WALK_TARGET during cooldown");
+        }
+        PerformanceTimingCounters.Snapshot attempts = PerformanceTimingCounters.snapshot()
+                .get(PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT);
+        helper.assertTrue(attempts.calls() <= 4,
+                "unreachable maintained request replanned without a bound: " + attempts.calls());
+        PerformanceTimingCounters.setEventCountingEnabled(previousEvents);
+        helper.succeed();
+    }
+
     @GameTest(template = "empty_3x3x3")
     public static void staleOwnerCancellationPreservesLaterForeignBrainState(GameTestHelper helper) {
         Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
@@ -135,6 +177,98 @@ public final class MovementRequestManagerRegressionGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_3x3x3")
+    public static void terminalReasonCountersAreExplicit(GameTestHelper helper) {
+        boolean previousEvents = PerformanceTimingCounters.isEventCountingEnabled();
+        PerformanceTimingCounters.setEventCountingEnabled(true);
+        PerformanceTimingCounters.clear();
+
+        Villager unmanagedVanilla = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 3, 1, 1);
+        WalkTarget unmanagedTarget = new WalkTarget(
+                new BlockPosTracker(unmanagedVanilla.blockPosition().offset(1, 0, 0)),
+                0.6F, 0);
+        MovementRequestManager.observeVanillaPathPlan(unmanagedVanilla, unmanagedTarget,
+                helper.getLevel().getGameTime(), false);
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT).calls(), 0L,
+                "unmanaged vanilla path plan incremented manager counters");
+
+        Villager arrival = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        MovementRequestSubmission arrivalRequest = MovementRequestManager.submit(arrival,
+                spec("regression:terminal-arrival", "arrival", arrival.blockPosition(),
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(arrivalRequest.accepted(), "arrival fixture was rejected");
+        helper.assertTrue(MovementRequestManager.complete(arrival, arrivalRequest.handle()),
+                "arrival fixture could not complete");
+
+        Villager failure = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 2);
+        MovementRequestSubmission failureRequest = MovementRequestManager.submit(failure,
+                spec("regression:terminal-failure", "failure", failure.blockPosition().above(8),
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(failureRequest.accepted(), "failure fixture was rejected");
+        helper.assertTrue(MovementRequestManager.cancel(failure, failureRequest.handle(),
+                        MovementRequestTerminationReason.FAILED),
+                "failure fixture could not cancel");
+
+        Villager abandonment = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        MovementRequestSubmission abandonmentRequest = MovementRequestManager.submit(abandonment,
+                spec("regression:terminal-abandonment", "abandonment",
+                        abandonment.blockPosition().offset(1, 0, 0),
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(abandonmentRequest.accepted(), "abandonment fixture was rejected");
+        helper.assertTrue(MovementRequestManager.cancel(abandonment, abandonmentRequest.handle()),
+                "abandonment fixture could not cancel");
+
+        Villager preemption = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 2);
+        MovementRequestSubmission low = MovementRequestManager.submit(preemption,
+                spec("regression:terminal-low", "low", preemption.blockPosition().offset(2, 0, 0),
+                        MovementRequestManager.PRIORITY_WORK));
+        MovementRequestSubmission high = MovementRequestManager.submit(preemption,
+                spec("regression:terminal-high", "high", preemption.blockPosition().offset(0, 0, 2),
+                        MovementRequestManager.PRIORITY_ESCAPE));
+        helper.assertTrue(low.accepted() && high.outcome() == MovementRequestOutcome.PREEMPTED,
+                "preemption fixture did not hand off ownership");
+        helper.assertTrue(MovementRequestManager.complete(preemption, high.handle()),
+                "preempting request could not complete");
+
+        Villager unloaded = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        MovementRequestSubmission unloadRequest = MovementRequestManager.submit(unloaded,
+                spec("regression:terminal-unload", "unload", unloaded.blockPosition().above(1),
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(unloadRequest.accepted(), "unload fixture was rejected");
+        MovementRequestManager.release(unloaded);
+
+        Villager shutdown = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 2);
+        MovementRequestSubmission shutdownRequest = MovementRequestManager.submit(shutdown,
+                spec("regression:terminal-shutdown", "shutdown", shutdown.blockPosition().above(1),
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(shutdownRequest.accepted(), "shutdown fixture was rejected");
+        helper.assertTrue(MovementRequestManager.cancel(shutdown, shutdownRequest.handle(),
+                        MovementRequestTerminationReason.SERVER_SHUTDOWN),
+                "shutdown fixture could not record its terminal release");
+
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL).calls(), 2L,
+                "arrival terminal count was not exact");
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_FAILURE).calls(), 1L,
+                "failure terminal count was not exact");
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_ABANDONED).calls(), 1L,
+                "abandonment terminal count was not exact");
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_PREEMPTED).calls(), 1L,
+                "preemption terminal count was not exact");
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_UNLOADED).calls(), 1L,
+                "unload terminal count was not exact");
+        helper.assertValueEqual(PerformanceTimingCounters.snapshot().get(
+                        PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN).calls(), 1L,
+                "shutdown terminal count was not exact");
+        PerformanceTimingCounters.setEventCountingEnabled(previousEvents);
+        helper.succeed();
+    }
+
     private static MovementRequestSpec spec(String owner, String identity, BlockPos destination,
                                             int priority) {
         return new MovementRequestSpec(owner, identity, destination, 0.6F, 0,
@@ -143,6 +277,7 @@ public final class MovementRequestManagerRegressionGameTests {
 
     private static void waitForLivePathBeforePreemption(GameTestHelper helper, Villager villager,
                                                          MovementRequestSubmission first,
+                                                         BlockPos firstDestination,
                                                          BlockPos higherDestination,
                                                          int remainingTicks) {
         Path brainPath = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
@@ -154,10 +289,18 @@ public final class MovementRequestManagerRegressionGameTests {
             helper.assertTrue(higher.accepted(), "higher-priority request was rejected");
             helper.assertValueEqual(higher.outcome().name(), "PREEMPTED",
                     "priority handoff did not record preemption");
+            WalkTarget handoffTarget = villager.getBrain()
+                    .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+            helper.assertTrue(handoffTarget != null
+                            && handoffTarget.getTarget().currentBlockPosition()
+                            .equals(higherDestination),
+                    "higher-priority generation did not own WALK_TARGET immediately");
+            helper.assertFalse(villager.blockPosition().distSqr(firstDestination) <= 2.25D,
+                    "villager completed the old journey before the handoff took effect");
             helper.assertFalse(MovementRequestManager.cancel(villager, first.handle()),
                     "stale owner reclaimed the preempted request");
-            awaitArrival(helper, villager, higher, spec("regression:high-priority", "high",
-                    higherDestination, MovementRequestManager.PRIORITY_ESCAPE), higherDestination, 300);
+            helper.runAfterDelay(MovementRequestManager.MAX_HANDOFF_TICKS + 1,
+                    () -> awaitNewGenerationRoute(helper, villager, higher, higherDestination, 300));
             return;
         }
         if (remainingTicks <= 0) {
@@ -165,7 +308,8 @@ public final class MovementRequestManagerRegressionGameTests {
             return;
         }
         helper.runAfterDelay(1, () -> waitForLivePathBeforePreemption(
-                helper, villager, first, higherDestination, remainingTicks - 1));
+                helper, villager, first, firstDestination, higherDestination,
+                remainingTicks - 1));
     }
 
     private static void awaitVanillaFailure(GameTestHelper helper, Villager villager,
@@ -193,6 +337,29 @@ public final class MovementRequestManagerRegressionGameTests {
         }
         helper.runAfterDelay(1, () -> awaitVanillaFailure(
                 helper, villager, failed, remainingTicks - 1));
+    }
+
+    private static void awaitNewGenerationRoute(GameTestHelper helper, Villager villager,
+                                                MovementRequestSubmission submission,
+                                                BlockPos destination, int remainingTicks) {
+        Path path = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
+        helper.assertFalse(villager.blockPosition().distSqr(destination) <= 2.25D
+                        && path != null && path.getTarget().equals(destination),
+                "preempted journey unexpectedly reported the old route as complete");
+        if (path != null && path == villager.getNavigation().getPath() && !path.isDone()) {
+            helper.assertValueEqual(path.getTarget(), destination,
+                    "new generation did not own the live navigation PATH");
+            awaitArrival(helper, villager, submission,
+                    spec("regression:high-priority", "high", destination,
+                            MovementRequestManager.PRIORITY_ESCAPE), destination, 300);
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("new generation did not establish a live route after handoff");
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitNewGenerationRoute(
+                helper, villager, submission, destination, remainingTicks - 1));
     }
 
     private static void awaitArrival(GameTestHelper helper, Villager villager,

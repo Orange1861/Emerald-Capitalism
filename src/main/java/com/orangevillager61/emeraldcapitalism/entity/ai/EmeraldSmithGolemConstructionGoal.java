@@ -58,6 +58,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     private int attemptTicks;
     private int attempts;
     private boolean finished;
+    @org.jetbrains.annotations.Nullable
+    private MovementRequestTerminationReason terminationReason;
     private long nextActionTick;
     private long nextAvailabilityCheckTick;
     private long nextPlacementTick;
@@ -137,6 +139,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         attemptTicks = 0;
         attempts = 0;
         finished = false;
+        terminationReason = null;
         carvedPumpkin = ItemStack.EMPTY;
         emeraldBlocks = ItemStack.EMPTY;
         emeraldChest = ItemStack.EMPTY;
@@ -149,6 +152,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
         if (!(villager.level() instanceof ServerLevel level)) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             return;
         }
 
@@ -168,6 +172,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                     "[EmeraldsmithGolem] START FAILED villager={} uuid={} reason={}",
                     villager.getName().getString(), villager.getUUID(), failureReason);
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
@@ -179,6 +184,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             failureReason = "processor has no reachable standing position";
             context.bank().endGolemConstruction(villager.getUUID());
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
@@ -209,6 +215,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         if (!(villager.level() instanceof ServerLevel level) || context == null || stage == null) {
             failureReason = "goal tick lost its server context or stage";
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             return;
         }
 
@@ -238,6 +245,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         ConstructionResult constructionResult = advanceConstruction(level);
         if (constructionResult == ConstructionResult.SUCCESS) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.ARRIVED;
             nextActionTick = level.getGameTime() + SUCCESS_COOLDOWN;
             EmeraldCapitalism.LOGGER.debug(
                     "[EmeraldsmithGolem] SUCCESS villager={} bank={} registeredGolems={} capacity={}",
@@ -251,9 +259,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, finished
-                ? MovementRequestTerminationReason.ARRIVED
-                : MovementRequestTerminationReason.ABANDONED);
+        movement.cancel(villager, terminationReason == null
+                ? MovementRequestTerminationReason.ABANDONED : terminationReason);
 
         if (villager.level() instanceof ServerLevel level && context != null) {
             if (!finished) {
@@ -288,6 +295,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                 finishWithFailure(level);
             } else {
                 finished = true;
+                terminationReason = MovementRequestTerminationReason.FAILED;
             }
             return;
         }
@@ -299,6 +307,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                 "[EmeraldsmithGolem] FAILED villager={} uuid={} stage={} reason={}",
                 villager.getName().getString(), villager.getUUID(), stage, failureReason);
         finished = true;
+        terminationReason = MovementRequestTerminationReason.FAILED;
         nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
     }
 
@@ -671,7 +680,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
     private void moveToProcessor() {
         BlockPos pos = context.navigationTarget();
-        movement.submit(villager, new MovementRequestSpec(
+        movement.submit(villager,
                 "emeraldcapitalism:smith_golem_construction",
                 "construction-processor:" + context.processorPos().toShortString(),
                 pos,
@@ -680,7 +689,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                 "processor-interaction-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                context.processorPos()));
+                context.processorPos());
     }
 
     private void setProcessorWalkTarget() {

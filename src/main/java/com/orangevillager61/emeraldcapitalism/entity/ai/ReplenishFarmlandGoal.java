@@ -183,7 +183,7 @@ public class ReplenishFarmlandGoal extends Goal {
      */
     private void setWalkTarget() {
         if (targetPos != null && navigationTarget != null) {
-            if (!movement.submit(villager, new MovementRequestSpec(
+            if (!movement.submit(villager,
                     "emeraldcapitalism:farmland_repair",
                     "farmland:" + targetPos.toShortString(),
                     navigationTarget,
@@ -192,7 +192,7 @@ public class ReplenishFarmlandGoal extends Goal {
                     "farmland-interaction-v1",
                     "ground-ladder-v1",
                     MovementRequestManager.PRIORITY_WORK,
-                    targetPos))) {
+                    targetPos)) {
                 failed = true;
             }
         }

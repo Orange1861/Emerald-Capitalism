@@ -4,10 +4,10 @@ import com.orangevillager61.emeraldcapitalism.navigation.MovementIntent;
 import com.orangevillager61.emeraldcapitalism.navigation.MovementRequestLedger;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.behavior.PositionTracker;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.pathfinder.Path;
 import org.jetbrains.annotations.Nullable;
@@ -20,16 +20,19 @@ import java.util.WeakHashMap;
  * Narrow adapter between mod behaviors and Minecraft's MoveToTargetSink.
  *
  * <p>The manager is server-thread confined. A request records the exact brain
- * objects it installed, and cleanup removes only those objects. Vanilla may
- * consume WALK_TARGET while recording CANT_REACH_WALK_TARGET_SINCE; the
- * failure timestamp is therefore tracked independently of the walk target
- * object and is cleared only when the manager saw the matching sink attempt.</p>
+ * objects it installed, and cleanup removes only those objects. Replacing a
+ * request stops the old route before the new generation is published; a sink
+ * callback that was already scheduled is generation-checked by the mixin.</p>
  */
 public final class MovementRequestManager {
 
     public static final int PRIORITY_AMBIENT = 10;
     public static final int PRIORITY_WORK = 40;
     public static final int PRIORITY_ESCAPE = 100;
+    /** The old sink is allowed one scheduler turn to observe the handoff. */
+    public static final int MAX_HANDOFF_TICKS = 1;
+    /** Failed maintained requests are retried at most once per cooldown. */
+    public static final long FAILURE_RETRY_COOLDOWN_TICKS = 40L;
 
     private static final Map<Villager, State> STATES = new WeakHashMap<>();
 
@@ -38,9 +41,14 @@ public final class MovementRequestManager {
 
     public static MovementRequestSubmission submit(Villager villager,
                                                     MovementRequestSpec spec) {
-        return PerformanceTimingCounters.measure(
-                PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME,
-                () -> submitInternal(villager, spec));
+        long started = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME);
+        try {
+            return submitInternal(villager, spec);
+        } finally {
+            PerformanceTimingCounters.finishTiming(
+                    PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME, started);
+        }
     }
 
     private static MovementRequestSubmission submitInternal(Villager villager,
@@ -55,8 +63,9 @@ public final class MovementRequestManager {
                     state.unchangedLedgerSubmission,
                     MovementRequestOutcome.UNCHANGED,
                     state.activeHandle);
-            return state.unchangedResult;
+            return Objects.requireNonNull(state.unchangedResult);
         }
+
         MovementRequestLedger.Submission submission = state.ledger.submit(toIntent(spec));
         MovementRequestOutcome outcome = MovementRequestOutcome.valueOf(submission.outcome().name());
         if (!submission.accepted()) {
@@ -65,15 +74,9 @@ public final class MovementRequestManager {
             return new MovementRequestSubmission(outcome, null);
         }
 
-        MovementRequestHandle handle = submission.changed()
-                ? toHandle(submission.handle())
-                : state.activeHandle;
-        if (handle == null) {
-            handle = toHandle(submission.handle());
-        }
+        MovementRequestHandle handle = toHandle(submission.handle());
         applyAcceptedSubmission(villager, state, spec, submission, outcome, handle);
-        return submission.changed() ? new MovementRequestSubmission(outcome, handle)
-                : state.unchangedResult;
+        return new MovementRequestSubmission(outcome, handle);
     }
 
     /**
@@ -84,9 +87,14 @@ public final class MovementRequestManager {
     public static MovementRequestSubmission maintain(Villager villager,
                                                       MovementRequestHandle handle,
                                                       MovementRequestSpec spec) {
-        return PerformanceTimingCounters.measure(
-                PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME,
-                () -> maintainInternal(villager, handle, spec));
+        long started = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME);
+        try {
+            return maintainInternal(villager, handle, spec);
+        } finally {
+            PerformanceTimingCounters.finishTiming(
+                    PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME, started);
+        }
     }
 
     private static MovementRequestSubmission maintainInternal(Villager villager,
@@ -107,10 +115,10 @@ public final class MovementRequestManager {
 
         if (state.activeSpec != null && state.activeSpec.equals(spec)) {
             applyAcceptedSubmission(villager, state, spec,
-                    state.unchangedLedgerSubmission,
+                    Objects.requireNonNull(state.unchangedLedgerSubmission),
                     MovementRequestOutcome.UNCHANGED,
-                    state.activeHandle);
-            return state.unchangedResult;
+                    Objects.requireNonNull(state.activeHandle));
+            return Objects.requireNonNull(state.unchangedResult);
         }
 
         MovementRequestLedger.Submission submission = state.ledger.submit(toIntent(spec));
@@ -134,11 +142,10 @@ public final class MovementRequestManager {
         if (submission.changed()) {
             boolean replacingRequest = state.activeHandle != null;
             if (replacingRequest) {
-                // The old MoveToTargetSink may still be active for this tick.
-                // Leave its live navigation route running so its next tick can
-                // adopt the new WALK_TARGET instead of stopping and erasing
-                // the higher-priority request's executor state.
-                cleanupOwnedExecutor(villager, state, false);
+                // Stop the old executor before publishing the new generation.
+                // A sink callback already scheduled for this tick is suppressed
+                // only when its captured generation is now stale.
+                cleanupOwnedExecutor(villager, state, true);
             }
             PerformanceTimingCounters.recordEvent(
                     PerformanceTimingCounters.Operation.MOVEMENT_REQUEST_SUBMISSION);
@@ -152,7 +159,6 @@ public final class MovementRequestManager {
             }
             state.activeHandle = handle;
             state.activeSpec = spec;
-            state.requestAcceptedGameTime = currentGameTime(villager);
             MovementDiagnostics.transition(villager, outcome, handle, spec);
         }
 
@@ -181,9 +187,14 @@ public final class MovementRequestManager {
     public static boolean cancel(Villager villager, MovementRequestHandle handle,
                                  MovementRequestTerminationReason reason) {
         Objects.requireNonNull(reason, "reason");
-        return PerformanceTimingCounters.measure(
-                PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME,
-                () -> cancelInternal(villager, handle, reason));
+        long started = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME);
+        try {
+            return cancelInternal(villager, handle, reason);
+        } finally {
+            PerformanceTimingCounters.finishTiming(
+                    PerformanceTimingCounters.Operation.MOVEMENT_MANAGER_TIME, started);
+        }
     }
 
     public static boolean complete(Villager villager, MovementRequestHandle handle) {
@@ -224,10 +235,7 @@ public final class MovementRequestManager {
         return state == null ? null : state.activeHandle;
     }
 
-    /**
-     * Writes and claims a manually-created look tracker for an active request.
-     * Cleanup retains any later tracker because it compares the exact object.
-     */
+    /** Writes and claims a manually-created look tracker for an active request. */
     public static boolean claimLookTarget(Villager villager, MovementRequestHandle handle,
                                           PositionTracker tracker) {
         Objects.requireNonNull(villager, "villager");
@@ -249,16 +257,24 @@ public final class MovementRequestManager {
         if (!(owner instanceof Villager villager)) {
             return;
         }
+        State state = STATES.get(villager);
+        if (state == null || state.activeHandle == null || state.ownedWalkTarget != target) {
+            return;
+        }
+        // Check ownership before touching global counters. Unmanaged vanilla
+        // villagers must not contribute to manager-owned diagnostics.
         PerformanceTimingCounters.recordEvent(
                 PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT);
         PerformanceTimingCounters.recordEvent(started
                 ? PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_SUCCESS
                 : PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_FAILURE);
-        State state = STATES.get(villager);
-        if (state == null || state.activeHandle == null || state.ownedWalkTarget != target) {
-            return;
+        if (started) {
+            // Vanilla clears CANT_REACH when it obtains a usable path.
+            state.ownedCantReachWalkTargetSince = null;
+            state.failureRetryNotBefore = Long.MIN_VALUE;
+        } else {
+            rememberOwnedFailure(villager, state, target, gameTime);
         }
-        rememberOwnedFailure(villager, state, target, gameTime);
     }
 
     /** Captures the exact target before vanilla can consume it during sink startup. */
@@ -285,30 +301,76 @@ public final class MovementRequestManager {
         State state = STATES.get(villager);
         if (state != null && state.pendingSinkTarget != null
                 && state.pendingSinkGameTime == gameTime) {
-            rememberOwnedFailure(villager, state, state.pendingSinkTarget, gameTime);
+            Long failure = villager.getBrain()
+                    .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
+            if (failure != null) {
+                rememberOwnedFailure(villager, state, state.pendingSinkTarget, gameTime);
+            } else {
+                state.ownedCantReachWalkTargetSince = null;
+                state.failureRetryNotBefore = Long.MIN_VALUE;
+            }
             state.pendingSinkTarget = null;
         }
     }
 
-    /** Releases all transient ownership when an entity or server disappears. */
+    /** Captures the generation observed by a sink instance before it plans. */
+    @Nullable
+    public static MovementRequestHandle captureVanillaSinkHandle(Mob owner) {
+        if (!(owner instanceof Villager villager)) {
+            return null;
+        }
+        State state = STATES.get(villager);
+        WalkTarget target = villager.getBrain()
+                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        return state != null && state.activeHandle != null
+                && target == state.ownedWalkTarget ? state.activeHandle : null;
+    }
+
+    /** Returns true only for cleanup from an older manager generation. */
+    public static boolean isStaleVanillaSink(Mob owner,
+                                             @Nullable MovementRequestHandle capturedHandle) {
+        if (!(owner instanceof Villager villager) || capturedHandle == null) {
+            return false;
+        }
+        State state = STATES.get(villager);
+        return state != null && state.activeHandle != null
+                && !state.activeHandle.equals(capturedHandle)
+                && state.ledger.owns(state.activeHandle.owner(), state.activeHandle.generation());
+    }
+
+    /** Releases all transient ownership when an entity disappears. */
     public static void release(Villager villager) {
-        if (villager != null) {
-            State state = STATES.remove(villager);
-            if (state != null) {
-                MovementRequestHandle handle = state.activeHandle;
-                cleanupOwnedExecutor(villager, state);
-                state.ledger.clear();
-                if (handle != null) {
-                    MovementDiagnostics.cleanup(villager, handle);
-                }
-            }
+        if (villager == null) {
+            return;
+        }
+        State state = STATES.remove(villager);
+        if (state == null) {
+            return;
+        }
+        MovementRequestHandle handle = state.activeHandle;
+        if (handle != null) {
+            recordTermination(MovementRequestTerminationReason.UNLOADED);
+        }
+        cleanupOwnedExecutor(villager, state);
+        state.ledger.clear();
+        if (handle != null) {
+            MovementDiagnostics.cleanup(villager, handle);
         }
     }
 
+    /** Session reset used at server start; no request was necessarily terminal. */
     public static void clearAll() {
+        clearAll(null);
+    }
+
+    /** Clears all requests, optionally recording server-shutdown terminals. */
+    public static void clearAll(@Nullable MovementRequestTerminationReason reason) {
         for (Map.Entry<Villager, State> entry : STATES.entrySet()) {
             State state = entry.getValue();
             MovementRequestHandle handle = state.activeHandle;
+            if (handle != null && reason != null) {
+                recordTermination(reason);
+            }
             cleanupOwnedExecutor(entry.getKey(), state);
             if (handle != null) {
                 MovementDiagnostics.cleanup(entry.getKey(), handle);
@@ -319,8 +381,40 @@ public final class MovementRequestManager {
 
     private static boolean writeRequestMemories(Villager villager, State state,
                                                 MovementRequestSpec spec) {
-        boolean repaired = repairStalePath(villager, state);
-        repaired |= repairStaleFailure(villager, state);
+        boolean repairedPath = repairStalePath(villager, state);
+        boolean repaired = repairedPath;
+        long gameTime = currentGameTime(villager);
+        Long currentFailure = villager.getBrain()
+                .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
+        if (repairedPath && !state.memorySnapshotInitialized
+                && state.ownedCantReachWalkTargetSince == null && currentFailure != null) {
+            // A brand-new manager state plus an orphaned PATH is the reload
+            // boundary for an unowned vanilla failure. Later foreign failures
+            // are preserved because snapshots are initialized after adoption.
+            villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            currentFailure = null;
+            repaired = true;
+        }
+        if (state.ownedCantReachWalkTargetSince != null
+                && !state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
+            // An erased failure or a later foreign failure is no longer this
+            // generation's retry gate. Never erase the later foreign value.
+            state.ownedCantReachWalkTargetSince = null;
+            state.failureRetryNotBefore = Long.MIN_VALUE;
+        }
+        if (state.ownedCantReachWalkTargetSince != null
+                && state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
+            if (gameTime < state.failureRetryNotBefore) {
+                // MoveToTargetSink consumed WALK_TARGET on failure. Keep the
+                // failure observable and do not restore the target every tick.
+                snapshotMemoryState(villager, state);
+                return repaired;
+            }
+            villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            state.ownedCantReachWalkTargetSince = null;
+            state.failureRetryNotBefore = Long.MIN_VALUE;
+            repaired = true;
+        }
 
         if (spec.hasLookTarget()) {
             PositionTracker currentLookTarget = villager.getBrain()
@@ -345,7 +439,6 @@ public final class MovementRequestManager {
                     spec.speedModifier(), spec.closeEnough());
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, walkTarget);
             state.ownedWalkTarget = walkTarget;
-            state.ownedCantReachWalkTargetSince = null;
             repaired = true;
         } else if (state.ownedWalkTarget == null) {
             state.ownedWalkTarget = currentWalkTarget;
@@ -384,31 +477,7 @@ public final class MovementRequestManager {
         return true;
     }
 
-    private static boolean repairStaleFailure(Villager villager, State state) {
-        Long currentFailure = villager.getBrain()
-                .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
-        if (currentFailure == null) {
-            return false;
-        }
-        if (state.ownedCantReachWalkTargetSince != null
-                && state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
-            villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
-            state.ownedCantReachWalkTargetSince = null;
-            return true;
-        }
-        if (!state.memorySnapshotInitialized && state.ownedCantReachWalkTargetSince == null) {
-            villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Stops and erases only executor state this request can identify as its
-     * own. A consumed WALK_TARGET does not make the matching failure timestamp
-     * unowned: the sink mixin records that timestamp before vanilla erases the
-     * target.
-     */
+    /** Stops and erases only executor objects identified as this generation's. */
     private static void cleanupOwnedExecutor(Villager villager, State state) {
         cleanupOwnedExecutor(villager, state, true);
     }
@@ -416,7 +485,10 @@ public final class MovementRequestManager {
     private static void cleanupOwnedExecutor(Villager villager, State state,
                                              boolean stopNavigation) {
         Path currentNavigationPath = villager.getNavigation().getPath();
-        if (stopNavigation && state.ownedPath != null && currentNavigationPath == state.ownedPath) {
+        Path ownedNavigationPath = state.ownedPath != null
+                ? state.ownedPath : state.lastObservedPath;
+        if (stopNavigation && ownedNavigationPath != null
+                && currentNavigationPath == ownedNavigationPath) {
             villager.getNavigation().stop();
         }
         if (state.ownedPath != null
@@ -429,7 +501,9 @@ public final class MovementRequestManager {
                 .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
         Long currentFailure = villager.getBrain()
                 .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
-        if (state.ownedWalkTarget != null && currentWalkTarget == state.ownedWalkTarget) {
+        boolean ownsWalkTarget = state.ownedWalkTarget != null
+                && currentWalkTarget == state.ownedWalkTarget;
+        if (ownsWalkTarget) {
             villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             if (state.ownedCantReachWalkTargetSince != null
                     && state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
@@ -455,12 +529,6 @@ public final class MovementRequestManager {
     private static void snapshotMemoryState(Villager villager, State state) {
         state.lastObservedBrainPath = villager.getBrain()
                 .getMemory(MemoryModuleType.PATH).orElse(null);
-        state.lastObservedWalkTarget = villager.getBrain()
-                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
-        state.lastObservedLookTarget = villager.getBrain()
-                .getMemory(MemoryModuleType.LOOK_TARGET).orElse(null);
-        state.lastObservedCantReachWalkTargetSince = villager.getBrain()
-                .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
         state.memorySnapshotInitialized = true;
     }
 
@@ -474,6 +542,8 @@ public final class MovementRequestManager {
             case ABANDONED -> PerformanceTimingCounters.Operation.MOVEMENT_ABANDONED;
             case FAILED -> PerformanceTimingCounters.Operation.MOVEMENT_FAILURE;
             case PREEMPTED -> PerformanceTimingCounters.Operation.MOVEMENT_PREEMPTED;
+            case UNLOADED -> PerformanceTimingCounters.Operation.MOVEMENT_UNLOADED;
+            case SERVER_SHUTDOWN -> PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN;
         };
         PerformanceTimingCounters.recordEvent(operation);
     }
@@ -511,12 +581,6 @@ public final class MovementRequestManager {
         @Nullable
         private Path lastObservedBrainPath;
         @Nullable
-        private WalkTarget lastObservedWalkTarget;
-        @Nullable
-        private PositionTracker lastObservedLookTarget;
-        @Nullable
-        private Long lastObservedCantReachWalkTargetSince;
-        @Nullable
         private Path ownedPath;
         @Nullable
         private WalkTarget ownedWalkTarget;
@@ -527,12 +591,11 @@ public final class MovementRequestManager {
         @Nullable
         private WalkTarget pendingSinkTarget;
         private long pendingSinkGameTime = Long.MIN_VALUE;
+        private long failureRetryNotBefore = Long.MIN_VALUE;
         private boolean memorySnapshotInitialized;
-        private long requestAcceptedGameTime = Long.MIN_VALUE;
         private int routeGeneration;
 
         private void clearExecutorOwnership() {
-            activeSpec = null;
             lastObservedPath = null;
             ownedPath = null;
             ownedWalkTarget = null;
@@ -540,7 +603,7 @@ public final class MovementRequestManager {
             ownedCantReachWalkTargetSince = null;
             pendingSinkTarget = null;
             pendingSinkGameTime = Long.MIN_VALUE;
-            requestAcceptedGameTime = Long.MIN_VALUE;
+            failureRetryNotBefore = Long.MIN_VALUE;
         }
     }
 
@@ -551,8 +614,9 @@ public final class MovementRequestManager {
         }
         Long currentFailure = villager.getBrain()
                 .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
-        if (currentFailure != null && currentFailure.longValue() == gameTime) {
+        if (currentFailure != null) {
             state.ownedCantReachWalkTargetSince = currentFailure;
+            state.failureRetryNotBefore = gameTime + FAILURE_RETRY_COOLDOWN_TICKS;
         }
     }
 
@@ -571,11 +635,6 @@ public final class MovementRequestManager {
             }
             state.routeGeneration++;
             MovementDiagnostics.route(villager, handle, state.routeGeneration, currentPath);
-        }
-        if (villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
-                == state.ownedWalkTarget) {
-            state.ownedCantReachWalkTargetSince = villager.getBrain()
-                    .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
         }
         snapshotMemoryState(villager, state);
     }

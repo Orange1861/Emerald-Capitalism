@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.npc.Villager;
 import org.jetbrains.annotations.Nullable;
 
@@ -19,6 +20,35 @@ public final class VillagerMovementRequestBinding {
         if (cachedSpec != null && cachedSpec.equals(spec)) {
             spec = cachedSpec;
         }
+        return submitResolved(villager, spec);
+    }
+
+    /**
+     * Submits a field-level request without constructing a new record when the
+     * destination and policies are unchanged from the previous tick.
+     */
+    public boolean submit(Villager villager, String owner, String destinationIdentity,
+                          BlockPos destination, float speedModifier, int closeEnough,
+                          String arrivalPolicy, String traversalPolicy, int priority,
+                          @Nullable BlockPos lookTarget) {
+        if (cachedSpec != null
+                && cachedSpec.owner().equals(owner)
+                && cachedSpec.destinationIdentity().equals(destinationIdentity)
+                && cachedSpec.destination().equals(destination)
+                && Float.compare(cachedSpec.speedModifier(), speedModifier) == 0
+                && cachedSpec.closeEnough() == closeEnough
+                && cachedSpec.arrivalPolicy().equals(arrivalPolicy)
+                && cachedSpec.traversalPolicy().equals(traversalPolicy)
+                && cachedSpec.priority() == priority
+                && java.util.Objects.equals(cachedSpec.lookTarget(), lookTarget)) {
+            return submitResolved(villager, cachedSpec);
+        }
+        return submitResolved(villager, new MovementRequestSpec(
+                owner, destinationIdentity, destination, speedModifier, closeEnough,
+                arrivalPolicy, traversalPolicy, priority, lookTarget));
+    }
+
+    private boolean submitResolved(Villager villager, MovementRequestSpec spec) {
         MovementRequestSubmission submission;
         if (handle != null) {
             if (!MovementRequestManager.isActive(villager, handle)) {

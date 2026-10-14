@@ -53,6 +53,8 @@ public class BegForFoodBehavior extends Behavior<Villager> {
 
     @Nullable
     private EntityTracker ownedLookTarget;
+    @Nullable
+    private MovementRequestSpec cachedMovementSpec;
 
     public BegForFoodBehavior() {
         super(
@@ -163,6 +165,7 @@ public class BegForFoodBehavior extends Behavior<Villager> {
         stats.resetBeggingState();
         MovementRequestManager.cancel(villager, movementHandle);
         movementHandle = null;
+        cachedMovementSpec = null;
         if (lookTargetDonor != null) {
             EntityTracker current = villager.getBrain().getMemory(MemoryModuleType.LOOK_TARGET)
                     .filter(EntityTracker.class::isInstance)
@@ -198,16 +201,22 @@ public class BegForFoodBehavior extends Behavior<Villager> {
 
     private boolean submitMovement(Villager villager, Villager donorVillager) {
         BlockPos donorPosition = donorVillager.blockPosition();
-        MovementRequestSpec spec = new MovementRequestSpec(
-                "emeraldcapitalism:beg_for_food",
-                "donor:" + donorVillager.getUUID(),
-                donorPosition,
-                SPEED_MODIFIER,
-                1,
-                "social-interaction-v1",
-                "ground-ladder-v1",
-                MovementRequestManager.PRIORITY_AMBIENT,
-                null);
+        String identity = "donor:" + donorVillager.getUUID();
+        MovementRequestSpec spec = cachedMovementSpec;
+        if (spec == null || !spec.destination().equals(donorPosition)
+                || !spec.destinationIdentity().equals(identity)) {
+            spec = new MovementRequestSpec(
+                    "emeraldcapitalism:beg_for_food",
+                    identity,
+                    donorPosition,
+                    SPEED_MODIFIER,
+                    1,
+                    "social-interaction-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_AMBIENT,
+                    null);
+            cachedMovementSpec = spec;
+        }
         if (movementHandle != null) {
             if (!MovementRequestManager.isActive(villager, movementHandle)) {
                 movementHandle = null;

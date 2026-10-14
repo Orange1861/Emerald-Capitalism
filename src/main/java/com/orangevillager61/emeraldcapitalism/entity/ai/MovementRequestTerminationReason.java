@@ -5,5 +5,9 @@ public enum MovementRequestTerminationReason {
     ARRIVED,
     ABANDONED,
     FAILED,
-    PREEMPTED
+    PREEMPTED,
+    /** The entity/chunk session ended before the task could report normally. */
+    UNLOADED,
+    /** The server stopped while the request was still active. */
+    SERVER_SHUTDOWN
 }

@@ -71,17 +71,19 @@ Set the JVM property `emeraldcapitalism.navigationDiagnostics=true` for
 opt-in transition, cleanup, and route-generation logs. The counters in
 `PerformanceTimingCounters` record request submissions, replans, preemptions,
 rejections, terminal outcomes, and expensive searches without logging every
-tick. Detailed `nanoTime` measurements can be disabled with
-`-Demeraldcapitalism.performanceTimingDisabled=true`; event counters remain
-available when timing is enabled. Planning helpers retain bounded candidate
-attempts and do not force-load chunks.
+tick. Detailed `nanoTime` measurements are opt-in with
+`-Demeraldcapitalism.performanceTiming=true`, and event counters are opt-in
+with `-Demeraldcapitalism.performanceEvents=true`; both are disabled by
+default. The movement-manager disabled path does not read the clock or create
+timing lambdas. Planning helpers retain bounded candidate attempts and do not
+force-load chunks.
 
 The final verification report must include equivalent multi-mob workload
 snapshots for both supported targets. A faster run is not considered an
 improvement if it only abandons more work; successful task outcomes and retry
 counts are part of the comparison.
 
-The final-tree runs on 2026-10-13 used Java 21.0.9 (Eclipse Adoptium) with
+The final-tree runs on 2026-10-14 used Java 21.0.9 (Eclipse Adoptium) with
 the project Gradle wrapper and these exact commands:
 
 ```text
@@ -92,35 +94,49 @@ the project Gradle wrapper and these exact commands:
 git diff --check
 ```
 
+The diagnostic snapshots additionally set
+`-Demeraldcapitalism.performanceTiming=true` and
+`-Demeraldcapitalism.performanceEvents=true` through `JAVA_TOOL_OPTIONS`.
+
 The JVM suite passed (core tests plus both version test source sets). Both
-version compile tasks passed. The final-tree GameTest runs had 216 tests per
+version compile tasks passed. The final-tree GameTest runs had 218 tests per
 target; all new registry, movement-ownership, stale-memory, preemption,
 look-ownership, and Mayor-follow tests passed on both targets. The named
-Skrimisher periodic-deposit regression also passed after tightening its test
-village AABB so bounded wandering cannot enter the surrounding stone wall.
+Skrimisher periodic-deposit regression also passed. The measurement runs
+reported the following final-tree snapshots:
 
 | Target | GameTest runtime | Manager time (calls / total / avg / max) | Registry time (calls / total / avg / max) | Arrived / abandoned | Retries | Replans | Preemptions | Rejections | Sink path-plan attempts (success / failure) | Remaining failures |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1.21.1 | 60.6 s | 232 / 10.854 / 0.047 / 4.769 ms | 205 / 2.365 / 0.012 / 0.358 ms | 4 / 15 | 19 | 8 | 3 | 2 | 30 (19 / 11) | `resourcescanincludesnearestemeraldprocessorinventory`; one non-required `emeraldskrimisherusesgolemassistedjumpattack` flake in this run |
-| 1.21.4 | 49.61 s | 229 / 9.544 / 0.042 / 4.222 ms | 217 / 2.096 / 0.010 / 0.347 ms | 4 / 15 | 15 | 8 | 3 | 2 | 26 (14 / 12) | `resourcescanincludesnearestemeraldprocessorinventory` |
+| 1.21.1 | 1.308 min | 253 / 3.166 / 0.013 / 0.106 ms | 459 / 4.466 / 0.010 / 0.418 ms | 2 / 12 | 12 | 5 | 3 | 2 | 12 (10 / 2) | `resourcescanincludesnearestemeraldprocessorinventory`; unrelated `viruszombiealwaysdropstransferredequipment` |
+| 1.21.4 | 1.505 min | 237 / 4.169 / 0.018 / 0.218 ms | 441 / 6.066 / 0.014 / 0.524 ms | 2 / 11 | 9 | 5 | 3 | 2 | 10 (8 / 2) | `resourcescanincludesnearestemeraldprocessorinventory`; unrelated `bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction` |
 
 The counters are emitted in the server shutdown log. Logical submissions,
 replans, and retries are separate from actual `MoveToTargetSink` path-plan
-attempts, which are recorded by the sink mixin. No allocation profiler was run,
-so allocation totals are not claimed. The remaining resource-scan failure is
-also present on the parent baseline and does not touch the migrated villager
-movement bridge. The one-shot 1.21.1 jump-attack failure is unrelated to this
-change set; the parent 1.21.1 run passed it and the failure was not among the
-required navigation regressions.
+attempts, which are recorded by the sink mixin. The measurement-run failures
+listed above are unrelated to the migrated villager movement bridge except for
+the navigation regressions, which passed. The resource-scan failure is also
+present on the parent baseline.
 
-For the controlled comparison, commit `94e102e3` was run on the same Windows
-host and Java 21.0.9 toolchain for both targets. It ran 210 tests, with only
-`resourcescanincludesnearestemeraldprocessorinventory` failing on each target.
-Its server completion times were 4.884 s (1.21.1) and 5.151 s (1.21.4), but
-the parent does not contain the six new long-running regression tests and does
-not emit the new movement counters. Those runs therefore establish the
-baseline failure set, not a valid performance-improvement claim; allocation
-counts remain unmeasured.
+An uninstrumented rerun on the exact final tree also completed all 218 tests on
+both targets; its remaining required failures were the resource-scan test plus
+the unrelated Skrimisher periodic-deposit test on 1.21.1, and the unrelated
+bank-golem selector test on 1.21.4. The movement-manager regression tests
+remained green.
+
+For the controlled comparison, commit `25d1b9bd` was run on the same Windows
+host and Java 21.0.9 toolchain with the same two GameTest commands:
+
+| Target | Parent tests / GameTest runtime | Manager time (calls / total) | Registry time (calls / total) | Arrived / abandoned | Retries | Replans | Preemptions | Rejections | Sink path-plan attempts | Remaining failures |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1.21.1 | 211 / 5.133 s | 136 / 5.874 ms | 187 / 2.092 ms | 8 / 5 | 9 | 7 | 2 | 2 | 24 | `resourcescanincludesnearestemeraldprocessorinventory` |
+| 1.21.4 | 211 / 5.123 s | 157 / 5.177 ms | 223 / 2.601 ms | 9 / 5 | 12 | 7 | 2 | 2 | 25 | `resourcescanincludesnearestemeraldprocessorinventory` |
+
+The repaired tree adds seven long-running regression tests, so the full-suite
+wall times above are not an apples-to-apples speedup claim. They are the same
+commands and host/toolchain, with the changed test population called out
+explicitly. The parent does not emit the repaired tree's path-plan success /
+failure and unload / shutdown fields. No allocation profiler was run, so
+allocation totals remain unmeasured.
 
 ### Likely cost relative to the pre-refactor code
 

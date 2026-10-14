@@ -57,6 +57,8 @@ public final class VillagerInventoryBankGoal extends Goal {
     private long lastDailyCheckDay = -1L;
     private boolean fullInventoryTrigger;
     private boolean finished;
+    @org.jetbrains.annotations.Nullable
+    private MovementRequestTerminationReason terminationReason;
     private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
     public VillagerInventoryBankGoal(Villager villager) {
@@ -109,6 +111,7 @@ public final class VillagerInventoryBankGoal extends Goal {
         attemptTicks = 0;
         attempts = 0;
         finished = false;
+        terminationReason = null;
 
         if (!(villager.level() instanceof ServerLevel level)) {
             finish(null, FAILURE_COOLDOWN);
@@ -169,12 +172,14 @@ public final class VillagerInventoryBankGoal extends Goal {
         if (isAtBank()) {
             boolean transferred = liquidateInventory(level);
             boolean purchased = !fullInventoryTrigger && buyBreadIfNeeded(level);
-            finish(level, transferred || purchased ? SUCCESS_COOLDOWN : FAILURE_COOLDOWN);
+            finish(level, transferred || purchased ? SUCCESS_COOLDOWN : FAILURE_COOLDOWN,
+                    transferred || purchased ? MovementRequestTerminationReason.ARRIVED
+                            : MovementRequestTerminationReason.FAILED);
             return;
         }
 
         if (navigationTarget != null) {
-            if (!movement.submit(villager, new MovementRequestSpec(
+            if (!movement.submit(villager,
                     "emeraldcapitalism:inventory_bank_visit",
                     "bank-deposit:" + depositPos.toShortString(),
                     navigationTarget,
@@ -183,7 +188,7 @@ public final class VillagerInventoryBankGoal extends Goal {
                     "bank-deposit-v1",
                     "ground-ladder-v1",
                     MovementRequestManager.PRIORITY_WORK,
-                    depositPos))) {
+                    depositPos)) {
                 finish(level, FAILURE_COOLDOWN);
                 return;
             }
@@ -200,9 +205,8 @@ public final class VillagerInventoryBankGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, finished
-                ? MovementRequestTerminationReason.ARRIVED
-                : MovementRequestTerminationReason.ABANDONED);
+        movement.cancel(villager, terminationReason == null
+                ? MovementRequestTerminationReason.ABANDONED : terminationReason);
         if (finished && villager.level() instanceof ServerLevel level
                 && nextActionTick < level.getGameTime()) {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
@@ -612,7 +616,7 @@ public final class VillagerInventoryBankGoal extends Goal {
         if (navigationTarget == null) {
             return false;
         }
-        return movement.submit(villager, new MovementRequestSpec(
+        return movement.submit(villager,
                 "emeraldcapitalism:inventory_bank_visit",
                 "bank-deposit:" + depositPos.toShortString(),
                 navigationTarget,
@@ -621,7 +625,7 @@ public final class VillagerInventoryBankGoal extends Goal {
                 "bank-deposit-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                depositPos));
+                depositPos);
     }
 
     private boolean isAtBank() {
@@ -665,7 +669,13 @@ public final class VillagerInventoryBankGoal extends Goal {
     }
 
     private void finish(ServerLevel level, int cooldown) {
+        finish(level, cooldown, MovementRequestTerminationReason.FAILED);
+    }
+
+    private void finish(ServerLevel level, int cooldown,
+                        MovementRequestTerminationReason reason) {
         finished = true;
+        terminationReason = reason;
         if (level != null) {
             nextActionTick = level.getGameTime() + cooldown;
         }

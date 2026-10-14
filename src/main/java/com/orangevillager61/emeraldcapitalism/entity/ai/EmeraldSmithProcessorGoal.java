@@ -33,6 +33,8 @@ public final class EmeraldSmithProcessorGoal extends Goal {
     private int attemptTicks;
     private int attempts;
     private boolean finished;
+    @org.jetbrains.annotations.Nullable
+    private MovementRequestTerminationReason terminationReason;
     private long nextActionTick;
     private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
 
@@ -69,25 +71,30 @@ public final class EmeraldSmithProcessorGoal extends Goal {
         attemptTicks = 0;
         attempts = 0;
         finished = false;
+        terminationReason = null;
         if (!(villager.level() instanceof ServerLevel level)) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             return;
         }
         context = resolveContext(level);
         if (context == null) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
         BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.processorPos(), 2);
         if (navigationTarget == null) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
         context = new WorkContext(context.bank(), context.processor(), context.processorPos(), navigationTarget);
         if (!moveToProcessor()) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
         }
     }
@@ -108,12 +115,14 @@ public final class EmeraldSmithProcessorGoal extends Goal {
     public void tick() {
         if (!(villager.level() instanceof ServerLevel level) || context == null) {
             finished = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             return;
         }
 
         if (isAtProcessor()) {
             performHighestPriorityTask(level);
             finished = true;
+            terminationReason = MovementRequestTerminationReason.ARRIVED;
             return;
         }
 
@@ -126,10 +135,12 @@ public final class EmeraldSmithProcessorGoal extends Goal {
             attempts++;
             if (attempts >= MAX_ATTEMPTS) {
                 finished = true;
+                terminationReason = MovementRequestTerminationReason.FAILED;
                 nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             } else {
                 if (!moveToProcessor()) {
                     finished = true;
+                    terminationReason = MovementRequestTerminationReason.FAILED;
                     nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
                 }
             }
@@ -138,9 +149,8 @@ public final class EmeraldSmithProcessorGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, finished
-                ? MovementRequestTerminationReason.ARRIVED
-                : MovementRequestTerminationReason.ABANDONED);
+        movement.cancel(villager, terminationReason == null
+                ? MovementRequestTerminationReason.ABANDONED : terminationReason);
         if (finished && villager.level() instanceof ServerLevel level
                 && nextActionTick < level.getGameTime()) {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
@@ -274,7 +284,7 @@ public final class EmeraldSmithProcessorGoal extends Goal {
 
     private boolean moveToProcessor() {
         BlockPos pos = context.navigationTarget();
-        return movement.submit(villager, new MovementRequestSpec(
+        return movement.submit(villager,
                 "emeraldcapitalism:smith_processor",
                 "processor:" + context.processorPos().toShortString(),
                 pos,
@@ -283,7 +293,7 @@ public final class EmeraldSmithProcessorGoal extends Goal {
                 "processor-interaction-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                context.processorPos()));
+                context.processorPos());
     }
 
     private void setProcessorWalkTarget() {

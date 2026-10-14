@@ -151,7 +151,7 @@ public final class BankerWorkGoal extends Goal {
 
     private boolean moveToWorkSide() {
         BlockPos target = context.navigationTarget();
-        return movement.submit(villager, new MovementRequestSpec(
+        return movement.submit(villager,
                 "emeraldcapitalism:banker_work",
                 "banker-side:" + context.workPos().toShortString(),
                 target,
@@ -160,7 +160,7 @@ public final class BankerWorkGoal extends Goal {
                 "bank-side-floor-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                context.workPos()));
+                context.workPos());
     }
 
     private record WorkContext(BankBlockEntity bank, BlockPos workPos, BlockPos navigationTarget) {

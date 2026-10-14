@@ -688,7 +688,7 @@ public final class LumberjackGoal extends Goal {
             }
         }
 
-        boolean started = movement.submit(villager, new MovementRequestSpec(
+        boolean started = movement.submit(villager,
                 "emeraldcapitalism:lumberjack_job_site",
                 "job-site:" + jobSite.toShortString(),
                 jobSiteTarget,
@@ -697,7 +697,7 @@ public final class LumberjackGoal extends Goal {
                 "job-site-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                jobSite));
+                jobSite);
         if (started) {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
         }
@@ -730,7 +730,7 @@ public final class LumberjackGoal extends Goal {
                 return false;
             }
         }
-        boolean started = movement.submit(villager, new MovementRequestSpec(
+        boolean started = movement.submit(villager,
                 "emeraldcapitalism:lumberjack_tree",
                 "tree-work:" + target.toShortString(),
                 navigationTarget,
@@ -739,7 +739,7 @@ public final class LumberjackGoal extends Goal {
                 "lumberjack-reach-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                target));
+                target);
         if (started) {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
         } else {
@@ -1268,7 +1268,7 @@ public final class LumberjackGoal extends Goal {
                 return false;
             }
         }
-        boolean started = movement.submit(villager, new MovementRequestSpec(
+        boolean started = movement.submit(villager,
                 "emeraldcapitalism:lumberjack_furnace",
                 "furnace-work:" + productionFurnace.toShortString(),
                 navigationTarget,
@@ -1277,7 +1277,7 @@ public final class LumberjackGoal extends Goal {
                 "furnace-interaction-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
-                productionFurnace));
+                productionFurnace);
         if (started) {
             nextNavigationRetryTick = villager.level().getGameTime() + 20L;
         }

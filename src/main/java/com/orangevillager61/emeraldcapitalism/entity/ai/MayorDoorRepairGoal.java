@@ -67,6 +67,8 @@ public final class MayorDoorRepairGoal extends Goal {
     private BlockPos lastLoggedNavigationTarget;
     @Nullable
     private String finishReason;
+    @Nullable
+    private MovementRequestTerminationReason terminationReason;
 
     public MayorDoorRepairGoal(Villager villager) {
         this.villager = villager;
@@ -173,6 +175,7 @@ public final class MayorDoorRepairGoal extends Goal {
         finished = false;
         carryingRepairDoor = false;
         finishReason = null;
+        terminationReason = null;
         stage = Stage.BANK;
         navigationWatchdog.reset();
         EmeraldCapitalism.LOGGER.info(
@@ -183,11 +186,13 @@ public final class MayorDoorRepairGoal extends Goal {
 
         if (!(villager.level() instanceof ServerLevel level)) {
             failed = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] START failed: mayor is not in a ServerLevel");
             return;
         }
         if (village == null || bank == null || targetPos == null) {
             failed = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorRepair] START failed: missing selected context village={} bank={} target={}",
                     village, bank, targetPos);
@@ -195,6 +200,7 @@ public final class MayorDoorRepairGoal extends Goal {
         }
         if (!village.claimDoorPosition(targetPos)) {
             failed = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorRepair] START failed: could not claim target={} missing={} claimed={}",
                     targetPos, village.getMissingDoorRegistry().contains(targetPos),
@@ -210,6 +216,7 @@ public final class MayorDoorRepairGoal extends Goal {
         if (navigationTarget == null) {
             village.unclaimDoorPosition(targetPos);
             failed = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorRepair] START failed: no reachable bank approach desired={} target={}",
                     context.bankApproach(), targetPos);
@@ -235,6 +242,7 @@ public final class MayorDoorRepairGoal extends Goal {
                 || bank == null
                 || stage == null) {
             failed = true;
+            terminationReason = MovementRequestTerminationReason.FAILED;
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorRepair] TICK failed: incomplete context mayor={} target={} navigationTarget={} village={} bank={} stage={}",
                     villager.getUUID(), targetPos, navigationTarget, village, bank, stage);
@@ -248,7 +256,8 @@ public final class MayorDoorRepairGoal extends Goal {
             EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at bank approach={} bank={} mayor={}",
                     navigationTarget, bank.getBlockPos(), villager.getUUID());
             if (!receiveAndCraftDoor(level)) {
-                finish(level, "bank withdrawal/crafting failed");
+                finish(level, "bank withdrawal/crafting failed",
+                        MovementRequestTerminationReason.FAILED);
                 return;
             }
 
@@ -257,7 +266,8 @@ public final class MayorDoorRepairGoal extends Goal {
                     targetPos, villager.getUUID());
             navigationTarget = findNavigationTarget(targetPos);
             if (navigationTarget == null) {
-                finish(level, "no reachable navigation target near missing door");
+                finish(level, "no reachable navigation target near missing door",
+                        MovementRequestTerminationReason.FAILED);
                 return;
             }
             navigationWatchdog.reset();
@@ -272,9 +282,11 @@ public final class MayorDoorRepairGoal extends Goal {
                 if (village.markDoorRepaired(targetPos)) {
                     VillageRegistryData.get(level).setDirty();
                 }
-                finish(level, "door placement succeeded");
+                finish(level, "door placement succeeded",
+                        MovementRequestTerminationReason.ARRIVED);
             } else {
-                finish(level, "door placement failed");
+                finish(level, "door placement failed",
+                        MovementRequestTerminationReason.FAILED);
             }
             return;
         }
@@ -284,7 +296,8 @@ public final class MayorDoorRepairGoal extends Goal {
                     "[ECAP][MayorRepair] NAVIGATION watchdog fired mayor={} stage={} currentPos={} target={} distanceSq={} navigationDone={}",
                     villager.getUUID(), stage, villager.blockPosition(), navigationTarget,
                     distanceToCenterSq(navigationTarget), villager.getNavigation().isDone());
-            finish(level, "navigation watchdog reported no movement");
+            finish(level, "navigation watchdog reported no movement",
+                    MovementRequestTerminationReason.FAILED);
             return;
         }
         setWalkTarget();
@@ -302,9 +315,8 @@ public final class MayorDoorRepairGoal extends Goal {
         if (village != null && targetPos != null) {
             village.unclaimDoorPosition(targetPos);
         }
-        movement.cancel(villager, failed
-                ? MovementRequestTerminationReason.FAILED
-                : MovementRequestTerminationReason.ABANDONED);
+        movement.cancel(villager, terminationReason == null
+                ? MovementRequestTerminationReason.ABANDONED : terminationReason);
         clearSocialInteractionMemories();
         targetPos = null;
         navigationTarget = null;
@@ -315,6 +327,7 @@ public final class MayorDoorRepairGoal extends Goal {
         failed = false;
         finished = false;
         finishReason = null;
+        terminationReason = null;
         nextProgressDiagnosticTick = 0L;
         lastLoggedStage = null;
         lastLoggedNavigationTarget = null;
@@ -538,7 +551,7 @@ public final class MayorDoorRepairGoal extends Goal {
     private void setWalkTarget() {
         if (navigationTarget != null && stage != null && targetPos != null) {
             BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
-            if (!movement.submit(villager, new MovementRequestSpec(
+            if (!movement.submit(villager,
                     "emeraldcapitalism:mayor_door_repair",
                     "mayor-door:" + stage + ":" + targetPos.toShortString(),
                     navigationTarget,
@@ -547,7 +560,7 @@ public final class MayorDoorRepairGoal extends Goal {
                     "door-repair-v1",
                     "ground-ladder-v1",
                     MovementRequestManager.PRIORITY_WORK,
-                    lookTarget))) {
+                    lookTarget)) {
                 failed = true;
             }
         } else {
@@ -703,8 +716,10 @@ public final class MayorDoorRepairGoal extends Goal {
         }
     }
 
-    private void finish(ServerLevel level, String reason) {
+    private void finish(ServerLevel level, String reason,
+                        MovementRequestTerminationReason terminalReason) {
         finishReason = reason;
+        terminationReason = terminalReason;
         EmeraldCapitalism.LOGGER.info(
                 "[ECAP][MayorRepair] FINISH mayor={} stage={} target={} reason={} missingDoorStillQueued={} carryingDoor={}",
                 villager.getUUID(), stage, targetPos, reason,

@@ -48,6 +48,8 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     private long nextEscapeSearchTick = Long.MIN_VALUE;
     @Nullable
     private MovementRequestHandle movementHandle;
+    @Nullable
+    private MovementRequestSpec cachedMovementSpec;
 
     public AvoidBoatBehavior() {
         super(
@@ -84,6 +86,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     @Override
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         escapeTarget = null;
+        cachedMovementSpec = null;
         if (movementHandle != null) {
             MovementRequestManager.cancel(villager, movementHandle);
             movementHandle = null;
@@ -141,16 +144,20 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
         }
 
         if (escapeTarget != null) {
-            MovementRequestSpec spec = new MovementRequestSpec(
-                    "emeraldcapitalism:boat_avoidance",
-                    "boat:" + escapeTarget.toShortString(),
-                    escapeTarget,
-                    SPEED_MODIFIER,
-                    0,
-                    "boat-avoidance-v1",
-                    "ground-ladder-v1",
-                    MovementRequestManager.PRIORITY_ESCAPE - 10,
-                    null);
+            MovementRequestSpec spec = cachedMovementSpec;
+            if (spec == null || !spec.destination().equals(escapeTarget)) {
+                spec = new MovementRequestSpec(
+                        "emeraldcapitalism:boat_avoidance",
+                        "boat:" + escapeTarget.toShortString(),
+                        escapeTarget,
+                        SPEED_MODIFIER,
+                        0,
+                        "boat-avoidance-v1",
+                        "ground-ladder-v1",
+                        MovementRequestManager.PRIORITY_ESCAPE - 10,
+                        null);
+                cachedMovementSpec = spec;
+            }
             MovementRequestSubmission submission = movementHandle == null
                     ? MovementRequestManager.submit(villager, spec)
                     : MovementRequestManager.maintain(villager, movementHandle, spec);

@@ -31,6 +31,8 @@ public final class PerformanceTimingCounters {
         MOVEMENT_PREEMPTED,
         MOVEMENT_PATH_PLAN_SUCCESS,
         MOVEMENT_PATH_PLAN_FAILURE,
+        MOVEMENT_UNLOADED,
+        MOVEMENT_SHUTDOWN,
         POI_DYNAMIC_REFRESH,
         BANK_CHEST_CACHE_REBUILD,
         BANK_INVENTORY_TOTAL_REFRESH
@@ -48,7 +50,9 @@ public final class PerformanceTimingCounters {
 
     private static final Map<Operation, Counter> COUNTERS = new EnumMap<>(Operation.class);
     private static volatile boolean detailedTimingEnabled =
-            !Boolean.getBoolean("emeraldcapitalism.performanceTimingDisabled");
+            Boolean.getBoolean("emeraldcapitalism.performanceTiming");
+    private static volatile boolean eventCountingEnabled =
+            Boolean.getBoolean("emeraldcapitalism.performanceEvents");
 
     static {
         for (Operation operation : Operation.values()) {
@@ -86,6 +90,28 @@ public final class PerformanceTimingCounters {
         return detailedTimingEnabled;
     }
 
+    /**
+     * Starts a timing scope without allocating a capturing lambda. The hot
+     * movement manager uses this form so the disabled path does no clock read.
+     */
+    public static long startTiming(Operation operation) {
+        return detailedTimingEnabled ? System.nanoTime() : Long.MIN_VALUE;
+    }
+
+    public static void finishTiming(Operation operation, long started) {
+        if (started != Long.MIN_VALUE && detailedTimingEnabled) {
+            record(operation, Math.max(0L, System.nanoTime() - started));
+        }
+    }
+
+    public static void setEventCountingEnabled(boolean enabled) {
+        eventCountingEnabled = enabled;
+    }
+
+    public static boolean isEventCountingEnabled() {
+        return eventCountingEnabled;
+    }
+
     public static Map<Operation, Snapshot> snapshot() {
         Map<Operation, Snapshot> result = new EnumMap<>(Operation.class);
         COUNTERS.forEach((operation, counter) -> result.put(operation, counter.snapshot()));
@@ -119,7 +145,9 @@ public final class PerformanceTimingCounters {
 
     /** Records a bounded state transition that has no useful duration. */
     public static void recordEvent(Operation operation) {
-        COUNTERS.get(operation).record(0L);
+        if (eventCountingEnabled) {
+            COUNTERS.get(operation).record(0L);
+        }
     }
 
     private static void record(Operation operation, long elapsedNanos) {

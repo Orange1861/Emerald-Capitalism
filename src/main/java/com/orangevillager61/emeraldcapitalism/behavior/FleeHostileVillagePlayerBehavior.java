@@ -43,6 +43,8 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
     private long nextEscapeSearchTick = Long.MIN_VALUE;
     @Nullable
     private MovementRequestHandle movementHandle;
+    @Nullable
+    private MovementRequestSpec cachedMovementSpec;
 
     public FleeHostileVillagePlayerBehavior() {
         super(
@@ -79,6 +81,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
         cachedThreat = null;
         village = null;
         escapeTarget = null;
+        cachedMovementSpec = null;
         nextThreatLookupTick = Long.MIN_VALUE;
         nextEscapeSearchTick = Long.MIN_VALUE;
         if (movementHandle != null) {
@@ -128,16 +131,20 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
         }
 
         if (escapeTarget != null) {
-            MovementRequestSpec spec = new MovementRequestSpec(
-                    "emeraldcapitalism:hostile_player_flee",
-                    "flee:" + escapeTarget.toShortString(),
-                    escapeTarget,
-                    SPEED_MODIFIER,
-                    0,
-                    "escape-v1",
-                    "ground-ladder-v1",
-                    MovementRequestManager.PRIORITY_ESCAPE,
-                    null);
+            MovementRequestSpec spec = cachedMovementSpec;
+            if (spec == null || !spec.destination().equals(escapeTarget)) {
+                spec = new MovementRequestSpec(
+                        "emeraldcapitalism:hostile_player_flee",
+                        "flee:" + escapeTarget.toShortString(),
+                        escapeTarget,
+                        SPEED_MODIFIER,
+                        0,
+                        "escape-v1",
+                        "ground-ladder-v1",
+                        MovementRequestManager.PRIORITY_ESCAPE,
+                        null);
+                cachedMovementSpec = spec;
+            }
             MovementRequestSubmission submission = movementHandle == null
                     ? MovementRequestManager.submit(villager, spec)
                     : MovementRequestManager.maintain(villager, movementHandle, spec);
