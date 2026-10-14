@@ -35,6 +35,14 @@ public interface PlannedVillageBuilding {
     /** Places only the structure. Entity spawning and other final work belong in finish(). */
     boolean place(VillageGenerationContext context);
 
+    /**
+     * Starts an incremental placement job when this building has expensive terrain or
+     * post-template work. Returning {@code null} keeps the legacy synchronous path.
+     */
+    default VillageBuildingPlacementTask startPlacement(VillageGenerationContext context) {
+        return null;
+    }
+
     /** Called after every structure is placed; may plan paths that depend on resolved placement Y. */
     default List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
             VillageGenerationContext context) {

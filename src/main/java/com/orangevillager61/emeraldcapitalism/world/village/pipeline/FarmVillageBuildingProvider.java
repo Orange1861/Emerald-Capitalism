@@ -67,6 +67,7 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         private final FarmPlacement placement;
         private final VillageFarmSiteSelector.VillageSpatialCache spatialCache;
         private PlacedFarmInfo placed;
+        private VillageFarmPlacer.FarmPlacementTask placementTask;
 
         private PlannedFarm(FarmPlacement placement,
                             VillageFarmSiteSelector.VillageSpatialCache spatialCache) {
@@ -94,8 +95,18 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         }
 
         @Override
+        public VillageBuildingPlacementTask startPlacement(VillageGenerationContext context) {
+            placementTask = placer.createPlacementTask(context.level(), placement,
+                    context.biomeType(), context.chunkLoadBudget(), spatialCache);
+            return placementTask;
+        }
+
+        @Override
         public List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
                 VillageGenerationContext context) {
+            if (placementTask != null) {
+                placed = placementTask.result();
+            }
             if (placed == null || !Config.outskirtFarmsPathsEnabled.get()) {
                 return List.of();
             }

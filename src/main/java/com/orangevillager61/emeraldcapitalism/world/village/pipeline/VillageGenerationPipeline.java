@@ -129,6 +129,8 @@ public final class VillageGenerationPipeline {
         private Phase phase = Phase.BUILD_CACHES;
         private int index;
         private int ticksUsed;
+        private PlannedVillageBuilding activePlacementPlan;
+        private VillageBuildingPlacementTask activePlacementTask;
 
         private static VillageBuildingOrder.PlanKey buildingOrderKey(PlannedVillageBuilding plan) {
             BoundingBox box = plan.reservationBox();
@@ -221,8 +223,32 @@ public final class VillageGenerationPipeline {
 
         /** One structure per tick; important and large structures are always first. */
         private boolean placeBuildings() {
+            if (activePlacementTask != null) {
+                if (!activePlacementTask.processStep()) {
+                    return false;
+                }
+                PlannedVillageBuilding completedPlan = activePlacementPlan;
+                boolean succeeded = activePlacementTask.succeeded();
+                activePlacementPlan = null;
+                activePlacementTask = null;
+                if (succeeded) {
+                    placedBuildings.add(completedPlan);
+                }
+                if (index >= plans.size()) {
+                    index = 0;
+                    phase = Phase.GENERATE_PATHS;
+                }
+                return false;
+            }
+
             if (index < plans.size()) {
                 PlannedVillageBuilding plan = plans.get(index++);
+                VillageBuildingPlacementTask placementTask = plan.startPlacement(context);
+                if (placementTask != null) {
+                    activePlacementPlan = plan;
+                    activePlacementTask = placementTask;
+                    return false;
+                }
                 if (plan.place(context)) {
                     placedBuildings.add(plan);
                 }

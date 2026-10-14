@@ -77,6 +77,601 @@ public class VillageFarmPlacer {
     public PlacedFarmInfo place(ServerLevel level, FarmPlacement placement, String biomeType,
                                 ChunkLoadBudget budget,
                                 VillageFarmSiteSelector.VillageSpatialCache spatialCache) {
+        FarmPlacementTask task = createPlacementTask(level, placement, biomeType, budget, spatialCache);
+        while (!task.processStep()) {
+            // This compatibility entry point is only used by callers that explicitly
+            // request synchronous placement. The pipeline uses the incremental task
+            // directly and yields between these steps.
+        }
+        return task.result();
+    }
+
+    /** Creates a placement job whose block work is spread across server ticks. */
+    public FarmPlacementTask createPlacementTask(ServerLevel level, FarmPlacement placement,
+                                                 String biomeType, ChunkLoadBudget budget,
+                                                 VillageFarmSiteSelector.VillageSpatialCache spatialCache) {
+        return new FarmPlacementTask(level, placement, biomeType, budget, spatialCache);
+    }
+
+    /** Incremental farm placement, terrain adaptation, and template cleanup job. */
+    public final class FarmPlacementTask
+            implements com.orangevillager61.emeraldcapitalism.world.village.pipeline.VillageBuildingPlacementTask {
+        private static final int BLOCKS_PER_TICK = 1_024;
+        private static final int SURFACE_COLUMNS_PER_TICK = 128;
+        private static final int CROP_INFOS_PER_TICK = 64;
+
+        private enum Phase {
+            VALIDATE,
+            CAPTURE_SURFACE,
+            PREPARE_TERRAIN,
+            LEVEL_TERRAIN,
+            CLEAR_ABOVE,
+            PLACE_TEMPLATE,
+            REPLACE_JIGSAW,
+            SCAN_LOCAL_WATER,
+            PLUG_LOCAL_WATER,
+            REPAIR_CROPS,
+            VERIFY,
+            COMPLETE,
+            FAILED
+        }
+
+        private record TerrainColumn(int x, int z, int surfaceY, int targetY) {}
+
+        private final ServerLevel level;
+        private final FarmPlacement placement;
+        private final String biomeType;
+        private final ChunkLoadBudget budget;
+        private final VillageFarmSiteSelector.VillageSpatialCache spatialCache;
+        private final List<Integer> medianSamples = new ArrayList<>();
+        private final List<TerrainColumn> terrainColumns = new ArrayList<>();
+        private final List<BlockPos> waterPositions = new ArrayList<>();
+
+        private Phase phase = Phase.VALIDATE;
+        private StructureTemplate template;
+        private BiomeTerrainInfo terrain;
+        private SurfaceSnapshot surfaceSnapshot;
+        private StructurePlaceSettings settings;
+        private BlockPos placePos;
+        private PlacedFarmInfo result;
+        private int captureDx;
+        private int captureDz;
+        private int[] capturedHeights;
+        private int capturedMaxHeight = Integer.MIN_VALUE;
+        private int terrainIndex;
+        private int terrainNextY;
+        private boolean terrainTopPending;
+        private int clearX;
+        private int clearZ;
+        private int clearY;
+        private int clearTo;
+        private int jigsawX;
+        private int jigsawZ;
+        private int jigsawY;
+        private int waterX;
+        private int waterZ;
+        private int waterY;
+        private int waterIndex;
+        private int waterOffsetIndex;
+        private int plugX;
+        private int plugY;
+        private int plugZ;
+        private boolean plugActive;
+        private int cropBlockIndex;
+        private List<StructureTemplate.StructureBlockInfo> cropInfos = List.of();
+        private int cropInfoIndex;
+        private List<Block> cropBlocks = List.of();
+        private int verifyX;
+        private int verifyZ;
+        private int verifyY;
+        private int composterCount;
+        private boolean successful;
+
+        private FarmPlacementTask(ServerLevel level, FarmPlacement placement, String biomeType,
+                                  ChunkLoadBudget budget,
+                                  VillageFarmSiteSelector.VillageSpatialCache spatialCache) {
+            this.level = level;
+            this.placement = placement;
+            this.biomeType = biomeType;
+            this.budget = budget;
+            this.spatialCache = spatialCache;
+        }
+
+        @Override
+        public boolean processStep() {
+            if (phase == Phase.COMPLETE || phase == Phase.FAILED) {
+                return true;
+            }
+            try {
+                return switch (phase) {
+                    case VALIDATE -> validate();
+                    case CAPTURE_SURFACE -> captureSurface();
+                    case PREPARE_TERRAIN -> prepareTerrain();
+                    case LEVEL_TERRAIN -> levelTerrainStep();
+                    case CLEAR_ABOVE -> clearAboveStep();
+                    case PLACE_TEMPLATE -> placeTemplate();
+                    case REPLACE_JIGSAW -> replaceJigsawStep();
+                    case SCAN_LOCAL_WATER -> scanLocalWaterStep();
+                    case PLUG_LOCAL_WATER -> plugLocalWaterStep();
+                    case REPAIR_CROPS -> repairCropsStep();
+                    case VERIFY -> verifyStep();
+                    case COMPLETE, FAILED -> true;
+                };
+            } catch (Exception exception) {
+                EmeraldCapitalism.LOGGER.error("[ECAP] Failed incremental farm placement at {}: {}",
+                        placement.origin(), exception.getMessage(), exception);
+                phase = Phase.FAILED;
+                return true;
+            }
+        }
+
+        @Override
+        public boolean succeeded() {
+            return successful;
+        }
+
+        public PlacedFarmInfo result() {
+            return result;
+        }
+
+        private boolean validate() {
+            Optional<StructureTemplate> templateOpt = level.getStructureManager()
+                    .get(placement.templateLocation());
+            if (templateOpt.isEmpty()) {
+                EmeraldCapitalism.LOGGER.warn("[ECAP] Could not load farm template: {}",
+                        placement.templateLocation());
+                phase = Phase.FAILED;
+                return true;
+            }
+            template = templateOpt.get();
+
+            int originX = placement.origin().getX();
+            int originZ = placement.origin().getZ();
+            int minChunkX = originX >> 4;
+            int maxChunkX = (originX + placement.footprintX() - 1) >> 4;
+            int minChunkZ = originZ >> 4;
+            int maxChunkZ = (originZ + placement.footprintZ() - 1) >> 4;
+            for (int cx = minChunkX; cx <= maxChunkX; cx++) {
+                for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                    if (!budget.ensureLoaded(level, cx, cz)) {
+                        phase = Phase.FAILED;
+                        return true;
+                    }
+                }
+            }
+
+            if (VillageFarmSiteSelector.countPathOverlap(originX, originZ,
+                    placement.footprintX(), placement.footprintZ(), spatialCache.pathPieces()) > 0
+                    || VillageFarmSiteSelector.overlapsExistingPathSurface(level, originX, originZ,
+                    placement.footprintX(), placement.footprintZ())
+                    || containsBlacklistedBlocks(level, originX, originZ,
+                    placement.footprintX(), placement.footprintZ(), spatialCache.blacklist())
+                    || overlapsVillageBuilding(originX, originZ, placement.footprintX(),
+                    placement.footprintZ(), spatialCache.paddedVillageBuildingBoxes())) {
+                phase = Phase.FAILED;
+                return true;
+            }
+
+            terrain = BIOME_TERRAIN.getOrDefault(biomeType,
+                    new BiomeTerrainInfo(Blocks.DIRT, Blocks.GRASS_BLOCK, null, false));
+            capturedHeights = new int[placement.footprintX() * placement.footprintZ()];
+            phase = Phase.CAPTURE_SURFACE;
+            return false;
+        }
+
+        private boolean captureSurface() {
+            int processed = 0;
+            while (captureDx < placement.footprintX() && processed < SURFACE_COLUMNS_PER_TICK) {
+                int height = level.getHeight(Heightmap.Types.WORLD_SURFACE,
+                        placement.origin().getX() + captureDx,
+                        placement.origin().getZ() + captureDz) - 1;
+                capturedHeights[captureDx * placement.footprintZ() + captureDz] = height;
+                capturedMaxHeight = Math.max(capturedMaxHeight, height);
+                if ((captureDx & 1) == 0 && (captureDz & 1) == 0) {
+                    medianSamples.add(height);
+                }
+                captureDz++;
+                if (captureDz >= placement.footprintZ()) {
+                    captureDz = 0;
+                    captureDx++;
+                }
+                processed++;
+            }
+            if (captureDx < placement.footprintX()) {
+                return false;
+            }
+            Collections.sort(medianSamples);
+            surfaceSnapshot = new SurfaceSnapshot(capturedHeights, placement.footprintZ(),
+                    medianSamples.get(medianSamples.size() / 2), capturedMaxHeight);
+            phase = Phase.PREPARE_TERRAIN;
+            return false;
+        }
+
+        private boolean prepareTerrain() {
+            int originX = placement.origin().getX();
+            int originZ = placement.origin().getZ();
+            for (int bx = originX; bx < originX + placement.footprintX(); bx++) {
+                for (int bz = originZ; bz < originZ + placement.footprintZ(); bz++) {
+                    terrainColumns.add(new TerrainColumn(bx, bz,
+                            surfaceSnapshot.heightAt(bx - originX, bz - originZ),
+                            surfaceSnapshot.placementY()));
+                }
+            }
+            if (terrain.hilly) {
+                int buffer = 3;
+                for (int bx = originX - buffer; bx < originX + placement.footprintX() + buffer; bx++) {
+                    for (int bz = originZ - buffer; bz < originZ + placement.footprintZ() + buffer; bz++) {
+                        if (bx >= originX && bx < originX + placement.footprintX()
+                                && bz >= originZ && bz < originZ + placement.footprintZ()) {
+                            continue;
+                        }
+                        int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE, bx, bz) - 1;
+                        int diff = surfaceY - surfaceSnapshot.placementY();
+                        if (Math.abs(diff) > 1) {
+                            terrainColumns.add(new TerrainColumn(bx, bz, surfaceY,
+                                    surfaceSnapshot.placementY() + diff / 2));
+                        }
+                    }
+                }
+            }
+            phase = Phase.LEVEL_TERRAIN;
+            return false;
+        }
+
+        private boolean levelTerrainStep() {
+            int remaining = BLOCKS_PER_TICK;
+            while (terrainIndex < terrainColumns.size() && remaining > 0) {
+                TerrainColumn column = terrainColumns.get(terrainIndex);
+                if (column.surfaceY() == column.targetY()) {
+                    terrainIndex++;
+                    continue;
+                }
+                if (!terrainTopPending) {
+                    if (column.surfaceY() > column.targetY()) {
+                        terrainNextY = column.surfaceY();
+                    } else {
+                        terrainNextY = column.surfaceY() + 1;
+                    }
+                    terrainTopPending = true;
+                }
+                if (column.surfaceY() > column.targetY() && terrainNextY > column.targetY()) {
+                    level.setBlock(new BlockPos(column.x(), terrainNextY--, column.z()),
+                            Blocks.AIR.defaultBlockState(), 2);
+                    remaining--;
+                    continue;
+                }
+                if (column.surfaceY() < column.targetY() && terrainNextY < column.targetY()) {
+                    level.setBlock(new BlockPos(column.x(), terrainNextY++, column.z()),
+                            terrain.fill.defaultBlockState(), 2);
+                    remaining--;
+                    continue;
+                }
+                level.setBlock(new BlockPos(column.x(), column.targetY(), column.z()),
+                        terrain.top.defaultBlockState(), 2);
+                terrainTopPending = false;
+                terrainIndex++;
+                remaining--;
+            }
+            if (terrainIndex < terrainColumns.size()) {
+                return false;
+            }
+            clearX = placement.origin().getX() - 1;
+            clearZ = placement.origin().getZ() - 1;
+            clearY = surfaceSnapshot.placementY() + 1;
+            clearTo = Math.max(surfaceSnapshot.placementY() + template.getSize().getY() + 10,
+                    surfaceSnapshot.maxHeight() + 12);
+            phase = Phase.CLEAR_ABOVE;
+            return false;
+        }
+
+        private boolean clearAboveStep() {
+            int remaining = BLOCKS_PER_TICK;
+            int minY = com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level);
+            int maxX = placement.origin().getX() + placement.footprintX() + 1;
+            int maxZ = placement.origin().getZ() + placement.footprintZ() + 1;
+            while (clearX < maxX && remaining > 0) {
+                while (clearZ < maxZ && remaining > 0) {
+                    while (clearY <= clearTo && remaining > 0) {
+                        BlockPos pos = new BlockPos(clearX, clearY++, clearZ);
+                        BlockState state = level.getBlockState(pos);
+                        if (state.getBlock() == Blocks.BEDROCK || pos.getY() <= minY) {
+                            clearY = clearTo + 1;
+                            break;
+                        }
+                        if (state.isAir() || state.is(net.minecraft.tags.BlockTags.LEAVES)) {
+                            continue;
+                        }
+                        level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+                        remaining--;
+                    }
+                    if (clearY > clearTo) {
+                        clearY = surfaceSnapshot.placementY() + 1;
+                        clearZ++;
+                    }
+                }
+                if (clearZ >= maxZ) {
+                    clearZ = placement.origin().getZ() - 1;
+                    clearX++;
+                }
+            }
+            if (clearX < maxX) {
+                return false;
+            }
+            phase = Phase.PLACE_TEMPLATE;
+            return false;
+        }
+
+        private boolean placeTemplate() {
+            settings = new StructurePlaceSettings()
+                    .setRotation(placement.rotation())
+                    .setMirror(Mirror.NONE)
+                    .setIgnoreEntities(false);
+            Registry<StructureProcessorList> processorRegistry =
+                    com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                            level.registryAccess(), Registries.PROCESSOR_LIST);
+//? if >=1.21.4 {
+            /*StructureProcessorList processors =
+                    com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getValue(
+                            processorRegistry, placement.processorList());
+*///?} else {
+            StructureProcessorList processors = processorRegistry.get(placement.processorList());
+ //?}
+            if (processors != null) {
+                for (var processor : processors.list()) {
+                    settings.addProcessor(processor);
+                }
+            } else {
+                EmeraldCapitalism.LOGGER.warn("[ECAP] Could not find processor list: {}",
+                        placement.processorList());
+            }
+            settings.addProcessor(JigsawReplacementProcessor.INSTANCE);
+            BlockPos desiredMinCorner = new BlockPos(placement.origin().getX(),
+                    surfaceSnapshot.placementY(), placement.origin().getZ());
+            placePos = StructureTemplate.getZeroPositionWithTransform(
+                    desiredMinCorner, Mirror.NONE, placement.rotation(),
+                    template.getSize().getX(), template.getSize().getZ());
+            if (!template.placeInWorld(level, placePos, placePos, settings, level.getRandom(), 2)) {
+                phase = Phase.FAILED;
+                return true;
+            }
+            jigsawX = placement.origin().getX();
+            jigsawZ = placement.origin().getZ();
+            jigsawY = surfaceSnapshot.placementY() - 1;
+            phase = Phase.REPLACE_JIGSAW;
+            return false;
+        }
+
+        private boolean replaceJigsawStep() {
+            int remaining = BLOCKS_PER_TICK;
+            int maxX = placement.origin().getX() + placement.footprintX();
+            int maxZ = placement.origin().getZ() + placement.footprintZ();
+            int maxY = surfaceSnapshot.placementY() + 5;
+            while (jigsawX < maxX && remaining > 0) {
+                while (jigsawZ < maxZ && remaining > 0) {
+                    while (jigsawY <= maxY && remaining > 0) {
+                        BlockPos pos = new BlockPos(jigsawX, jigsawY++, jigsawZ);
+                        if (level.getBlockState(pos).getBlock() != Blocks.JIGSAW) {
+                            continue;
+                        }
+                        BlockState replacement = jigsawReplacement(pos);
+                        level.removeBlockEntity(pos);
+                        level.setBlock(pos, replacement, 2);
+                        remaining--;
+                    }
+                    if (jigsawY > maxY) {
+                        jigsawY = surfaceSnapshot.placementY() - 1;
+                        jigsawZ++;
+                    }
+                }
+                if (jigsawZ >= maxZ) {
+                    jigsawZ = placement.origin().getZ();
+                    jigsawX++;
+                }
+            }
+            if (jigsawX < maxX) {
+                return false;
+            }
+            waterX = placement.origin().getX();
+            waterZ = placement.origin().getZ();
+            waterY = surfaceSnapshot.placementY();
+            phase = Phase.SCAN_LOCAL_WATER;
+            return false;
+        }
+
+        private BlockState jigsawReplacement(BlockPos pos) {
+            BlockState replacement = Blocks.AIR.defaultBlockState();
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof JigsawBlockEntity jigsawBlockEntity) {
+                String finalState = jigsawBlockEntity.getFinalState();
+                if (finalState != null && !finalState.isEmpty()) {
+                    String blockId = finalState.contains("[")
+                            ? finalState.substring(0, finalState.indexOf('[')) : finalState;
+                    ResourceLocation resourceLocation = ResourceLocation.tryParse(blockId);
+                    if (resourceLocation != null) {
+                        replacement = BuiltInRegistries.BLOCK.getOptional(resourceLocation)
+                                .map(Block::defaultBlockState).orElse(replacement);
+                    }
+                }
+            }
+            return replacement;
+        }
+
+        private boolean scanLocalWaterStep() {
+            int scanned = 0;
+            int maxX = placement.origin().getX() + placement.footprintX();
+            int maxZ = placement.origin().getZ() + placement.footprintZ();
+            int maxY = surfaceSnapshot.placementY() + template.getSize().getY();
+            while (waterX < maxX && scanned < BLOCKS_PER_TICK) {
+                while (waterZ < maxZ && scanned < BLOCKS_PER_TICK) {
+                    while (waterY < maxY && scanned < BLOCKS_PER_TICK) {
+                        if (!level.getBlockState(new BlockPos(waterX, waterY, waterZ))
+                                .getFluidState().isEmpty()) {
+                            waterPositions.add(new BlockPos(waterX, waterY, waterZ));
+                        }
+                        waterY++;
+                        scanned++;
+                    }
+                    if (waterY >= maxY) {
+                        waterY = surfaceSnapshot.placementY();
+                        waterZ++;
+                    }
+                }
+                if (waterZ >= maxZ) {
+                    waterZ = placement.origin().getZ();
+                    waterX++;
+                }
+            }
+            if (waterX < maxX) {
+                return false;
+            }
+            waterIndex = 0;
+            waterOffsetIndex = 0;
+            phase = Phase.PLUG_LOCAL_WATER;
+            return false;
+        }
+
+        private boolean plugLocalWaterStep() {
+            int remaining = BLOCKS_PER_TICK;
+            while (waterIndex < waterPositions.size() && remaining > 0) {
+                BlockPos waterPos = waterPositions.get(waterIndex);
+                if (waterOffsetIndex >= WATER_ESCAPE_OFFSETS.length) {
+                    waterIndex++;
+                    waterOffsetIndex = 0;
+                    continue;
+                }
+                int[] offset = WATER_ESCAPE_OFFSETS[waterOffsetIndex];
+                if (!plugActive) {
+                    plugX = waterPos.getX() + offset[0];
+                    plugY = waterPos.getY() + offset[1];
+                    plugZ = waterPos.getZ() + offset[2];
+                    if (!isReplaceable(level.getBlockState(new BlockPos(plugX, plugY, plugZ)))) {
+                        waterOffsetIndex++;
+                        continue;
+                    }
+                }
+                if (plugY < waterPos.getY() + offset[1] - 10
+                        || !isReplaceable(level.getBlockState(new BlockPos(plugX, plugY, plugZ)))) {
+                    plugActive = false;
+                    waterOffsetIndex++;
+                    continue;
+                }
+                BlockPos plugPos = new BlockPos(plugX, plugY--, plugZ);
+                level.setBlock(plugPos, Blocks.DIRT.defaultBlockState(), 2);
+                BlockState preferredSurface = findPreferredPlugSurface(level, plugPos);
+                if (preferredSurface != null) {
+                    level.setBlock(plugPos, preferredSurface, 2);
+                }
+                plugActive = true;
+                remaining--;
+            }
+            if (waterIndex < waterPositions.size()) {
+                return false;
+            }
+            cropBlocks = new ArrayList<>();
+            for (Block block : BuiltInRegistries.BLOCK) {
+                if (block.defaultBlockState().is(BlockTags.CROPS)) {
+                    cropBlocks.add(block);
+                }
+            }
+            cropBlockIndex = 0;
+            cropInfoIndex = 0;
+            phase = Phase.REPAIR_CROPS;
+            return false;
+        }
+
+        private boolean repairCropsStep() {
+            int processed = 0;
+            while (cropBlockIndex < cropBlocks.size() && processed < CROP_INFOS_PER_TICK) {
+                if (cropInfoIndex >= cropInfos.size()) {
+                    cropInfos = template.filterBlocks(placePos, settings,
+                            cropBlocks.get(cropBlockIndex++));
+                    cropInfoIndex = 0;
+                    continue;
+                }
+                StructureTemplate.StructureBlockInfo cropInfo = cropInfos.get(cropInfoIndex++);
+                BlockPos cropPos = cropInfo.pos();
+                if (cropPos.getX() < placement.origin().getX()
+                        || cropPos.getX() >= placement.origin().getX() + placement.footprintX()
+                        || cropPos.getZ() < placement.origin().getZ()
+                        || cropPos.getZ() >= placement.origin().getZ() + placement.footprintZ()
+                        || cropPos.getY() < surfaceSnapshot.placementY()
+                        || cropPos.getY() >= surfaceSnapshot.placementY() + template.getSize().getY()) {
+                    continue;
+                }
+                BlockPos soilPos = cropPos.below();
+                if (!level.getBlockState(soilPos).is(Blocks.FARMLAND)) {
+                    level.setBlock(soilPos, Blocks.FARMLAND.defaultBlockState(), 2);
+                }
+                if (!level.getBlockState(cropPos).is(cropBlocks.get(cropBlockIndex - 1))) {
+                    level.setBlock(cropPos, cropInfo.state(), 2);
+                }
+                processed++;
+            }
+            if (cropBlockIndex < cropBlocks.size()) {
+                return false;
+            }
+            verifyX = placement.origin().getX();
+            verifyZ = placement.origin().getZ();
+            verifyY = surfaceSnapshot.placementY() - 1;
+            phase = Phase.VERIFY;
+            return false;
+        }
+
+        private boolean verifyStep() {
+            int processed = 0;
+            int maxX = placement.origin().getX() + placement.footprintX();
+            int maxZ = placement.origin().getZ() + placement.footprintZ();
+            int maxY = surfaceSnapshot.placementY() + 5;
+            while (verifyX < maxX && processed < BLOCKS_PER_TICK) {
+                while (verifyZ < maxZ && processed < BLOCKS_PER_TICK) {
+                    while (verifyY <= maxY && processed < BLOCKS_PER_TICK) {
+                        if (level.getBlockState(new BlockPos(verifyX, verifyY++, verifyZ))
+                                .getBlock() == Blocks.COMPOSTER) {
+                            composterCount++;
+                        }
+                        processed++;
+                    }
+                    if (verifyY > maxY) {
+                        verifyY = surfaceSnapshot.placementY() - 1;
+                        verifyZ++;
+                    }
+                }
+                if (verifyZ >= maxZ) {
+                    verifyZ = placement.origin().getZ();
+                    verifyX++;
+                }
+            }
+            if (verifyX < maxX) {
+                return false;
+            }
+            if (composterCount == 0) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Farm at ({}, {}, {}) contains no composters, farmers may not be able to claim this as a job site",
+                        placement.origin().getX(), surfaceSnapshot.placementY(), placement.origin().getZ());
+            } else {
+                EmeraldCapitalism.LOGGER.debug("[ECAP] Farm at ({}, {}, {}) has {} composters",
+                        placement.origin().getX(), surfaceSnapshot.placementY(), placement.origin().getZ(), composterCount);
+            }
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP] Placed farm {} at footprint ({}, {}, {}), template origin ({}, {}, {}) with rotation {}",
+                    placement.templateLocation(), placement.origin().getX(), surfaceSnapshot.placementY(),
+                    placement.origin().getZ(), placePos.getX(), placePos.getY(), placePos.getZ(), placement.rotation());
+            result = new PlacedFarmInfo(placement.origin().getX(), placement.origin().getZ(),
+                    surfaceSnapshot.placementY(), placement.footprintX(), placement.footprintZ(),
+                    template.getSize().getY());
+            successful = true;
+            phase = Phase.COMPLETE;
+            return true;
+        }
+    }
+
+    /*
+     * Legacy synchronous implementation retained below for reference by older
+     * callers. New pipeline placements use FarmPlacementTask above.
+     */
+    private PlacedFarmInfo placeLegacy(ServerLevel level, FarmPlacement placement, String biomeType,
+                                       ChunkLoadBudget budget,
+                                       VillageFarmSiteSelector.VillageSpatialCache spatialCache) {
         try {
             StructureTemplateManager templateManager = level.getStructureManager();
 
