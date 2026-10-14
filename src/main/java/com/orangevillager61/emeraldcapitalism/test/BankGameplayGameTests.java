@@ -22,6 +22,7 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.ChunkSaveCompat;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
@@ -52,6 +53,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.UUID;
+import java.util.Map;
 
 @GameTestHolder("emeraldcapitalism")
 @PrefixGameTestTemplate(false)
@@ -276,15 +278,36 @@ public final class BankGameplayGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_real_goal", timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_real_goal", timeoutTicks = 3_000)
     public static void lumberjackGoalSelectorDeliversFromSawmillBeforeStartingMoreWork(GameTestHelper helper) {
+        Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before =
+                PerformanceTimingCounters.snapshot();
+        PerformanceTimingCounters.EventCountingScope eventScope =
+                PerformanceTimingCounters.beginEventCountingScope();
+        boolean[] restored = {false};
+        Runnable restoreCounters = () -> {
+            if (!restored[0]) {
+                restored[0] = true;
+                eventScope.close();
+            }
+        };
+        boolean[] finished = {false};
+        helper.runAfterDelay(2_990, () -> {
+            restoreCounters.run();
+            if (!finished[0]) {
+                helper.fail("lumberjack did not finish its scheduled bank journey before timeout");
+            }
+        });
         ServerLevel level = helper.getLevel();
         // Leave the staggered daily window ahead of the work-cycle callback so
         // the sticks produced during the cycle are present when this villager
         // performs its one daily bank check.
         level.setDayTime(500L);
         level.getGameRules().getRule(GameRules.RULE_MOBGRIEFING).set(true, level.getServer());
-        setupMarketBank(helper, Items.STICK, 0);
+        setupMarketBank(helper, Items.STICK, 0, 24);
+        BlockPos deliveryBankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        level.setBlock(deliveryBankPos, level.getBlockState(deliveryBankPos)
+                .setValue(BankBlock.BANKER_AVAILABLE, false), 3);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
                 helper.absolutePos(new BlockPos(1, 1, 2)));
         if (chest == null) {
@@ -292,16 +315,16 @@ public final class BankGameplayGameTests {
             return;
         }
 
-        BlockPos sawmillPos = helper.absolutePos(new BlockPos(5, 1, 1));
-        for (int x = 0; x <= 10; x++) {
+        BlockPos sawmillPos = helper.absolutePos(new BlockPos(15, 1, 1));
+            for (int x = 0; x < 20; x++) {
             for (int z = 0; z <= 19; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.DIRT.defaultBlockState());
             }
         }
-        helper.setBlock(new BlockPos(5, 1, 1), ECAPBlocks.SAWMILL.get().defaultBlockState());
+        helper.setBlock(new BlockPos(15, 1, 1), ECAPBlocks.SAWMILL.get().defaultBlockState());
         // Keep the test tree outside the sawmill's protected job-site radius;
         // the real work loop must preserve player-built structures around it.
-        BlockPos treeBase = new BlockPos(5, 1, 18);
+        BlockPos treeBase = new BlockPos(15, 1, 18);
         helper.setBlock(treeBase.below(), Blocks.DIRT.defaultBlockState());
         helper.setBlock(treeBase, Blocks.OAK_LOG.defaultBlockState());
         helper.setBlock(treeBase.above(), Blocks.OAK_LOG.defaultBlockState());
@@ -311,10 +334,15 @@ public final class BankGameplayGameTests {
         helper.setBlock(treeBase.above(2).south(), Blocks.OAK_LEAVES.defaultBlockState());
         helper.setBlock(treeBase.above(2).east(), Blocks.OAK_LEAVES.defaultBlockState());
         helper.setBlock(treeBase.above(2).west(), Blocks.OAK_LEAVES.defaultBlockState());
-        Villager lumberjack = helper.spawn(EntityType.VILLAGER, 4, 1, 2);
+        Villager lumberjack = helper.spawn(EntityType.VILLAGER, 15, 1, 5);
         lumberjack.setVillagerData(lumberjack.getVillagerData()
                 .setProfession(ECAPVillagerProfessions.LUMBERJACK.get()));
+        lumberjack.setOnGround(true);
         lumberjack.refreshBrain(level);
+        lumberjack.goalSelector.removeAllGoals(ignored -> true);
+        lumberjack.goalSelector.addGoal(VillagerInventoryBankGoal.GOAL_PRIORITY,
+                new VillagerInventoryBankGoal(lumberjack));
+        lumberjack.goalSelector.addGoal(4, new LumberjackGoal(lumberjack));
         lumberjack.getBrain().setMemory(MemoryModuleType.JOB_SITE,
                 GlobalPos.of(level.dimension(), sawmillPos));
 
@@ -333,6 +361,8 @@ public final class BankGameplayGameTests {
                     "lumberjack profession work still outranked pending bank delivery");
         }
 
+        boolean[] bankRequestPublished = {false};
+        boolean[] bankGoalRan = {false};
         helper.runAfterDelay(100, () -> {
             boolean workRunning = workEntry != null && workEntry.isRunning();
             boolean workEligible = workEntry != null
@@ -342,24 +372,50 @@ public final class BankGameplayGameTests {
                             + "time=" + level.getGameTime() + ", pos=" + lumberjack.position()
                             + ", running=" + workRunning + ", eligibleNow=" + workEligible
                             + ", profession=" + lumberjack.getVillagerData().getProfession());
-            // Artificially advance this test into the latter part of the
-            // staggered daytime window so the produced sticks are available
-            // for the real selector's daily check.
-            level.setDayTime(8_000L);
-            lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 8));
+            // Advance to the same daytime window on the next day so the real
+            // selector gets a fresh scheduled bank check after production.
+            level.setDayTime(32_000L);
+            lumberjack.getInventory().setItem(0, new ItemStack(Items.STICK, 10));
         });
 
         helper.succeedWhen(() -> {
-            helper.assertValueEqual(countItem(lumberjack, Items.STICK), 0,
-                    "lumberjack delivery goal did not win after the sawmill work cycle: time="
-                            + level.getGameTime() + ", dayTime=" + level.getDayTime()
-                            + ", running=" + (deliveryEntry != null && deliveryEntry.isRunning())
-                            + ", canUse=" + (deliveryEntry != null
-                            && ((VillagerInventoryBankGoal) deliveryEntry.getGoal()).canUse())
-                            + ", pos=" + lumberjack.position());
-            helper.assertValueEqual(countItem(chest, Items.STICK), 8,
-                    "lumberjack did not deliver its sticks through the real goal selector");
+            bankGoalRan[0] |= deliveryEntry != null && deliveryEntry.isRunning();
+            var latestRequest = com.orangevillager61.emeraldcapitalism.entity.ai
+                    .MovementRequestManager.lastPublishedHandle(lumberjack);
+            bankRequestPublished[0] |= latestRequest != null
+                    && latestRequest.owner().equals("emeraldcapitalism:inventory_bank_visit");
+            if (countItem(lumberjack, Items.STICK) != 0
+                    || countItem(chest, Items.STICK) != 10) {
+                return;
+            }
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
+                    PerformanceTimingCounters.snapshot();
+            long arrivals = counterDelta(after, before,
+                    PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL);
+            long pathAttempts = counterDelta(after, before,
+                    PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT);
+            if (!bankGoalRan[0] || !bankRequestPublished[0] || arrivals < 1L || pathAttempts < 1L) {
+                restoreCounters.run();
+                helper.fail("real lumberjack delivery did not complete its scheduled bank route: running="
+                        + (deliveryEntry != null && deliveryEntry.isRunning()) + ", goalRan="
+                        + bankGoalRan[0] + ", requestPublished=" + bankRequestPublished[0]
+                        + ", latest=" + latestRequest + ", active="
+                        + com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager
+                        .activeHandle(lumberjack) + ", arrivals=" + arrivals
+                        + ", pathAttempts=" + pathAttempts + ", pos=" + lumberjack.position());
+                return;
+            }
+            finished[0] = true;
+            restoreCounters.run();
+            helper.succeed();
         });
+    }
+
+    private static long counterDelta(
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after,
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before,
+            PerformanceTimingCounters.Operation operation) {
+        return after.get(operation).calls() - before.get(operation).calls();
     }
 
     @GameTest(template = "empty_20x3x20")

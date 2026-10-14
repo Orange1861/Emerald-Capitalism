@@ -35,6 +35,7 @@ public final class MovementRequestManager {
     public static final long FAILURE_RETRY_COOLDOWN_TICKS = 40L;
 
     private static final Map<Villager, State> STATES = new WeakHashMap<>();
+    private static long sinkEpochSequence;
 
     private MovementRequestManager() {
     }
@@ -141,12 +142,20 @@ public final class MovementRequestManager {
                                                 MovementRequestHandle handle) {
         if (submission.changed()) {
             boolean replacingRequest = state.activeHandle != null;
+            if (!replacingRequest) {
+                state.clearForeignSnapshot();
+            }
+            state.sinkEpoch = nextSinkEpoch();
+            state.pathPlanAttempts = 0;
+            state.partialDestinationPathPlans = 0;
+            rememberForeignMemories(villager, state);
             if (replacingRequest) {
                 // Stop the old executor before publishing the new generation.
                 // A sink callback already scheduled for this tick is suppressed
                 // only when its captured generation is now stale.
-                cleanupOwnedExecutor(villager, state, true);
+                cleanupOwnedExecutor(villager, state, true, false);
             }
+            handoffNavigation(villager, state);
             PerformanceTimingCounters.recordEvent(
                     PerformanceTimingCounters.Operation.MOVEMENT_REQUEST_SUBMISSION);
             if (outcome == MovementRequestOutcome.REPLACED) {
@@ -159,6 +168,7 @@ public final class MovementRequestManager {
             }
             state.activeHandle = handle;
             state.activeSpec = spec;
+            state.lastPublishedHandle = handle;
             MovementDiagnostics.transition(villager, outcome, handle, spec);
         }
 
@@ -211,8 +221,10 @@ public final class MovementRequestManager {
             return false;
         }
         state.ledger.clear(handle.owner(), handle.generation());
+        state.sinkEpoch = nextSinkEpoch();
         recordTermination(reason);
-        cleanupOwnedExecutor(villager, state);
+        rememberForeignMemories(villager, state);
+        cleanupOwnedExecutor(villager, state, true, true);
         state.activeHandle = null;
         state.activeSpec = null;
         state.unchangedLedgerSubmission = null;
@@ -235,6 +247,13 @@ public final class MovementRequestManager {
         return state == null ? null : state.activeHandle;
     }
 
+    /** Returns the most recently published handle, including a request completed this tick. */
+    @Nullable
+    public static MovementRequestHandle lastPublishedHandle(Villager villager) {
+        State state = STATES.get(villager);
+        return state == null ? null : state.lastPublishedHandle;
+    }
+
     /** Writes and claims a manually-created look tracker for an active request. */
     public static boolean claimLookTarget(Villager villager, MovementRequestHandle handle,
                                           PositionTracker tracker) {
@@ -253,7 +272,9 @@ public final class MovementRequestManager {
 
     /** Called by the MoveToTargetSink mixin after its real path-plan attempt. */
     public static void observeVanillaPathPlan(Mob owner, WalkTarget target,
-                                              long gameTime, boolean started) {
+                                              long gameTime, boolean pathCreated,
+                                              boolean requestedPathCreated,
+                                              boolean destinationReachable) {
         if (!(owner instanceof Villager villager)) {
             return;
         }
@@ -265,14 +286,24 @@ public final class MovementRequestManager {
         // villagers must not contribute to manager-owned diagnostics.
         PerformanceTimingCounters.recordEvent(
                 PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT);
-        PerformanceTimingCounters.recordEvent(started
-                ? PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_SUCCESS
-                : PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_FAILURE);
-        if (started) {
+        boolean countPathDetails = PerformanceTimingCounters.isEventCountingEnabled();
+        if (countPathDetails) {
+            state.pathPlanAttempts++;
+        }
+        if (pathCreated) {
+            PerformanceTimingCounters.recordEvent(
+                    PerformanceTimingCounters.Operation.MOVEMENT_PATH_OBJECT_CREATED);
+        }
+        if (destinationReachable) {
+            PerformanceTimingCounters.recordEvent(
+                    PerformanceTimingCounters.Operation.MOVEMENT_DESTINATION_REACHABLE);
             // Vanilla clears CANT_REACH when it obtains a usable path.
             state.ownedCantReachWalkTargetSince = null;
             state.failureRetryNotBefore = Long.MIN_VALUE;
         } else {
+            if (countPathDetails && requestedPathCreated) {
+                state.partialDestinationPathPlans++;
+            }
             rememberOwnedFailure(villager, state, target, gameTime);
         }
     }
@@ -313,29 +344,87 @@ public final class MovementRequestManager {
         }
     }
 
-    /** Captures the generation observed by a sink instance before it plans. */
-    @Nullable
-    public static MovementRequestHandle captureVanillaSinkHandle(Mob owner) {
+    /** Captures the ownership epoch observed before an individual sink starts. */
+    public static long captureVanillaSinkEpoch(Mob owner) {
         if (!(owner instanceof Villager villager)) {
-            return null;
+            return Long.MIN_VALUE;
         }
         State state = STATES.get(villager);
-        WalkTarget target = villager.getBrain()
-                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
-        return state != null && state.activeHandle != null
-                && target == state.ownedWalkTarget ? state.activeHandle : null;
+        return state == null ? 0L : state.sinkEpoch;
     }
 
-    /** Returns true only for cleanup from an older manager generation. */
-    public static boolean isStaleVanillaSink(Mob owner,
-                                             @Nullable MovementRequestHandle capturedHandle) {
-        if (!(owner instanceof Villager villager) || capturedHandle == null) {
+    /** Returns true only when manager ownership changed after this sink captured its epoch. */
+    public static boolean isStaleVanillaSink(Mob owner, long capturedEpoch,
+                                             @Nullable WalkTarget capturedTarget) {
+        if (!(owner instanceof Villager villager) || capturedEpoch == Long.MIN_VALUE) {
             return false;
         }
         State state = STATES.get(villager);
-        return state != null && state.activeHandle != null
-                && !state.activeHandle.equals(capturedHandle)
-                && state.ledger.owns(state.activeHandle.owner(), state.activeHandle.generation());
+        if (state == null || state.sinkEpoch == capturedEpoch) {
+            return false;
+        }
+
+        WalkTarget currentWalkTarget = villager.getBrain()
+                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        Path brainPath = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
+        Path navigationPath = villager.getNavigation().getPath();
+        if (state.activeHandle != null) {
+            return currentWalkTarget == state.ownedWalkTarget
+                    || (state.ownedPath != null
+                    && (brainPath == state.ownedPath || navigationPath == state.ownedPath));
+        }
+
+        // A canceled request restores the displaced vanilla objects. Protect
+        // that exact route from the already-captured sink's delayed stop, but
+        // allow unrelated vanilla sinks to perform their normal cleanup.
+        return capturedTarget != null
+                && capturedTarget == state.foreignWalkTarget
+                && currentWalkTarget == capturedTarget
+                && ((state.foreignPath != null && brainPath == state.foreignPath)
+                || (state.foreignNavigationPath != null
+                && navigationPath == state.foreignNavigationPath));
+    }
+
+    /** Records the exact route object installed by MoveToTargetSink.start. */
+    public static void observeVanillaSinkStarted(Mob owner, WalkTarget target,
+                                                 @Nullable Path path) {
+        if (!(owner instanceof Villager villager)) {
+            return;
+        }
+        State state = STATES.get(villager);
+        if (state == null || state.activeHandle == null || state.ownedWalkTarget != target) {
+            return;
+        }
+        state.ownedPath = path;
+    }
+
+    /** Test-visible per-request attempt count, unaffected by other GameTests. */
+    public static int pathPlanAttempts(Villager villager, MovementRequestHandle handle) {
+        State state = STATES.get(villager);
+        return state != null && state.ledger.owns(handle.owner(), handle.generation())
+                ? state.pathPlanAttempts : 0;
+    }
+
+    /** Test-visible count of requested-destination paths that existed but could not reach it. */
+    public static int partialDestinationPathPlans(Villager villager,
+                                                  MovementRequestHandle handle) {
+        State state = STATES.get(villager);
+        return state != null && state.ledger.owns(handle.owner(), handle.generation())
+                ? state.partialDestinationPathPlans : 0;
+    }
+
+    /** Test-visible retry deadline for the active generation, or MIN_VALUE when ungated. */
+    public static long failureRetryNotBefore(Villager villager, MovementRequestHandle handle) {
+        State state = STATES.get(villager);
+        return state != null && state.ledger.owns(handle.owner(), handle.generation())
+                ? state.failureRetryNotBefore : Long.MIN_VALUE;
+    }
+
+    @Nullable
+    public static WalkTarget ownedWalkTarget(Villager villager, MovementRequestHandle handle) {
+        State state = STATES.get(villager);
+        return state != null && state.ledger.owns(handle.owner(), handle.generation())
+                ? state.ownedWalkTarget : null;
     }
 
     /** Releases all transient ownership when an entity disappears. */
@@ -349,9 +438,11 @@ public final class MovementRequestManager {
         }
         MovementRequestHandle handle = state.activeHandle;
         if (handle != null) {
+            state.sinkEpoch = nextSinkEpoch();
             recordTermination(MovementRequestTerminationReason.UNLOADED);
         }
-        cleanupOwnedExecutor(villager, state);
+        rememberForeignMemories(villager, state);
+        cleanupOwnedExecutor(villager, state, true, true);
         state.ledger.clear();
         if (handle != null) {
             MovementDiagnostics.cleanup(villager, handle);
@@ -369,9 +460,14 @@ public final class MovementRequestManager {
             State state = entry.getValue();
             MovementRequestHandle handle = state.activeHandle;
             if (handle != null && reason != null) {
+                state.sinkEpoch = nextSinkEpoch();
                 recordTermination(reason);
             }
-            cleanupOwnedExecutor(entry.getKey(), state);
+            rememberForeignMemories(entry.getKey(), state);
+            // Shutdown must not reactivate a displaced vanilla route while the
+            // server is tearing down chunks. Ordinary session resets still
+            // restore the foreign executor normally.
+            cleanupOwnedExecutor(entry.getKey(), state, true, reason == null);
             if (handle != null) {
                 MovementDiagnostics.cleanup(entry.getKey(), handle);
             }
@@ -379,40 +475,79 @@ public final class MovementRequestManager {
         STATES.clear();
     }
 
+    /** Test-visible count used to verify the shutdown lifecycle accounts each live request once. */
+    public static int activeRequestCount() {
+        int count = 0;
+        for (State state : STATES.values()) {
+            if (state.activeHandle != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static boolean writeRequestMemories(Villager villager, State state,
                                                 MovementRequestSpec spec) {
+        rememberForeignMemories(villager, state);
         boolean repairedPath = repairStalePath(villager, state);
         boolean repaired = repairedPath;
         long gameTime = currentGameTime(villager);
         Long currentFailure = villager.getBrain()
                 .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
-        if (repairedPath && !state.memorySnapshotInitialized
-                && state.ownedCantReachWalkTargetSince == null && currentFailure != null) {
-            // A brand-new manager state plus an orphaned PATH is the reload
-            // boundary for an unowned vanilla failure. Later foreign failures
-            // are preserved because snapshots are initialized after adoption.
-            villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
-            currentFailure = null;
-            repaired = true;
-        }
         if (state.ownedCantReachWalkTargetSince != null
+                && currentFailure != null
                 && !state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
             // An erased failure or a later foreign failure is no longer this
             // generation's retry gate. Never erase the later foreign value.
             state.ownedCantReachWalkTargetSince = null;
             state.failureRetryNotBefore = Long.MIN_VALUE;
         }
+        if (state.ownedCantReachWalkTargetSince != null && currentFailure == null
+                && gameTime < state.failureRetryNotBefore) {
+            // A later vanilla cleanup can erase the failure memory after the
+            // sink consumed WALK_TARGET. Keep the exact owned timestamp visible
+            // until the retry deadline, while leaving foreign timestamps alone.
+            currentFailure = state.ownedCantReachWalkTargetSince;
+            villager.getBrain().setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+                    currentFailure);
+            repaired = true;
+        }
         if (state.ownedCantReachWalkTargetSince != null
                 && state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
             if (gameTime < state.failureRetryNotBefore) {
                 // MoveToTargetSink consumed WALK_TARGET on failure. Keep the
                 // failure observable and do not restore the target every tick.
+                WalkTarget currentWalkTarget = villager.getBrain()
+                        .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+                if (currentWalkTarget == state.ownedWalkTarget) {
+                    villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+                    repaired = true;
+                }
                 snapshotMemoryState(villager, state);
                 return repaired;
             }
             villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            currentFailure = null;
             state.ownedCantReachWalkTargetSince = null;
             state.failureRetryNotBefore = Long.MIN_VALUE;
+            repaired = true;
+        }
+
+        if (state.ownedCantReachWalkTargetSince != null
+                && currentFailure == null
+                && gameTime >= state.failureRetryNotBefore) {
+            state.ownedCantReachWalkTargetSince = null;
+            state.failureRetryNotBefore = Long.MIN_VALUE;
+        }
+
+        if (currentFailure != null && state.ownedCantReachWalkTargetSince == null) {
+            // A failure timestamp captured before this request, or written by
+            // another behavior during it, must not gate this request's sink.
+            // Keep its value in the foreign snapshot so terminal cleanup can
+            // restore it without erasing a later writer's memory.
+            state.foreignFailureTime = currentFailure;
+            villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            currentFailure = null;
             repaired = true;
         }
 
@@ -430,7 +565,7 @@ public final class MovementRequestManager {
 
         WalkTarget currentWalkTarget = villager.getBrain()
                 .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
-        if (currentWalkTarget == null
+        if (currentWalkTarget == null || currentWalkTarget != state.ownedWalkTarget
                 || !(currentWalkTarget.getTarget() instanceof BlockPosTracker)
                 || !spec.destination().equals(currentWalkTarget.getTarget().currentBlockPosition())
                 || Float.compare(spec.speedModifier(), currentWalkTarget.getSpeedModifier()) != 0
@@ -440,8 +575,6 @@ public final class MovementRequestManager {
             villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, walkTarget);
             state.ownedWalkTarget = walkTarget;
             repaired = true;
-        } else if (state.ownedWalkTarget == null) {
-            state.ownedWalkTarget = currentWalkTarget;
         }
         snapshotMemoryState(villager, state);
         return repaired;
@@ -457,11 +590,6 @@ public final class MovementRequestManager {
                 && !navigationPath.isDone()
                 && navigationPath == brainPath;
         if (liveMatchingPath) {
-            if (state.activeHandle != null && state.ownedPath == null
-                    && villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
-                    == state.ownedWalkTarget) {
-                state.ownedPath = brainPath;
-            }
             return false;
         }
 
@@ -479,16 +607,20 @@ public final class MovementRequestManager {
 
     /** Stops and erases only executor objects identified as this generation's. */
     private static void cleanupOwnedExecutor(Villager villager, State state) {
-        cleanupOwnedExecutor(villager, state, true);
+        cleanupOwnedExecutor(villager, state, true, false);
     }
 
     private static void cleanupOwnedExecutor(Villager villager, State state,
                                              boolean stopNavigation) {
+        cleanupOwnedExecutor(villager, state, stopNavigation, false);
+    }
+
+    private static void cleanupOwnedExecutor(Villager villager, State state,
+                                             boolean stopNavigation,
+                                             boolean restoreForeignMemories) {
         Path currentNavigationPath = villager.getNavigation().getPath();
-        Path ownedNavigationPath = state.ownedPath != null
-                ? state.ownedPath : state.lastObservedPath;
-        if (stopNavigation && ownedNavigationPath != null
-                && currentNavigationPath == ownedNavigationPath) {
+        if (stopNavigation && state.ownedPath != null
+                && currentNavigationPath == state.ownedPath) {
             villager.getNavigation().stop();
         }
         if (state.ownedPath != null
@@ -505,12 +637,8 @@ public final class MovementRequestManager {
                 && currentWalkTarget == state.ownedWalkTarget;
         if (ownsWalkTarget) {
             villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-            if (state.ownedCantReachWalkTargetSince != null
-                    && state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
-                villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
-            }
-        } else if (currentWalkTarget == null
-                && state.ownedCantReachWalkTargetSince != null
+        }
+        if (state.ownedCantReachWalkTargetSince != null
                 && state.ownedCantReachWalkTargetSince.equals(currentFailure)) {
             // MoveToTargetSink erases WALK_TARGET after a failed plan. The
             // exact timestamp is the remaining identity for that failure.
@@ -523,7 +651,92 @@ public final class MovementRequestManager {
             villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
         }
         state.clearExecutorOwnership();
+        if (restoreForeignMemories) {
+            restoreForeignMemories(villager, state);
+        }
         snapshotMemoryState(villager, state);
+    }
+
+    private static void handoffNavigation(Villager villager, State state) {
+        Path navigationPath = villager.getNavigation().getPath();
+        boolean liveNavigation = navigationPath != null && !navigationPath.isDone();
+        if (liveNavigation && navigationPath != state.ownedPath) {
+            state.foreignNavigationPath = navigationPath;
+            WalkTarget foreignTarget = state.foreignWalkTarget;
+            state.foreignNavigationSpeed = foreignTarget == null
+                    ? 1.0D : foreignTarget.getSpeedModifier();
+        }
+        if (liveNavigation) {
+            villager.getNavigation().stop();
+        }
+        // MoveToTargetSink requires PATH to be absent before it plans. Preserve
+        // the exact displaced object for cancellation, while invalidating only
+        // the route whose ownership was explicitly handed to this request.
+        if (villager.getBrain().hasMemoryValue(MemoryModuleType.PATH)) {
+            villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+        }
+        state.ownedPath = null;
+        state.lastObservedPath = null;
+    }
+
+    private static void rememberForeignMemories(Villager villager, State state) {
+        WalkTarget walkTarget = villager.getBrain()
+                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        Path path = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
+        PositionTracker lookTarget = villager.getBrain()
+                .getMemory(MemoryModuleType.LOOK_TARGET).orElse(null);
+        Long failure = villager.getBrain()
+                .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
+
+        if (!state.foreignSnapshotInitialized) {
+            state.foreignWalkTarget = walkTarget;
+            state.foreignPath = path;
+            state.foreignLookTarget = lookTarget;
+            state.foreignFailureTime = failure;
+            state.foreignSnapshotInitialized = true;
+            return;
+        }
+        if (walkTarget != null && walkTarget != state.ownedWalkTarget) {
+            state.foreignWalkTarget = walkTarget;
+        }
+        if (path != null && path != state.ownedPath) {
+            state.foreignPath = path;
+        }
+        if (lookTarget != null && lookTarget != state.ownedLookTarget) {
+            state.foreignLookTarget = lookTarget;
+        }
+        if (failure != null && !failure.equals(state.ownedCantReachWalkTargetSince)) {
+            state.foreignFailureTime = failure;
+        }
+    }
+
+    private static void restoreForeignMemories(Villager villager, State state) {
+        if (!state.foreignSnapshotInitialized) {
+            return;
+        }
+        if (!villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)
+                && state.foreignWalkTarget != null) {
+            villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, state.foreignWalkTarget);
+        }
+        if (!villager.getBrain().hasMemoryValue(MemoryModuleType.PATH)
+                && state.foreignPath != null) {
+            villager.getBrain().setMemory(MemoryModuleType.PATH, state.foreignPath);
+        }
+        if (!villager.getBrain().hasMemoryValue(MemoryModuleType.LOOK_TARGET)
+                && state.foreignLookTarget != null) {
+            villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, state.foreignLookTarget);
+        }
+        if (!villager.getBrain().hasMemoryValue(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE)
+                && state.foreignFailureTime != null) {
+            villager.getBrain().setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+                    state.foreignFailureTime);
+        }
+        Path navigationPath = state.foreignNavigationPath;
+        Path currentNavigationPath = villager.getNavigation().getPath();
+        if (navigationPath != null && !navigationPath.isDone()
+                && (currentNavigationPath == null || currentNavigationPath.isDone())) {
+            villager.getNavigation().moveTo(navigationPath, state.foreignNavigationSpeed);
+        }
     }
 
     private static void snapshotMemoryState(Villager villager, State state) {
@@ -546,6 +759,10 @@ public final class MovementRequestManager {
             case SERVER_SHUTDOWN -> PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN;
         };
         PerformanceTimingCounters.recordEvent(operation);
+    }
+
+    private static long nextSinkEpoch() {
+        return ++sinkEpochSequence;
     }
 
     private static MovementRequestHandle toHandle(MovementRequestLedger.Handle handle) {
@@ -573,6 +790,8 @@ public final class MovementRequestManager {
         @Nullable
         private MovementRequestHandle activeHandle;
         @Nullable
+        private MovementRequestHandle lastPublishedHandle;
+        @Nullable
         private MovementRequestLedger.Submission unchangedLedgerSubmission;
         @Nullable
         private MovementRequestSubmission unchangedResult;
@@ -593,7 +812,22 @@ public final class MovementRequestManager {
         private long pendingSinkGameTime = Long.MIN_VALUE;
         private long failureRetryNotBefore = Long.MIN_VALUE;
         private boolean memorySnapshotInitialized;
+        private boolean foreignSnapshotInitialized;
+        @Nullable
+        private WalkTarget foreignWalkTarget;
+        @Nullable
+        private Path foreignPath;
+        @Nullable
+        private Path foreignNavigationPath;
+        private double foreignNavigationSpeed = 1.0D;
+        @Nullable
+        private PositionTracker foreignLookTarget;
+        @Nullable
+        private Long foreignFailureTime;
+        private long sinkEpoch;
         private int routeGeneration;
+        private int pathPlanAttempts;
+        private int partialDestinationPathPlans;
 
         private void clearExecutorOwnership() {
             lastObservedPath = null;
@@ -604,6 +838,16 @@ public final class MovementRequestManager {
             pendingSinkTarget = null;
             pendingSinkGameTime = Long.MIN_VALUE;
             failureRetryNotBefore = Long.MIN_VALUE;
+        }
+
+        private void clearForeignSnapshot() {
+            foreignSnapshotInitialized = false;
+            foreignWalkTarget = null;
+            foreignPath = null;
+            foreignNavigationPath = null;
+            foreignNavigationSpeed = 1.0D;
+            foreignLookTarget = null;
+            foreignFailureTime = null;
         }
     }
 
@@ -616,7 +860,14 @@ public final class MovementRequestManager {
                 .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
         if (currentFailure != null) {
             state.ownedCantReachWalkTargetSince = currentFailure;
-            state.failureRetryNotBefore = gameTime + FAILURE_RETRY_COOLDOWN_TICKS;
+            state.failureRetryNotBefore = currentFailure + FAILURE_RETRY_COOLDOWN_TICKS;
+            if (currentFailure.equals(state.foreignFailureTime)) {
+                state.foreignFailureTime = null;
+            }
+            if (villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                    == target) {
+                villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            }
         }
     }
 
@@ -628,11 +879,6 @@ public final class MovementRequestManager {
         Path currentPath = villager.getNavigation().getPath();
         if (currentPath != state.lastObservedPath) {
             state.lastObservedPath = currentPath;
-            if (currentPath != null
-                    && villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
-                    == state.ownedWalkTarget) {
-                state.ownedPath = currentPath;
-            }
             state.routeGeneration++;
             MovementDiagnostics.route(villager, handle, state.routeGeneration, currentPath);
         }

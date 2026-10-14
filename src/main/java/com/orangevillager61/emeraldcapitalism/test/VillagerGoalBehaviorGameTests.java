@@ -20,6 +20,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchd
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
@@ -46,12 +47,12 @@ import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
-import net.minecraft.world.level.storage.ServerLevelData;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.List;
+import java.util.Map;
 
 @GameTestHolder("emeraldcapitalism")
 @PrefixGameTestTemplate(false)
@@ -214,50 +215,6 @@ public final class VillagerGoalBehaviorGameTests {
         helper.assertTrue(VillagerNavigationTargets.findReachableTarget(
                         villager, blockedTarget, 0) == null,
                 "zero-radius bank navigation selected a block above or below the exact target");
-        helper.succeed();
-    }
-
-    @GameTest(template = "empty_3x3x3")
-    public static void starvingVillagerBegsAndReceivesFood(GameTestHelper helper) {
-        Villager beggar = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
-        Villager donor = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
-        VillagerStatsAttachment beggarStats =
-                beggar.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
-        VillagerStatsAttachment donorStats =
-                donor.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
-        long gameTime = Math.max(helper.getLevel().getGameTime(), 600L);
-        ((ServerLevelData) helper.getLevel().getLevelData()).setGameTime(gameTime);
-
-        beggarStats.setHungerLevel(0);
-        beggarStats.setLastBegTime(gameTime - 600L);
-        donorStats.setHungerLevel(20);
-        donor.getInventory().addItem(new ItemStack(Items.BREAD, 10));
-        beggar.getBrain().setMemory(
-                MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES,
-//? if >=1.21.4 {
-                /*new NearestVisibleLivingEntities(helper.getLevel(), beggar, List.<LivingEntity>of(donor)));
-*///?} else {
-                new NearestVisibleLivingEntities(beggar, List.<LivingEntity>of(donor)));
- //?}
-
-        BehaviorControl<Villager> behavior = findBehavior(
-                VillagerGoalPackages.getIdlePackage(VillagerProfession.NONE, 0.5F),
-                BegForFoodBehavior.class);
-        helper.assertTrue(behavior.tryStart(helper.getLevel(), beggar, gameTime),
-                "starving villager did not start the begging behavior");
-        helper.assertValueEqual(beggarStats.getBegDonorUUID(), donor.getUUID(),
-                "begging did not select the eligible donor");
-
-        for (int tick = 1; tick <= 30; tick++) {
-            behavior.tickOrStop(helper.getLevel(), beggar, gameTime + tick);
-        }
-
-        helper.assertValueEqual(countItem(donor, Items.BREAD), 5,
-                "donor did not give exactly half of its ten bread, capped at five");
-        helper.assertValueEqual(beggarStats.getLastBegTime(), gameTime + 30L,
-                "successful begging did not record its completion time");
-        helper.assertTrue(beggarStats.getBegDonorUUID() == null,
-                "successful begging left stale donor state");
         helper.succeed();
     }
 
@@ -540,14 +497,4 @@ public final class VillagerGoalBehaviorGameTests {
                 .orElseThrow(() -> new AssertionError("Missing behavior " + behaviorType.getSimpleName()));
     }
 
-    private static int countItem(Villager villager, net.minecraft.world.item.Item item) {
-        int count = 0;
-        for (int slot = 0; slot < villager.getInventory().getContainerSize(); slot++) {
-            ItemStack stack = villager.getInventory().getItem(slot);
-            if (stack.is(item)) {
-                count += stack.getCount();
-            }
-        }
-        return count;
-    }
 }

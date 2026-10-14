@@ -1,0 +1,129 @@
+---- Minecraft Crash Report ----
+// Hey, that tickles! Hehehe!
+
+Time: 2026-10-14 14:26:38
+Description: Mod loading failures have occurred; consult the issue messages for more details
+
+net.neoforged.neoforge.logging.CrashReportExtender$ModLoadingCrashException: Mod loading has failed
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Thread: main
+Stacktrace:
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:580) ~[?:?] {}
+-- Mod loading issue for: emeraldcapitalism --
+Details:
+	Caused by 0: java.lang.NoClassDefFoundError: com/orangevillager61/emeraldcapitalism/world/village/naming/analysis/VillageSignal
+		at TRANSFORMER/emeraldcapitalism@1.0.0/com.orangevillager61.emeraldcapitalism.world.village.naming.worldgen.WorldgenVillageSignalExtractor.<clinit>(WorldgenVillageSignalExtractor.java:21) ~[%23150!/:?] {re:classloading}
+		at TRANSFORMER/emeraldcapitalism@1.0.0/com.orangevillager61.emeraldcapitalism.world.village.naming.worldgen.WorldgenVillageNameAssigner.<init>(WorldgenVillageNameAssigner.java:19) ~[%23150!/:?] {re:classloading}
+		at TRANSFORMER/emeraldcapitalism@1.0.0/com.orangevillager61.emeraldcapitalism.event.VillageDetectionHandler.<clinit>(VillageDetectionHandler.java:74) ~[?:?] {re:classloading}
+		at java.base/java.lang.Class.forName0(Native Method) ~[?:?] {}
+		at java.base/java.lang.Class.forName(Class.java:547) ~[?:?] {}
+		at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.javafmlmod.AutomaticEventSubscriber.lambda$inject$4(AutomaticEventSubscriber.java:55) ~[loader-6.0.18.jar%23127!/:6.0] {}
+		at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[?:?] {}
+		at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.javafmlmod.AutomaticEventSubscriber.inject(AutomaticEventSubscriber.java:49) ~[loader-6.0.18.jar%23127!/:6.0] {}
+		at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.javafmlmod.FMLModContainer.constructMod(FMLModContainer.java:126) ~[loader-6.0.18.jar%23127!/:6.0] {}
+		at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.ModLoader.lambda$constructMods$3(ModLoader.java:153) ~[loader-6.0.18.jar%23127!/:6.0] {}
+		at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.ModLoader.lambda$dispatchParallelTask$7(ModLoader.java:231) ~[loader-6.0.18.jar%23127!/:6.0] {}
+		at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:955) ~[?:?] {}
+		at java.base/java.util.concurrent.CompletableFuture$UniHandle.tryFire(CompletableFuture.java:932) ~[?:?] {}
+		at java.base/java.util.concurrent.CompletableFuture$Completion.exec(CompletableFuture.java:504) ~[?:?] {}
+		at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:511) ~[?:?] {}
+		at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1450) ~[?:?] {}
+		at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2019) ~[?:?] {}
+		at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187) ~[?:?] {}
+
+	Mod file: /C:/Users/Adam Rizzoli/Documents/Modding/Emerald-Capitalism/versions/1.21.4/build/resources/main/
+	Failure message: Emerald Capitalism (emeraldcapitalism) has failed to load correctly
+		java.lang.NoClassDefFoundError: com/orangevillager61/emeraldcapitalism/world/village/naming/analysis/VillageSignal
+	Mod version: 1.0.0
+	Mod issues URL: <No issues URL found>
+	Exception message: java.lang.ClassNotFoundException: com.orangevillager61.emeraldcapitalism.world.village.naming.analysis.VillageSignal
+Stacktrace:
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:580) ~[?:?] {}
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:490) ~[?:?] {}
+	at cpw.mods.securejarhandler/cpw.mods.cl.ModuleClassLoader.loadClass(ModuleClassLoader.java:216) ~[securejarhandler-3.0.8.jar:?] {}
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:490) ~[?:?] {}
+	at cpw.mods.securejarhandler/cpw.mods.cl.ModuleClassLoader.loadClass(ModuleClassLoader.java:216) ~[securejarhandler-3.0.8.jar:?] {}
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:490) ~[?:?] {}
+	at TRANSFORMER/emeraldcapitalism@1.0.0/com.orangevillager61.emeraldcapitalism.world.village.naming.worldgen.WorldgenVillageSignalExtractor.<clinit>(WorldgenVillageSignalExtractor.java:21) ~[%23150!/:?] {re:classloading}
+	at TRANSFORMER/emeraldcapitalism@1.0.0/com.orangevillager61.emeraldcapitalism.world.village.naming.worldgen.WorldgenVillageNameAssigner.<init>(WorldgenVillageNameAssigner.java:19) ~[%23150!/:?] {re:classloading}
+	at TRANSFORMER/emeraldcapitalism@1.0.0/com.orangevillager61.emeraldcapitalism.event.VillageDetectionHandler.<clinit>(VillageDetectionHandler.java:74) ~[?:?] {re:classloading}
+	at java.base/java.lang.Class.forName0(Native Method) ~[?:?] {}
+	at java.base/java.lang.Class.forName(Class.java:547) ~[?:?] {}
+	at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.javafmlmod.AutomaticEventSubscriber.lambda$inject$4(AutomaticEventSubscriber.java:55) ~[loader-6.0.18.jar%23127!/:6.0] {}
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[?:?] {}
+	at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.javafmlmod.AutomaticEventSubscriber.inject(AutomaticEventSubscriber.java:49) ~[loader-6.0.18.jar%23127!/:6.0] {}
+	at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.javafmlmod.FMLModContainer.constructMod(FMLModContainer.java:126) ~[loader-6.0.18.jar%23127!/:6.0] {}
+	at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.ModLoader.lambda$constructMods$3(ModLoader.java:153) ~[loader-6.0.18.jar%23127!/:6.0] {}
+	at MC-BOOTSTRAP/fml_loader@6.0.18/net.neoforged.fml.ModLoader.lambda$dispatchParallelTask$7(ModLoader.java:231) ~[loader-6.0.18.jar%23127!/:6.0] {}
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:955) ~[?:?] {}
+	at java.base/java.util.concurrent.CompletableFuture$UniHandle.tryFire(CompletableFuture.java:932) ~[?:?] {}
+	at java.base/java.util.concurrent.CompletableFuture$Completion.exec(CompletableFuture.java:504) ~[?:?] {}
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:511) ~[?:?] {}
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1450) ~[?:?] {}
+	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:2019) ~[?:?] {}
+	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:187) ~[?:?] {}
+
+
+-- System Details --
+Details:
+	Minecraft Version: 1.21.4
+	Minecraft Version ID: 1.21.4
+	Operating System: Windows 11 (amd64) version 10.0
+	Java Version: 25.0.1, Eclipse Adoptium
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Eclipse Adoptium
+	Memory: 159461296 bytes (152 MiB) / 465567744 bytes (444 MiB) up to 8338276352 bytes (7952 MiB)
+	CPUs: 16
+	Processor Vendor: AuthenticAMD
+	Processor Name: AMD Ryzen 7 9800X3D 8-Core Processor           
+	Identifier: AuthenticAMD Family 26 Model 68 Stepping 0
+	Microarchitecture: unknown
+	Frequency (GHz): 4.70
+	Number of physical packages: 1
+	Number of physical CPUs: 8
+	Number of logical CPUs: 16
+	Graphics card #0 name: AMD Radeon(TM) Graphics
+	Graphics card #0 vendor: Advanced Micro Devices, Inc.
+	Graphics card #0 VRAM (MiB): 512.00
+	Graphics card #0 deviceId: VideoController1
+	Graphics card #0 versionInfo: 32.0.21041.5002
+	Graphics card #1 name: AMD Radeon RX 7800 XT
+	Graphics card #1 vendor: Advanced Micro Devices, Inc.
+	Graphics card #1 VRAM (MiB): 16368.00
+	Graphics card #1 deviceId: VideoController2
+	Graphics card #1 versionInfo: 32.0.23025.1002
+	Virtual memory max (MiB): 37433.36
+	Virtual memory used (MiB): 24884.73
+	Swap memory total (MiB): 5632.00
+	Swap memory used (MiB): 0.00
+	Space in storage for jna.tmpdir (MiB): <path not set>
+	Space in storage for org.lwjgl.system.SharedLibraryExtractPath (MiB): <path not set>
+	Space in storage for io.netty.native.workdir (MiB): <path not set>
+	Space in storage for java.io.tmpdir (MiB): available: 1118396.25, total: 1906753.00
+	Space in storage for workdir (MiB): available: 1118396.25, total: 1906753.00
+	JVM Flags: 0 total; 
+	ModLauncher: 11.0.4+main.d2e20e43
+	ModLauncher launch target: neoforgeserverdev
+	ModLauncher services: 
+		sponge-mixin-0.15.2+mixin.0.8.7.jar mixin PLUGINSERVICE 
+		loader-6.0.18.jar slf4jfixer PLUGINSERVICE 
+		loader-6.0.18.jar runtime_enum_extender PLUGINSERVICE 
+		at-modlauncher-11.0.2.jar accesstransformer PLUGINSERVICE 
+		loader-6.0.18.jar runtimedistcleaner PLUGINSERVICE 
+		modlauncher-11.0.4.jar mixin TRANSFORMATIONSERVICE 
+		modlauncher-11.0.4.jar fml TRANSFORMATIONSERVICE 
+	FML Language Providers: 
+		javafml@6.0
+		lowcodefml@6.0
+		minecraft@6.0
+	Mod List: 
+		main                                              |Emerald Capitalism            |emeraldcapitalism             |1.0.0               |Manifest: NOSIGNATURE
+		neoforge-21.4.157-merged.jar                      |Minecraft                     |minecraft                     |1.21.4              |Manifest: NOSIGNATURE
+		neoforge-21.4.157-merged.jar                      |NeoForge                      |neoforge                      |21.4.157            |Manifest: NOSIGNATURE
+	Crash Report UUID: 18a10092-9e3b-474c-8034-c069aa2c2982
+	FML: 6.0.18
+	NeoForge: 21.4.157

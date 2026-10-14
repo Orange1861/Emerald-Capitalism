@@ -336,7 +336,7 @@ public final class LumberjackGoal extends Goal {
             return villager.blockPosition().immutable();
         }
 
-        BlockPos approach = VillagerNavigationTargets.findReachableTarget(
+        BlockPos approach = VillagerNavigationTargets.findReachableTargetOrFallback(
                 villager, candidate.base(), 2,
                 position -> {
                     BlockState state = getLoadedBlockState(level, position);
@@ -352,7 +352,7 @@ public final class LumberjackGoal extends Goal {
         int maxIndex = Math.min(candidate.logs().size(), MAX_UPPER_TRUNK_APPROACHES + 1);
         for (int index = 1; index < maxIndex; index++) {
             BlockPos log = candidate.logs().get(index);
-            approach = VillagerNavigationTargets.findReachableTarget(
+            approach = VillagerNavigationTargets.findReachableTargetOrFallback(
                     villager, log, 2,
                     position -> {
                         BlockState state = getLoadedBlockState(level, position);
@@ -449,7 +449,7 @@ public final class LumberjackGoal extends Goal {
             // from the villager's current position before trying to approach
             // the next log again.
             navigationTarget = null;
-            movement.cancel(villager);
+            movement.cancel(villager, MovementRequestTerminationReason.ABANDONED);
             navigationWatchdog.reset();
             navigationFailures = 0;
         }
@@ -525,7 +525,7 @@ public final class LumberjackGoal extends Goal {
     }
 
     private void holdPositionWhileWorking() {
-        movement.cancel(villager);
+        movement.complete(villager);
         navigationTarget = null;
         navigationFailures = 0;
         navigationWatchdog.reset();
@@ -548,7 +548,7 @@ public final class LumberjackGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager);
+        movement.cancel(villager, MovementRequestTerminationReason.ABANDONED);
         clearBreakingProgress();
         releaseTreeReservation();
         if (logsCollectedThisTree > 0 && villager.level() instanceof ServerLevel level) {
@@ -621,7 +621,8 @@ public final class LumberjackGoal extends Goal {
             return false;
         }
 
-        jobSiteTarget = VillagerNavigationTargets.findReachableTarget(villager, jobSite, 2);
+        jobSiteTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                villager, jobSite, 2);
         if (jobSiteTarget == null) {
             // A stale or obstructed job site must not prevent the lumberjack
             // from scanning from its current position.
@@ -682,7 +683,8 @@ public final class LumberjackGoal extends Goal {
             return true;
         }
         if (jobSiteTarget == null) {
-            jobSiteTarget = VillagerNavigationTargets.findReachableTarget(villager, jobSite, 2);
+            jobSiteTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                    villager, jobSite, 2);
             if (jobSiteTarget == null) {
                 return false;
             }
@@ -690,7 +692,7 @@ public final class LumberjackGoal extends Goal {
 
         boolean started = movement.submit(villager,
                 "emeraldcapitalism:lumberjack_job_site",
-                "job-site:" + jobSite.toShortString(),
+                "job-site",
                 jobSiteTarget,
                 SPEED_MODIFIER,
                 1,
@@ -721,7 +723,8 @@ public final class LumberjackGoal extends Goal {
             return false;
         }
         if (navigationTarget == null) {
-            navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, target, 2,
+            navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                    villager, target, 2,
                     candidate -> {
                         BlockState state = getLoadedBlockState(level, candidate);
                         return state != null && state.isPathfindable(PathComputationType.LAND);
@@ -732,7 +735,7 @@ public final class LumberjackGoal extends Goal {
         }
         boolean started = movement.submit(villager,
                 "emeraldcapitalism:lumberjack_tree",
-                "tree-work:" + target.toShortString(),
+                "tree-work",
                 navigationTarget,
                 SPEED_MODIFIER,
                 1,
@@ -1263,14 +1266,15 @@ public final class LumberjackGoal extends Goal {
             return false;
         }
         if (navigationTarget == null) {
-            navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, productionFurnace, 2);
+            navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                    villager, productionFurnace, 2);
             if (navigationTarget == null) {
                 return false;
             }
         }
         boolean started = movement.submit(villager,
                 "emeraldcapitalism:lumberjack_furnace",
-                "furnace-work:" + productionFurnace.toShortString(),
+                "furnace-work",
                 navigationTarget,
                 SPEED_MODIFIER,
                 1,

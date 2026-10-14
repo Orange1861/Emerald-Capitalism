@@ -255,6 +255,7 @@ public final class MayorDoorRepairGoal extends Goal {
                 bank.getBlockState(), bank.getBlockPos(), villager.position())) {
             EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at bank approach={} bank={} mayor={}",
                     navigationTarget, bank.getBlockPos(), villager.getUUID());
+            movement.complete(villager);
             if (!receiveAndCraftDoor(level)) {
                 finish(level, "bank withdrawal/crafting failed",
                         MovementRequestTerminationReason.FAILED);
@@ -278,6 +279,7 @@ public final class MayorDoorRepairGoal extends Goal {
         if (stage == Stage.DOOR && (isAt(navigationTarget) || isAt(targetPos))) {
             EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at door target={} navigationTarget={} mayor={}",
                     targetPos, navigationTarget, villager.getUUID());
+            movement.complete(villager);
             if (placeDoor(level)) {
                 if (village.markDoorRepaired(targetPos)) {
                     VillageRegistryData.get(level).setDirty();
@@ -553,7 +555,7 @@ public final class MayorDoorRepairGoal extends Goal {
             BlockPos lookTarget = stage == Stage.BANK ? bank.getBlockPos() : targetPos;
             if (!movement.submit(villager,
                     "emeraldcapitalism:mayor_door_repair",
-                    "mayor-door:" + stage + ":" + targetPos.toShortString(),
+                    stage == Stage.BANK ? "mayor-door-bank" : "mayor-door-repair",
                     navigationTarget,
                     SPEED_MODIFIER,
                     WALK_TARGET_CLOSE_ENOUGH,
@@ -562,6 +564,7 @@ public final class MayorDoorRepairGoal extends Goal {
                     MovementRequestManager.PRIORITY_WORK,
                     lookTarget)) {
                 failed = true;
+                terminationReason = MovementRequestTerminationReason.FAILED;
             }
         } else {
             EmeraldCapitalism.LOGGER.warn("[ECAP][MayorRepair] WALK_TARGET not set: navigation target is null mayor={}",
@@ -588,7 +591,8 @@ public final class MayorDoorRepairGoal extends Goal {
                     desired, villager.getUUID());
             return desired;
         }
-        BlockPos reachable = VillagerNavigationTargets.findReachableTarget(villager, desired, NAVIGATION_RADIUS);
+        BlockPos reachable = VillagerNavigationTargets.findReachableTargetOrFallback(
+                villager, desired, NAVIGATION_RADIUS);
         EmeraldCapitalism.LOGGER.debug(
                 "[ECAP][MayorRepair] PATH search mayor={} from={} desired={} radius={} result={}",
                 villager.getUUID(), villager.blockPosition(), desired, NAVIGATION_RADIUS, reachable);

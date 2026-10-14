@@ -1,6 +1,6 @@
 #If true, villagers can starve to death. If false, they stop taking starvation damage at 2 HP.
 villagersCanStarveToDeath = true
-#If enabled, villagers will be named based on Emerald Capitalism's Unique Language System.
+#If true, villagers receive server-authoritative names from the village substrate system.
 enableVillagerNames = true
 #If true, villager reputation loss from player damage is proportional to damage dealt (5 points per HP, 10 per heart).
 #In vanilla, hitting a villager always costs 25 reputation regardless of damage.
@@ -16,7 +16,7 @@ redactNonOpPoiDetails = true
 		enableFarmlandRepair = true
 		#If true, villagers can open and close fence gates during pathfinding.
 		enableFenceGateInteraction = true
-		#If true, shift-right-clicking a villager or Emerald Skrimisher opens its read-only information screen.
+		#If true, shift-right-clicking a villager opens the villager statistics screen.
 		enableVillagerStatsShiftClick = true
 		#If true, villagers will avoid nearby boats and try to keep a few blocks away.
 		enableBoatAvoidance = true
@@ -85,17 +85,17 @@ redactNonOpPoiDetails = true
 		zombieDoorBreakingChancePercent = 50
 
 	[illness.zombieVirus]
-		#How long Zombkolaps remains in the rotting phase before the turning phase begins.
+		#How long Zombie Plague remains in the greening phase before the turning phase begins.
 		#Unit: seconds. Default: 600 seconds (10 minutes).
 		# Default: 600
 		# Range: 1 ~ 86400
 		phaseOneDurationSeconds = 600
-		#How much time a later Zombie hit removes from the rotting phase of Zombkolaps.
+		#How much time a later Zombie hit removes from the greening phase of Zombie Plague.
 		#Unit: seconds. Default: 20 seconds.
 		# Default: 20
 		# Range: 1 ~ 3600
 		hitTimeReductionSeconds = 20
-		#Chance of contracting Zombkolaps when consuming rotten flesh.
+		#Chance of contracting Zombie Plague when consuming rotten flesh.
 		#Default: 2%. Range: 0% to 100%.
 		# Default: 2
 		# Range: 0 ~ 100

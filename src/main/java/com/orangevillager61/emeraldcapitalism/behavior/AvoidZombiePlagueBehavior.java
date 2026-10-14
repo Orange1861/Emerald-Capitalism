@@ -5,6 +5,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.event.ZombieVirusEvents;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEffects;
 import net.minecraft.core.BlockPos;
@@ -40,6 +41,10 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
     private MovementRequestHandle movementHandle;
     @Nullable
     private MovementRequestSpec cachedMovementSpec;
+    @Nullable
+    private Villager lookTargetThreat;
+    @Nullable
+    private EntityTracker lookTargetTracker;
 
     public AvoidZombiePlagueBehavior() {
         super(
@@ -75,15 +80,21 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
 
     @Override
     protected void stop(ServerLevel level, Villager villager, long gameTime) {
+        MovementRequestTerminationReason reason = escapeTarget != null
+                && villager.blockPosition().distSqr(escapeTarget) <= 4.0D
+                ? MovementRequestTerminationReason.ARRIVED
+                : MovementRequestTerminationReason.ABANDONED;
+        if (movementHandle != null) {
+            MovementRequestManager.cancel(villager, movementHandle, reason);
+            movementHandle = null;
+        }
         cachedThreat = null;
         escapeTarget = null;
         cachedMovementSpec = null;
         nextThreatLookupTick = Long.MIN_VALUE;
         nextEscapeSearchTick = Long.MIN_VALUE;
-        if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle);
-            movementHandle = null;
-        }
+        lookTargetThreat = null;
+        lookTargetTracker = null;
     }
 
     @Override
@@ -117,7 +128,7 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
         BlockPos desiredTarget = BlockPos.containing(targetVec);
 
         if (escapeTarget == null || gameTime >= nextEscapeSearchTick) {
-            escapeTarget = VillagerNavigationTargets.findReachableTarget(
+            escapeTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
                     villager,
                     desiredTarget,
                     3,
@@ -137,7 +148,7 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
             if (spec == null || !spec.destination().equals(escapeTarget)) {
                 spec = new MovementRequestSpec(
                         "emeraldcapitalism:zombie_plague_avoidance",
-                        "plague:" + escapeTarget.toShortString(),
+                        "plague-escape",
                         escapeTarget,
                         SPEED_MODIFIER,
                         0,
@@ -153,16 +164,25 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
             if (submission.accepted()) {
                 movementHandle = submission.handle();
                 MovementRequestManager.claimLookTarget(villager, movementHandle,
-                        new EntityTracker(threat, true));
+                        lookTargetTracker(threat));
             } else {
                 movementHandle = null;
             }
         } else {
             if (movementHandle != null) {
-                MovementRequestManager.cancel(villager, movementHandle);
+                MovementRequestManager.cancel(villager, movementHandle,
+                        MovementRequestTerminationReason.FAILED);
                 movementHandle = null;
             }
         }
+    }
+
+    private EntityTracker lookTargetTracker(Villager threat) {
+        if (lookTargetTracker == null || lookTargetThreat != threat) {
+            lookTargetThreat = threat;
+            lookTargetTracker = new EntityTracker(threat, true);
+        }
+        return lookTargetTracker;
     }
 
     private static boolean isClearEscapeTarget(Villager villager, BlockPos target, Villager threat) {

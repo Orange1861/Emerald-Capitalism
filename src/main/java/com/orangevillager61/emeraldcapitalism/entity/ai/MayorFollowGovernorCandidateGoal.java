@@ -40,6 +40,10 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
     @Nullable
     private BlockPos lastRequestedCandidatePosition;
+    @Nullable
+    private UUID cachedMovementCandidateId;
+    @Nullable
+    private String cachedMovementDestinationIdentity;
     private long lastPathRequestTick = Long.MIN_VALUE;
 
     public MayorFollowGovernorCandidateGoal(Villager mayor) {
@@ -87,6 +91,8 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         pathingFailed = false;
         candidate = null;
         lastRequestedCandidatePosition = null;
+        cachedMovementCandidateId = null;
+        cachedMovementDestinationIdentity = null;
         lastPathRequestTick = Long.MIN_VALUE;
 
         if (!(mayor.level() instanceof ServerLevel level)) {
@@ -169,9 +175,11 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     public void stop() {
         EmeraldCapitalism.LOGGER.debug("[ECAP][MayorFollow] STOP mayor={} candidate={} pathingFailed={}",
                 mayor.getUUID(), candidate == null ? null : candidate.getUUID(), pathingFailed);
-        movement.cancel(mayor);
+        movement.cancel(mayor, MovementRequestTerminationReason.ABANDONED);
         candidate = null;
         lastRequestedCandidatePosition = null;
+        cachedMovementCandidateId = null;
+        cachedMovementDestinationIdentity = null;
         lastPathRequestTick = Long.MIN_VALUE;
         pathingFailed = false;
     }
@@ -238,9 +246,14 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         // a second time. Failed sink attempts are retried on the bounded
         // interval in tick().
         boolean retry = lastRequestedCandidatePosition != null;
+        UUID candidateId = candidate.getUUID();
+        if (!candidateId.equals(cachedMovementCandidateId)) {
+            cachedMovementCandidateId = candidateId;
+            cachedMovementDestinationIdentity = "candidate:" + candidateId;
+        }
         boolean submitted = movement.submit(mayor,
                 "emeraldcapitalism:mayor_follow_candidate",
-                "candidate:" + candidate.getUUID(),
+                cachedMovementDestinationIdentity,
                 candidate.blockPosition(),
                 (float) SPEED,
                 3,

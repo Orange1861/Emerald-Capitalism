@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFoodSelection;
 import net.minecraft.core.BlockPos;
@@ -55,6 +56,14 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     private EntityTracker ownedLookTarget;
     @Nullable
     private MovementRequestSpec cachedMovementSpec;
+    @Nullable
+    private Villager cachedMovementDonor;
+    @Nullable
+    private String cachedMovementIdentity;
+    @Nullable
+    private Villager donorLookEntity;
+    @Nullable
+    private EntityTracker donorLookTracker;
 
     public BegForFoodBehavior() {
         super(
@@ -144,7 +153,8 @@ public class BegForFoodBehavior extends Behavior<Villager> {
             setDonorLookTarget(villager, donorVillager);
             stats.setBegTime(stats.getBegTime() + 1);
             
-            donorVillager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, new EntityTracker(villager, true));
+            donorVillager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                    donorLookTracker(villager));
             
             if (stats.getBegTime() >= BEG_DURATION) {
                 transferFoodFromDonor(donorVillager, villager);
@@ -163,9 +173,16 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
         stats.resetBeggingState();
-        MovementRequestManager.cancel(villager, movementHandle);
+        MovementRequestTerminationReason terminalReason = lookTargetDonor != null
+                && villager.distanceToSqr(lookTargetDonor)
+                <= INTERACTION_DISTANCE * INTERACTION_DISTANCE
+                ? MovementRequestTerminationReason.ARRIVED
+                : MovementRequestTerminationReason.ABANDONED;
+        MovementRequestManager.cancel(villager, movementHandle, terminalReason);
         movementHandle = null;
         cachedMovementSpec = null;
+        cachedMovementDonor = null;
+        cachedMovementIdentity = null;
         if (lookTargetDonor != null) {
             EntityTracker current = villager.getBrain().getMemory(MemoryModuleType.LOOK_TARGET)
                     .filter(EntityTracker.class::isInstance)
@@ -177,6 +194,8 @@ public class BegForFoodBehavior extends Behavior<Villager> {
             lookTargetDonor = null;
             ownedLookTarget = null;
         }
+        donorLookEntity = null;
+        donorLookTracker = null;
     }
 
     @Override
@@ -201,7 +220,11 @@ public class BegForFoodBehavior extends Behavior<Villager> {
 
     private boolean submitMovement(Villager villager, Villager donorVillager) {
         BlockPos donorPosition = donorVillager.blockPosition();
-        String identity = "donor:" + donorVillager.getUUID();
+        if (cachedMovementDonor != donorVillager) {
+            cachedMovementDonor = donorVillager;
+            cachedMovementIdentity = "donor:" + donorVillager.getUUID();
+        }
+        String identity = cachedMovementIdentity;
         MovementRequestSpec spec = cachedMovementSpec;
         if (spec == null || !spec.destination().equals(donorPosition)
                 || !spec.destinationIdentity().equals(identity)) {
@@ -233,13 +256,23 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     }
 
     private void setDonorLookTarget(Villager villager, Villager donorVillager) {
-        EntityTracker tracker = new EntityTracker(donorVillager, true);
+        if (ownedLookTarget == null || lookTargetDonor != donorVillager) {
+            ownedLookTarget = new EntityTracker(donorVillager, true);
+        }
+        EntityTracker tracker = ownedLookTarget;
         if (movementHandle == null
                 || !MovementRequestManager.claimLookTarget(villager, movementHandle, tracker)) {
             villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, tracker);
         }
         lookTargetDonor = donorVillager;
-        ownedLookTarget = tracker;
+    }
+
+    private EntityTracker donorLookTracker(Villager villager) {
+        if (donorLookTracker == null || donorLookEntity != villager) {
+            donorLookEntity = villager;
+            donorLookTracker = new EntityTracker(villager, true);
+        }
+        return donorLookTracker;
     }
 
     /** Resolves a visible nearby donor within the configured search radius. */

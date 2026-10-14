@@ -5,6 +5,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageHostility;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import net.minecraft.core.BlockPos;
@@ -45,6 +46,10 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
     private MovementRequestHandle movementHandle;
     @Nullable
     private MovementRequestSpec cachedMovementSpec;
+    @Nullable
+    private ServerPlayer lookTargetThreat;
+    @Nullable
+    private EntityTracker lookTargetTracker;
 
     public FleeHostileVillagePlayerBehavior() {
         super(
@@ -78,16 +83,22 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
 
     @Override
     protected void stop(ServerLevel level, Villager villager, long gameTime) {
+        MovementRequestTerminationReason reason = escapeTarget != null
+                && villager.blockPosition().distSqr(escapeTarget) <= 4.0D
+                ? MovementRequestTerminationReason.ARRIVED
+                : MovementRequestTerminationReason.ABANDONED;
+        if (movementHandle != null) {
+            MovementRequestManager.cancel(villager, movementHandle, reason);
+            movementHandle = null;
+        }
         cachedThreat = null;
         village = null;
         escapeTarget = null;
         cachedMovementSpec = null;
         nextThreatLookupTick = Long.MIN_VALUE;
         nextEscapeSearchTick = Long.MIN_VALUE;
-        if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle);
-            movementHandle = null;
-        }
+        lookTargetThreat = null;
+        lookTargetTracker = null;
     }
 
     @Override
@@ -118,7 +129,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
             escapeTarget = findInVillageEscapeTarget(villager, villageTarget, threat, village);
             if (escapeTarget == null) {
                 BlockPos outsideTarget = BlockPos.containing(preferredTarget);
-                escapeTarget = VillagerNavigationTargets.findReachableTarget(
+                escapeTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
                         villager,
                         outsideTarget,
                         OUTSIDE_VILLAGE_SEARCH_RADIUS,
@@ -135,7 +146,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
             if (spec == null || !spec.destination().equals(escapeTarget)) {
                 spec = new MovementRequestSpec(
                         "emeraldcapitalism:hostile_player_flee",
-                        "flee:" + escapeTarget.toShortString(),
+                        "hostile-player-escape",
                         escapeTarget,
                         SPEED_MODIFIER,
                         0,
@@ -151,22 +162,31 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
             if (submission.accepted()) {
                 movementHandle = submission.handle();
                 MovementRequestManager.claimLookTarget(villager, movementHandle,
-                        new EntityTracker(threat, true));
+                        lookTargetTracker(threat));
             } else {
                 movementHandle = null;
             }
         } else {
             if (movementHandle != null) {
-                MovementRequestManager.cancel(villager, movementHandle);
+                MovementRequestManager.cancel(villager, movementHandle,
+                        MovementRequestTerminationReason.FAILED);
                 movementHandle = null;
             }
         }
     }
 
+    private EntityTracker lookTargetTracker(ServerPlayer threat) {
+        if (lookTargetTracker == null || lookTargetThreat != threat) {
+            lookTargetThreat = threat;
+            lookTargetTracker = new EntityTracker(threat, true);
+        }
+        return lookTargetTracker;
+    }
+
     @Nullable
     private static BlockPos findInVillageEscapeTarget(Villager villager, BlockPos desiredTarget,
                                                        ServerPlayer threat, VillageRecord village) {
-        BlockPos reachable = VillagerNavigationTargets.findReachableTarget(
+        BlockPos reachable = VillagerNavigationTargets.findReachableTargetOrFallback(
                 villager,
                 desiredTarget,
                 IN_VILLAGE_SEARCH_RADIUS,

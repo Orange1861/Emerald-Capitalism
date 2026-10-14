@@ -1,9 +1,9 @@
 package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerLadderClaims;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
-import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import net.minecraft.world.entity.npc.Villager;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -32,8 +32,6 @@ public final class VillagerLadderClaimEvents {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         VillagerLadderClaims.clear();
-        VillagerBehaviorRegistry.clearBindings();
-        MovementRequestManager.clearAll();
     }
 
     @SubscribeEvent

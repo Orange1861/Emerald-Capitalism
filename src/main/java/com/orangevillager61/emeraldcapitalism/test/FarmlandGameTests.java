@@ -1,6 +1,9 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
+import com.orangevillager61.emeraldcapitalism.Config;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSiteSelector;
@@ -10,6 +13,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.level.block.Blocks;
@@ -21,6 +25,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.UUID;
+import java.util.Map;
 
 /**
  * NeoForge GameTest class for farmland and door registries, repair queue,
@@ -378,6 +383,103 @@ public class FarmlandGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_20x3x20", batch = "ecap_farmland_repair_journey", timeoutTicks = 500)
+    public static void farmerSelectorRepairsQueuedFarmlandAfterARealJourney(GameTestHelper helper) {
+        boolean previousRepair = Config.enableFarmlandRepair;
+        Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before =
+                PerformanceTimingCounters.snapshot();
+        PerformanceTimingCounters.EventCountingScope eventScope =
+                PerformanceTimingCounters.beginEventCountingScope();
+        FarmlandJourneyProgress progress = new FarmlandJourneyProgress(
+                previousRepair, eventScope, before);
+        try {
+            Config.enableFarmlandRepair = true;
+            ServerLevel level = helper.getLevel();
+            for (int x = 0; x < 20; x++) {
+                for (int z = 0; z < 20; z++) {
+                    helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+                }
+            }
+
+            BlockPos repairPos = helper.absolutePos(new BlockPos(5, 1, 1));
+            helper.setBlock(new BlockPos(5, 1, 1), Blocks.DIRT.defaultBlockState());
+            BlockPos center = helper.absolutePos(new BlockPos(2, 1, 1));
+            BlockPos boundsMin = helper.absolutePos(new BlockPos(0, 0, 0));
+            BlockPos boundsMax = helper.absolutePos(new BlockPos(19, 3, 19));
+            VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
+                    UUID.randomUUID(), center,
+                    new AABB(boundsMin.getX(), boundsMin.getY(), boundsMin.getZ(),
+                            boundsMax.getX() + 1.0D, boundsMax.getY() + 1.0D,
+                            boundsMax.getZ() + 1.0D));
+            village.setFarmlandRepairEnabled(true);
+            village.addFarmland(repairPos);
+            village.addToRepairQueue(repairPos);
+
+            Villager farmer = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
+            farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+            farmer.goalSelector.removeAllGoals(ignored -> true);
+            farmer.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+            farmer.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+            farmer.getBrain().eraseMemory(MemoryModuleType.PATH);
+            farmer.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+            farmer.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            farmer.goalSelector.addGoal(0, new ReplenishFarmlandGoal(farmer));
+            helper.runAfterDelay(1,
+                    () -> awaitFarmlandRepair(helper, farmer, repairPos, village, progress, 450));
+            helper.runAfterDelay(490, progress::restore);
+        } catch (RuntimeException | Error failure) {
+            progress.restore();
+            throw failure;
+        }
+    }
+
+    private static void awaitFarmlandRepair(GameTestHelper helper, Villager farmer,
+                                             BlockPos repairPos, VillageRecord village,
+                                             FarmlandJourneyProgress progress,
+                                             int remainingTicks) {
+        try {
+            if (helper.getLevel().getBlockState(repairPos).is(Blocks.FARMLAND)
+                    && !village.getRepairQueue().contains(repairPos)) {
+                Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
+                        PerformanceTimingCounters.snapshot();
+                helper.assertTrue(counterDelta(after, progress.before,
+                                PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL) >= 1L,
+                        "farmland repair journey did not record an arrival outcome");
+                helper.assertTrue(counterDelta(after, progress.before,
+                                PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT) >= 1L,
+                        "farmland repair journey did not use MoveToTargetSink path planning");
+                helper.succeed();
+                return;
+            }
+            if (remainingTicks <= 0) {
+                progress.restore();
+                helper.fail("farmer did not repair queued farmland after navigating: pos="
+                        + farmer.blockPosition() + ", target=" + repairPos + ", block="
+                        + helper.getLevel().getBlockState(repairPos) + ", active="
+                        + MovementRequestManager.activeHandle(farmer) + ", walkTarget="
+                        + farmer.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                        + ", path=" + farmer.getBrain().getMemory(MemoryModuleType.PATH).orElse(null));
+                return;
+            }
+            helper.runAfterDelay(1, () -> awaitFarmlandRepair(
+                    helper, farmer, repairPos, village, progress, remainingTicks - 1));
+        } catch (RuntimeException | Error failure) {
+            progress.restore();
+            throw failure;
+        } finally {
+            if (helper.getLevel().getBlockState(repairPos).is(Blocks.FARMLAND)) {
+                progress.restore();
+            }
+        }
+    }
+
+    private static long counterDelta(
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after,
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before,
+            PerformanceTimingCounters.Operation operation) {
+        return after.get(operation).calls() - before.get(operation).calls();
+    }
+
     // Goal present in farmer / absent in non-farmer
 
     @GameTest(template = "empty_3x3x3")
@@ -453,6 +555,30 @@ public class FarmlandGameTests {
                 "Claimed positions should be cleared on load");
 
         helper.succeed();
+    }
+
+    private static final class FarmlandJourneyProgress {
+        private final boolean previousRepair;
+        private final PerformanceTimingCounters.EventCountingScope eventScope;
+        private final Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before;
+        private boolean restored;
+
+        private FarmlandJourneyProgress(boolean previousRepair,
+                                        PerformanceTimingCounters.EventCountingScope eventScope,
+                                        Map<PerformanceTimingCounters.Operation,
+                                                PerformanceTimingCounters.Snapshot> before) {
+            this.previousRepair = previousRepair;
+            this.eventScope = eventScope;
+            this.before = before;
+        }
+
+        private void restore() {
+            if (!restored) {
+                restored = true;
+                Config.enableFarmlandRepair = previousRepair;
+                eventScope.close();
+            }
+        }
     }
 
     @GameTest(template = "empty_3x3x3")

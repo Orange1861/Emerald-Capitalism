@@ -3,6 +3,7 @@ package com.orangevillager61.emeraldcapitalism.test;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorDoorRepairGoal;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
@@ -30,6 +31,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.UUID;
+import java.util.Map;
 
 @GameTestHolder("emeraldcapitalism")
 @PrefixGameTestTemplate(false)
@@ -139,6 +141,93 @@ public final class MayorDoorRepairGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_20x3x20", batch = "ecap_mayor_repair_journey", timeoutTicks = 500)
+    public static void mayorCompletesScheduledBankAndDoorMovementLegs(GameTestHelper helper) {
+        Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before =
+                PerformanceTimingCounters.snapshot();
+        PerformanceTimingCounters.EventCountingScope eventScope =
+                PerformanceTimingCounters.beginEventCountingScope();
+        RepairJourneyProgress progress = new RepairJourneyProgress(eventScope, before);
+        try {
+            for (int x = 0; x < 20; x++) {
+                for (int z = 0; z < 20; z++) {
+                    helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+                }
+            }
+            RepairFixture fixture = createFixture(helper,
+                    new BlockPos(5, 1, 5), new BlockPos(5, 1, 6),
+                    new BlockPos(9, 1, 5));
+            if (fixture == null) {
+                progress.restore();
+                return;
+            }
+            fixture.village().setDoorRepairEnabled(true);
+
+            helper.setBlock(new BlockPos(8, 1, 3), ECAPBlocks.VILLAGE_MANAGER.get().defaultBlockState());
+            Villager mayor = helper.spawn(EntityType.VILLAGER, 8, 1, 4);
+            mayor.setVillagerData(mayor.getVillagerData()
+                    .setProfession(ECAPVillagerProfessions.MAYOR.get()));
+            BlockPos mayorJobSite = helper.absolutePos(new BlockPos(8, 1, 3));
+            mayor.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                    net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), mayorJobSite));
+            mayor.goalSelector.removeAllGoals(ignored -> true);
+            mayor.goalSelector.addGoal(MayorDoorRepairGoal.GOAL_PRIORITY,
+                    new MayorDoorRepairGoal(mayor));
+            helper.runAfterDelay(1,
+                    () -> awaitScheduledDoorRepair(helper, fixture, progress, 450));
+            helper.runAfterDelay(490, progress::restore);
+        } catch (RuntimeException | Error failure) {
+            progress.restore();
+            throw failure;
+        }
+    }
+
+    private static void awaitScheduledDoorRepair(GameTestHelper helper, RepairFixture fixture,
+                                                 RepairJourneyProgress progress,
+                                                 int remainingTicks) {
+        try {
+            BlockPos doorPos = fixture.doorPos();
+            ServerLevel level = fixture.level();
+            if (VillageRecord.isDoorBase(level.getBlockState(doorPos))
+                    && level.getBlockState(doorPos.above()).is(Blocks.OAK_DOOR)
+                    && fixture.village().getMissingDoorRegistry().isEmpty()) {
+                Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
+                        PerformanceTimingCounters.snapshot();
+                helper.assertTrue(counterDelta(after, progress.before,
+                                PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL) >= 2L,
+                        "scheduled Mayor repair did not complete both bank and door movement legs");
+                helper.assertTrue(counterDelta(after, progress.before,
+                                PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT) >= 2L,
+                        "scheduled Mayor repair did not use the vanilla sink for both routes");
+                helper.succeed();
+                return;
+            }
+            if (remainingTicks <= 0) {
+                progress.restore();
+                helper.fail("Mayor did not complete the scheduled bank-to-door repair journey: pos="
+                        + fixture.village().getMissingDoorRegistry() + ", block="
+                        + level.getBlockState(doorPos));
+                return;
+            }
+            helper.runAfterDelay(1, () -> awaitScheduledDoorRepair(
+                    helper, fixture, progress, remainingTicks - 1));
+        } catch (RuntimeException | Error failure) {
+            progress.restore();
+            throw failure;
+        } finally {
+            if (helper.getLevel().getBlockState(fixture.doorPos()).is(Blocks.OAK_DOOR)) {
+                progress.restore();
+            }
+        }
+    }
+
+    private static long counterDelta(
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after,
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before,
+            PerformanceTimingCounters.Operation operation) {
+        return after.get(operation).calls() - before.get(operation).calls();
+    }
+
     @GameTest(template = "empty_3x3x3")
     public static void mayorRefundsDoorWhenRepairIsDisabledMidTrip(GameTestHelper helper) {
         RepairFixture fixture = createFixture(helper);
@@ -234,15 +323,24 @@ public final class MayorDoorRepairGameTests {
     }
 
     private static RepairFixture createFixture(GameTestHelper helper) {
+        return createFixture(helper, new BlockPos(1, 1, 1),
+                new BlockPos(1, 1, 2), new BlockPos(2, 1, 0));
+    }
+
+    private static RepairFixture createFixture(GameTestHelper helper,
+                                               BlockPos bankLocalPos,
+                                               BlockPos chestLocalPos,
+                                               BlockPos doorLocalPos) {
         ServerLevel level = helper.getLevel();
-        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
-        BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
-        BlockPos doorPos = helper.absolutePos(new BlockPos(2, 1, 0));
+        BlockPos bankPos = helper.absolutePos(bankLocalPos);
+        BlockPos chestPos = helper.absolutePos(chestLocalPos);
+        BlockPos doorPos = helper.absolutePos(doorLocalPos);
         for (int x = -1; x <= 4; x++) {
             helper.setBlock(new BlockPos(x, 0, 0), Blocks.STONE.defaultBlockState());
         }
-        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
-        helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+        helper.setBlock(bankLocalPos, ECAPBlocks.BANK.get().defaultBlockState()
+                .setValue(BankBlock.BANKER_AVAILABLE, false));
+        helper.setBlock(chestLocalPos, ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
 
         BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(chestPos);
@@ -270,5 +368,25 @@ public final class MayorDoorRepairGameTests {
 
     private record RepairFixture(ServerLevel level, BlockPos bankPos, BlockPos doorPos,
                                  BankBlockEntity bank, VillageRecord village) {
+    }
+
+    private static final class RepairJourneyProgress {
+        private final PerformanceTimingCounters.EventCountingScope eventScope;
+        private final Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before;
+        private boolean restored;
+
+        private RepairJourneyProgress(PerformanceTimingCounters.EventCountingScope eventScope,
+                                      Map<PerformanceTimingCounters.Operation,
+                                              PerformanceTimingCounters.Snapshot> before) {
+            this.eventScope = eventScope;
+            this.before = before;
+        }
+
+        private void restore() {
+            if (!restored) {
+                restored = true;
+                eventScope.close();
+            }
+        }
     }
 }

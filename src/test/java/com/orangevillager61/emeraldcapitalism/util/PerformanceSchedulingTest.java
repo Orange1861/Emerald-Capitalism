@@ -1,6 +1,5 @@
 package com.orangevillager61.emeraldcapitalism.util;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,14 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PerformanceSchedulingTest {
 
-    @AfterEach
-    void clearCounters() {
-        PerformanceTimingCounters.clear();
-    }
-
     @Test
     void timingCountersRecordCallsAndDurations() {
         boolean previous = PerformanceTimingCounters.isDetailedTimingEnabled();
+        PerformanceTimingCounters.Snapshot before = PerformanceTimingCounters.snapshot()
+                .get(PerformanceTimingCounters.Operation.PUMPKIN_SEARCH);
         PerformanceTimingCounters.setDetailedTimingEnabled(true);
         try {
             assertEquals(7, PerformanceTimingCounters.measure(
@@ -24,9 +20,9 @@ class PerformanceSchedulingTest {
 
             PerformanceTimingCounters.Snapshot snapshot = PerformanceTimingCounters.snapshot()
                     .get(PerformanceTimingCounters.Operation.PUMPKIN_SEARCH);
-            assertEquals(1L, snapshot.calls());
-            assertTrue(snapshot.totalNanos() >= 0L);
-            assertTrue(snapshot.maximumNanos() >= 0L);
+            assertEquals(1L, snapshot.calls() - before.calls());
+            assertTrue(snapshot.totalNanos() - before.totalNanos() >= 0L);
+            assertTrue(snapshot.maximumNanos() >= before.maximumNanos());
         } finally {
             PerformanceTimingCounters.setDetailedTimingEnabled(previous);
         }

@@ -1,0 +1,92 @@
+---- Minecraft Crash Report ----
+// My bad.
+
+Time: 2026-10-14 04:36:23
+Description: Exception in server tick loop
+
+java.util.ConcurrentModificationException: null
+	at java.base/java.util.HashMap$HashIterator.nextNode(HashMap.java:1605) ~[?:?] {}
+	at java.base/java.util.HashMap$KeyIterator.next(HashMap.java:1628) ~[?:?] {}
+	at java.base/java.lang.Iterable.forEach(Iterable.java:74) ~[?:?] {}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.DistanceManager.runAllUpdates(DistanceManager.java:122) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache.runDistanceManagerUpdates(ServerChunkCache.java:282) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache$MainThreadExecutor.pollTask(ServerChunkCache.java:570) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache.pollTask(ServerChunkCache.java:278) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.pollTaskInternal(MinecraftServer.java:869) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.pollTask(MinecraftServer.java:858) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.runAllTasks(BlockableEventLoop.java:111) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestServer.waitUntilNextTick(GameTestServer.java:214) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:718) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.lambda$spin$2(MinecraftServer.java:267) ~[neoforge-21.1.219-merged.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?] {}
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- System Details --
+Details:
+	Minecraft Version: 1.21.1
+	Minecraft Version ID: 1.21.1
+	Operating System: Windows 11 (amd64) version 10.0
+	Java Version: 21.0.9, Eclipse Adoptium
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Eclipse Adoptium
+	Memory: 183927024 bytes (175 MiB) / 620756992 bytes (592 MiB) up to 8338276352 bytes (7952 MiB)
+	CPUs: 16
+	Processor Vendor: AuthenticAMD
+	Processor Name: AMD Ryzen 7 9800X3D 8-Core Processor           
+	Identifier: AuthenticAMD Family 26 Model 68 Stepping 0
+	Microarchitecture: unknown
+	Frequency (GHz): 4.70
+	Number of physical packages: 1
+	Number of physical CPUs: 8
+	Number of logical CPUs: 16
+	Graphics card #0 name: AMD Radeon(TM) Graphics
+	Graphics card #0 vendor: Advanced Micro Devices, Inc.
+	Graphics card #0 VRAM (MiB): 512.00
+	Graphics card #0 deviceId: VideoController1
+	Graphics card #0 versionInfo: 32.0.21041.5002
+	Graphics card #1 name: AMD Radeon RX 7800 XT
+	Graphics card #1 vendor: Advanced Micro Devices, Inc.
+	Graphics card #1 VRAM (MiB): 16368.00
+	Graphics card #1 deviceId: VideoController2
+	Graphics card #1 versionInfo: 32.0.23025.1002
+	Virtual memory max (MiB): 39737.36
+	Virtual memory used (MiB): 30218.11
+	Swap memory total (MiB): 7936.00
+	Swap memory used (MiB): 0.00
+	Space in storage for jna.tmpdir (MiB): <path not set>
+	Space in storage for org.lwjgl.system.SharedLibraryExtractPath (MiB): <path not set>
+	Space in storage for io.netty.native.workdir (MiB): <path not set>
+	Space in storage for java.io.tmpdir (MiB): available: 1117559.38, total: 1906753.00
+	Space in storage for workdir (MiB): available: 1117559.38, total: 1906753.00
+	JVM Flags: 0 total; 
+	Server Running: true
+	Player Count: 8 / 1; [['ecap-golem-test-player'/2059, l='ServerLevel[Test Level]', x=-9359415.50, y=-59.00, z=1692302.50], ['ecap-golem-test-player'/2061, l='ServerLevel[Test Level]', x=-9359413.50, y=-59.00, z=1692302.50], ['ecap-golem-test-player'/2103, l='ServerLevel[Test Level]', x=-9359333.50, y=-59.00, z=1692380.50], ['ecap-golem-test-player'/2105, l='ServerLevel[Test Level]', x=-9359331.50, y=-59.00, z=1692380.50], ['ecap-golem-test-player'/2165, l='ServerLevel[Test Level]', x=-9359348.50, y=-59.00, z=1692493.50], ServerPlayer['ecap-spectator-policy-test'/2199, l='ServerLevel[Test Level]', x=-9359376.50, y=-59.00, z=1692571.50], ['ecap-golem-test-player'/2302, l='ServerLevel[Test Level]', x=-9359373.50, y=-59.00, z=1692728.50], ['ecap-golem-test-player'/2351, l='ServerLevel[Test Level]', x=-9359372.50, y=-59.00, z=1692858.50]]
+	Active Data Packs: bundle, trade_rebalance, vanilla, mod_data, mod/emeraldcapitalism (incompatible), mod/neoforge
+	Available Data Packs: bundle, trade_rebalance, vanilla, mod/emeraldcapitalism (incompatible), mod/neoforge, mod_data
+	Enabled Feature Flags: minecraft:bundle, minecraft:vanilla, minecraft:trade_rebalance
+	World Generation: Stable
+	World Seed: 0
+	Type: Game test server
+	ModLauncher: 11.0.5+main.901c6ea8
+	ModLauncher launch target: forgeserverdev
+	ModLauncher services: 
+		sponge-mixin-0.15.2+mixin.0.8.7.jar mixin PLUGINSERVICE 
+		loader-4.0.42.jar slf4jfixer PLUGINSERVICE 
+		loader-4.0.42.jar runtime_enum_extender PLUGINSERVICE 
+		at-modlauncher-10.0.1.jar accesstransformer PLUGINSERVICE 
+		loader-4.0.42.jar runtimedistcleaner PLUGINSERVICE 
+		modlauncher-11.0.5.jar mixin TRANSFORMATIONSERVICE 
+		modlauncher-11.0.5.jar fml TRANSFORMATIONSERVICE 
+	FML Language Providers: 
+		javafml@4.0
+		lowcodefml@4.0
+		minecraft@4.0
+	Mod List: 
+		main                                              |Emerald Capitalism            |emeraldcapitalism             |1.0.0               |Manifest: NOSIGNATURE
+		neoforge-21.1.219-merged.jar                      |Minecraft                     |minecraft                     |1.21.1              |Manifest: NOSIGNATURE
+		neoforge-21.1.219-merged.jar                      |NeoForge                      |neoforge                      |21.1.219            |Manifest: NOSIGNATURE
+	Crash Report UUID: 53546605-de5e-42e6-94d1-4d9a85386932
+	FML: 4.0.42
+	NeoForge: 21.1.219

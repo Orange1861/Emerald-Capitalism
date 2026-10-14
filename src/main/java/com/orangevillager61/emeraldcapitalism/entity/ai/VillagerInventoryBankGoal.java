@@ -131,7 +131,8 @@ public final class VillagerInventoryBankGoal extends Goal {
             return;
         }
 
-        navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, depositPos, 0);
+        navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                villager, depositPos, 0);
         if (navigationTarget == null || !moveToBank()) {
             finish(level, FAILURE_COOLDOWN);
         } else {
@@ -170,6 +171,9 @@ public final class VillagerInventoryBankGoal extends Goal {
         }
 
         if (isAtBank()) {
+            // Finish the movement leg at the bank arrival transition. The
+            // subsequent inventory operation has its own success or failure.
+            movement.complete(villager);
             boolean transferred = liquidateInventory(level);
             boolean purchased = !fullInventoryTrigger && buyBreadIfNeeded(level);
             finish(level, transferred || purchased ? SUCCESS_COOLDOWN : FAILURE_COOLDOWN,
@@ -181,7 +185,7 @@ public final class VillagerInventoryBankGoal extends Goal {
         if (navigationTarget != null) {
             if (!movement.submit(villager,
                     "emeraldcapitalism:inventory_bank_visit",
-                    "bank-deposit:" + depositPos.toShortString(),
+                    "inventory-bank-visit",
                     navigationTarget,
                     SPEED,
                     0,
@@ -618,7 +622,7 @@ public final class VillagerInventoryBankGoal extends Goal {
         }
         return movement.submit(villager,
                 "emeraldcapitalism:inventory_bank_visit",
-                "bank-deposit:" + depositPos.toShortString(),
+                "inventory-bank-visit",
                 navigationTarget,
                 SPEED,
                 0,

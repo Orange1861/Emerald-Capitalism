@@ -53,7 +53,8 @@ public final class BankerWorkGoal extends Goal {
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
             return;
         }
-        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.workPos(), 0);
+        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                villager, context.workPos(), 0);
         if (navigationTarget == null) {
             context = null;
             failed = true;
@@ -75,7 +76,7 @@ public final class BankerWorkGoal extends Goal {
                 && !failed
                 && context.bank().isBankIndependent()
                 && context.bank().isEmployee(villager.getUUID())
-                && movement.isActive(villager);
+                && (isAtWorkPosition() || movement.isActive(villager));
     }
 
     @Override
@@ -86,13 +87,14 @@ public final class BankerWorkGoal extends Goal {
 
         // Keep the brain's target on the designated work side instead of
         // allowing vanilla job-site pathing to pull the banker into the bank.
-        if (!moveToWorkSide()) {
+        boolean atWorkPos = isAtWorkPosition();
+        if (atWorkPos) {
+            movement.complete(villager);
+        } else if (!moveToWorkSide()) {
             failed = true;
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
             return;
         }
-        boolean atWorkPos = BankBlock.isAtBankerWorkPos(
-                context.bank().getBlockState(), context.bank().getBlockPos(), villager.position());
         if (atWorkPos) {
             ServerLevel level = (ServerLevel) villager.level();
             long gameTime = level.getGameTime();
@@ -118,7 +120,7 @@ public final class BankerWorkGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager);
+        movement.cancel(villager, MovementRequestTerminationReason.ABANDONED);
         context = null;
         navigationWatchdog.reset();
         failed = false;
@@ -153,7 +155,7 @@ public final class BankerWorkGoal extends Goal {
         BlockPos target = context.navigationTarget();
         return movement.submit(villager,
                 "emeraldcapitalism:banker_work",
-                "banker-side:" + context.workPos().toShortString(),
+                "banker-work-side",
                 target,
                 SPEED,
                 WALK_TARGET_CLOSE_ENOUGH,
@@ -161,6 +163,11 @@ public final class BankerWorkGoal extends Goal {
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_WORK,
                 context.workPos());
+    }
+
+    private boolean isAtWorkPosition() {
+        return context != null && BankBlock.isAtBankerWorkPos(
+                context.bank().getBlockState(), context.bank().getBlockPos(), villager.position());
     }
 
     private record WorkContext(BankBlockEntity bank, BlockPos workPos, BlockPos navigationTarget) {

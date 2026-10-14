@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -50,6 +51,10 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     private MovementRequestHandle movementHandle;
     @Nullable
     private MovementRequestSpec cachedMovementSpec;
+    @Nullable
+    private Boat lookTargetBoat;
+    @Nullable
+    private EntityTracker lookTargetTracker;
 
     public AvoidBoatBehavior() {
         super(
@@ -85,12 +90,18 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
 
     @Override
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
-        escapeTarget = null;
-        cachedMovementSpec = null;
+        MovementRequestTerminationReason reason = escapeTarget != null
+                && villager.blockPosition().distSqr(escapeTarget) <= 4.0D
+                ? MovementRequestTerminationReason.ARRIVED
+                : MovementRequestTerminationReason.ABANDONED;
         if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle);
+            MovementRequestManager.cancel(villager, movementHandle, reason);
             movementHandle = null;
         }
+        escapeTarget = null;
+        cachedMovementSpec = null;
+        lookTargetBoat = null;
+        lookTargetTracker = null;
     }
 
     @Override
@@ -126,7 +137,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
         BlockPos desiredTarget = BlockPos.containing(targetVec);
 
         if (escapeTarget == null || gameTime >= nextEscapeSearchTick) {
-            escapeTarget = VillagerNavigationTargets.findReachableTarget(
+            escapeTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
                     villager,
                     desiredTarget,
                     3,
@@ -148,7 +159,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
             if (spec == null || !spec.destination().equals(escapeTarget)) {
                 spec = new MovementRequestSpec(
                         "emeraldcapitalism:boat_avoidance",
-                        "boat:" + escapeTarget.toShortString(),
+                        "boat-escape",
                         escapeTarget,
                         SPEED_MODIFIER,
                         0,
@@ -164,16 +175,25 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
             if (submission.accepted()) {
                 movementHandle = submission.handle();
                 MovementRequestManager.claimLookTarget(villager, movementHandle,
-                        new EntityTracker(boat, true));
+                        lookTargetTracker(boat));
             } else {
                 movementHandle = null;
             }
         } else {
             if (movementHandle != null) {
-                MovementRequestManager.cancel(villager, movementHandle);
+                MovementRequestManager.cancel(villager, movementHandle,
+                        MovementRequestTerminationReason.FAILED);
                 movementHandle = null;
             }
         }
+    }
+
+    private EntityTracker lookTargetTracker(Boat boat) {
+        if (lookTargetTracker == null || lookTargetBoat != boat) {
+            lookTargetBoat = boat;
+            lookTargetTracker = new EntityTracker(boat, true);
+        }
+        return lookTargetTracker;
     }
 
     private static boolean isClearEscapeTarget(Villager villager, BlockPos target) {

@@ -129,9 +129,11 @@ public class EmeraldCapitalism {
         }
         VillageDetectionHandler.clearPendingWork();
         SteveGraveEvents.clearPendingWork();
-        VillagerBehaviorRegistry.clearBindings();
         MovementRequestManager.clearAll(recordServerShutdown
                 ? MovementRequestTerminationReason.SERVER_SHUTDOWN : null);
+        // Manager shutdown accounts for active requests once. Lifecycle hooks
+        // run afterward and their now-stale handles cannot add ABANDONED.
+        VillagerBehaviorRegistry.clearBindings();
     }
 
     @SubscribeEvent

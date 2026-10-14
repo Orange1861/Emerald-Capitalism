@@ -84,7 +84,8 @@ public final class EmeraldSmithProcessorGoal extends Goal {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return;
         }
-        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, context.processorPos(), 2);
+        BlockPos navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                villager, context.processorPos(), 2);
         if (navigationTarget == null) {
             finished = true;
             terminationReason = MovementRequestTerminationReason.FAILED;
@@ -286,7 +287,7 @@ public final class EmeraldSmithProcessorGoal extends Goal {
         BlockPos pos = context.navigationTarget();
         return movement.submit(villager,
                 "emeraldcapitalism:smith_processor",
-                "processor:" + context.processorPos().toShortString(),
+                "processor-work",
                 pos,
                 SPEED,
                 1,

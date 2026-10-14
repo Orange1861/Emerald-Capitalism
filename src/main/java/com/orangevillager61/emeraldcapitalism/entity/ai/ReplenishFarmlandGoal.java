@@ -32,7 +32,7 @@ public class ReplenishFarmlandGoal extends Goal {
     private static final double ARRIVAL_DISTANCE_SQ = 2.25; // 1.5 blocks
     private static final float SPEED_MODIFIER = 0.6F;
     /** Close-enough distance for the brain's WalkTarget (in blocks). */
-    private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
+    private static final int WALK_TARGET_CLOSE_ENOUGH = 0;
     private static final int EMPTY_QUEUE_RETRY_TICKS = 100;
     private static final int FAILED_TARGET_RETRY_TICKS = 100;
 
@@ -128,7 +128,8 @@ public class ReplenishFarmlandGoal extends Goal {
                 village = null;
                 return;
             }
-            navigationTarget = VillagerNavigationTargets.findReachableTarget(villager, targetPos, 2);
+            navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
+                    villager, targetPos, 2);
             if (navigationTarget == null) {
                 village.unclaimPosition(targetPos);
                 rememberFailedTarget(targetPos);
@@ -152,6 +153,7 @@ public class ReplenishFarmlandGoal extends Goal {
         // Check if arrived
         double distSq = villager.blockPosition().distSqr(targetPos);
         if (distSq <= ARRIVAL_DISTANCE_SQ) {
+            movement.complete(villager);
             restoreFarmland();
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
             rememberFailedTarget(targetPos);
@@ -174,7 +176,7 @@ public class ReplenishFarmlandGoal extends Goal {
         village = null;
         navigationWatchdog.reset();
         failed = false;
-        movement.cancel(villager);
+        movement.cancel(villager, MovementRequestTerminationReason.ABANDONED);
     }
 
     /**
@@ -185,7 +187,7 @@ public class ReplenishFarmlandGoal extends Goal {
         if (targetPos != null && navigationTarget != null) {
             if (!movement.submit(villager,
                     "emeraldcapitalism:farmland_repair",
-                    "farmland:" + targetPos.toShortString(),
+                    "farmland-repair",
                     navigationTarget,
                     SPEED_MODIFIER,
                     WALK_TARGET_CLOSE_ENOUGH,

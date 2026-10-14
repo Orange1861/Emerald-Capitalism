@@ -8,7 +8,6 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.Node;
-import net.minecraft.world.level.pathfinder.PathComputationType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -105,6 +104,49 @@ public final class VillagerNavigationTargets {
     }
 
     /**
+     * Selects a reachable target when the current pathfinder snapshot has one,
+     * otherwise returns a clear, supported interaction position for the real
+     * MoveToTargetSink to plan on a later AI tick. The fallback is only a
+     * candidate; callers must keep their normal arrival and failure checks.
+     */
+    @Nullable
+    public static BlockPos findReachableTargetOrFallback(
+            Mob mob, BlockPos desired, int radius, Predicate<BlockPos> acceptable) {
+        BlockPos reachable = findReachableTarget(mob, desired, radius, acceptable);
+        return reachable != null
+                ? reachable
+                : findStandingTargetCandidate(mob, desired, radius, acceptable);
+    }
+
+    public static BlockPos findReachableTargetOrFallback(Mob mob, BlockPos desired, int radius) {
+        return findReachableTargetOrFallback(mob, desired, radius, ignored -> true);
+    }
+
+    @Nullable
+    private static BlockPos findStandingTargetCandidate(
+            Mob mob, BlockPos desired, int radius, Predicate<BlockPos> acceptable) {
+        BlockPos best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    BlockPos candidate = desired.offset(dx, dy, dz);
+                    if (!acceptable.test(candidate) || !isValidStandingSpace(mob, candidate)) {
+                        continue;
+                    }
+                    double distance = candidate.distSqr(desired);
+                    double score = distance * 100.0D + candidate.distSqr(mob.blockPosition());
+                    if (score < bestScore) {
+                        best = candidate.immutable();
+                        bestScore = score;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
      * Gives every non-empty horizontal search ring an attempt before spending
      * the remaining budget. Sampling within each ring keeps the bounded search
      * from being consumed by the positions immediately beside the task block.
@@ -180,9 +222,7 @@ public final class VillagerNavigationTargets {
             return false;
         }
 
-        return feet.isPathfindable(PathComputationType.LAND)
-                || feet.is(BlockTags.CLIMBABLE)
-                || support.is(BlockTags.CLIMBABLE);
+        return feet.getFluidState().isEmpty();
     }
 
     /**

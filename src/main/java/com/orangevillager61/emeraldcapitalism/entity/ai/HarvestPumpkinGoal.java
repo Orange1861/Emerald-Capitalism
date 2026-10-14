@@ -57,6 +57,8 @@ public class HarvestPumpkinGoal extends Goal {
     private boolean tryAlternativePumpkinsDuringCooldown;
     @Nullable
     private MovementRequestHandle movementHandle;
+    @Nullable
+    private MovementRequestSpec cachedMovementSpec;
 
     public HarvestPumpkinGoal(Villager villager) {
         this.villager = villager;
@@ -120,13 +122,17 @@ public class HarvestPumpkinGoal extends Goal {
         if (!(villager.level() instanceof ServerLevel level) || targetPos == null || navigationTarget == null) {
             return;
         }
+        if (!MovementRequestManager.isActive(villager, movementHandle)) {
+            return;
+        }
 
         if (villager.blockPosition().distSqr(targetPos) <= ARRIVAL_DISTANCE_SQ) {
+            cancelMovement(MovementRequestTerminationReason.ARRIVED);
             harvestPumpkin(level);
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
             rememberFailedTarget(targetPos);
             failed = true;
-            cancelMovement();
+            cancelMovement(MovementRequestTerminationReason.FAILED);
         } else {
             setWalkTarget();
         }
@@ -139,7 +145,13 @@ public class HarvestPumpkinGoal extends Goal {
                     "[ECAP][Navigation] pumpkin-stop entity={} target={} navigationTarget={} failed={} pos={}",
                     villager.getUUID(), targetPos, navigationTarget, failed, villager.blockPosition());
         }
-        cancelMovement();
+        boolean preempted = movementHandle != null
+                && !MovementRequestManager.isActive(villager, movementHandle);
+        cancelMovement(MovementRequestTerminationReason.ABANDONED);
+        if (preempted && villager.level() instanceof ServerLevel level) {
+            nextSearchTick = Math.min(nextSearchTick, level.getGameTime());
+            tryAlternativePumpkinsDuringCooldown = true;
+        }
         targetPos = null;
         navigationTarget = null;
         navigationWatchdog.reset();
@@ -305,16 +317,21 @@ public class HarvestPumpkinGoal extends Goal {
         if (targetPos == null || navigationTarget == null) {
             return;
         }
-        MovementRequestSpec spec = new MovementRequestSpec(
-                "emeraldcapitalism:pumpkin_harvest",
-                targetPos.toShortString(),
-                navigationTarget,
-                SPEED_MODIFIER,
-                0,
-                "pumpkin-interaction-v1",
-                "ground-ladder-v1",
-                MovementRequestManager.PRIORITY_WORK,
-                targetPos);
+        MovementRequestSpec spec = cachedMovementSpec;
+        if (spec == null || !spec.destination().equals(navigationTarget)
+                || !targetPos.equals(spec.lookTarget())) {
+            spec = new MovementRequestSpec(
+                    "emeraldcapitalism:pumpkin_harvest",
+                    "pumpkin-harvest",
+                    navigationTarget,
+                    SPEED_MODIFIER,
+                    0,
+                    "pumpkin-interaction-v1",
+                    "ground-ladder-v1",
+                    MovementRequestManager.PRIORITY_WORK,
+                    targetPos);
+            cachedMovementSpec = spec;
+        }
         MovementRequestSubmission submission = movementHandle == null
                 ? MovementRequestManager.submit(villager, spec)
                 : MovementRequestManager.maintain(villager, movementHandle, spec);
@@ -326,11 +343,12 @@ public class HarvestPumpkinGoal extends Goal {
         }
     }
 
-    private void cancelMovement() {
+    private void cancelMovement(MovementRequestTerminationReason reason) {
         if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle);
+            MovementRequestManager.cancel(villager, movementHandle, reason);
             movementHandle = null;
         }
+        cachedMovementSpec = null;
     }
 
     private void harvestPumpkin(ServerLevel level) {

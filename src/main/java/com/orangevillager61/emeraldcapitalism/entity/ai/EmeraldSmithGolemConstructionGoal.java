@@ -179,7 +179,8 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
         BlockPos navigationTarget = isAtProcessor(level)
                 ? context.processorPos()
-                : VillagerNavigationTargets.findReachableTarget(villager, context.processorPos(), 2);
+                : VillagerNavigationTargets.findReachableTargetOrFallback(
+                villager, context.processorPos(), 2);
         if (navigationTarget == null) {
             failureReason = "processor has no reachable standing position";
             context.bank().endGolemConstruction(villager.getUUID());
@@ -226,6 +227,10 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
                 return;
             }
 
+            // The processor trip is complete as soon as the smith reaches its
+            // work position, even if the following conversion fails.
+            movement.complete(villager);
+
             if (!convertPumpkin(level)) {
                 finishWithFailure(level);
                 return;
@@ -235,7 +240,6 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             attemptTicks = 0;
             attempts = 0;
             nextPlacementTick = level.getGameTime();
-            movement.cancel(villager);
             EmeraldCapitalism.LOGGER.debug(
                     "[EmeraldsmithGolem] STAGE villager={} carved pumpkin at processor={}; constructing at marker={}",
                     villager.getName().getString(), context.processorPos(), context.constructionPos());
@@ -682,7 +686,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
         BlockPos pos = context.navigationTarget();
         movement.submit(villager,
                 "emeraldcapitalism:smith_golem_construction",
-                "construction-processor:" + context.processorPos().toShortString(),
+                "construction-processor",
                 pos,
                 SPEED,
                 1,

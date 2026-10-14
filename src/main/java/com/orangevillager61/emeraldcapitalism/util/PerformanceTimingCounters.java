@@ -4,6 +4,8 @@ import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Supplier;
 
@@ -24,13 +26,13 @@ public final class PerformanceTimingCounters {
         MOVEMENT_MANAGER_TIME,
         BEHAVIOR_REGISTRY_TIME,
         MOVEMENT_PATH_PLAN_ATTEMPT,
+        MOVEMENT_PATH_OBJECT_CREATED,
+        MOVEMENT_DESTINATION_REACHABLE,
         MOVEMENT_ARRIVAL,
         MOVEMENT_RETRY,
         MOVEMENT_ABANDONED,
         MOVEMENT_FAILURE,
         MOVEMENT_PREEMPTED,
-        MOVEMENT_PATH_PLAN_SUCCESS,
-        MOVEMENT_PATH_PLAN_FAILURE,
         MOVEMENT_UNLOADED,
         MOVEMENT_SHUTDOWN,
         POI_DYNAMIC_REFRESH,
@@ -49,6 +51,7 @@ public final class PerformanceTimingCounters {
     }
 
     private static final Map<Operation, Counter> COUNTERS = new EnumMap<>(Operation.class);
+    private static final AtomicInteger EVENT_COUNTING_SCOPES = new AtomicInteger();
     private static volatile boolean detailedTimingEnabled =
             Boolean.getBoolean("emeraldcapitalism.performanceTiming");
     private static volatile boolean eventCountingEnabled =
@@ -109,7 +112,27 @@ public final class PerformanceTimingCounters {
     }
 
     public static boolean isEventCountingEnabled() {
-        return eventCountingEnabled;
+        return eventCountingEnabled || EVENT_COUNTING_SCOPES.get() > 0;
+    }
+
+    /** Enables event counting until the returned scope is closed. Scopes compose safely. */
+    public static EventCountingScope beginEventCountingScope() {
+        EVENT_COUNTING_SCOPES.incrementAndGet();
+        return new EventCountingScope();
+    }
+
+    public static final class EventCountingScope implements AutoCloseable {
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        private EventCountingScope() {
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                EVENT_COUNTING_SCOPES.decrementAndGet();
+            }
+        }
     }
 
     public static Map<Operation, Snapshot> snapshot() {
@@ -145,7 +168,7 @@ public final class PerformanceTimingCounters {
 
     /** Records a bounded state transition that has no useful duration. */
     public static void recordEvent(Operation operation) {
-        if (eventCountingEnabled) {
+        if (isEventCountingEnabled()) {
             COUNTERS.get(operation).record(0L);
         }
     }

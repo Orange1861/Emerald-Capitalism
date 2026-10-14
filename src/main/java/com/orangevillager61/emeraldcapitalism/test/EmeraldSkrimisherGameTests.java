@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEnti
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldSkrimisher;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithGolemConstructionGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherBankDepositGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherCombatGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSkrimisherPickupGoal;
@@ -14,6 +15,7 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -23,6 +25,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.animal.Pig;
@@ -37,6 +40,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Focused server-side tests for Emerald Skrimisher stats, storage, and pickup. */
@@ -570,6 +574,146 @@ public final class EmeraldSkrimisherGameTests {
                 "emerald smith did not place the Skrimisher's emerald base");
         goal.stop();
         helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_skrimisher_processor_journey", timeoutTicks = 700)
+    public static void emeraldSmithSelectorCompletesProcessorLegBeforeSkrimisherConstruction(
+            GameTestHelper helper) {
+        Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before =
+                PerformanceTimingCounters.snapshot();
+        PerformanceTimingCounters.EventCountingScope eventScope =
+                PerformanceTimingCounters.beginEventCountingScope();
+        ConstructionJourneyProgress progress = new ConstructionJourneyProgress(eventScope);
+        try {
+            ServerLevel level = helper.getLevel();
+            fillFloor(helper, 20, 20);
+            BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+            BlockPos storagePos = helper.absolutePos(new BlockPos(1, 1, 2));
+            BlockPos processorPos = helper.absolutePos(new BlockPos(1, 1, 0));
+            BlockPos constructionPos = helper.absolutePos(new BlockPos(5, 0, 1));
+            helper.setBlock(new BlockPos(5, -1, 1), Blocks.STONE.defaultBlockState());
+            for (int y = 0; y <= 2; y++) {
+                for (int x = 4; x <= 6; x++) {
+                    for (int z = 0; z <= 2; z++) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+                    }
+                }
+            }
+            helper.setBlock(new BlockPos(1, 0, 0), Blocks.STONE.defaultBlockState());
+            helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState()
+                    .setValue(BankBlock.BANKER_AVAILABLE, false));
+            helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+            helper.setBlock(new BlockPos(1, 1, 0), ECAPBlocks.EMERALD_ORE_PROCESSOR.get().defaultBlockState());
+
+            BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+            EmeraldChestBlockEntity storage = (EmeraldChestBlockEntity) level.getBlockEntity(storagePos);
+            if (bank == null || storage == null) {
+                progress.restore();
+                helper.fail("bank or emerald chest block entity was not created");
+                return;
+            }
+            UUID villageId = UUID.randomUUID();
+            VillageRegistryData registry = VillageRegistryData.get(level);
+            registry.getOrCreateVillage(villageId, bankPos, new AABB(
+                    bankPos.getX() - 8, bankPos.getY() - 2, bankPos.getZ() - 8,
+                    bankPos.getX() + 8, bankPos.getY() + 2, bankPos.getZ() + 8));
+            registry.registerBankPosition(villageId, bankPos);
+            bank.setVillageId(villageId);
+            bank.setGolemConstructionPos(constructionPos);
+            storage.setItem(0, new ItemStack(Items.EMERALD, 17));
+            storage.setItem(1, new ItemStack(Items.OAK_LOG, 2));
+            storage.setItem(2, new ItemStack(Items.PUMPKIN));
+            BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+
+            EmeraldGolem golem = com.orangevillager61.emeraldcapitalism.util.EntityCreation.create(
+                    ECAPEntityTypes.EMERALD_GOLEM.get(), level);
+            if (golem == null) {
+                progress.restore();
+                helper.fail("could not create the completed emerald golem fixture");
+                return;
+            }
+            golem.moveTo(bankPos.getX() + 2.5D, bankPos.getY(), bankPos.getZ() + 0.5D,
+                    0.0F, 0.0F);
+            level.addFreshEntity(golem);
+            bank.registerEmeraldGolemEmployee(golem.getUUID());
+
+            Villager smith = helper.spawn(EntityType.VILLAGER, 3, 1, 4);
+            smith.setVillagerData(smith.getVillagerData().setProfession(
+                    ECAPVillagerProfessions.EMERALDSMITH.get()));
+            smith.refreshBrain(level);
+            smith.setOnGround(true);
+            smith.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE,
+                    net.minecraft.core.GlobalPos.of(level.dimension(), processorPos));
+            EmeraldSmithGolemConstructionGoal goal = new EmeraldSmithGolemConstructionGoal(smith);
+            smith.goalSelector.removeAllGoals(ignored -> true);
+            smith.goalSelector.addGoal(0, goal);
+
+            helper.runAfterDelay(1, () -> awaitSkrimisherConstruction(
+                    helper, level, smith, goal, constructionPos, progress, before, 650));
+            helper.runAfterDelay(680, progress::restore);
+        } catch (RuntimeException | Error failure) {
+            progress.restore();
+            throw failure;
+        }
+    }
+
+    private static void awaitSkrimisherConstruction(
+            GameTestHelper helper, ServerLevel level, Villager smith,
+            EmeraldSmithGolemConstructionGoal goal, BlockPos constructionPos,
+            ConstructionJourneyProgress progress,
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before,
+            int remainingTicks) {
+        try {
+            List<EmeraldSkrimisher> spawned = level.getEntitiesOfClass(
+                    EmeraldSkrimisher.class, new AABB(constructionPos).inflate(3.0D));
+            if (!spawned.isEmpty()) {
+                Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
+                        PerformanceTimingCounters.snapshot();
+                helper.assertValueEqual(after.get(PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL)
+                                .calls() - before.get(PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL)
+                                .calls(), 1L,
+                        "processor leg did not complete exactly once before pathless construction");
+                helper.assertTrue(after.get(PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT)
+                                .calls() - before.get(PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT)
+                                .calls() > 0L,
+                        "scheduled smith journey did not use MoveToTargetSink path planning");
+                progress.restore();
+                helper.succeed();
+                return;
+            }
+            if (remainingTicks <= 0) {
+                progress.restore();
+                boolean running = smith.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(entry -> entry.getGoal() == goal && entry.isRunning());
+                helper.fail("scheduled emeraldsmith did not complete Skrimisher construction: pos="
+                        + smith.blockPosition() + ", running=" + running + ", canUse="
+                        + goal.canUse() + ", active="
+                        + MovementRequestManager.activeHandle(smith));
+                return;
+            }
+            helper.runAfterDelay(1, () -> awaitSkrimisherConstruction(
+                    helper, level, smith, goal, constructionPos,
+                    progress, before, remainingTicks - 1));
+        } catch (RuntimeException | Error failure) {
+            progress.restore();
+            throw failure;
+        }
+    }
+
+    private static final class ConstructionJourneyProgress {
+        private final PerformanceTimingCounters.EventCountingScope eventScope;
+        private boolean restored;
+
+        private ConstructionJourneyProgress(PerformanceTimingCounters.EventCountingScope eventScope) {
+            this.eventScope = eventScope;
+        }
+
+        private void restore() {
+            if (!restored) {
+                restored = true;
+                eventScope.close();
+            }
+        }
     }
 
     private static EmeraldSkrimisher create(GameTestHelper helper) {
