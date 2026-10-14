@@ -55,6 +55,9 @@ class MovementRequestLedgerTest {
                         1, "ambient", "ground", 10));
 
         assertEquals(MovementRequestLedger.Outcome.REJECTED_LOWER_PRIORITY, ambient.outcome());
+        assertEquals(null, ambient.handle());
+        assertTrue(ledger.owns(work));
+        assertFalse(ledger.clear(ambient.handle()));
         assertTrue(ledger.owns(work));
     }
 
@@ -71,6 +74,7 @@ class MovementRequestLedgerTest {
 
         assertEquals(MovementRequestLedger.Outcome.REJECTED_NOT_HIGHER_PRIORITY,
                 equalPriority.outcome());
+        assertEquals(null, equalPriority.handle());
         assertTrue(ledger.owns(work));
     }
 

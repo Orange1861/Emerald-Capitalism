@@ -2,12 +2,14 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.pathfinder.Path;
 import org.jetbrains.annotations.Nullable;
@@ -21,6 +23,8 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     private static final double STOP_DISTANCE_SQ = 9.0D;
     private static final double SPEED = 0.6D;
     private static final int PATH_NODE_MALUS = 1;
+    private static final long MIN_REPLAN_INTERVAL_TICKS = 10L;
+    private static final double MIN_REPLAN_DISTANCE_SQ = 4.0D;
     private static final long PATH_FAILURE_COOLDOWN = 100L;
 
     private final Villager mayor;
@@ -36,6 +40,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     private final VillagerMovementRequestBinding movement = new VillagerMovementRequestBinding();
     @Nullable
     private BlockPos lastRequestedCandidatePosition;
+    private long lastPathRequestTick = Long.MIN_VALUE;
 
     public MayorFollowGovernorCandidateGoal(Villager mayor) {
         this(mayor, null);
@@ -82,6 +87,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         pathingFailed = false;
         candidate = null;
         lastRequestedCandidatePosition = null;
+        lastPathRequestTick = Long.MIN_VALUE;
 
         if (!(mayor.level() instanceof ServerLevel level)) {
             pathingFailed = true;
@@ -99,7 +105,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
                 "[ECAP][MayorFollow] START mayor={} candidate={} mayorPos={} candidatePos={}",
                 mayor.getUUID(), resolvedCandidate.getUUID(), mayor.blockPosition(),
                 resolvedCandidate.blockPosition());
-        if (!tryPathToCandidate(level)) {
+        if (!tryPathToCandidate(level, true)) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP][MayorFollow] START path failed mayor={} candidate={} mayorPos={} candidatePos={}",
                     mayor.getUUID(), resolvedCandidate.getUUID(), mayor.blockPosition(),
@@ -123,6 +129,11 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         }
 
         candidate = resolvedCandidate;
+        if (mayor.getBrain().hasMemoryValue(
+                MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE)) {
+            markPathFailure(level, resolvedCandidate);
+            return false;
+        }
         return mayor.distanceToSqr(resolvedCandidate) > STOP_DISTANCE_SQ
                 && movement.isActive(mayor);
     }
@@ -139,9 +150,12 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
             return;
         }
 
+        BlockPos candidatePosition = candidate.blockPosition();
         boolean targetMoved = lastRequestedCandidatePosition == null
-                || !lastRequestedCandidatePosition.equals(candidate.blockPosition());
-        if ((mayor.getNavigation().isDone() || targetMoved) && !tryPathToCandidate(level)) {
+                || lastRequestedCandidatePosition.distSqr(candidatePosition) >= MIN_REPLAN_DISTANCE_SQ;
+        boolean intervalElapsed = level.getGameTime() >= lastPathRequestTick + MIN_REPLAN_INTERVAL_TICKS;
+        if (intervalElapsed && (mayor.getNavigation().isDone() || targetMoved)
+                && !tryPathToCandidate(level, false)) {
             markPathFailure(level, candidate);
         }
     }
@@ -153,6 +167,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         movement.cancel(mayor, true);
         candidate = null;
         lastRequestedCandidatePosition = null;
+        lastPathRequestTick = Long.MIN_VALUE;
         pathingFailed = false;
     }
 
@@ -195,19 +210,29 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         return resolved;
     }
 
-    private boolean tryPathToCandidate(ServerLevel level) {
+    private boolean tryPathToCandidate(ServerLevel level, boolean initialAdmission) {
         if (candidate == null || candidate.level() != level) {
             return false;
         }
 
-        // Preserve the old task-specific reachability gate. The request
-        // bridge owns execution only after the moving target has a usable
-        // route; an accepted memory alone is not evidence that following can
-        // continue.
-        Path path = mayor.getNavigation().createPath(candidate.blockPosition(), PATH_NODE_MALUS);
-        if (path == null || !path.canReach()) {
-            return false;
+        if (initialAdmission) {
+            // The synchronous start contract historically rejects an
+            // unreachable candidate before the goal reports itself as
+            // continuable. Moving-target retries below deliberately skip this
+            // preflight: the vanilla sink is the sole planner after admission
+            // and retries are rate-limited by time/distance.
+            Path admissionPath = mayor.getNavigation().createPath(
+                    candidate.blockPosition(), PATH_NODE_MALUS);
+            if (admissionPath == null || !admissionPath.canReach()) {
+                return false;
+            }
         }
+
+        // MoveToTargetSink is the route planner. Do not preflight with
+        // createPath here because that would plan the same moving-target route
+        // a second time. Failed sink attempts are retried on the bounded
+        // interval in tick().
+        boolean retry = lastRequestedCandidatePosition != null;
         boolean submitted = movement.submit(mayor, new MovementRequestSpec(
                 "emeraldcapitalism:mayor_follow_candidate",
                 "candidate:" + candidate.getUUID(),
@@ -220,6 +245,11 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
                 candidate.blockPosition()));
         if (submitted) {
             lastRequestedCandidatePosition = candidate.blockPosition().immutable();
+            lastPathRequestTick = level.getGameTime();
+            if (retry) {
+                PerformanceTimingCounters.recordEvent(
+                        PerformanceTimingCounters.Operation.MOVEMENT_RETRY);
+            }
         }
         return submitted;
     }

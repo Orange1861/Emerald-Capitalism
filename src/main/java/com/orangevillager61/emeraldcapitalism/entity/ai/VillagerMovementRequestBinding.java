@@ -12,12 +12,18 @@ public final class VillagerMovementRequestBinding {
 
     @Nullable
     private MovementRequestHandle handle;
+    @Nullable
+    private MovementRequestSpec cachedSpec;
 
     public boolean submit(Villager villager, MovementRequestSpec spec) {
+        if (cachedSpec != null && cachedSpec.equals(spec)) {
+            spec = cachedSpec;
+        }
         MovementRequestSubmission submission;
         if (handle != null) {
             if (!MovementRequestManager.isActive(villager, handle)) {
                 handle = null;
+                cachedSpec = null;
                 return false;
             }
             submission = MovementRequestManager.maintain(villager, handle, spec);
@@ -26,9 +32,11 @@ public final class VillagerMovementRequestBinding {
         }
         if (!submission.accepted()) {
             handle = null;
+            cachedSpec = null;
             return false;
         }
         handle = submission.handle();
+        cachedSpec = spec;
         return true;
     }
 
@@ -40,6 +48,7 @@ public final class VillagerMovementRequestBinding {
         if (handle != null) {
             MovementRequestManager.cancel(villager, handle, clearLookTarget);
             handle = null;
+            cachedSpec = null;
         }
     }
 

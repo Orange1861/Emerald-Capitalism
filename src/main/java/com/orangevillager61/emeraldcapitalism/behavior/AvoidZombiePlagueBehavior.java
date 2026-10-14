@@ -146,7 +146,7 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
                     : MovementRequestManager.maintain(villager, movementHandle, spec);
             if (submission.accepted()) {
                 movementHandle = submission.handle();
-                villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                MovementRequestManager.claimLookTarget(villager, movementHandle,
                         new EntityTracker(threat, true));
             } else {
                 movementHandle = null;

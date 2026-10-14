@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.util;
 
 import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -20,6 +21,12 @@ public final class PerformanceTimingCounters {
         MOVEMENT_REQUEST_REPLAN,
         MOVEMENT_REQUEST_PREEMPTION,
         MOVEMENT_REQUEST_REJECTION,
+        MOVEMENT_MANAGER_TIME,
+        BEHAVIOR_REGISTRY_TIME,
+        MOVEMENT_PATH_PLAN_ATTEMPT,
+        MOVEMENT_ARRIVAL,
+        MOVEMENT_RETRY,
+        MOVEMENT_ABANDONED,
         POI_DYNAMIC_REFRESH,
         BANK_CHEST_CACHE_REBUILD,
         BANK_INVENTORY_TOTAL_REFRESH
@@ -66,6 +73,23 @@ public final class PerformanceTimingCounters {
         Map<Operation, Snapshot> result = new EnumMap<>(Operation.class);
         COUNTERS.forEach((operation, counter) -> result.put(operation, counter.snapshot()));
         return Map.copyOf(result);
+    }
+
+    /** Returns a compact, log-friendly snapshot for server shutdown diagnostics. */
+    public static String formatSnapshot() {
+        StringBuilder result = new StringBuilder();
+        for (Operation operation : Operation.values()) {
+            Snapshot snapshot = COUNTERS.get(operation).snapshot();
+            if (result.length() > 0) {
+                result.append(' ');
+            }
+            result.append(operation.name().toLowerCase(Locale.ROOT))
+                    .append("{calls=").append(snapshot.calls())
+                    .append(",totalMs=")
+                    .append(String.format(Locale.ROOT, "%.3f", snapshot.totalNanos() / 1_000_000.0D))
+                    .append('}');
+        }
+        return result.toString();
     }
 
     public static void clear() {

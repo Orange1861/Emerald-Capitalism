@@ -79,18 +79,34 @@ snapshots for both supported targets. A faster run is not considered an
 improvement if it only abandons more work; successful task outcomes and retry
 counts are part of the comparison.
 
-The 2026-10-13 disposable-server snapshots were:
+The final-tree runs on 2026-10-13 used Java 21.0.9 (Eclipse Adoptium) with
+the project Gradle wrapper and these exact commands:
 
-- 1.21.1: 209 tests, 1.263 minutes; the new navigation regression and
-  extension journeys passed.
-- 1.21.4: 209 tests, 1.166 minutes; the same new journeys passed.
+```text
+.\gradlew test --no-daemon --no-configuration-cache --console=plain
+.\gradlew :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain
+.\gradlew :1.21.1:runGameTestServer --no-daemon --no-configuration-cache --console=plain
+.\gradlew :1.21.4:runGameTestServer --no-daemon --no-configuration-cache --console=plain
+git diff --check
+```
 
-These are workload smoke snapshots, not a controlled before/after benchmark:
-the repository has no stored baseline run or fixed hardware benchmark harness.
-Both runs reported the same two unrelated existing failures,
-`resourcescanincludesnearestemeraldprocessorinventory` and
-`emeraldskrimisherperiodicdepositrunsthroughrealgoalselector`; neither test
-touches the migrated villager movement bridge.
+The JVM suite passed (core tests plus both version test source sets). Both
+version compile tasks passed. Each GameTest server ran 211 tests: 210 passed
+and one unrelated required test failed, so the Gradle GameTest task exits 1.
+The repaired navigation and extension journeys passed on both versions.
+
+| Target | Runtime | Manager time | Registry time | Completed / abandoned | Retries | Replans | Preemptions | Rejections | Request plan attempts | Failure |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1.21.1 | 43.89 s | 140 calls / 5.395 ms | 215 calls / 2.232 ms | 8 / 5 | 10 | 7 | 2 | 2 | 24 | `resourcescanincludesnearestemeraldprocessorinventory` |
+| 1.21.4 | 39.25 s | 140 calls / 5.632 ms | 226 calls / 2.861 ms | 8 / 5 | 10 | 7 | 2 | 2 | 24 | `resourcescanincludesnearestemeraldprocessorinventory` |
+
+The counters are emitted in the server shutdown log and cover the complete
+disposable GameTest workload. “Request plan attempts” counts accepted logical
+movement-plan transitions; vanilla sink pathfinding remains the route planner.
+These are workload snapshots, not a controlled before/after benchmark: the
+repository has no stored baseline run or fixed hardware benchmark harness.
+The remaining failure is pre-existing resource-scan behavior and does not
+touch the migrated villager movement bridge.
 
 ### Likely cost relative to the pre-refactor code
 
@@ -102,25 +118,18 @@ potential-job-site assignment rather than an active migrated work journey.
 This should reduce competing route starts, stale-path cleanup, and repeated
 executor fights during active work.
 
-The steady-state cost is higher per active migrated task: each request tick now
-does a synchronized ownership lookup, creates request/spec objects, and
-compares a full intent. Matching block-position walk/look memories are now
-left in place instead of allocating replacement trackers every tick; meaningful
-target changes still stop the current route and make the vanilla sink plan
-again. Manual entity-look producers explicitly mark their look memory as owned
-so handoff cleanup does not leave stale focus behind. The registry is skipped
-entirely when no extension definitions are registered, and its shared priority
-ordering is cached; when active it still adds one synchronized per-villager
-binding check each server tick and a definition reconciliation every 20 ticks.
-
-Therefore the likely result is a small CPU/allocation regression for idle or
-lightly active villagers when extension definitions are enabled, a neutral to
-slightly positive result for normal work-heavy villages where the old code was
-fighting over navigation, and a possible pathfinding-cost increase for rapidly
-moving threats or targets. The existing counters expose submissions, replans,
-preemptions, and rejections, but not total per-tick manager/registry time; a
-controlled before/after multi-villager run is still required before claiming a
-numeric performance improvement.
+The steady-state path now keeps the immutable request spec in each movement
+binding and uses an allocation-light unchanged-intent maintenance path.
+Matching block-position walk/look memories are left in place instead of
+allocating replacement trackers every tick; meaningful target changes still
+stop only manager-owned executor state and let the vanilla sink plan again.
+Manual entity-look producers explicitly mark their look memory as owned so
+handoff cleanup does not leave stale focus behind. The registry is skipped
+entirely when no extension definitions are registered, its shared priority
+ordering is cached, and ordinary per-villager refresh/tick paths are not
+guarded by a JVM-wide monitor. The shutdown snapshot now exposes manager and
+registry time alongside completions, retries, replans, preemptions, rejections,
+and abandoned tasks for future controlled comparisons.
 
 ## Test layers
 

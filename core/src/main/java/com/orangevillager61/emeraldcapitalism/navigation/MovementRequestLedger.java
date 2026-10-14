@@ -31,16 +31,26 @@ public final class MovementRequestLedger {
     public record Submission(Outcome outcome, Handle handle) {
         public Submission {
             Objects.requireNonNull(outcome, "outcome");
-            Objects.requireNonNull(handle, "handle");
+            if (isRejected(outcome)) {
+                if (handle != null) {
+                    throw new IllegalArgumentException("rejected submissions must not carry a handle");
+                }
+            } else {
+                Objects.requireNonNull(handle, "accepted submissions require a handle");
+            }
         }
 
         public boolean accepted() {
-            return outcome != Outcome.REJECTED_LOWER_PRIORITY
-                    && outcome != Outcome.REJECTED_NOT_HIGHER_PRIORITY;
+            return !isRejected(outcome);
         }
 
         public boolean changed() {
             return accepted() && outcome != Outcome.UNCHANGED;
+        }
+
+        private static boolean isRejected(Outcome outcome) {
+            return outcome == Outcome.REJECTED_LOWER_PRIORITY
+                    || outcome == Outcome.REJECTED_NOT_HIGHER_PRIORITY;
         }
     }
 
@@ -60,7 +70,7 @@ public final class MovementRequestLedger {
             Outcome outcome = intent.priority() < activeIntent.priority()
                     ? Outcome.REJECTED_LOWER_PRIORITY
                     : Outcome.REJECTED_NOT_HIGHER_PRIORITY;
-            return new Submission(outcome, activeHandle);
+            return new Submission(outcome, null);
         }
 
         Outcome outcome = activeIntent == null

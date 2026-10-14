@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.behavior;
 
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.world.entity.npc.Villager;
 
 import java.util.ArrayList;
@@ -48,11 +49,12 @@ public final class VillagerBehaviorRegistry {
                 : new ArrayList<>(BINDINGS.entrySet())) {
             Villager villager = entry.getKey();
             Map<String, Binding> bindings = entry.getValue();
-            if (bindings.remove(definition.id()) != null) {
+            Binding binding = bindings.remove(definition.id());
+            if (binding != null) {
                 // Replacing a live definition is a lifecycle transition, not
                 // a map overwrite. Give the old definition a chance to stop
                 // external work before the next refresh starts the new one.
-                if (previous != null) {
+                if (previous != null && !binding.canceled) {
                     previous.lifecycle().cancel(villager);
                 }
             }
@@ -71,14 +73,20 @@ public final class VillagerBehaviorRegistry {
             Villager villager = entry.getKey();
             Map<String, Binding> bindings = entry.getValue();
             Binding binding = bindings.remove(id);
-            if (binding != null) {
+            if (binding != null && !binding.canceled) {
                 definition.lifecycle().cancel(villager);
             }
         }
     }
 
     /** Reconciles the definitions with current profession/config eligibility. */
-    public static synchronized void refresh(Villager villager) {
+    public static void refresh(Villager villager) {
+        PerformanceTimingCounters.measure(
+                PerformanceTimingCounters.Operation.BEHAVIOR_REGISTRY_TIME,
+                () -> refreshInternal(villager));
+    }
+
+    private static void refreshInternal(Villager villager) {
         Objects.requireNonNull(villager, "villager");
         Map<String, Binding> bindings = BINDINGS.computeIfAbsent(villager, ignored -> new LinkedHashMap<>());
         List<VillagerBehaviorDefinition> definitions = orderedDefinitions;
@@ -98,20 +106,30 @@ public final class VillagerBehaviorRegistry {
             Binding current = bindings.get(definition.id());
             if (!eligible) {
                 if (current != null) {
-                    removeBinding(villager, bindings, definition, current);
+                    if (current.canceled) {
+                        bindings.remove(definition.id(), current);
+                    } else {
+                        removeBinding(villager, bindings, definition, current);
+                    }
                 }
                 continue;
             }
             if (current == null) {
                 activate(villager, bindings, definition);
-            } else if (current.suspended) {
+            } else if (!current.canceled && current.suspended) {
                 resumeIfAvailable(villager, bindings, definition, current);
             }
         }
     }
 
     /** Advances bound behaviors without exposing registry-owned binding state. */
-    public static synchronized void tick(Villager villager) {
+    public static void tick(Villager villager) {
+        PerformanceTimingCounters.measure(
+                PerformanceTimingCounters.Operation.BEHAVIOR_REGISTRY_TIME,
+                () -> tickInternal(villager));
+    }
+
+    private static void tickInternal(Villager villager) {
         Map<String, Binding> bindings = BINDINGS.get(villager);
         if (bindings == null || bindings.isEmpty()) {
             return;
@@ -119,7 +137,8 @@ public final class VillagerBehaviorRegistry {
         for (String id : List.copyOf(bindings.keySet())) {
             VillagerBehaviorDefinition definition = DEFINITIONS.get(id);
             Binding binding = bindings.get(id);
-            if (definition != null && binding != null && !binding.suspended) {
+            if (definition != null && binding != null
+                    && !binding.suspended && !binding.canceled) {
                 definition.lifecycle().tick(villager);
             }
         }
@@ -130,7 +149,7 @@ public final class VillagerBehaviorRegistry {
         Map<String, Binding> bindings = BINDINGS.get(villager);
         VillagerBehaviorDefinition definition = DEFINITIONS.get(id);
         Binding binding = bindings == null ? null : bindings.remove(id);
-        if (binding == null || definition == null) {
+        if (binding == null || definition == null || binding.canceled) {
             return false;
         }
         definition.lifecycle().finish(villager);
@@ -152,13 +171,23 @@ public final class VillagerBehaviorRegistry {
 
     public static synchronized int bindingCount(Villager villager) {
         Map<String, Binding> bindings = BINDINGS.get(villager);
-        return bindings == null ? 0 : bindings.size();
+        if (bindings == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Binding binding : bindings.values()) {
+            if (!binding.canceled) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** Returns whether one specific definition is bound, without exposing mutable state. */
     public static synchronized boolean isBound(Villager villager, String id) {
         Map<String, Binding> bindings = BINDINGS.get(villager);
-        return bindings != null && bindings.containsKey(id);
+        Binding binding = bindings == null ? null : bindings.get(id);
+        return binding != null && !binding.canceled;
     }
 
     public static synchronized void release(Villager villager) {
@@ -166,7 +195,8 @@ public final class VillagerBehaviorRegistry {
         if (bindings != null) {
             for (String id : new ArrayList<>(bindings.keySet())) {
                 VillagerBehaviorDefinition definition = DEFINITIONS.get(id);
-                if (definition != null) {
+                Binding binding = bindings.get(id);
+                if (definition != null && binding != null && !binding.canceled) {
                     definition.lifecycle().cancel(villager);
                 }
             }
@@ -189,7 +219,7 @@ public final class VillagerBehaviorRegistry {
             Villager villager = entry.getKey();
             for (String id : new ArrayList<>(entry.getValue().keySet())) {
                 VillagerBehaviorDefinition definition = DEFINITIONS.get(id);
-                if (definition != null) {
+                if (definition != null && !entry.getValue().get(id).canceled) {
                     definition.lifecycle().cancel(villager);
                 }
             }
@@ -216,13 +246,22 @@ public final class VillagerBehaviorRegistry {
             if (existing == null) {
                 continue;
             }
-            if (existing.interruptionPolicy()
-                    == VillagerBehaviorDefinition.InterruptionPolicy.RESUME_IF_ELIGIBLE) {
-                conflict.suspended = true;
-                suspended.add(existing.lifecycle());
-            } else {
-                bindings.remove(conflict.id);
-                canceled.add(existing.lifecycle());
+            switch (existing.interruptionPolicy()) {
+                case RESUME_IF_ELIGIBLE -> {
+                    conflict.suspended = true;
+                    suspended.add(existing.lifecycle());
+                }
+                case RESTART -> {
+                    bindings.remove(conflict.id);
+                    canceled.add(existing.lifecycle());
+                }
+                case CANCEL -> {
+                    // CANCEL is sticky while eligibility remains true. It
+                    // will not spring back merely because the preemptor is
+                    // removed; the definition must become ineligible first.
+                    conflict.canceled = true;
+                    canceled.add(existing.lifecycle());
+                }
             }
         }
 
@@ -251,7 +290,7 @@ public final class VillagerBehaviorRegistry {
                                       Map<String, Binding> bindings,
                                       VillagerBehaviorDefinition definition,
                                       Binding binding) {
-        if (bindings.remove(definition.id(), binding)) {
+        if (bindings.remove(definition.id(), binding) && !binding.canceled) {
             definition.lifecycle().cancel(villager);
         }
     }
@@ -260,7 +299,7 @@ public final class VillagerBehaviorRegistry {
                                                  VillagerBehaviorDefinition definition) {
         List<Binding> conflicts = new ArrayList<>();
         for (Binding binding : new ArrayList<>(bindings.values())) {
-            if (binding.suspended) {
+            if (binding.suspended || binding.canceled) {
                 continue;
             }
             VillagerBehaviorDefinition existing = DEFINITIONS.get(binding.id);
@@ -286,6 +325,7 @@ public final class VillagerBehaviorRegistry {
     private static final class Binding {
         private final String id;
         private boolean suspended;
+        private boolean canceled;
 
         private Binding(String id, boolean suspended) {
             this.id = id;

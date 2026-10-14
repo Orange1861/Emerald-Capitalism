@@ -51,6 +51,9 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     @Nullable
     private Villager lookTargetDonor;
 
+    @Nullable
+    private EntityTracker ownedLookTarget;
+
     public BegForFoodBehavior() {
         super(
             Map.of(
@@ -165,10 +168,11 @@ public class BegForFoodBehavior extends Behavior<Villager> {
                     .filter(EntityTracker.class::isInstance)
                     .map(EntityTracker.class::cast)
                     .orElse(null);
-            if (current != null && current.getEntity() == lookTargetDonor) {
+            if (current == ownedLookTarget) {
                 villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
             }
             lookTargetDonor = null;
+            ownedLookTarget = null;
         }
     }
 
@@ -221,9 +225,13 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     }
 
     private void setDonorLookTarget(Villager villager, Villager donorVillager) {
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
-                new EntityTracker(donorVillager, true));
+        EntityTracker tracker = new EntityTracker(donorVillager, true);
+        if (movementHandle == null
+                || !MovementRequestManager.claimLookTarget(villager, movementHandle, tracker)) {
+            villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, tracker);
+        }
         lookTargetDonor = donorVillager;
+        ownedLookTarget = tracker;
     }
 
     /** Resolves a visible nearby donor within the configured search radius. */

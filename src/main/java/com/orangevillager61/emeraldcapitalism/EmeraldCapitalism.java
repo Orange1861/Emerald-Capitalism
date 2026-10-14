@@ -108,6 +108,7 @@ public class EmeraldCapitalism {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
+        LOGGER.info("[ECAP][Performance] {}", PerformanceTimingCounters.formatSnapshot());
         clearServerSessionState();
     }
 

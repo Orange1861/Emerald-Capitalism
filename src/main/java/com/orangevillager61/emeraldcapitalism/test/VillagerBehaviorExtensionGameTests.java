@@ -15,6 +15,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.behavior.BlockPosTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.level.block.Blocks;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /** Proves that a test-only behavior can use the extension API without central changes. */
 @GameTestHolder("emeraldcapitalism")
@@ -103,6 +105,11 @@ public final class VillagerBehaviorExtensionGameTests {
         VillagerBehaviorRegistry.remove(TEST_ID);
         VillagerBehaviorRegistry.register(TEST_DEFINITION);
         VillagerBehaviorRegistry.refresh(villager);
+        helper.runAfterDelay(499, () -> {
+            VillagerBehaviorRegistry.remove(TEST_ID);
+            HANDLES.remove(villager);
+            DESTINATIONS.remove(villager);
+        });
         helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, TEST_ID),
                 "test behavior did not bind exactly once");
 
@@ -126,6 +133,26 @@ public final class VillagerBehaviorExtensionGameTests {
         MovementRequestSubmission first = MovementRequestManager.submit(villager,
                 spec("contract-owner", "same-target", origin, 0.5F,
                         MovementRequestManager.PRIORITY_WORK));
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        MovementRequestSubmission recovered = MovementRequestManager.maintain(
+                villager, first.handle(),
+                spec("contract-owner", "same-target", origin, 0.5F,
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(recovered.accepted() && recovered.handle().equals(first.handle())
+                        && villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET),
+                "unchanged maintenance did not recover a missing WALK_TARGET");
+        WalkTarget foreignWalk = new WalkTarget(new BlockPosTracker(origin.offset(0, 0, 1)),
+                0.4F, 0);
+        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, foreignWalk);
+        MovementRequestSubmission recoveredForeign = MovementRequestManager.maintain(
+                villager, recovered.handle(),
+                spec("contract-owner", "same-target", origin, 0.5F,
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(recoveredForeign.accepted()
+                        && recoveredForeign.handle().equals(first.handle())
+                        && villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                        != foreignWalk,
+                "unchanged maintenance did not recover a foreign WALK_TARGET drift");
         MovementRequestSubmission speedChange = MovementRequestManager.submit(villager,
                 spec("contract-owner", "same-target", origin, 0.8F,
                         MovementRequestManager.PRIORITY_WORK));
@@ -159,6 +186,16 @@ public final class VillagerBehaviorExtensionGameTests {
         helper.assertTrue(nearbyChange.handle().generation() > speedChange.handle().generation(),
                 "nearby destination identity change did not advance the request generation");
 
+        MovementRequestSubmission rejected = MovementRequestManager.submit(villager,
+                spec("contract-lower", "rejected", origin, 0.4F,
+                        MovementRequestManager.PRIORITY_AMBIENT));
+        helper.assertTrue(!rejected.accepted() && rejected.handle() == null,
+                "rejected request exposed a usable owner handle");
+        helper.assertFalse(MovementRequestManager.cancel(villager, rejected.handle(), false),
+                "rejected request canceled the active owner");
+        helper.assertTrue(MovementRequestManager.isActive(villager, nearbyChange.handle()),
+                "rejected request displaced the active owner");
+
         MovementRequestSubmission threat = MovementRequestManager.submit(villager,
                 spec("contract-threat", "same-position-threat", origin, 1.3F,
                         MovementRequestManager.PRIORITY_ESCAPE));
@@ -179,15 +216,98 @@ public final class VillagerBehaviorExtensionGameTests {
                 new MovementRequestSpec("manual-look-owner", "same-position", origin, 0.8F, 0,
                         "test-arrival-v1", "ground-ladder-v1",
                         MovementRequestManager.PRIORITY_WORK, null, true));
-        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
-                new BlockPosTracker(origin));
+        helper.assertTrue(MovementRequestManager.claimLookTarget(villager, manualLookOwner.handle(),
+                        new BlockPosTracker(origin)),
+                "ownership-aware manual look claim failed");
         MovementRequestSubmission manualLookHandoff = MovementRequestManager.submit(villager,
                 spec("manual-look-handoff", "same-position", origin, 0.8F,
                         MovementRequestManager.PRIORITY_ESCAPE));
         helper.assertTrue(manualLookOwner.accepted() && manualLookHandoff.accepted()
                         && !villager.getBrain().hasMemoryValue(MemoryModuleType.LOOK_TARGET),
                 "manual look-target ownership was not cleared during handoff");
+        helper.assertTrue(MovementRequestManager.cancel(villager, manualLookHandoff.handle(), false),
+                "manual look handoff owner did not cancel");
+
+        MovementRequestSubmission foreignCleanupOwner = MovementRequestManager.submit(villager,
+                spec("foreign-cleanup-owner", "foreign-cleanup", origin, 0.8F,
+                        MovementRequestManager.PRIORITY_WORK));
+        WalkTarget foreignWalkAfterSubmit = new WalkTarget(
+                new BlockPosTracker(origin.offset(0, 0, 1)), 0.4F, 0);
+        BlockPosTracker foreignLookAfterSubmit = new BlockPosTracker(origin.offset(0, 0, 1));
+        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, foreignWalkAfterSubmit);
+        villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, foreignLookAfterSubmit);
+        helper.assertTrue(MovementRequestManager.cancel(villager, foreignCleanupOwner.handle(), true),
+                "foreign-state cleanup owner did not cancel");
+        helper.assertTrue(villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                        == foreignWalkAfterSubmit
+                        && villager.getBrain().getMemory(MemoryModuleType.LOOK_TARGET).orElse(null)
+                        == foreignLookAfterSubmit,
+                "stale cleanup erased foreign brain memories");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3", batch = "ecap_navigation_regressions")
+    public static void behaviorRegistryDistinguishesRestartAndCancel(GameTestHelper helper) {
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        String restartId = "emeraldcapitalism:test_restart_policy";
+        String restartHighId = "emeraldcapitalism:test_restart_high";
+        String cancelId = "emeraldcapitalism:test_cancel_policy";
+        String cancelHighId = "emeraldcapitalism:test_cancel_high";
+        AtomicInteger restartStarts = new AtomicInteger();
+        AtomicInteger restartCancels = new AtomicInteger();
+        AtomicInteger cancelStarts = new AtomicInteger();
+        AtomicInteger cancelCancels = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicBoolean cancelEligible =
+                new java.util.concurrent.atomic.AtomicBoolean(true);
+        try {
+            VillagerBehaviorDefinition restart = definition(restartId, 10,
+                    VillagerBehaviorDefinition.InterruptionPolicy.RESTART,
+                    ignored -> restartStarts.incrementAndGet(),
+                    ignored -> restartCancels.incrementAndGet());
+            VillagerBehaviorDefinition restartHigh = definition(restartHighId, 100,
+                    VillagerBehaviorDefinition.InterruptionPolicy.CANCEL,
+                    ignored -> {}, ignored -> {});
+            VillagerBehaviorDefinition cancel = new VillagerBehaviorDefinition(
+                    cancelId, 20, ignored -> cancelEligible.get(), EnumSet.of(Goal.Flag.LOOK),
+                    Set.of(MemoryModuleType.LOOK_TARGET),
+                    VillagerBehaviorDefinition.InterruptionPolicy.CANCEL,
+                    lifecycle(ignored -> cancelStarts.incrementAndGet(),
+                            ignored -> cancelCancels.incrementAndGet()));
+            VillagerBehaviorDefinition cancelHigh = definition(cancelHighId, 110,
+                    VillagerBehaviorDefinition.InterruptionPolicy.CANCEL,
+                    ignored -> {}, ignored -> {});
+
+            VillagerBehaviorRegistry.register(restart);
+            VillagerBehaviorRegistry.refresh(villager);
+            VillagerBehaviorRegistry.register(restartHigh);
+            VillagerBehaviorRegistry.refresh(villager);
+            VillagerBehaviorRegistry.remove(restartHighId);
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(restartStarts.get() == 2 && restartCancels.get() == 1,
+                    "RESTART did not create a fresh eligible lifecycle after interruption");
+
+            VillagerBehaviorRegistry.register(cancel);
+            VillagerBehaviorRegistry.refresh(villager);
+            VillagerBehaviorRegistry.register(cancelHigh);
+            VillagerBehaviorRegistry.refresh(villager);
+            VillagerBehaviorRegistry.remove(cancelHighId);
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(cancelStarts.get() == 1 && cancelCancels.get() == 1
+                            && !VillagerBehaviorRegistry.isBound(villager, cancelId),
+                    "CANCEL unexpectedly resumed while eligibility remained true");
+            cancelEligible.set(false);
+            VillagerBehaviorRegistry.refresh(villager);
+            cancelEligible.set(true);
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(cancelStarts.get() == 2,
+                    "CANCEL did not become eligible for a later fresh start");
+            helper.succeed();
+        } finally {
+            VillagerBehaviorRegistry.remove(restartHighId);
+            VillagerBehaviorRegistry.remove(restartId);
+            VillagerBehaviorRegistry.remove(cancelHighId);
+            VillagerBehaviorRegistry.remove(cancelId);
+        }
     }
 
     @GameTest(template = "empty_3x3x3", batch = "ecap_navigation_regressions")
@@ -220,31 +340,58 @@ public final class VillagerBehaviorExtensionGameTests {
                 highId, MovementRequestManager.PRIORITY_ESCAPE, ignored -> true,
                 EnumSet.of(Goal.Flag.MOVE), Set.of(MemoryModuleType.WALK_TARGET),
                 VillagerBehaviorDefinition.InterruptionPolicy.CANCEL,
-                new VillagerBehaviorLifecycle());
+                new VillagerBehaviorLifecycle() {});
 
-        VillagerBehaviorRegistry.register(low);
-        VillagerBehaviorRegistry.refresh(villager);
-        helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, lowId),
-                "low-priority behavior did not bind initially");
+        try {
+            VillagerBehaviorRegistry.register(low);
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, lowId),
+                    "low-priority behavior did not bind initially");
 
-        VillagerBehaviorRegistry.register(high);
-        VillagerBehaviorRegistry.refresh(villager);
-        helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, highId)
-                        && VillagerBehaviorRegistry.isBound(villager, lowId)
-                        && suspends.get() == 1,
-                "higher-priority conflicting behavior did not suspend the lower owner");
+            VillagerBehaviorRegistry.register(high);
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, highId)
+                            && VillagerBehaviorRegistry.isBound(villager, lowId)
+                            && suspends.get() == 1,
+                    "higher-priority conflicting behavior did not suspend the lower owner");
 
-        VillagerBehaviorRegistry.remove(highId);
-        VillagerBehaviorRegistry.refresh(villager);
-        helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, lowId)
-                        && resumes.get() == 1,
-                "suspended behavior did not resume after its conflict was removed");
-        helper.assertTrue(VillagerBehaviorRegistry.finish(villager, lowId),
-                "behavior finish did not release its binding");
-        helper.assertFalse(VillagerBehaviorRegistry.isBound(villager, lowId),
-                "finished behavior left a binding behind");
-        VillagerBehaviorRegistry.remove(lowId);
-        helper.succeed();
+            VillagerBehaviorRegistry.remove(highId);
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(VillagerBehaviorRegistry.isBound(villager, lowId)
+                            && resumes.get() == 1,
+                    "suspended behavior did not resume after its conflict was removed");
+            helper.assertTrue(VillagerBehaviorRegistry.finish(villager, lowId),
+                    "behavior finish did not release its binding");
+            helper.assertFalse(VillagerBehaviorRegistry.isBound(villager, lowId),
+                    "finished behavior left a binding behind");
+            helper.succeed();
+        } finally {
+            VillagerBehaviorRegistry.remove(highId);
+            VillagerBehaviorRegistry.remove(lowId);
+        }
+    }
+
+    private static VillagerBehaviorDefinition definition(
+            String id, int priority, VillagerBehaviorDefinition.InterruptionPolicy policy,
+            Consumer<Villager> start, Consumer<Villager> cancel) {
+        return new VillagerBehaviorDefinition(
+                id, priority, ignored -> true, EnumSet.of(Goal.Flag.LOOK),
+                Set.of(MemoryModuleType.LOOK_TARGET), policy, lifecycle(start, cancel));
+    }
+
+    private static VillagerBehaviorLifecycle lifecycle(Consumer<Villager> start,
+                                                        Consumer<Villager> cancel) {
+        return new VillagerBehaviorLifecycle() {
+            @Override
+            public void start(Villager villager) {
+                start.accept(villager);
+            }
+
+            @Override
+            public void cancel(Villager villager) {
+                cancel.accept(villager);
+            }
+        };
     }
 
     private static void awaitArrival(GameTestHelper helper, Villager villager,
