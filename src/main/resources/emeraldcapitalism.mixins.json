@@ -18,6 +18,7 @@
     "WalkNodeOpenablesMixin",
     "WalkNodeLadderMixin",
     "MobMeleeReachMixin",
+    "MoveToTargetSinkMixin",
     "ZombieDoorBreakingMixin",
     "ZombieVillagerConversionMixin"
   ],

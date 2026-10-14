@@ -161,7 +161,7 @@ public class BegForFoodBehavior extends Behavior<Villager> {
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         VillagerStatsAttachment stats = villager.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
         stats.resetBeggingState();
-        MovementRequestManager.cancel(villager, movementHandle, true);
+        MovementRequestManager.cancel(villager, movementHandle);
         movementHandle = null;
         if (lookTargetDonor != null) {
             EntityTracker current = villager.getBrain().getMemory(MemoryModuleType.LOOK_TARGET)
@@ -207,8 +207,7 @@ public class BegForFoodBehavior extends Behavior<Villager> {
                 "social-interaction-v1",
                 "ground-ladder-v1",
                 MovementRequestManager.PRIORITY_AMBIENT,
-                null,
-                true);
+                null);
         if (movementHandle != null) {
             if (!MovementRequestManager.isActive(villager, movementHandle)) {
                 movementHandle = null;

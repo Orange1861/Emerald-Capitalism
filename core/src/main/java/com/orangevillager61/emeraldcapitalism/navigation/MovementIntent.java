@@ -21,22 +21,13 @@ public record MovementIntent(
         String traversalPolicy,
         int priority,
         boolean hasLookTarget,
-        long lookTarget,
-        boolean clearLookTargetOnHandoff) {
+        long lookTarget) {
 
     public MovementIntent(String owner, String destinationIdentity, long destination,
                           int speedBits, int closeEnough, String arrivalPolicy,
                           String traversalPolicy, int priority) {
         this(owner, destinationIdentity, destination, speedBits, closeEnough,
-                arrivalPolicy, traversalPolicy, priority, false, 0L, false);
-    }
-
-    public MovementIntent(String owner, String destinationIdentity, long destination,
-                          int speedBits, int closeEnough, String arrivalPolicy,
-                          String traversalPolicy, int priority, boolean hasLookTarget,
-                          long lookTarget) {
-        this(owner, destinationIdentity, destination, speedBits, closeEnough,
-                arrivalPolicy, traversalPolicy, priority, hasLookTarget, lookTarget, false);
+                arrivalPolicy, traversalPolicy, priority, false, 0L);
     }
 
     public MovementIntent {

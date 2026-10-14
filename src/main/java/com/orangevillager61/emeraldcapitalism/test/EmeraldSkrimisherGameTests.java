@@ -225,8 +225,8 @@ public final class EmeraldSkrimisherGameTests {
         UUID villageId = UUID.randomUUID();
         VillageRegistryData registry = VillageRegistryData.get(level);
         var village = registry.getOrCreateVillage(villageId, bankPos, new AABB(
-                bankPos.getX() - 10, bankPos.getY() - 2, bankPos.getZ() - 10,
-                bankPos.getX() + 10, bankPos.getY() + 2, bankPos.getZ() + 10));
+                bankPos.getX() - 8, bankPos.getY() - 2, bankPos.getZ() - 8,
+                bankPos.getX() + 8, bankPos.getY() + 2, bankPos.getZ() + 8));
         registry.registerBankPosition(villageId, bankPos);
         bank.setVillageId(villageId);
         BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);

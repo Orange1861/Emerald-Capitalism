@@ -21,21 +21,7 @@ public record MovementRequestSpec(
         String arrivalPolicy,
         String traversalPolicy,
         int priority,
-        @Nullable BlockPos lookTarget,
-        boolean clearLookTargetOnHandoff) {
-
-    public MovementRequestSpec(String owner,
-                               String destinationIdentity,
-                               BlockPos destination,
-                               float speedModifier,
-                               int closeEnough,
-                               String arrivalPolicy,
-                               String traversalPolicy,
-                               int priority,
-                               @Nullable BlockPos lookTarget) {
-        this(owner, destinationIdentity, destination, speedModifier, closeEnough,
-                arrivalPolicy, traversalPolicy, priority, lookTarget, false);
-    }
+        @Nullable BlockPos lookTarget) {
 
     public MovementRequestSpec {
         owner = requireText(owner, "owner");

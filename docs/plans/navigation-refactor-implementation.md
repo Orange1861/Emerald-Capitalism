@@ -70,9 +70,11 @@ task rather than in the movement manager.
 Set the JVM property `emeraldcapitalism.navigationDiagnostics=true` for
 opt-in transition, cleanup, and route-generation logs. The counters in
 `PerformanceTimingCounters` record request submissions, replans, preemptions,
-rejections, and existing expensive searches without logging every tick.
-Planning helpers retain bounded candidate attempts and do not force-load
-chunks.
+rejections, terminal outcomes, and expensive searches without logging every
+tick. Detailed `nanoTime` measurements can be disabled with
+`-Demeraldcapitalism.performanceTimingDisabled=true`; event counters remain
+available when timing is enabled. Planning helpers retain bounded candidate
+attempts and do not force-load chunks.
 
 The final verification report must include equivalent multi-mob workload
 snapshots for both supported targets. A faster run is not considered an
@@ -91,22 +93,34 @@ git diff --check
 ```
 
 The JVM suite passed (core tests plus both version test source sets). Both
-version compile tasks passed. Each GameTest server ran 211 tests: 210 passed
-and one unrelated required test failed, so the Gradle GameTest task exits 1.
-The repaired navigation and extension journeys passed on both versions.
+version compile tasks passed. The final-tree GameTest runs had 216 tests per
+target; all new registry, movement-ownership, stale-memory, preemption,
+look-ownership, and Mayor-follow tests passed on both targets. The named
+Skrimisher periodic-deposit regression also passed after tightening its test
+village AABB so bounded wandering cannot enter the surrounding stone wall.
 
-| Target | Runtime | Manager time | Registry time | Completed / abandoned | Retries | Replans | Preemptions | Rejections | Request plan attempts | Failure |
+| Target | GameTest runtime | Manager time (calls / total / avg / max) | Registry time (calls / total / avg / max) | Arrived / abandoned | Retries | Replans | Preemptions | Rejections | Sink path-plan attempts (success / failure) | Remaining failures |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1.21.1 | 43.89 s | 140 calls / 5.395 ms | 215 calls / 2.232 ms | 8 / 5 | 10 | 7 | 2 | 2 | 24 | `resourcescanincludesnearestemeraldprocessorinventory` |
-| 1.21.4 | 39.25 s | 140 calls / 5.632 ms | 226 calls / 2.861 ms | 8 / 5 | 10 | 7 | 2 | 2 | 24 | `resourcescanincludesnearestemeraldprocessorinventory` |
+| 1.21.1 | 60.6 s | 232 / 10.854 / 0.047 / 4.769 ms | 205 / 2.365 / 0.012 / 0.358 ms | 4 / 15 | 19 | 8 | 3 | 2 | 30 (19 / 11) | `resourcescanincludesnearestemeraldprocessorinventory`; one non-required `emeraldskrimisherusesgolemassistedjumpattack` flake in this run |
+| 1.21.4 | 49.61 s | 229 / 9.544 / 0.042 / 4.222 ms | 217 / 2.096 / 0.010 / 0.347 ms | 4 / 15 | 15 | 8 | 3 | 2 | 26 (14 / 12) | `resourcescanincludesnearestemeraldprocessorinventory` |
 
-The counters are emitted in the server shutdown log and cover the complete
-disposable GameTest workload. “Request plan attempts” counts accepted logical
-movement-plan transitions; vanilla sink pathfinding remains the route planner.
-These are workload snapshots, not a controlled before/after benchmark: the
-repository has no stored baseline run or fixed hardware benchmark harness.
-The remaining failure is pre-existing resource-scan behavior and does not
-touch the migrated villager movement bridge.
+The counters are emitted in the server shutdown log. Logical submissions,
+replans, and retries are separate from actual `MoveToTargetSink` path-plan
+attempts, which are recorded by the sink mixin. No allocation profiler was run,
+so allocation totals are not claimed. The remaining resource-scan failure is
+also present on the parent baseline and does not touch the migrated villager
+movement bridge. The one-shot 1.21.1 jump-attack failure is unrelated to this
+change set; the parent 1.21.1 run passed it and the failure was not among the
+required navigation regressions.
+
+For the controlled comparison, commit `94e102e3` was run on the same Windows
+host and Java 21.0.9 toolchain for both targets. It ran 210 tests, with only
+`resourcescanincludesnearestemeraldprocessorinventory` failing on each target.
+Its server completion times were 4.884 s (1.21.1) and 5.151 s (1.21.4), but
+the parent does not contain the six new long-running regression tests and does
+not emit the new movement counters. Those runs therefore establish the
+baseline failure set, not a valid performance-improvement claim; allocation
+counts remain unmeasured.
 
 ### Likely cost relative to the pre-refactor code
 

@@ -228,7 +228,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
             attemptTicks = 0;
             attempts = 0;
             nextPlacementTick = level.getGameTime();
-            movement.cancel(villager, true);
+            movement.cancel(villager);
             EmeraldCapitalism.LOGGER.debug(
                     "[EmeraldsmithGolem] STAGE villager={} carved pumpkin at processor={}; constructing at marker={}",
                     villager.getName().getString(), context.processorPos(), context.constructionPos());
@@ -251,7 +251,9 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, true);
+        movement.cancel(villager, finished
+                ? MovementRequestTerminationReason.ARRIVED
+                : MovementRequestTerminationReason.ABANDONED);
 
         if (villager.level() instanceof ServerLevel level && context != null) {
             if (!finished) {

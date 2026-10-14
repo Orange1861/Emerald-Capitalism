@@ -45,7 +45,7 @@ public final class VillagerBehaviorExtensionGameTests {
 
         @Override
         public void cancel(Villager villager) {
-            MovementRequestManager.cancel(villager, HANDLES.remove(villager), false);
+            MovementRequestManager.cancel(villager, HANDLES.remove(villager));
             DESTINATIONS.remove(villager);
         }
 
@@ -191,7 +191,7 @@ public final class VillagerBehaviorExtensionGameTests {
                         MovementRequestManager.PRIORITY_AMBIENT));
         helper.assertTrue(!rejected.accepted() && rejected.handle() == null,
                 "rejected request exposed a usable owner handle");
-        helper.assertFalse(MovementRequestManager.cancel(villager, rejected.handle(), false),
+        helper.assertFalse(MovementRequestManager.cancel(villager, rejected.handle()),
                 "rejected request canceled the active owner");
         helper.assertTrue(MovementRequestManager.isActive(villager, nearbyChange.handle()),
                 "rejected request displaced the active owner");
@@ -205,17 +205,17 @@ public final class VillagerBehaviorExtensionGameTests {
                         MovementRequestManager.PRIORITY_WORK));
         helper.assertFalse(staleMaintenance.accepted(),
                 "stale maintenance reclaimed a newer threat request");
-        helper.assertTrue(!MovementRequestManager.cancel(villager, nearbyChange.handle(), false),
+        helper.assertTrue(!MovementRequestManager.cancel(villager, nearbyChange.handle()),
                 "stale task cleanup canceled a newer threat request");
         helper.assertTrue(MovementRequestManager.isActive(villager, threat.handle()),
                 "newer threat request was not retained after stale cleanup");
-        helper.assertTrue(MovementRequestManager.cancel(villager, threat.handle(), false),
+        helper.assertTrue(MovementRequestManager.cancel(villager, threat.handle()),
                 "current threat request did not clean up through its owner token");
 
         MovementRequestSubmission manualLookOwner = MovementRequestManager.submit(villager,
                 new MovementRequestSpec("manual-look-owner", "same-position", origin, 0.8F, 0,
                         "test-arrival-v1", "ground-ladder-v1",
-                        MovementRequestManager.PRIORITY_WORK, null, true));
+                        MovementRequestManager.PRIORITY_WORK, null));
         helper.assertTrue(MovementRequestManager.claimLookTarget(villager, manualLookOwner.handle(),
                         new BlockPosTracker(origin)),
                 "ownership-aware manual look claim failed");
@@ -225,7 +225,7 @@ public final class VillagerBehaviorExtensionGameTests {
         helper.assertTrue(manualLookOwner.accepted() && manualLookHandoff.accepted()
                         && !villager.getBrain().hasMemoryValue(MemoryModuleType.LOOK_TARGET),
                 "manual look-target ownership was not cleared during handoff");
-        helper.assertTrue(MovementRequestManager.cancel(villager, manualLookHandoff.handle(), false),
+        helper.assertTrue(MovementRequestManager.cancel(villager, manualLookHandoff.handle()),
                 "manual look handoff owner did not cancel");
 
         MovementRequestSubmission foreignCleanupOwner = MovementRequestManager.submit(villager,
@@ -236,7 +236,7 @@ public final class VillagerBehaviorExtensionGameTests {
         BlockPosTracker foreignLookAfterSubmit = new BlockPosTracker(origin.offset(0, 0, 1));
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, foreignWalkAfterSubmit);
         villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET, foreignLookAfterSubmit);
-        helper.assertTrue(MovementRequestManager.cancel(villager, foreignCleanupOwner.handle(), true),
+        helper.assertTrue(MovementRequestManager.cancel(villager, foreignCleanupOwner.handle()),
                 "foreign-state cleanup owner did not cancel");
         helper.assertTrue(villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
                         == foreignWalkAfterSubmit
@@ -295,6 +295,11 @@ public final class VillagerBehaviorExtensionGameTests {
             helper.assertTrue(cancelStarts.get() == 1 && cancelCancels.get() == 1
                             && !VillagerBehaviorRegistry.isBound(villager, cancelId),
                     "CANCEL unexpectedly resumed while eligibility remained true");
+            helper.assertFalse(VillagerBehaviorRegistry.finish(villager, cancelId),
+                    "finish unexpectedly completed a canceled tombstone");
+            VillagerBehaviorRegistry.refresh(villager);
+            helper.assertTrue(cancelStarts.get() == 1,
+                    "finish removed the canceled tombstone while eligibility remained true");
             cancelEligible.set(false);
             VillagerBehaviorRegistry.refresh(villager);
             cancelEligible.set(true);

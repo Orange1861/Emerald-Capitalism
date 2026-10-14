@@ -328,7 +328,7 @@ public class HarvestPumpkinGoal extends Goal {
 
     private void cancelMovement() {
         if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle, true);
+            MovementRequestManager.cancel(villager, movementHandle);
             movementHandle = null;
         }
     }

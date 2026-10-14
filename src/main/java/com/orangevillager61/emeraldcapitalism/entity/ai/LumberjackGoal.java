@@ -449,7 +449,7 @@ public final class LumberjackGoal extends Goal {
             // from the villager's current position before trying to approach
             // the next log again.
             navigationTarget = null;
-            movement.cancel(villager, true);
+            movement.cancel(villager);
             navigationWatchdog.reset();
             navigationFailures = 0;
         }
@@ -468,7 +468,7 @@ public final class LumberjackGoal extends Goal {
                 navigationTarget = null;
                 navigationWatchdog.reset();
                 recordNavigationFailure(level);
-                movement.cancel(villager, true);
+                movement.cancel(villager, MovementRequestTerminationReason.FAILED);
             } else if (villager.getNavigation().isDone()
                     && level.getGameTime() >= nextNavigationRetryTick) {
                 // Re-evaluate a completed path from the villager's new position,
@@ -525,7 +525,7 @@ public final class LumberjackGoal extends Goal {
     }
 
     private void holdPositionWhileWorking() {
-        movement.cancel(villager, true);
+        movement.cancel(villager);
         navigationTarget = null;
         navigationFailures = 0;
         navigationWatchdog.reset();
@@ -548,7 +548,7 @@ public final class LumberjackGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, true);
+        movement.cancel(villager);
         clearBreakingProgress();
         releaseTreeReservation();
         if (logsCollectedThisTree > 0 && villager.level() instanceof ServerLevel level) {
@@ -648,11 +648,11 @@ public final class LumberjackGoal extends Goal {
 
         if (jobSiteTarget == null && !moveToJobSite()) {
             failed = true;
-            movement.cancel(villager, true);
+            movement.cancel(villager, MovementRequestTerminationReason.FAILED);
         } else if (jobSiteTarget != null
                 && navigationWatchdog.isStuck(villager, jobSiteTarget)) {
             failed = true;
-            movement.cancel(villager, true);
+            movement.cancel(villager, MovementRequestTerminationReason.FAILED);
         } else if (villager.getNavigation().isDone()
                 && level.getGameTime() >= nextNavigationRetryTick) {
             jobSiteTarget = null;
@@ -757,7 +757,7 @@ public final class LumberjackGoal extends Goal {
                 searchRange = nextSearchRange();
                 nextSearchTick = level.getGameTime() + EMPTY_SEARCH_INTERVAL_TICKS;
                 failed = true;
-                movement.cancel(villager, true);
+                movement.cancel(villager, MovementRequestTerminationReason.FAILED);
             }
         }
     }
@@ -1070,11 +1070,11 @@ public final class LumberjackGoal extends Goal {
         if (!isWithinWorkReach(productionFurnace)) {
             if (navigationTarget == null && !moveToProductionFurnace()) {
                 failed = true;
-                movement.cancel(villager, true);
+                movement.cancel(villager, MovementRequestTerminationReason.FAILED);
             } else if (navigationTarget != null
                     && navigationWatchdog.isStuck(villager, navigationTarget)) {
                 failed = true;
-                movement.cancel(villager, true);
+                movement.cancel(villager, MovementRequestTerminationReason.FAILED);
             } else if (villager.getNavigation().isDone()
                     && level.getGameTime() >= nextNavigationRetryTick) {
                 navigationTarget = null;

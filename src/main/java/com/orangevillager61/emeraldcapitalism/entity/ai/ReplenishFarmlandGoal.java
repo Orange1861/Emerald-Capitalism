@@ -156,7 +156,7 @@ public class ReplenishFarmlandGoal extends Goal {
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
             rememberFailedTarget(targetPos);
             failed = true;
-            movement.cancel(villager, true);
+            movement.cancel(villager, MovementRequestTerminationReason.FAILED);
         } else {
             // Keep the brain's walk target pointed at our repair position.
             // This must be re-set each tick so brain behaviors don't override it.
@@ -174,7 +174,7 @@ public class ReplenishFarmlandGoal extends Goal {
         village = null;
         navigationWatchdog.reset();
         failed = false;
-        movement.cancel(villager, true);
+        movement.cancel(villager);
     }
 
     /**

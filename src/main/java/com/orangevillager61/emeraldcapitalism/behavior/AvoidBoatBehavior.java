@@ -85,7 +85,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
         escapeTarget = null;
         if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle, true);
+            MovementRequestManager.cancel(villager, movementHandle);
             movementHandle = null;
         }
     }
@@ -150,8 +150,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
                     "boat-avoidance-v1",
                     "ground-ladder-v1",
                     MovementRequestManager.PRIORITY_ESCAPE - 10,
-                    null,
-                    true);
+                    null);
             MovementRequestSubmission submission = movementHandle == null
                     ? MovementRequestManager.submit(villager, spec)
                     : MovementRequestManager.maintain(villager, movementHandle, spec);
@@ -164,7 +163,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
             }
         } else {
             if (movementHandle != null) {
-                MovementRequestManager.cancel(villager, movementHandle, true);
+                MovementRequestManager.cancel(villager, movementHandle);
                 movementHandle = null;
             }
         }

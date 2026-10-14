@@ -27,6 +27,10 @@ public final class PerformanceTimingCounters {
         MOVEMENT_ARRIVAL,
         MOVEMENT_RETRY,
         MOVEMENT_ABANDONED,
+        MOVEMENT_FAILURE,
+        MOVEMENT_PREEMPTED,
+        MOVEMENT_PATH_PLAN_SUCCESS,
+        MOVEMENT_PATH_PLAN_FAILURE,
         POI_DYNAMIC_REFRESH,
         BANK_CHEST_CACHE_REBUILD,
         BANK_INVENTORY_TOTAL_REFRESH
@@ -43,6 +47,8 @@ public final class PerformanceTimingCounters {
     }
 
     private static final Map<Operation, Counter> COUNTERS = new EnumMap<>(Operation.class);
+    private static volatile boolean detailedTimingEnabled =
+            !Boolean.getBoolean("emeraldcapitalism.performanceTimingDisabled");
 
     static {
         for (Operation operation : Operation.values()) {
@@ -54,6 +60,9 @@ public final class PerformanceTimingCounters {
     }
 
     public static <T> T measure(Operation operation, Supplier<T> action) {
+        if (!detailedTimingEnabled) {
+            return action.get();
+        }
         long started = System.nanoTime();
         try {
             return action.get();
@@ -67,6 +76,14 @@ public final class PerformanceTimingCounters {
             action.run();
             return null;
         });
+    }
+
+    public static void setDetailedTimingEnabled(boolean enabled) {
+        detailedTimingEnabled = enabled;
+    }
+
+    public static boolean isDetailedTimingEnabled() {
+        return detailedTimingEnabled;
     }
 
     public static Map<Operation, Snapshot> snapshot() {
@@ -87,6 +104,10 @@ public final class PerformanceTimingCounters {
                     .append("{calls=").append(snapshot.calls())
                     .append(",totalMs=")
                     .append(String.format(Locale.ROOT, "%.3f", snapshot.totalNanos() / 1_000_000.0D))
+                    .append(",avgMs=")
+                    .append(String.format(Locale.ROOT, "%.3f", snapshot.averageMillis()))
+                    .append(",maxMs=")
+                    .append(String.format(Locale.ROOT, "%.3f", snapshot.maximumMillis()))
                     .append('}');
         }
         return result.toString();

@@ -148,10 +148,11 @@ public final class VillagerBehaviorRegistry {
     public static synchronized boolean finish(Villager villager, String id) {
         Map<String, Binding> bindings = BINDINGS.get(villager);
         VillagerBehaviorDefinition definition = DEFINITIONS.get(id);
-        Binding binding = bindings == null ? null : bindings.remove(id);
-        if (binding == null || definition == null || binding.canceled) {
+        Binding binding = bindings == null ? null : bindings.get(id);
+        if (binding == null || definition == null || !isLive(binding)) {
             return false;
         }
+        bindings.remove(id, binding);
         definition.lifecycle().finish(villager);
         return true;
     }
@@ -320,6 +321,10 @@ public final class VillagerBehaviorRegistry {
                                      VillagerBehaviorDefinition second) {
         return !Collections.disjoint(first.requiredControls(), second.requiredControls())
                 || !Collections.disjoint(first.ownedMemories(), second.ownedMemories());
+    }
+
+    private static boolean isLive(Binding binding) {
+        return !binding.canceled;
     }
 
     private static final class Binding {

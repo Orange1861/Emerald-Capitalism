@@ -44,12 +44,24 @@ public final class VillagerMovementRequestBinding {
         return MovementRequestManager.isActive(villager, handle);
     }
 
-    public void cancel(Villager villager, boolean clearLookTarget) {
+    public void cancel(Villager villager) {
         if (handle != null) {
-            MovementRequestManager.cancel(villager, handle, clearLookTarget);
+            MovementRequestManager.cancel(villager, handle);
             handle = null;
             cachedSpec = null;
         }
+    }
+
+    public void cancel(Villager villager, MovementRequestTerminationReason reason) {
+        if (handle != null) {
+            MovementRequestManager.cancel(villager, handle, reason);
+            handle = null;
+            cachedSpec = null;
+        }
+    }
+
+    public void complete(Villager villager) {
+        cancel(villager, MovementRequestTerminationReason.ARRIVED);
     }
 
     @Nullable

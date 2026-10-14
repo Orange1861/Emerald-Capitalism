@@ -302,7 +302,9 @@ public final class MayorDoorRepairGoal extends Goal {
         if (village != null && targetPos != null) {
             village.unclaimDoorPosition(targetPos);
         }
-        movement.cancel(villager, true);
+        movement.cancel(villager, failed
+                ? MovementRequestTerminationReason.FAILED
+                : MovementRequestTerminationReason.ABANDONED);
         clearSocialInteractionMemories();
         targetPos = null;
         navigationTarget = null;

@@ -129,6 +129,10 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         }
 
         candidate = resolvedCandidate;
+        if (mayor.distanceToSqr(resolvedCandidate) <= STOP_DISTANCE_SQ) {
+            movement.complete(mayor);
+            return false;
+        }
         if (mayor.getBrain().hasMemoryValue(
                 MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE)) {
             markPathFailure(level, resolvedCandidate);
@@ -147,6 +151,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
 
         mayor.getLookControl().setLookAt(candidate);
         if (mayor.distanceToSqr(candidate) <= STOP_DISTANCE_SQ) {
+            movement.complete(mayor);
             return;
         }
 
@@ -164,7 +169,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     public void stop() {
         EmeraldCapitalism.LOGGER.debug("[ECAP][MayorFollow] STOP mayor={} candidate={} pathingFailed={}",
                 mayor.getUUID(), candidate == null ? null : candidate.getUUID(), pathingFailed);
-        movement.cancel(mayor, true);
+        movement.cancel(mayor);
         candidate = null;
         lastRequestedCandidatePosition = null;
         lastPathRequestTick = Long.MIN_VALUE;
@@ -258,6 +263,6 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
         pathingFailed = true;
         failedCandidateId = failedCandidate.getUUID();
         nextPathAttemptTick = level.getGameTime() + PATH_FAILURE_COOLDOWN;
-        movement.cancel(mayor, true);
+        movement.cancel(mayor, MovementRequestTerminationReason.FAILED);
     }
 }

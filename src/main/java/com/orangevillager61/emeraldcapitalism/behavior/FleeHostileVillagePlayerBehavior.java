@@ -82,7 +82,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
         nextThreatLookupTick = Long.MIN_VALUE;
         nextEscapeSearchTick = Long.MIN_VALUE;
         if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle, true);
+            MovementRequestManager.cancel(villager, movementHandle);
             movementHandle = null;
         }
     }
@@ -137,8 +137,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
                     "escape-v1",
                     "ground-ladder-v1",
                     MovementRequestManager.PRIORITY_ESCAPE,
-                    null,
-                    true);
+                    null);
             MovementRequestSubmission submission = movementHandle == null
                     ? MovementRequestManager.submit(villager, spec)
                     : MovementRequestManager.maintain(villager, movementHandle, spec);
@@ -151,7 +150,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
             }
         } else {
             if (movementHandle != null) {
-                MovementRequestManager.cancel(villager, movementHandle, true);
+                MovementRequestManager.cancel(villager, movementHandle);
                 movementHandle = null;
             }
         }

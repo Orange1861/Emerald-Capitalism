@@ -138,7 +138,9 @@ public final class EmeraldSmithProcessorGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, true);
+        movement.cancel(villager, finished
+                ? MovementRequestTerminationReason.ARRIVED
+                : MovementRequestTerminationReason.ABANDONED);
         if (finished && villager.level() instanceof ServerLevel level
                 && nextActionTick < level.getGameTime()) {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;

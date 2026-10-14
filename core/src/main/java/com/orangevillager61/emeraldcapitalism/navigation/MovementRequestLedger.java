@@ -92,8 +92,21 @@ public final class MovementRequestLedger {
         return true;
     }
 
+    public boolean clear(String owner, long generation) {
+        return activeHandle != null
+                && activeHandle.generation() == generation
+                && activeHandle.owner().equals(owner)
+                && clear(activeHandle);
+    }
+
     public boolean owns(Handle handle) {
         return handle != null && handle.equals(activeHandle);
+    }
+
+    public boolean owns(String owner, long generation) {
+        return activeHandle != null
+                && activeHandle.generation() == generation
+                && activeHandle.owner().equals(owner);
     }
 
     public MovementIntent activeIntent() {

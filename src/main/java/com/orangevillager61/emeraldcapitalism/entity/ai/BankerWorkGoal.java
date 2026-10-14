@@ -104,7 +104,7 @@ public final class BankerWorkGoal extends Goal {
         if (!atWorkPos && navigationWatchdog.isStuck(villager, context.navigationTarget())) {
             failed = true;
             nextContextLookupTick = villager.level().getGameTime() + FAILURE_RETRY_TICKS;
-            movement.cancel(villager, true);
+            movement.cancel(villager, MovementRequestTerminationReason.FAILED);
         } else if (villager.getNavigation().isDone()
                 && villager.distanceToSqr(context.navigationTarget().getX() + 0.5D,
                 context.navigationTarget().getY() + 0.5D,
@@ -118,7 +118,7 @@ public final class BankerWorkGoal extends Goal {
 
     @Override
     public void stop() {
-        movement.cancel(villager, true);
+        movement.cancel(villager);
         context = null;
         navigationWatchdog.reset();
         failed = false;
