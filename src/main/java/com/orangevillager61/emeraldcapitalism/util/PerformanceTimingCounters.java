@@ -43,7 +43,10 @@ public final class PerformanceTimingCounters {
         MOVEMENT_SHUTDOWN,
         POI_DYNAMIC_REFRESH,
         BANK_CHEST_CACHE_REBUILD,
-        BANK_INVENTORY_TOTAL_REFRESH
+        BANK_INVENTORY_TOTAL_REFRESH,
+        LADDER_SEGMENT_SCAN,
+        LADDER_BLOCK_SCAN,
+        LADDER_PURGE_VISIT
     }
 
     public record Snapshot(long calls, long totalNanos, long maximumNanos,

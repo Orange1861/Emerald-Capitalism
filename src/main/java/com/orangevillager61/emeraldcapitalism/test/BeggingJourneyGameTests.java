@@ -25,6 +25,8 @@ import java.util.List;
 @PrefixGameTestTemplate(false)
 public final class BeggingJourneyGameTests {
 
+    private static final String BEGGING_MOVEMENT_OWNER = "emeraldcapitalism:beg_for_food";
+
     private BeggingJourneyGameTests() {
     }
 
@@ -57,12 +59,27 @@ public final class BeggingJourneyGameTests {
             // The attachment deliberately rejects negative persisted game
             // times. Let the world advance past the 600-tick cooldown rather
             // than manufacturing an invalid timestamp at game time zero.
-            helper.runAfterDelay(601, () -> awaitScheduledTransfer(helper, progress,
-                    beggar, donor, beggarStats, 350));
+            holdBeggarAtStart(helper, beggar, donor, beggarStats, progress, 601, 350);
         } catch (RuntimeException | Error failure) {
             progress.finish();
             throw failure;
         }
+    }
+
+    private static void holdBeggarAtStart(GameTestHelper helper, Villager beggar, Villager donor,
+                                          VillagerStatsAttachment beggarStats,
+                                          JourneyProgress progress, int remainingCooldownTicks,
+                                          int remainingJourneyTicks) {
+        setVisibleDonor(helper, beggar, donor);
+        beggar.getNavigation().stop();
+        beggar.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        if (remainingCooldownTicks <= 0) {
+            awaitScheduledTransfer(helper, progress, beggar, donor, beggarStats,
+                    remainingJourneyTicks);
+            return;
+        }
+        helper.runAfterDelay(1, () -> holdBeggarAtStart(helper, beggar, donor, beggarStats,
+                progress, remainingCooldownTicks - 1, remainingJourneyTicks));
     }
 
     private static void awaitScheduledTransfer(GameTestHelper helper, JourneyProgress progress,
@@ -77,14 +94,8 @@ public final class BeggingJourneyGameTests {
             if (distanceToDonor <= 9.0D) {
                 progress.reachedDonor = true;
             }
-            if (MovementRequestManager.terminalCount(beggar,
+            if (MovementRequestManager.terminalCount(beggar, BEGGING_MOVEMENT_OWNER,
                     MovementRequestTerminationReason.ARRIVED) >= 1L) {
-                progress.reachedDonor = true;
-            }
-            // The production behavior transfers only from its interaction
-            // branch. This durable timestamp covers the case where the test
-            // callback runs after the villager has already walked away again.
-            if (beggarStats.getLastBegTime() > 0L) {
                 progress.reachedDonor = true;
             }
             if (countItem(donor, Items.BREAD) == 5) {
@@ -94,8 +105,9 @@ public final class BeggingJourneyGameTests {
                         "begging transferred food without completing the donor movement leg; "
                                 + "currentDistanceSq=" + distanceToDonor
                                 + ", closestDistanceSq=" + progress.closestDonorDistanceSq
-                                + ", arrivalTerminals=" + MovementRequestManager.terminalCount(
-                                        beggar, MovementRequestTerminationReason.ARRIVED)
+                                        + ", arrivalTerminals=" + MovementRequestManager.terminalCount(
+                                        beggar, BEGGING_MOVEMENT_OWNER,
+                                        MovementRequestTerminationReason.ARRIVED)
                                 + ", donorPos=" + donor.position());
                 helper.assertTrue(beggarStats.getLastBegTime() > 0L,
                         "scheduled begging did not record its completed interaction");
@@ -118,6 +130,80 @@ public final class BeggingJourneyGameTests {
             progress.finish();
             throw failure;
         }
+    }
+
+    @GameTest(template = "empty_20x3x20", batch = "ecap_begging_journey", timeoutTicks = 950)
+    public static void blockedDonorDoesNotTransferWithoutCompletedMovementLeg(GameTestHelper helper) {
+        for (int z = -20; z <= 39; z++) {
+            for (int y = 1; y <= 6; y++) {
+                helper.setBlock(new BlockPos(8, y, z), Blocks.BEDROCK.defaultBlockState());
+            }
+        }
+
+        Villager beggar = helper.spawn(EntityType.VILLAGER, 1, 1, 4);
+        Villager donor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 15, 1, 4);
+        VillagerStatsAttachment beggarStats =
+                beggar.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
+        VillagerStatsAttachment donorStats =
+                donor.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
+        long initialBegTime = helper.getLevel().getGameTime();
+        beggarStats.setHungerLevel(0);
+        beggarStats.setLastBegTime(Math.max(0L, initialBegTime - 600L));
+        long savedLastBegTime = beggarStats.getLastBegTime();
+        donorStats.setHungerLevel(20);
+        donor.getInventory().addItem(new ItemStack(Items.BREAD, 10));
+        setVisibleDonor(helper, beggar, donor);
+
+        holdBlockedBeggar(helper, beggar, donor, beggarStats, savedLastBegTime, 601, 280);
+    }
+
+    private static void holdBlockedBeggar(GameTestHelper helper, Villager beggar, Villager donor,
+                                          VillagerStatsAttachment beggarStats,
+                                          long savedLastBegTime, int remainingCooldownTicks,
+                                          int remainingObservationTicks) {
+        setVisibleDonor(helper, beggar, donor);
+        beggar.getNavigation().stop();
+        beggar.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        if (remainingCooldownTicks <= 0) {
+            awaitBlockedDonor(helper, beggar, donor, beggarStats,
+                    savedLastBegTime, remainingObservationTicks);
+            return;
+        }
+        helper.runAfterDelay(1, () -> holdBlockedBeggar(helper, beggar, donor, beggarStats,
+                savedLastBegTime, remainingCooldownTicks - 1, remainingObservationTicks));
+    }
+
+    private static void awaitBlockedDonor(GameTestHelper helper, Villager beggar, Villager donor,
+                                          VillagerStatsAttachment beggarStats,
+                                          long savedLastBegTime, int remainingTicks) {
+        setVisibleDonor(helper, beggar, donor);
+        beggar.getNavigation().stop();
+        beggar.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        double distanceToDonor = beggar.distanceToSqr(donor);
+        if (distanceToDonor <= 9.0D) {
+            helper.fail("blocked donor became interaction-distance reachable without a movement leg: "
+                    + "distanceSq=" + distanceToDonor + ", beggar=" + beggar.position()
+                    + ", donor=" + donor.position());
+            return;
+        }
+        if (countItem(donor, Items.BREAD) != 10 || countItem(beggar, Items.BREAD) != 0
+                || beggarStats.getLastBegTime() != savedLastBegTime) {
+            helper.fail("blocked donor transferred food without a completed movement leg: beggar="
+                    + beggar.position() + ", donor=" + donor.position()
+                    + ", donorBread=" + countItem(donor, Items.BREAD)
+                    + ", beggarBread=" + countItem(beggar, Items.BREAD)
+                    + ", lastBegTime=" + beggarStats.getLastBegTime());
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.assertTrue(MovementRequestManager.terminalCount(beggar, BEGGING_MOVEMENT_OWNER,
+                            MovementRequestTerminationReason.ARRIVED) == 0L,
+                    "blocked donor unexpectedly produced an ARRIVED begging terminal");
+            helper.succeed();
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitBlockedDonor(helper, beggar, donor,
+                beggarStats, savedLastBegTime, remainingTicks - 1));
     }
 
     private static void setVisibleDonor(GameTestHelper helper, Villager beggar, Villager donor) {

@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.block.entity;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
@@ -263,6 +264,55 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         private static final Codec<List<BlockPos>> TRACKED_CHEST_POSITIONS_CODEC =
                 BlockPos.CODEC.sizeLimitedListOf(MAX_TRACKED_CHEST_LOCATIONS);
 
+        private static final MapCodec<Optional<UUID>> VILLAGE_ID_FIELD =
+                UUIDUtil.CODEC.optionalFieldOf("village_id");
+        private static final MapCodec<Boolean> BANK_INDEPENDENT_FIELD =
+                Codec.BOOL.optionalFieldOf("bank_independent", true);
+        private static final MapCodec<Optional<UUID>> CONTROLLER_ID_FIELD =
+                UUIDUtil.CODEC.optionalFieldOf("controller_id");
+        private static final MapCodec<String> BANK_NAME_FIELD =
+                BANK_NAME_CODEC.optionalFieldOf("bank_name", "");
+        private static final MapCodec<List<UUID>> EMPLOYEE_IDS_FIELD =
+                EMPLOYEE_IDS_CODEC.optionalFieldOf("employee_ids", List.of());
+        private static final MapCodec<List<UUID>> JOB_EMPLOYEE_IDS_FIELD =
+                EMPLOYEE_IDS_CODEC.optionalFieldOf("job_employee_ids", List.of());
+        private static final MapCodec<List<UUID>> GOLEM_EMPLOYEE_IDS_FIELD =
+                GOLEM_EMPLOYEE_IDS_CODEC.optionalFieldOf("emerald_golem_employee_ids", List.of());
+        private static final MapCodec<List<BlockPos>> TRACKED_CHEST_POSITIONS_FIELD =
+                TRACKED_CHEST_POSITIONS_CODEC.optionalFieldOf("tracked_chest_positions", List.of());
+        private static final MapCodec<Integer> PREPARED_CHEST_COUNT_FIELD =
+                Codec.intRange(0, MAX_TRACKED_CHEST_LOCATIONS)
+                        .optionalFieldOf("prepared_emerald_chest_count", 0);
+        private static final MapCodec<Optional<BlockPos>> COMPOSTER_POS_FIELD =
+                BlockPos.CODEC.optionalFieldOf("composter_pos");
+        private static final MapCodec<Optional<BlockPos>> GOLEM_CONSTRUCTION_POS_FIELD =
+                BlockPos.CODEC.optionalFieldOf("golem_construction_pos");
+        private static final MapCodec<Optional<UUID>> TAKEOVER_LOCK_PLAYER_FIELD =
+                UUIDUtil.CODEC.optionalFieldOf("takeover_lock_player");
+        private static final MapCodec<Long> TAKEOVER_LOCK_UNTIL_FIELD =
+                Codec.LONG.optionalFieldOf("takeover_lock_until", 0L);
+        private static final MapCodec<Boolean> MANUAL_TARGETS_FIELD =
+                Codec.BOOL.optionalFieldOf("manual_targets", false);
+        private static final MapCodec<Integer> EMERALD_GOLEM_TARGET_FIELD =
+                Codec.intRange(0, MAX_MANUAL_ENTITY_TARGET)
+                        .optionalFieldOf("emerald_golem_target", 0);
+        private static final MapCodec<Integer> EMERALD_SKIRMISHER_TARGET_FIELD =
+                Codec.intRange(0, MAX_MANUAL_ENTITY_TARGET)
+                        .optionalFieldOf("emerald_skrimisher_target", 0);
+        private static final MapCodec<Integer> FOOD_DAYS_FIELD =
+                Codec.intRange(0, BankTargets.MAX_FOOD_DAYS)
+                        .optionalFieldOf("food_days", BankTargets.INTERNAL_BREAD_DAYS);
+        private static final MapCodec<Boolean> VILLAGER_DELIVERIES_FIELD =
+                Codec.BOOL.optionalFieldOf("villager_deliveries_enabled", true);
+        private static final MapCodec<Boolean> RANDOM_DELIVERIES_FIELD =
+                Codec.BOOL.optionalFieldOf("random_deliveries_enabled", true);
+        private static final MapCodec<Boolean> BREAD_DELIVERIES_FIELD =
+                Codec.BOOL.optionalFieldOf("bread_deliveries_enabled", true);
+        private static final MapCodec<Boolean> LUMBERJACK_DELIVERIES_FIELD =
+                Codec.BOOL.optionalFieldOf("lumberjack_deliveries_enabled", true);
+        private static final MapCodec<Boolean> ATTACK_ALL_PLAYERS_FIELD =
+                Codec.BOOL.optionalFieldOf("attack_all_players", false);
+
         /**
          * Flat codec sections keep the durable tag layout stable while respecting
          * RecordCodecBuilder's 16-field grouping limit.
@@ -303,61 +353,35 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         private static final MapCodec<IdentityState> IDENTITY_CODEC = RecordCodecBuilder.mapCodec(instance ->
                 instance.group(
-                        UUIDUtil.CODEC.optionalFieldOf("village_id")
-                                .forGetter(IdentityState::villageId),
-                        Codec.BOOL.optionalFieldOf("bank_independent", true)
-                                .forGetter(IdentityState::bankIndependent),
-                        UUIDUtil.CODEC.optionalFieldOf("controller_id")
-                                .forGetter(IdentityState::controllerId),
-                        BANK_NAME_CODEC.optionalFieldOf("bank_name", "")
-                                .forGetter(IdentityState::bankName),
-                        EMPLOYEE_IDS_CODEC.optionalFieldOf("employee_ids", List.of())
-                                .forGetter(IdentityState::employeeIds),
-                        EMPLOYEE_IDS_CODEC.optionalFieldOf("job_employee_ids", List.of())
-                                .forGetter(IdentityState::jobEmployeeIds),
-                        GOLEM_EMPLOYEE_IDS_CODEC.optionalFieldOf("emerald_golem_employee_ids", List.of())
-                                .forGetter(IdentityState::emeraldGolemEmployeeIds)
+                        VILLAGE_ID_FIELD.forGetter(IdentityState::villageId),
+                        BANK_INDEPENDENT_FIELD.forGetter(IdentityState::bankIndependent),
+                        CONTROLLER_ID_FIELD.forGetter(IdentityState::controllerId),
+                        BANK_NAME_FIELD.forGetter(IdentityState::bankName),
+                        EMPLOYEE_IDS_FIELD.forGetter(IdentityState::employeeIds),
+                        JOB_EMPLOYEE_IDS_FIELD.forGetter(IdentityState::jobEmployeeIds),
+                        GOLEM_EMPLOYEE_IDS_FIELD.forGetter(IdentityState::emeraldGolemEmployeeIds)
                 ).apply(instance, IdentityState::new));
 
         private static final MapCodec<WorldState> WORLD_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-                TRACKED_CHEST_POSITIONS_CODEC.optionalFieldOf("tracked_chest_positions", List.of())
-                        .forGetter(WorldState::trackedChestPositions),
-                Codec.intRange(0, MAX_TRACKED_CHEST_LOCATIONS)
-                        .optionalFieldOf("prepared_emerald_chest_count", 0)
-                        .forGetter(WorldState::preparedEmeraldChestCount),
-                BlockPos.CODEC.optionalFieldOf("composter_pos")
-                        .forGetter(WorldState::composterPos),
-                BlockPos.CODEC.optionalFieldOf("golem_construction_pos")
-                        .forGetter(WorldState::golemConstructionPos),
-                UUIDUtil.CODEC.optionalFieldOf("takeover_lock_player")
-                        .forGetter(WorldState::takeoverLockPlayer),
-                Codec.LONG.optionalFieldOf("takeover_lock_until", 0L)
-                        .forGetter(WorldState::takeoverLockUntil)
+                TRACKED_CHEST_POSITIONS_FIELD.forGetter(WorldState::trackedChestPositions),
+                PREPARED_CHEST_COUNT_FIELD.forGetter(WorldState::preparedEmeraldChestCount),
+                COMPOSTER_POS_FIELD.forGetter(WorldState::composterPos),
+                GOLEM_CONSTRUCTION_POS_FIELD.forGetter(WorldState::golemConstructionPos),
+                TAKEOVER_LOCK_PLAYER_FIELD.forGetter(WorldState::takeoverLockPlayer),
+                TAKEOVER_LOCK_UNTIL_FIELD.forGetter(WorldState::takeoverLockUntil)
         ).apply(instance, WorldState::new));
 
         private static final MapCodec<ControlSettingsState> CONTROL_SETTINGS_CODEC =
                 RecordCodecBuilder.mapCodec(instance -> instance.group(
-                        Codec.BOOL.optionalFieldOf("manual_targets", false)
-                                .forGetter(ControlSettingsState::manualTargets),
-                        Codec.intRange(0, MAX_MANUAL_ENTITY_TARGET)
-                                .optionalFieldOf("emerald_golem_target", 0)
-                                .forGetter(ControlSettingsState::emeraldGolemTarget),
-                        Codec.intRange(0, MAX_MANUAL_ENTITY_TARGET)
-                                .optionalFieldOf("emerald_skrimisher_target", 0)
-                                .forGetter(ControlSettingsState::emeraldSkrimisherTarget),
-                        Codec.intRange(0, BankTargets.MAX_FOOD_DAYS)
-                                .optionalFieldOf("food_days", BankTargets.INTERNAL_BREAD_DAYS)
-                                .forGetter(ControlSettingsState::foodDays),
-                        Codec.BOOL.optionalFieldOf("villager_deliveries_enabled", true)
-                                .forGetter(ControlSettingsState::villagerDeliveriesEnabled),
-                        Codec.BOOL.optionalFieldOf("random_deliveries_enabled", true)
-                                .forGetter(ControlSettingsState::randomDeliveriesEnabled),
-                        Codec.BOOL.optionalFieldOf("bread_deliveries_enabled", true)
-                                .forGetter(ControlSettingsState::breadDeliveriesEnabled),
-                        Codec.BOOL.optionalFieldOf("lumberjack_deliveries_enabled", true)
-                                .forGetter(ControlSettingsState::lumberjackDeliveriesEnabled),
-                        Codec.BOOL.optionalFieldOf("attack_all_players", false)
-                                .forGetter(ControlSettingsState::attackAllPlayers)
+                        MANUAL_TARGETS_FIELD.forGetter(ControlSettingsState::manualTargets),
+                        EMERALD_GOLEM_TARGET_FIELD.forGetter(ControlSettingsState::emeraldGolemTarget),
+                        EMERALD_SKIRMISHER_TARGET_FIELD.forGetter(ControlSettingsState::emeraldSkrimisherTarget),
+                        FOOD_DAYS_FIELD.forGetter(ControlSettingsState::foodDays),
+                        VILLAGER_DELIVERIES_FIELD.forGetter(ControlSettingsState::villagerDeliveriesEnabled),
+                        RANDOM_DELIVERIES_FIELD.forGetter(ControlSettingsState::randomDeliveriesEnabled),
+                        BREAD_DELIVERIES_FIELD.forGetter(ControlSettingsState::breadDeliveriesEnabled),
+                        LUMBERJACK_DELIVERIES_FIELD.forGetter(ControlSettingsState::lumberjackDeliveriesEnabled),
+                        ATTACK_ALL_PLAYERS_FIELD.forGetter(ControlSettingsState::attackAllPlayers)
                 ).apply(instance, ControlSettingsState::new));
 
         static final Codec<PersistedState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -407,6 +431,45 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     settings.breadDeliveriesEnabled(),
                     settings.lumberjackDeliveriesEnabled(),
                     settings.attackAllPlayers());
+        }
+
+        /**
+         * Decodes each durable field independently for block-entity recovery.
+         * The aggregate codec remains strict for ordinary codec callers, while a
+         * damaged list or optional field cannot erase unrelated saved bank state.
+         */
+        static PersistedState decodeForLoad(CompoundTag tag) {
+            return new PersistedState(
+                    decodeField(tag, "village_id", VILLAGE_ID_FIELD, Optional.empty()),
+                    decodeField(tag, "bank_independent", BANK_INDEPENDENT_FIELD, true),
+                    decodeField(tag, "controller_id", CONTROLLER_ID_FIELD, Optional.empty()),
+                    decodeField(tag, "bank_name", BANK_NAME_FIELD, ""),
+                    decodeField(tag, "employee_ids", EMPLOYEE_IDS_FIELD, List.of()),
+                    decodeField(tag, "job_employee_ids", JOB_EMPLOYEE_IDS_FIELD, List.of()),
+                    decodeField(tag, "emerald_golem_employee_ids", GOLEM_EMPLOYEE_IDS_FIELD, List.of()),
+                    decodeField(tag, "tracked_chest_positions", TRACKED_CHEST_POSITIONS_FIELD, List.of()),
+                    decodeField(tag, "prepared_emerald_chest_count", PREPARED_CHEST_COUNT_FIELD, 0),
+                    decodeField(tag, "composter_pos", COMPOSTER_POS_FIELD, Optional.empty()),
+                    decodeField(tag, "golem_construction_pos", GOLEM_CONSTRUCTION_POS_FIELD, Optional.empty()),
+                    decodeField(tag, "takeover_lock_player", TAKEOVER_LOCK_PLAYER_FIELD, Optional.empty()),
+                    decodeField(tag, "takeover_lock_until", TAKEOVER_LOCK_UNTIL_FIELD, 0L),
+                    decodeField(tag, "manual_targets", MANUAL_TARGETS_FIELD, false),
+                    decodeField(tag, "emerald_golem_target", EMERALD_GOLEM_TARGET_FIELD, 0),
+                    decodeField(tag, "emerald_skrimisher_target", EMERALD_SKIRMISHER_TARGET_FIELD, 0),
+                    decodeField(tag, "food_days", FOOD_DAYS_FIELD, BankTargets.INTERNAL_BREAD_DAYS),
+                    decodeField(tag, "villager_deliveries_enabled", VILLAGER_DELIVERIES_FIELD, true),
+                    decodeField(tag, "random_deliveries_enabled", RANDOM_DELIVERIES_FIELD, true),
+                    decodeField(tag, "bread_deliveries_enabled", BREAD_DELIVERIES_FIELD, true),
+                    decodeField(tag, "lumberjack_deliveries_enabled", LUMBERJACK_DELIVERIES_FIELD, true),
+                    decodeField(tag, "attack_all_players", ATTACK_ALL_PLAYERS_FIELD, false));
+        }
+
+        private static <T> T decodeField(CompoundTag tag, String fieldName,
+                                          MapCodec<T> fieldCodec, T defaultValue) {
+            DataResult<T> decoded = fieldCodec.codec().parse(NbtOps.INSTANCE, tag);
+            decoded.error().ifPresent(error -> EmeraldCapitalism.LOGGER.warn(
+                    "Ignoring malformed bank field {}: {}", fieldName, error.message()));
+            return decoded.result().orElse(defaultValue);
         }
 
         PersistedState {
@@ -824,6 +887,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the number of raw emeralds that can currently fit in linked chests. */
     public int getEmeraldStorageCapacity(ServerLevel level) {
+        ensureInventoryTotalsCurrent(level);
         long capacity = 0;
         for (BlockPos chestPos : cachedChestPositions) {
             BlockEntity be = getLoadedBlockEntity(level, chestPos);
@@ -1375,6 +1439,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     public int getItemStorageCapacity(ServerLevel level, ItemStack template) {
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(template, "template");
+        ensureInventoryTotalsCurrent(level);
         if (capacityCacheRevision != inventoryRevision) {
             capacityCache.clear();
             capacityCacheRevision = inventoryRevision;
@@ -1560,6 +1625,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the target emerald-golem count based on physical chest reserves. */
     public int getExpectedEmeraldGolemCount() {
+        ensureInventoryTotalsCurrent();
         return manualTargets ? emeraldGolemTarget : EmeraldGolemCalculator.calculate(totalEmeraldCount);
     }
 
@@ -1653,6 +1719,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the coal-and-charcoal reserve target for this bank. */
     public int getCoalTarget() {
+        ensureInventoryTotalsCurrent();
         return BankTargets.coalTarget(totalEmeraldOreCount);
     }
 
@@ -1714,6 +1781,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns whether a linked chest currently contains at least one matching item. */
     public boolean hasStoredItem(ServerLevel level, Item item) {
+        ensureInventoryTotalsCurrent(level);
         return cachedChestItemTotals.getOrDefault(item, 0) > 0;
     }
 
@@ -1935,6 +2003,33 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         }
         if (removed) {
             setChanged();
+        }
+    }
+
+    /**
+     * Makes a consistency-sensitive read observe same-tick chest or processor
+     * mutations without defeating the bank ticker's refresh coalescing.
+     */
+    private void ensureInventoryTotalsCurrent(ServerLevel level) {
+        if (chestCacheDirty || processorCacheDirty) {
+            fullScan(level);
+            chestCacheDirty = false;
+            processorCacheDirty = false;
+            nextFullScanTick = level.getGameTime() + FULL_SCAN_INTERVAL;
+        } else if (inventoryTotalsDirty) {
+            if (!PerformanceTimingCounters.isDetailedTimingEnabled()) {
+                PerformanceTimingCounters.recordEvent(
+                        PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH);
+            }
+            PerformanceTimingCounters.measure(
+                    PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH,
+                    () -> refreshInventoryTotals(level, chestStorageDirty));
+        }
+    }
+
+    private void ensureInventoryTotalsCurrent() {
+        if (level instanceof ServerLevel serverLevel) {
+            ensureInventoryTotalsCurrent(serverLevel);
         }
     }
 
@@ -2282,6 +2377,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     public int getTotalEmeraldCount() {
+        ensureInventoryTotalsCurrent();
         return totalEmeraldCount;
     }
 
@@ -2295,35 +2391,43 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     public int getTotalEmeraldBlockCount() {
+        ensureInventoryTotalsCurrent();
         return totalEmeraldBlockCount;
     }
 
     public int getTotalEmeraldOreCount() {
+        ensureInventoryTotalsCurrent();
         return totalEmeraldOreCount;
     }
 
     public int getTotalPumpkinCount() {
+        ensureInventoryTotalsCurrent();
         return totalPumpkinCount;
     }
 
     public int getTotalWheatCount() {
+        ensureInventoryTotalsCurrent();
         return totalWheatCount;
     }
 
     public int getTotalBreadCount() {
+        ensureInventoryTotalsCurrent();
         return totalBreadCount;
     }
 
     public int getTotalCoalCount() {
+        ensureInventoryTotalsCurrent();
         return totalCoalCount;
     }
 
     public int getTotalEmeraldGreenDyeCount() {
+        ensureInventoryTotalsCurrent();
         return totalEmeraldGreenDyeCount;
     }
 
     /** Returns planks plus four times every stored log. */
     public int getTotalPlankCount() {
+        ensureInventoryTotalsCurrent();
         return totalPlankCount;
     }
 
@@ -2334,6 +2438,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the event-driven cached stock of one market item in linked chests. */
     public int getMarketStock(ServerLevel level, Item item) {
+        ensureInventoryTotalsCurrent(level);
         if (isLogMarketItem(item)) {
             return cachedChestLogCount;
         }
@@ -2355,6 +2460,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns the event-driven cached emerald value in linked chests. */
     public int getLiveEmeraldValue(ServerLevel level) {
+        ensureInventoryTotalsCurrent(level);
         return cachedChestEmeraldValue;
     }
 
@@ -2391,6 +2497,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns whether this bank can reserve its next Emerald Golem construction. */
     public boolean canBeginGolemConstruction() {
+        ensureInventoryTotalsCurrent();
         return activeGolemConstructionVillager == null
                 && golemConstructionPos != null
                 && getRegisteredEmeraldGolemCount() < getExpectedEmeraldGolemCount()
@@ -2403,6 +2510,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Returns whether the bank can reserve its next Emerald Skrimisher construction. */
     public boolean canBeginSkrimisherConstruction(ServerLevel level) {
+        ensureInventoryTotalsCurrent(level);
         return activeGolemConstructionVillager == null
                 && golemConstructionPos != null
                 && getRegisteredEmeraldGolemCount() >= getExpectedEmeraldGolemCount()
@@ -2452,6 +2560,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             // Chest and processor mutations are coalesced by the bank ticker;
             // rebuilding every cached total synchronously for each slot write
             // caused an O(banks * linked-chests) same-tick regression.
+            chestStorageDirty = true;
             inventoryTotalsDirty = true;
         }
     }
@@ -2568,11 +2677,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     protected void loadAdditional(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider registries) {
         super.loadAdditional(tag, registries);
         resetDerivedAndTransientStateAfterLoad();
-        PersistedState.CODEC.parse(NbtOps.INSTANCE, tag)
-                .resultOrPartial(message -> EmeraldCapitalism.LOGGER.warn(
-                        "Ignoring malformed bank durable state: {}", message))
-                .orElseGet(PersistedState::empty)
-                .applyTo(this);
+        PersistedState.decodeForLoad(tag).applyTo(this);
     }
 
     @Override

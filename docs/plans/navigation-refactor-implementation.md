@@ -83,10 +83,10 @@ snapshots for both supported targets. A faster run is not considered an
 improvement if it only abandons more work; successful task outcomes and retry
 counts are part of the comparison.
 
-The final R6 verification on 2026-10-14/15 used Java 21.0.9 (Eclipse
-Adoptium) with the project Gradle wrapper. The implementation is verified
-from the working tree after the R6 repair pass; generated server output is
-not part of the source evidence.
+The final R7 verification on 2026-10-14/15 used tested commit SHA `46939820`
+(R7; repairs are in the working tree), Java 21.0.9
+(`Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.9+10-LTS`), and the project
+Gradle wrapper. Generated server output is not part of the source evidence.
 
 The exact functional commands were:
 
@@ -99,21 +99,27 @@ git diff --check
 ```
 
 The JVM suite passed: core tests plus both version test source sets. The
-coverage gate verified 7 risk boundaries and 239 discovered GameTests. Both
-supported targets completed all 237 required GameTests with no required
-failures. The passing suites include the real job-block journeys, normal-AI
-ladder ascent/descent, intermediate landing, route continuation, blocked-top
-exit, two-villager contention, ladder destruction, entity reload, unmanaged
-route handoff, profession work, the Emeraldsmith processor/construction
-journey, Mayor bank/door repair and repair-race refunding, golem obstruction,
-and production-boundary server-stop lifecycle accounting.
+coverage gate verified 7 risk boundaries and 242 discovered GameTests. Both
+supported targets passed all 240 required GameTests; no optional GameTests
+were registered or reported by either server run. The passing suites include
+the real job-block journeys, begging arrival and blocked-donor journeys,
+normal-AI ladder ascent/descent, intermediate landing, route continuation,
+blocked-top and stale-exit recovery, two-villager contention, ladder
+destruction, entity unload/reload, unmanaged route handoff, profession work,
+the Emeraldsmith processor/construction journey, same-tick bank reads and
+refresh coalescing, Mayor bank/door repair and repair-race refunding, golem
+obstruction, and production-boundary server-stop lifecycle accounting.
 
 The functional results were:
 
 | Target | Required tests | GameTest runtime | Result |
 | --- | ---: | ---: | --- |
-| 1.21.1 | 237 | completed | all required tests passed |
-| 1.21.4 | 237 | completed | all required tests passed |
+| 1.21.1 | 240 | 4.326 min command wall time | all required tests passed; 0 optional |
+| 1.21.4 | 240 | 3.928 min command wall time | all required tests passed; 0 optional |
+
+The R6 parent checkout was also run as a history check. Its server log
+reported 228 required GameTests in 5.691 s with 1 required failure (the
+original begging journey), so it is not a passing functional baseline.
 
 The functional gates above are separate from diagnostic runs. Shutdown logs
 may emit movement and bank counters, but those counters are not used as a
@@ -133,7 +139,19 @@ release and one material refund.
 When detailed timing and event counting are explicitly enabled, the counters
 are diagnostic snapshots only. They should be compared only across equivalent
 instrumented workloads; the final functional commands intentionally do not
-present those counters as acceptance evidence.
+present those counters as acceptance evidence. The common multi-villager
+ladder workload (`twoNormalVillagersContendForOneLadderAndOneWorkTarget`)
+passed in both instrumented R7-parent and repaired R7 runs. The instrumented
+R7-parent 1.21.1 full suite (237 required tests, GameTest runtime 5.793 s,
+39 s command wall time) recorded 69 movement submissions, 28 retries, 256
+ladder-segment scans, 1,536 scanned ladder blocks, 277 purge visits, and
+28.586 ms of movement-manager time. The repaired R7 1.21.1 full suite (240
+required tests, 4.241 min command wall time) recorded 73 submissions, 62
+retries, 33 segment scans, 198 scanned blocks, 238 bounded purge visits, and
+21.971 ms of movement-manager time. Because the repaired suite also contains
+three new regression journeys and the Gradle task has no supported per-test
+filter, these are reported as workload snapshots; they are not a claim of a
+wall-clock speedup based on test counts.
 
 No performance improvement claim is made from test counts or from an
 instrumented diagnostic run; the repaired behavior is established by the

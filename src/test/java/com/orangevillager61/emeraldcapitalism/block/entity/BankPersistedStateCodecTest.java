@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import org.junit.jupiter.api.Test;
 
@@ -153,6 +154,59 @@ class BankPersistedStateCodecTest {
         BankBlockEntity.PersistedState decoded = roundTrip(source);
         assertEquals(TAKEOVER_KILLER, decoded.takeoverLockPlayer().orElseThrow());
         assertEquals(12_345L, decoded.takeoverLockUntil());
+    }
+
+    @Test
+    void loadDecodeKeepsPopulatedStateWhenOneEmployeeFieldIsMalformed() {
+        UUID controller = UUID.randomUUID();
+        UUID killer = UUID.randomUUID();
+        BankBlockEntity.PersistedState source = new BankBlockEntity.PersistedState(
+                Optional.of(VILLAGE_ID), false, Optional.of(controller), "Recovery Bank",
+                List.of(EMPLOYEE_ONE), List.of(EMPLOYEE_ONE), List.of(EMPLOYEE_TWO),
+                List.of(new BlockPos(4, 5, 6)), 2,
+                Optional.of(new BlockPos(7, 8, 9)), Optional.of(new BlockPos(10, 11, 12)),
+                Optional.of(killer), 12_345L,
+                true, 2, 3, 17, false, false, false, true, true);
+        CompoundTag valid = (CompoundTag) BankBlockEntity.PersistedState.CODEC
+                .encodeStart(NbtOps.INSTANCE, source).result().orElseThrow();
+
+        CompoundTag wrongType = valid.copy();
+        wrongType.putString("employee_ids", "not-an-uuid-list");
+        assertRecoveredState(wrongType, controller, killer, source);
+
+        CompoundTag oversized = valid.copy();
+        ListTag tooManyEmployees = new ListTag();
+        ListTag encodedEmployees = (ListTag) valid.get("employee_ids");
+        for (int index = 0; index < BankBlockEntity.MAX_EMPLOYEES + 1; index++) {
+            tooManyEmployees.add(encodedEmployees.get(0).copy());
+        }
+        oversized.put("employee_ids", tooManyEmployees);
+        assertRecoveredState(oversized, controller, killer, source);
+    }
+
+    private static void assertRecoveredState(CompoundTag malformed, UUID controller, UUID killer,
+                                             BankBlockEntity.PersistedState source) {
+        BankBlockEntity.PersistedState recovered = BankBlockEntity.PersistedState.decodeForLoad(malformed);
+        assertTrue(recovered.employeeIds().isEmpty(), "malformed employee IDs were not defaulted");
+        assertEquals(source.villageId(), recovered.villageId());
+        assertEquals(source.bankIndependent(), recovered.bankIndependent());
+        assertEquals(Optional.of(controller), recovered.controllerId());
+        assertEquals(source.bankName(), recovered.bankName());
+        assertEquals(source.trackedChestPositions(), recovered.trackedChestPositions());
+        assertEquals(source.preparedEmeraldChestCount(), recovered.preparedEmeraldChestCount());
+        assertEquals(source.composterPos(), recovered.composterPos());
+        assertEquals(source.golemConstructionPos(), recovered.golemConstructionPos());
+        assertEquals(Optional.of(killer), recovered.takeoverLockPlayer());
+        assertEquals(source.takeoverLockUntil(), recovered.takeoverLockUntil());
+        assertEquals(source.manualTargets(), recovered.manualTargets());
+        assertEquals(source.emeraldGolemTarget(), recovered.emeraldGolemTarget());
+        assertEquals(source.emeraldSkrimisherTarget(), recovered.emeraldSkrimisherTarget());
+        assertEquals(source.foodDays(), recovered.foodDays());
+        assertEquals(source.villagerDeliveriesEnabled(), recovered.villagerDeliveriesEnabled());
+        assertEquals(source.randomDeliveriesEnabled(), recovered.randomDeliveriesEnabled());
+        assertEquals(source.breadDeliveriesEnabled(), recovered.breadDeliveriesEnabled());
+        assertEquals(source.lumberjackDeliveriesEnabled(), recovered.lumberjackDeliveriesEnabled());
+        assertEquals(source.attackAllPlayers(), recovered.attackAllPlayers());
     }
 
     private static BankBlockEntity.PersistedState roundTrip(BankBlockEntity.PersistedState source) {

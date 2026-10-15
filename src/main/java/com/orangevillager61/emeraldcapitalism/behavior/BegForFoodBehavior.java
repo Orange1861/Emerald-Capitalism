@@ -157,6 +157,13 @@ public class BegForFoodBehavior extends Behavior<Villager> {
                     donorLookTracker(villager));
             
             if (stats.getBegTime() >= BEG_DURATION) {
+                MovementRequestHandle completedHandle = movementHandle != null
+                        ? movementHandle
+                        : MovementRequestManager.activeHandle(villager,
+                                "emeraldcapitalism:beg_for_food");
+                if (completedHandle != null) {
+                    MovementRequestManager.complete(villager, completedHandle);
+                }
                 transferFoodFromDonor(donorVillager, villager);
                 stats.setLastBegTime(gameTime);
                 this.doStop(level, villager, gameTime);

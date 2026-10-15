@@ -10,7 +10,7 @@
       ],
       "gameTests": [
         "bankgameplaygametests.durablebankstatesurvivesreloadandcachesrebuild",
-        "bankgameplaygametests.malformedbankstatedefaultswithoutcrashing",
+        "bankgameplaygametests.malformedbankstatepreservesunrelatedpopulatedfields",
         "bankgameplaygametests.durablebankmutationsmarkchunkchanged"
       ],
       "manualChecks": []
@@ -106,7 +106,16 @@
         "mixinauditinvariantgametests.villagerkeepsladderpathwhilewaitingforanotherclimber",
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
         "villagertradeaccountinggametests.eachcompletedtradeappliesonceformultipleplayers",
-        "villagerreputationdamagegametests.canceleddamagedoesnotleakintolatergossip"
+        "villagerreputationdamagegametests.canceleddamagedoesnotleakintolatergossip",
+        "beggingjourneygametests.starvingvillagerbegsandreceivesfood",
+        "beggingjourneygametests.blockeddonordoesnottransferwithoutcompletedmovementleg",
+        "villagernavigationregressiongametests.normalvillageraiascendsladderandcompletesupperwork",
+        "villagernavigationregressiongametests.normalvillageraidescendsladderandcompleteslowerwork",
+        "villagernavigationregressiongametests.twonormalvillagerscontendforoneladderandoneworktarget",
+        "villagernavigationregressiongametests.normalvillagerblockedtopexitcancelsandreplanswithoutcollision",
+        "villagernavigationregressiongametests.staleplannedladderexitusesvalidatedfallback",
+        "villagernavigationregressiongametests.ladderdestructionreleasesloadedentityclaim",
+        "villagernavigationregressiongametests.normalvillagerunloadreloadreleasesladderclaim"
       ],
       "manualChecks": []
     },

@@ -50,6 +50,13 @@ public abstract class VillagerClimbMixin {
     @Unique
     private BlockPos emeraldcapitalism$ladderExitTarget;
 
+    /** Ladder endpoint that validated the current exit target. */
+    @Unique
+    private BlockPos emeraldcapitalism$ladderExitEndpoint;
+
+    @Unique
+    private boolean emeraldcapitalism$ladderExitAscending;
+
     /**
      * The first horizontal route node after the selected connected ladder
      * segment. This is captured while the full Path is still available; the
@@ -88,12 +95,22 @@ public abstract class VillagerClimbMixin {
      */
     @Unique
     private boolean emeraldcapitalism$tryClaimLadder(Villager villager, BlockPos pos) {
-        VillagerLadderClaims.LadderColumn column = VillagerLadderClaims.column(villager, pos);
         if (emeraldcapitalism$claimedLadder != null
-                && !emeraldcapitalism$claimedLadder.equals(column)) {
+                && emeraldcapitalism$activeLadderColumn != null
+                && emeraldcapitalism$activeLadderColumn.getX() == pos.getX()
+                && emeraldcapitalism$activeLadderColumn.getZ() == pos.getZ()
+                && VillagerLadderClaims.isOwnedBy(villager, emeraldcapitalism$claimedLadder)) {
+            return true;
+        }
+        if (emeraldcapitalism$claimedLadder != null
+                && (!emeraldcapitalism$claimedLadder.dimension().equals(villager.level().dimension())
+                || emeraldcapitalism$claimedLadder.x() != pos.getX()
+                || emeraldcapitalism$claimedLadder.z() != pos.getZ()
+                || !VillagerLadderClaims.isOwnedBy(villager, emeraldcapitalism$claimedLadder))) {
             VillagerLadderClaims.release(villager, emeraldcapitalism$claimedLadder);
             emeraldcapitalism$claimedLadder = null;
         }
+        VillagerLadderClaims.LadderColumn column = VillagerLadderClaims.column(villager, pos);
         if (!VillagerLadderClaims.tryClaim(villager, column)) {
             return false;
         }
@@ -122,6 +139,8 @@ public abstract class VillagerClimbMixin {
             emeraldcapitalism$releaseLadder(villager);
             emeraldcapitalism$climbDirection = 0;
             emeraldcapitalism$ladderExitTarget = null;
+            emeraldcapitalism$ladderExitEndpoint = null;
+            VillagerLadderClaims.clearActiveExit(villager);
             emeraldcapitalism$plannedLadderExitTarget = null;
             emeraldcapitalism$activeLadderColumn = null;
             return;
@@ -142,7 +161,10 @@ public abstract class VillagerClimbMixin {
 
         if (emeraldcapitalism$ladderExitTarget != null) {
             BlockPos target = emeraldcapitalism$ladderExitTarget;
-            if (!emeraldcapitalism$isSafeExitForVillager(villager, target)) {
+            if (emeraldcapitalism$ladderExitEndpoint == null
+                    || !emeraldcapitalism$isValidatedExitForEndpoint(
+                    villager, emeraldcapitalism$ladderExitEndpoint, target,
+                    emeraldcapitalism$ladderExitAscending)) {
                 emeraldcapitalism$recoverFromLadderExit(villager);
                 return;
             }
@@ -181,6 +203,8 @@ public abstract class VillagerClimbMixin {
                 // memory clearing is allowed at this traversal boundary.
                 emeraldcapitalism$releaseLadder(villager);
                 emeraldcapitalism$ladderExitTarget = null;
+                emeraldcapitalism$ladderExitEndpoint = null;
+                VillagerLadderClaims.clearActiveExit(villager);
                 emeraldcapitalism$plannedLadderExitTarget = null;
                 emeraldcapitalism$activeLadderColumn = null;
                 emeraldcapitalism$climbDirection = 0;
@@ -283,13 +307,21 @@ public abstract class VillagerClimbMixin {
                 BlockPos walkExitPos = emeraldcapitalism$plannedLadderExitTarget;
                 if (walkExitPos == null && state.hasProperty(LadderBlock.FACING)) {
                     walkExitPos = emeraldcapitalism$selectValidatedExit(
-                            villager, ladderPos, state.getValue(LadderBlock.FACING));
+                            villager, ladderPos, state.getValue(LadderBlock.FACING), true);
+                }
+                if (walkExitPos != null && !emeraldcapitalism$isValidatedExitForEndpoint(
+                        villager, ladderPos, walkExitPos, true)) {
+                    walkExitPos = emeraldcapitalism$selectValidatedExit(
+                            villager, ladderPos, state.hasProperty(LadderBlock.FACING)
+                                    ? state.getValue(LadderBlock.FACING) : Direction.SOUTH, true);
                 }
                 if (walkExitPos == null) {
                     emeraldcapitalism$recoverFromLadderExit(villager);
                     return;
                 }
-                emeraldcapitalism$beginLadderExit(villager, walkExitPos);
+                if (!emeraldcapitalism$beginLadderExit(villager, ladderPos, walkExitPos, true)) {
+                    return;
+                }
                 villager.setDeltaMovement(
                         (walkExitPos.getX() + 0.5D - villager.getX()) * 0.2D,
                         0.08D,
@@ -299,13 +331,21 @@ public abstract class VillagerClimbMixin {
                 BlockState state = villager.level().getBlockState(ladderPos);
                 BlockPos exitPos = state.hasProperty(LadderBlock.FACING)
                         ? emeraldcapitalism$selectValidatedExit(
-                        villager, ladderPos, state.getValue(LadderBlock.FACING))
+                        villager, ladderPos, state.getValue(LadderBlock.FACING), false)
                         : null;
+                if (exitPos != null && !emeraldcapitalism$isValidatedExitForEndpoint(
+                        villager, ladderPos, exitPos, false)) {
+                    exitPos = emeraldcapitalism$selectValidatedExit(
+                            villager, ladderPos, state.hasProperty(LadderBlock.FACING)
+                                    ? state.getValue(LadderBlock.FACING) : Direction.SOUTH, false);
+                }
                 if (exitPos == null) {
                     emeraldcapitalism$recoverFromLadderExit(villager);
                     return;
                 }
-                emeraldcapitalism$beginLadderExit(villager, exitPos);
+                if (!emeraldcapitalism$beginLadderExit(villager, ladderPos, exitPos, false)) {
+                    return;
+                }
                 villager.setDeltaMovement(
                         (exitPos.getX() + 0.5D - villager.getX()) * 0.2D,
                         0.0D,
@@ -350,6 +390,21 @@ public abstract class VillagerClimbMixin {
     }
 
     @Unique
+    private static boolean emeraldcapitalism$isValidatedExitForEndpoint(
+            Villager villager, BlockPos ladderEndpoint, BlockPos feetPos, boolean ascending) {
+        if (feetPos.getY() != ladderEndpoint.getY()
+                || Math.abs(feetPos.getX() - ladderEndpoint.getX())
+                + Math.abs(feetPos.getZ() - ladderEndpoint.getZ()) != 1) {
+            return false;
+        }
+        BlockPos connectedRung = ascending ? ladderEndpoint.above() : ladderEndpoint.below();
+        if (villager.level().getBlockState(connectedRung).is(BlockTags.CLIMBABLE)) {
+            return false;
+        }
+        return emeraldcapitalism$isSafeExitForVillager(villager, feetPos);
+    }
+
+    @Unique
     private static double emeraldcapitalism$distanceToExitSq(Villager villager, BlockPos target) {
         double dx = target.getX() + 0.5D - villager.getX();
         double dy = target.getY() - villager.getY();
@@ -358,13 +413,22 @@ public abstract class VillagerClimbMixin {
     }
 
     @Unique
-    private void emeraldcapitalism$beginLadderExit(Villager villager, BlockPos target) {
+    private boolean emeraldcapitalism$beginLadderExit(Villager villager, BlockPos endpoint,
+                                                       BlockPos target, boolean ascending) {
+        if (!emeraldcapitalism$isValidatedExitForEndpoint(villager, endpoint, target, ascending)) {
+            emeraldcapitalism$recoverFromLadderExit(villager);
+            return false;
+        }
+        emeraldcapitalism$ladderExitEndpoint = endpoint.immutable();
+        emeraldcapitalism$ladderExitAscending = ascending;
         emeraldcapitalism$ladderExitTarget = target.immutable();
+        VillagerLadderClaims.setActiveExit(villager, target);
         emeraldcapitalism$plannedLadderExitTarget = null;
         emeraldcapitalism$climbDirection = 0;
         emeraldcapitalism$ladderExitStartedTick = villager.tickCount;
         emeraldcapitalism$ladderExitLastDistanceSq = emeraldcapitalism$distanceToExitSq(villager, target);
         emeraldcapitalism$ladderExitStagnantTicks = 0;
+        return true;
     }
 
     @Unique
@@ -379,17 +443,14 @@ public abstract class VillagerClimbMixin {
     private void emeraldcapitalism$recoverFromLadderExit(Villager villager) {
         emeraldcapitalism$releaseLadder(villager);
         emeraldcapitalism$ladderExitTarget = null;
+        emeraldcapitalism$ladderExitEndpoint = null;
+        VillagerLadderClaims.clearActiveExit(villager);
         emeraldcapitalism$plannedLadderExitTarget = null;
         emeraldcapitalism$activeLadderColumn = null;
         emeraldcapitalism$climbDirection = 0;
         emeraldcapitalism$ladderExitCooldownUntil = villager.tickCount + 20;
         emeraldcapitalism$resetLadderExitProgress();
-        Path navigationPath = villager.getNavigation().getPath();
         villager.getNavigation().stop();
-        Path brainPath = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
-        if (brainPath == null || brainPath == navigationPath) {
-            villager.getBrain().eraseMemory(MemoryModuleType.PATH);
-        }
         villager.setDeltaMovement(0.0D, 0.0D, 0.0D);
     }
 
@@ -399,11 +460,12 @@ public abstract class VillagerClimbMixin {
         emeraldcapitalism$climbDirection = 0;
         emeraldcapitalism$plannedLadderExitTarget = null;
         emeraldcapitalism$activeLadderColumn = null;
+        VillagerLadderClaims.clearActiveExit(villager);
     }
 
     @Unique
     private BlockPos emeraldcapitalism$selectValidatedExit(Villager villager, BlockPos ladderPos,
-                                                              Direction preferred) {
+                                                              Direction preferred, boolean ascending) {
         Direction[] candidates = {
                 preferred,
                 preferred.getOpposite(),
@@ -412,7 +474,8 @@ public abstract class VillagerClimbMixin {
         };
         for (Direction direction : candidates) {
             BlockPos candidate = ladderPos.relative(direction);
-            if (emeraldcapitalism$isSafeExitForVillager(villager, candidate)) {
+            if (emeraldcapitalism$isValidatedExitForEndpoint(
+                    villager, ladderPos, candidate, ascending)) {
                 return candidate;
             }
         }

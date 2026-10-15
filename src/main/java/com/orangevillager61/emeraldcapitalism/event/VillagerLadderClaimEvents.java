@@ -5,8 +5,10 @@ import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerLadderClaims;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.tags.BlockTags;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
@@ -15,6 +17,8 @@ import net.minecraft.server.level.ServerLevel;
 
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class VillagerLadderClaimEvents {
+    private static long purgeTick;
+
     private VillagerLadderClaimEvents() {
     }
 
@@ -31,13 +35,31 @@ public final class VillagerLadderClaimEvents {
     }
 
     @SubscribeEvent
+    public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
+        if (event.getLevel() instanceof ServerLevel level
+                && event.getPlacedBlock().is(BlockTags.CLIMBABLE)) {
+            VillagerLadderClaims.invalidateAt(level, event.getPos());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onBlockBroken(BlockEvent.BreakEvent event) {
+        if (event.getLevel() instanceof ServerLevel level
+                && event.getLevel().getBlockState(event.getPos()).is(BlockTags.CLIMBABLE)) {
+            VillagerLadderClaims.invalidateAt(level, event.getPos());
+        }
+    }
+
+    @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         VillagerLadderClaims.clear();
     }
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
-        VillagerLadderClaims.purgeStale();
+        if (++purgeTick % 20L == 0L) {
+            VillagerLadderClaims.purgeStale(64);
+        }
     }
 
     @SubscribeEvent

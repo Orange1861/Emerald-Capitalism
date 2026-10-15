@@ -15,6 +15,7 @@ import com.orangevillager61.emeraldcapitalism.market.MarketItem;
 import com.orangevillager61.emeraldcapitalism.market.MarketRegistry;
 import com.orangevillager61.emeraldcapitalism.market.MarketTradeService;
 import com.orangevillager61.emeraldcapitalism.market.TradeSide;
+import com.orangevillager61.emeraldcapitalism.menu.BankMenuOpenData;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
@@ -32,6 +33,7 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -797,15 +799,18 @@ public final class BankGameplayGameTests {
     public static void fullInventoryVillagerUsesOnlyTheBankFront(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         level.setDayTime(500L);
-        setupMarketBank(helper, Items.EMERALD_ORE, 0);
+        BlockPos bankLocalPos = new BlockPos(10, 1, 10);
+        BlockPos chestLocalPos = bankLocalPos.south();
+        BankBlockEntity bank = setupMarketBankAt(helper, Items.EMERALD_ORE, 0, 4, bankLocalPos);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
-                helper.absolutePos(new BlockPos(1, 1, 2)));
+                helper.absolutePos(chestLocalPos));
         if (chest == null) {
             helper.fail("bank access-side chest was not created");
             return;
         }
 
-        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 0, 1, 1);
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER,
+                bankLocalPos.getX() - 1, bankLocalPos.getY(), bankLocalPos.getZ());
         villager.getInventory().setItem(0, new ItemStack(Items.STRING, 4));
         for (int slot = 1; slot < villager.getInventory().getContainerSize(); slot++) {
             villager.getInventory().setItem(slot, new ItemStack(Items.DIRT, 64));
@@ -818,7 +823,7 @@ public final class BankGameplayGameTests {
         helper.assertValueEqual(countItem(villager, Items.STRING), 4,
                 "villager transferred inventory from the banker-only back side");
 
-        BlockPos front = helper.absolutePos(new BlockPos(2, 1, 1));
+        BlockPos front = helper.absolutePos(bankLocalPos.east());
         villager.moveTo(front.getX() + 0.5D, front.getY(), front.getZ() + 0.5D,
                 0.0F, 0.0F);
         goal.tick();
@@ -910,7 +915,7 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
-    public static void linkedChestMutationsUpdateBankTotalsOnNextBankTick(GameTestHelper helper) {
+    public static void linkedChestMutationsUpdateSameTickEconomicReads(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
@@ -927,16 +932,23 @@ public final class BankGameplayGameTests {
         BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
         helper.assertTrue(!bank.hasUnverifiedChestCache(),
                 "bank chest cache remained unverified after its initial scan");
+        long refreshesBeforeMutation = bank.getInventoryTotalsRefreshCount();
         chest.setItem(0, new ItemStack(Items.EMERALD_BLOCK, 2));
         chest.setItem(1, new ItemStack(Items.PUMPKIN, 3));
 
-        helper.assertValueEqual(bank.getTotalEmeraldCount(), 0,
-                "linked chest mutation synchronously rebuilt bank totals");
+        helper.assertValueEqual(bank.getTotalEmeraldCount(), 18,
+                "same-tick economic read did not observe the linked chest mutation");
+        helper.assertValueEqual(bank.getTotalPumpkinCount(), 3,
+                "same-tick AI read did not observe the linked chest mutation");
+        helper.assertValueEqual(bank.getInventoryTotalsRefreshCount(), refreshesBeforeMutation + 1,
+                "same-tick linked chest reads refreshed aggregate totals more than once");
         BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
         helper.assertValueEqual(bank.getTotalEmeraldCount(), 18,
                 "linked chest mutation did not update bank emerald totals on the bank tick");
         helper.assertValueEqual(bank.getTotalPumpkinCount(), 3,
                 "linked chest mutation did not update bank pumpkin totals on the bank tick");
+        helper.assertValueEqual(bank.getInventoryTotalsRefreshCount(), refreshesBeforeMutation + 1,
+                "bank ticker refreshed again after the same-tick lazy total refresh");
         helper.succeed();
     }
 
@@ -1026,7 +1038,6 @@ public final class BankGameplayGameTests {
                         && constructionPos.equals(restored.getGolemConstructionPos()),
                 "durable bank positions did not survive bank save/reload");
         helper.assertTrue(restored.getCachedChestPositions().isEmpty()
-                        && restored.getTotalEmeraldCount() == 0
                         && restored.getClosestEmeraldProcessorPos() == null,
                 "derived caches were not reset before the next normal scan");
         helper.assertTrue(restored.hasUnverifiedChestCache(),
@@ -1052,18 +1063,60 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
-    public static void malformedBankStateDefaultsWithoutCrashing(GameTestHelper helper) {
+    public static void malformedBankStatePreservesUnrelatedPopulatedFields(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
         BlockState bankState = ECAPBlocks.BANK.get().defaultBlockState();
         helper.setBlock(new BlockPos(1, 1, 1), bankState);
+        helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
         BankBlockEntity original = bankAt(helper, bankPos);
         if (original == null) {
             return;
         }
 
-        CompoundTag malformed = original.saveWithId(level.registryAccess());
-        malformed.putString("employee_ids", "not-an-uuid-list");
+        UUID villageId = UUID.randomUUID();
+        UUID controllerId = UUID.randomUUID();
+        UUID takeoverKiller = UUID.randomUUID();
+        original.setVillageId(villageId);
+        original.setController(controllerId);
+        original.setBankName("Populated Recovery Bank");
+        BankMenuOpenData.ControlSettings settings = new BankMenuOpenData.ControlSettings(
+                true, 2, 3, 17, false, false, false, true, true);
+        original.setControlSettings(settings);
+        Villager employee = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 1);
+        UUID employeeId = employee.getUUID();
+        original.registerSpawnedEmployee(employee);
+        original.recordLastEmployeeDirectKiller(employeeId, takeoverKiller, 12_345L);
+        original.registerEmployeeFromJob(level, employee, chestPos);
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), original);
+        CompoundTag valid = original.saveWithId(level.registryAccess());
+        helper.assertTrue(valid.contains("tracked_chest_positions"),
+                "populated bank fixture did not persist tracked chest positions");
+
+        CompoundTag wrongType = valid.copy();
+        wrongType.putString("employee_ids", "not-an-uuid-list");
+        assertRecoveredPopulatedBank(helper, bankPos, bankState, wrongType, level,
+                villageId, controllerId, employeeId, settings, chestPos, takeoverKiller);
+
+        CompoundTag oversized = valid.copy();
+        ListTag employeeIds = (ListTag) valid.get("employee_ids");
+        ListTag tooManyEmployees = new ListTag();
+        for (int index = 0; index < BankBlockEntity.MAX_EMPLOYEES + 1; index++) {
+            tooManyEmployees.add(employeeIds.get(0).copy());
+        }
+        oversized.put("employee_ids", tooManyEmployees);
+        assertRecoveredPopulatedBank(helper, bankPos, bankState, oversized, level,
+                villageId, controllerId, employeeId, settings, chestPos, takeoverKiller);
+        helper.succeed();
+    }
+
+    private static void assertRecoveredPopulatedBank(GameTestHelper helper, BlockPos bankPos,
+                                                     BlockState bankState, CompoundTag malformed,
+                                                     ServerLevel level, UUID villageId,
+                                                     UUID controllerId, UUID employeeId,
+                                                     BankMenuOpenData.ControlSettings settings,
+                                                     BlockPos chestPos, UUID takeoverKiller) {
         BlockEntity loaded;
         try {
             loaded = BlockEntity.loadStatic(bankPos, bankState, malformed, level.registryAccess());
@@ -1073,13 +1126,25 @@ public final class BankGameplayGameTests {
         }
         helper.assertTrue(loaded instanceof BankBlockEntity,
                 "malformed bank state discarded the bank block entity");
-        if (loaded instanceof BankBlockEntity restored) {
-            helper.assertTrue(restored.getVillageId() == null
-                            && restored.getEmployeeIds().isEmpty()
-                            && restored.getBankName().isEmpty(),
-                    "malformed bank state did not default to an empty safe state");
+        if (!(loaded instanceof BankBlockEntity restored)) {
+            return;
         }
-        helper.succeed();
+        helper.assertTrue(villageId.equals(restored.getVillageId()),
+                "valid village ID was lost when employee_ids was malformed");
+        helper.assertTrue(!restored.isBankIndependent()
+                        && controllerId.equals(restored.getControllerId()),
+                "valid controller state was lost when employee_ids was malformed");
+        helper.assertTrue("Populated Recovery Bank".equals(restored.getBankName()),
+                "valid bank name was lost when employee_ids was malformed");
+        helper.assertTrue(settings.equals(restored.getControlSettings()),
+                "valid control settings were lost when employee_ids was malformed");
+        helper.assertTrue(restored.getTrackedChestPositions().contains(chestPos),
+                "valid tracked chest position was lost when employee_ids was malformed");
+        helper.assertTrue(restored.isTakeoverLocked(level),
+                "valid takeover lock was lost when employee_ids was malformed");
+        helper.assertTrue(restored.getEmployeeIds().isEmpty()
+                        || restored.getEmployeeIds().contains(employeeId),
+                "malformed employee_ids did not fall back only to that field");
     }
 
     private static BankBlockEntity setupBreadBank(GameTestHelper helper, int bread) {
@@ -1100,12 +1165,18 @@ public final class BankGameplayGameTests {
 
     private static BankBlockEntity setupMarketBank(GameTestHelper helper, Item item, int amount,
                                                     int villageRadius) {
+        return setupMarketBankAt(helper, item, amount, villageRadius, new BlockPos(1, 1, 1));
+    }
+
+    private static BankBlockEntity setupMarketBankAt(GameTestHelper helper, Item item, int amount,
+                                                     int villageRadius, BlockPos bankLocalPos) {
         ServerLevel level = helper.getLevel();
-        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
-        BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
-        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState()
+        BlockPos chestLocalPos = bankLocalPos.south();
+        BlockPos bankPos = helper.absolutePos(bankLocalPos);
+        BlockPos chestPos = helper.absolutePos(chestLocalPos);
+        helper.setBlock(bankLocalPos, ECAPBlocks.BANK.get().defaultBlockState()
                 .setValue(BankBlock.FACING, Direction.EAST));
-        helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+        helper.setBlock(chestLocalPos, ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
 
         BankBlockEntity bank = bankAt(helper, bankPos);
         EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(chestPos);
@@ -1227,6 +1298,13 @@ public final class BankGameplayGameTests {
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT, new ItemStack(Items.EMERALD, 4));
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_FUEL, new ItemStack(Items.COAL, 3));
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT, new ItemStack(Items.EMERALD_BLOCK, 2));
+        long refreshesBeforeSameTickRead = bank.getInventoryTotalsRefreshCount();
+        helper.assertValueEqual(bank.getTotalEmeraldCount(), 22,
+                "same-tick economic read did not observe processor input and output");
+        helper.assertValueEqual(bank.getTotalCoalCount(), 3,
+                "same-tick processor read did not observe processor fuel");
+        helper.assertValueEqual(bank.getInventoryTotalsRefreshCount(), refreshesBeforeSameTickRead + 1,
+                "same-tick processor reads refreshed aggregate totals more than once");
         helper.runAfterDelay(1, () -> {
             BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
 
@@ -1241,6 +1319,13 @@ public final class BankGameplayGameTests {
                     new ItemStack(Items.EMERALD_ORE, 2));
             processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT,
                     new ItemStack(ECAPItems.EMERALD_GREEN_DYE.get(), 5));
+            long refreshesBeforeSecondRead = bank.getInventoryTotalsRefreshCount();
+            helper.assertValueEqual(bank.getTotalEmeraldOreCount(), 2,
+                    "same-tick processor read did not observe replacement ore input");
+            helper.assertValueEqual(bank.getTotalEmeraldGreenDyeCount(), 5,
+                    "same-tick processor read did not observe replacement dye output");
+            helper.assertValueEqual(bank.getInventoryTotalsRefreshCount(), refreshesBeforeSecondRead + 1,
+                    "second same-tick processor read refreshed aggregate totals more than once");
             helper.runAfterDelay(1, () -> {
                 BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
 

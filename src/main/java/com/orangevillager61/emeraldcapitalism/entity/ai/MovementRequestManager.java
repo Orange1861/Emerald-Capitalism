@@ -268,6 +268,13 @@ public final class MovementRequestManager {
         return state == null ? null : state.activeHandle;
     }
 
+    /** Returns the active handle only when it belongs to the requested owner. */
+    @Nullable
+    public static MovementRequestHandle activeHandle(Villager villager, String owner) {
+        MovementRequestHandle handle = activeHandle(villager);
+        return handle != null && handle.owner().equals(owner) ? handle : null;
+    }
+
     /** Returns the most recently published handle, including a request completed this tick. */
     @Nullable
     public static MovementRequestHandle lastPublishedHandle(Villager villager) {
@@ -283,6 +290,21 @@ public final class MovementRequestManager {
         }
         State state = STATES.get(villager);
         return state == null ? 0L : state.terminalCounts.getOrDefault(reason, 0L);
+    }
+
+    /** Returns terminal transitions for one request owner in this villager session. */
+    public static long terminalCount(Villager villager, String owner,
+                                     MovementRequestTerminationReason reason) {
+        if (villager == null || owner == null || reason == null) {
+            return 0L;
+        }
+        State state = STATES.get(villager);
+        if (state == null) {
+            return 0L;
+        }
+        EnumMap<MovementRequestTerminationReason, Long> counts =
+                state.terminalCountsByOwner.get(owner);
+        return counts == null ? 0L : counts.getOrDefault(reason, 0L);
     }
 
     /** Writes and claims a manually-created look tracker for an active request. */
@@ -865,6 +887,9 @@ public final class MovementRequestManager {
             return;
         }
         state.terminalCounts.merge(reason, 1L, Long::sum);
+        state.terminalCountsByOwner
+                .computeIfAbsent(handle.owner(), ignored -> new EnumMap<>(MovementRequestTerminationReason.class))
+                .merge(reason, 1L, Long::sum);
         recordTermination(reason);
         MovementDiagnostics.terminal(villager, handle, reason);
     }
@@ -929,6 +954,8 @@ public final class MovementRequestManager {
         private final MovementRequestLedger ledger = new MovementRequestLedger();
         private final EnumMap<MovementRequestTerminationReason, Long> terminalCounts =
                 new EnumMap<>(MovementRequestTerminationReason.class);
+        private final Map<String, EnumMap<MovementRequestTerminationReason, Long>> terminalCountsByOwner =
+                new java.util.HashMap<>();
         @Nullable
         private MovementRequestSpec activeSpec;
         @Nullable

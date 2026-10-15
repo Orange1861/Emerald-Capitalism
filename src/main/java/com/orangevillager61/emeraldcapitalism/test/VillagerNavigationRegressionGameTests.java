@@ -1,6 +1,9 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerLadderClaims;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
@@ -10,11 +13,14 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.Path;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -143,8 +149,9 @@ public final class VillagerNavigationRegressionGameTests {
         Villager first = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
         Villager second = spawnNormalFarmer(helper, new BlockPos(0, 1, 1));
         BlockPos absolutePumpkin = helper.absolutePos(pumpkin);
+        ContentionObservation observation = new ContentionObservation();
         helper.runAfterDelay(1, () -> awaitContendedLadderWork(
-                helper, first, second, absolutePumpkin, 980));
+                helper, first, second, absolutePumpkin, observation, 980));
     }
 
     @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_200)
@@ -156,11 +163,36 @@ public final class VillagerNavigationRegressionGameTests {
         awaitBlockedTopExitRecovery(helper, farmer, pumpkin, progress, 360);
     }
 
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 700)
+    public static void stalePlannedLadderExitUsesValidatedFallback(GameTestHelper helper) {
+        BlockPos ladderBase = installLadder(helper);
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        farmer.moveTo(ladderBase.getX() + 0.5D, ladderBase.getY(), ladderBase.getZ() + 0.5D,
+                0.0F, 0.0F);
+        BlockPos staleExit = new BlockPos(ladderBase.getX() + 1,
+                ladderBase.getY() + 1, ladderBase.getZ());
+        List<Node> nodes = verticalRoute(ladderBase, true);
+        nodes.add(new Node(staleExit.getX(), staleExit.getY(), staleExit.getZ()));
+        helper.assertTrue(farmer.getNavigation().moveTo(
+                        new Path(nodes, staleExit, true), 1.0D),
+                "stale-exit ladder route could not be installed");
+        helper.runAfterDelay(1, () -> awaitStalePlannedExit(
+                helper, farmer, ladderBase, staleExit, 550));
+    }
+
     @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_200)
-    public static void ladderDestructionAndEntityReloadReleaseRealGoalState(GameTestHelper helper) {
+    public static void ladderDestructionReleasesLoadedEntityClaim(GameTestHelper helper) {
         BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
         Villager original = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
         awaitLadderDestructionBeforeCompletion(helper, original, pumpkin,
+                new RealLadderProgress(), 360);
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_200)
+    public static void normalVillagerUnloadReloadReleasesLadderClaim(GameTestHelper helper) {
+        BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
+        Villager original = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
+        awaitEntityUnloadBeforeCompletion(helper, original, pumpkin,
                 new RealLadderProgress(), 360);
     }
 
@@ -209,7 +241,7 @@ public final class VillagerNavigationRegressionGameTests {
                                              BlockPos localPumpkin, RealLadderProgress progress,
                                              int remainingTicks, boolean ascending) {
         BlockPos pumpkin = helper.absolutePos(localPumpkin);
-        progress.observe(farmer, pumpkin);
+        progress.observe(farmer, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
         if (helper.getLevel().getBlockState(pumpkin).isAir()
                 && farmer.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN) > 0) {
             helper.assertTrue(progress.sawClimbable,
@@ -217,6 +249,10 @@ public final class VillagerNavigationRegressionGameTests {
             helper.assertTrue(ascending ? progress.maximumY >= pumpkin.getY() : progress.minimumY <= pumpkin.getY(),
                     "real farmer did not complete the expected ladder direction: "
                             + farmer.position() + " progress=" + progress);
+            helper.assertTrue(progress.sawBeyondLadder,
+                    "real farmer harvested the target without being observed beyond the ladder");
+            helper.assertTrue(progress.sawSupportedCollisionFreeFooting,
+                    "real farmer harvested the target without supported collision-free footing beyond the ladder");
             // The target is deliberately beyond the ladder and the normal
             // HarvestPumpkinGoal has just completed its real interaction. That
             // completion is the durable route-exit assertion; the sampled
@@ -253,9 +289,17 @@ public final class VillagerNavigationRegressionGameTests {
                                                      RealLadderProgress progress,
                                                      int remainingTicks) {
         BlockPos pumpkin = helper.absolutePos(localPumpkin);
-        progress.observe(farmer, pumpkin);
-        if (progress.sawClimbable && !helper.getLevel().getBlockState(pumpkin).isAir()) {
-            helper.setBlock(new BlockPos(1, 5, 1), Blocks.STONE.defaultBlockState());
+        progress.observe(farmer, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
+        BlockPos selectedExit = VillagerLadderClaims.activeExit(farmer);
+        if (progress.sawClimbable && selectedExit != null
+                && VillagerLadderClaims.claimCount() > 0
+                && farmer.getNavigation().isDone()
+                && !helper.getLevel().getBlockState(pumpkin).isAir()) {
+            helper.assertTrue(VillagerLadderClaims.claimedColumn(farmer) != null,
+                    "blocked-exit test did not observe an active ladder claim");
+            progress.sawActiveDismount = true;
+            progress.selectedExit = selectedExit;
+            helper.getLevel().setBlock(selectedExit, Blocks.STONE.defaultBlockState(), 3);
             helper.runAfterDelay(35, () -> awaitBlockedExitClaimRelease(helper, farmer,
                     localPumpkin, progress, 80));
             return;
@@ -273,14 +317,41 @@ public final class VillagerNavigationRegressionGameTests {
                 helper, farmer, localPumpkin, progress, remainingTicks - 1));
     }
 
+    private static void awaitStalePlannedExit(GameTestHelper helper, Villager farmer,
+                                               BlockPos ladderBase, BlockPos staleExit,
+                                               int remainingTicks) {
+        BlockPos activeExit = VillagerLadderClaims.activeExit(farmer);
+        if (activeExit != null) {
+            helper.assertTrue(!activeExit.equals(staleExit),
+                    "stale planned route exit was used for ladder dismount: " + activeExit);
+            helper.assertTrue(activeExit.equals(ladderBase.relative(Direction.SOUTH).above(4)),
+                    "validated fallback did not use the connected supported endpoint: "
+                            + activeExit);
+            helper.assertTrue(helper.getLevel().noCollision(farmer, farmer.getBoundingBox()),
+                    "validated ladder fallback left the villager colliding");
+            helper.succeed();
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("stale planned ladder exit never reached validated dismount: pos="
+                    + farmer.position() + " staleExit=" + staleExit);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitStalePlannedExit(
+                helper, farmer, ladderBase, staleExit, remainingTicks - 1));
+    }
+
     private static void awaitBlockedExitClaimRelease(GameTestHelper helper, Villager farmer,
                                                        BlockPos localPumpkin, RealLadderProgress progress,
                                                        int remainingTicks) {
-        progress.observe(farmer, helper.absolutePos(localPumpkin));
+        progress.observe(farmer, helper.absolutePos(localPumpkin),
+                helper.absolutePos(new BlockPos(1, 1, 0)));
         if (VillagerLadderClaims.claimCount() == 0) {
             helper.assertTrue(helper.getLevel().noCollision(farmer, farmer.getBoundingBox()),
                     "blocked top exit left the real villager colliding");
-            helper.setBlock(new BlockPos(1, 5, 1), Blocks.AIR.defaultBlockState());
+            if (progress.selectedExit != null) {
+                helper.getLevel().setBlock(progress.selectedExit, Blocks.AIR.defaultBlockState(), 3);
+            }
             awaitRealLadderWork(helper, farmer, localPumpkin, progress, 700, true);
             return;
         }
@@ -299,17 +370,14 @@ public final class VillagerNavigationRegressionGameTests {
                                                                  RealLadderProgress progress,
                                                                  int remainingTicks) {
         BlockPos pumpkin = helper.absolutePos(localPumpkin);
-        progress.observe(farmer, pumpkin);
+        progress.observe(farmer, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
         if (progress.sawClimbable && !helper.getLevel().getBlockState(pumpkin).isAir()) {
             // This is a real-world interruption: remove the ladder while the
             // normal farmer is pursuing its planner-selected work target.
             for (int y = 1; y <= 5; y++) {
                 helper.setBlock(new BlockPos(1, y, 0), Blocks.AIR.defaultBlockState());
             }
-            helper.assertTrue(helper.getLevel().noCollision(farmer, farmer.getBoundingBox()),
-                    "ladder destruction left the original villager colliding");
-            farmer.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
-            awaitReloadAfterUnload(helper, farmer, localPumpkin, 80);
+            awaitLadderDestructionCleanup(helper, farmer, 80);
             return;
         }
         if (helper.getLevel().getBlockState(pumpkin).isAir()) {
@@ -323,6 +391,50 @@ public final class VillagerNavigationRegressionGameTests {
         }
         helper.runAfterDelay(1, () -> awaitLadderDestructionBeforeCompletion(
                 helper, farmer, localPumpkin, progress, remainingTicks - 1));
+    }
+
+    private static void awaitLadderDestructionCleanup(GameTestHelper helper, Villager villager,
+                                                       int remainingTicks) {
+        helper.assertTrue(villager.isAlive(),
+                "ladder destruction unexpectedly unloaded the original villager");
+        helper.assertTrue(helper.getLevel().noCollision(villager, villager.getBoundingBox()),
+                "ladder destruction left the original villager colliding");
+        if (VillagerLadderClaims.claimCount() == 0) {
+            helper.succeed();
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("ladder destruction did not release the loaded villager claim: "
+                    + VillagerLadderClaims.claimCount());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitLadderDestructionCleanup(
+                helper, villager, remainingTicks - 1));
+    }
+
+    private static void awaitEntityUnloadBeforeCompletion(GameTestHelper helper, Villager villager,
+                                                            BlockPos localPumpkin,
+                                                            RealLadderProgress progress,
+                                                            int remainingTicks) {
+        BlockPos pumpkin = helper.absolutePos(localPumpkin);
+        progress.observe(villager, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
+        if (progress.sawClimbable && VillagerLadderClaims.claimCount() > 0
+                && !helper.getLevel().getBlockState(pumpkin).isAir()) {
+            villager.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+            awaitReloadAfterUnload(helper, villager, localPumpkin, 80);
+            return;
+        }
+        if (helper.getLevel().getBlockState(pumpkin).isAir()) {
+            helper.fail("real farmer completed before the entity-unload interruption");
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("real farmer never entered the ladder before entity unload: "
+                    + villager.position() + " progress=" + progress);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitEntityUnloadBeforeCompletion(
+                helper, villager, localPumpkin, progress, remainingTicks - 1));
     }
 
     private static void awaitReloadAfterUnload(GameTestHelper helper, Villager unloaded,
@@ -348,12 +460,21 @@ public final class VillagerNavigationRegressionGameTests {
 
     private static void awaitContendedLadderWork(GameTestHelper helper, Villager first,
                                                   Villager second, BlockPos pumpkin,
+                                                  ContentionObservation observation,
                                                   int remainingTicks) {
+        observation.observe(helper, first, second);
+        observation.releaseClaimHolderAfterWaitingRoute();
         if (helper.getLevel().getBlockState(pumpkin).isAir()) {
             int harvested = first.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN)
                     + second.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN);
             helper.assertValueEqual(harvested, 1,
                     "two normal villagers harvested the contended work target more than once");
+            helper.assertTrue(observation.sawWaitingRoute,
+                    "waiting villager did not retain its route while the ladder was claimed: "
+                            + observation);
+            helper.assertTrue(observation.sawWaiterProceedAfterRelease,
+                    "waiting villager did not proceed onto the ladder after claim release: "
+                            + observation);
             awaitContendedClaimsReleased(helper, 120);
             return;
         }
@@ -364,7 +485,7 @@ public final class VillagerNavigationRegressionGameTests {
             return;
         }
         helper.runAfterDelay(1, () -> awaitContendedLadderWork(
-                helper, first, second, pumpkin, remainingTicks - 1));
+                helper, first, second, pumpkin, observation, remainingTicks - 1));
     }
 
     private static void awaitContendedClaimsReleased(GameTestHelper helper, int remainingTicks) {
@@ -385,23 +506,109 @@ public final class VillagerNavigationRegressionGameTests {
         private int minimumY = Integer.MAX_VALUE;
         private boolean sawClimbable;
         private boolean sawBeyondLadder;
+        private boolean sawSupportedCollisionFreeFooting;
+        private boolean sawActiveDismount;
+        private BlockPos selectedExit;
 
-        private void observe(Villager villager, BlockPos target) {
+        private void observe(Villager villager, BlockPos target, BlockPos ladderColumn) {
             maximumY = Math.max(maximumY, villager.blockPosition().getY());
             minimumY = Math.min(minimumY, villager.blockPosition().getY());
             sawClimbable |= villager.onClimbable();
-            // A villager may validly interact from the supported landing one
-            // block below the crop; the horizontal step beyond the ladder is
-            // the part that proves the dismount route completed.
-            sawBeyondLadder |= villager.blockPosition().getY() >= target.getY() - 1
-                    && villager.blockPosition().getZ() >= target.getZ() - 1;
+            BlockPos feet = villager.blockPosition();
+            boolean beyond = feet.getY() == target.getY()
+                    && (feet.getX() != ladderColumn.getX() || feet.getZ() != ladderColumn.getZ())
+                    && villager.distanceToSqr(target.getX() + 0.5D, target.getY(), target.getZ() + 0.5D)
+                    <= 6.25D;
+            sawBeyondLadder |= beyond;
+            if (beyond) {
+                BlockState support = villager.level().getBlockState(feet.below());
+                boolean supported = support.isFaceSturdy(villager.level(), feet.below(), Direction.UP)
+                        || support.is(BlockTags.CLIMBABLE);
+                boolean clear = villager.level().getBlockState(feet).getCollisionShape(
+                                villager.level(), feet).isEmpty()
+                        && villager.level().getBlockState(feet.above()).getCollisionShape(
+                                villager.level(), feet.above()).isEmpty();
+                sawSupportedCollisionFreeFooting |= supported && clear
+                        && villager.level().noCollision(villager, villager.getBoundingBox());
+            }
         }
 
         @Override
         public String toString() {
             return "RealLadderProgress{maximumY=" + maximumY + ", minimumY=" + minimumY
                     + ", sawClimbable=" + sawClimbable + ", sawBeyondLadder="
-                    + sawBeyondLadder + '}';
+                    + sawBeyondLadder + ", sawSupportedCollisionFreeFooting="
+                    + sawSupportedCollisionFreeFooting + ", sawActiveDismount="
+                    + sawActiveDismount + ", selectedExit=" + selectedExit + '}';
+        }
+    }
+
+    private static final class ContentionObservation {
+        private boolean sawFirstClaim;
+        private boolean sawSecondClaim;
+        private boolean sawWaitingRoute;
+        private boolean sawReleasedClaim;
+        private boolean sawWaiterProceedAfterRelease;
+        private Villager waitingVillager;
+        private Villager claimHolder;
+        private boolean releasedClaimHolder;
+
+        private void observe(GameTestHelper helper, Villager first, Villager second) {
+            VillagerLadderClaims.LadderColumn firstClaim =
+                    VillagerLadderClaims.claimedColumn(first);
+            VillagerLadderClaims.LadderColumn secondClaim =
+                    VillagerLadderClaims.claimedColumn(second);
+            sawFirstClaim |= firstClaim != null;
+            sawSecondClaim |= secondClaim != null;
+            if (firstClaim != null && firstClaim.equals(secondClaim)) {
+                helper.fail("two normal villagers simultaneously occupied one claimed ladder segment");
+                return;
+            }
+            boolean firstWaiting = firstClaim != null && secondClaim == null
+                    && retainsRoute(second);
+            boolean secondWaiting = secondClaim != null && firstClaim == null
+                    && retainsRoute(first);
+            if (firstWaiting) {
+                waitingVillager = second;
+                claimHolder = first;
+            } else if (secondWaiting) {
+                waitingVillager = first;
+                claimHolder = second;
+            }
+            sawWaitingRoute |= waitingVillager != null;
+            if (waitingVillager != null && VillagerLadderClaims.claimedColumn(waitingVillager) != null) {
+                sawWaiterProceedAfterRelease = true;
+            }
+        }
+
+        private void releaseClaimHolderAfterWaitingRoute() {
+            if (releasedClaimHolder || !sawWaitingRoute || claimHolder == null) {
+                return;
+            }
+            VillagerLadderClaims.releaseAll(claimHolder);
+            MovementRequestHandle handle = MovementRequestManager.activeHandle(claimHolder);
+            if (handle != null) {
+                MovementRequestManager.cancel(claimHolder, handle,
+                        MovementRequestTerminationReason.ABANDONED);
+            }
+            claimHolder.discard();
+            releasedClaimHolder = true;
+            sawReleasedClaim = true;
+        }
+
+        private static boolean retainsRoute(Villager villager) {
+            return MovementRequestManager.activeHandle(villager) != null
+                    || villager.getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)
+                    || (villager.getNavigation().getPath() != null
+                    && !villager.getNavigation().isDone());
+        }
+
+        @Override
+        public String toString() {
+            return "ContentionObservation{firstClaim=" + sawFirstClaim
+                    + ", secondClaim=" + sawSecondClaim + ", waitingRoute="
+                    + sawWaitingRoute + ", released=" + sawReleasedClaim
+                    + ", waiterProceeded=" + sawWaiterProceedAfterRelease + '}';
         }
     }
 
