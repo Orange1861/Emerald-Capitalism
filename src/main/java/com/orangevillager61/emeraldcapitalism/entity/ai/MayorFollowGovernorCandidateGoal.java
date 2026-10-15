@@ -234,8 +234,14 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
             // continuable. Moving-target retries below deliberately skip this
             // preflight: the vanilla sink is the sole planner after admission
             // and retries are rate-limited by time/distance.
-            Path admissionPath = mayor.getNavigation().createPath(
-                    candidate.blockPosition(), PATH_NODE_MALUS);
+            Path admissionPath = PerformanceTimingCounters.measurePathPlan(
+                    PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_PLAN_ATTEMPT,
+                    () -> mayor.getNavigation().createPath(
+                            candidate.blockPosition(), PATH_NODE_MALUS));
+            if (admissionPath != null) {
+                PerformanceTimingCounters.recordEvent(
+                        PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_OBJECT_CREATED);
+            }
             if (admissionPath == null || !admissionPath.canReach()) {
                 return false;
             }

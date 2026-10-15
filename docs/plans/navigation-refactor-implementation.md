@@ -83,60 +83,64 @@ snapshots for both supported targets. A faster run is not considered an
 improvement if it only abandons more work; successful task outcomes and retry
 counts are part of the comparison.
 
-The final-tree runs on 2026-10-14 used Java 21.0.9 (Eclipse Adoptium) with
-the project Gradle wrapper and these exact commands:
+The final R5 verification on 2026-10-14 used Java 21.0.9 (Eclipse Adoptium)
+with the project Gradle wrapper. The checked-out R5 commit is
+`e05ae933f153d552afd47c8939b42736fcba4137`; the controlled R4 comparison
+commit is `954713348362c7fc18703fdd04d91615551bf949`.
+
+The exact functional commands were:
 
 ```text
-.\gradlew test --no-daemon --no-configuration-cache --console=plain
-.\gradlew :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain
+.\gradlew test verifyRegressionCoverage --no-daemon --no-configuration-cache --console=plain
+.\gradlew :1.21.1:compileJava --rerun-tasks --no-daemon --no-configuration-cache --console=plain
 .\gradlew :1.21.1:runGameTestServer --no-daemon --no-configuration-cache --console=plain
 .\gradlew :1.21.4:runGameTestServer --no-daemon --no-configuration-cache --console=plain
 git diff --check
 ```
 
-The diagnostic snapshots additionally set
+The JVM suite passed: core tests plus both version test source sets. The
+coverage gate verified 7 risk boundaries and 227 discovered GameTests. Both
+supported targets completed all 226 required GameTests with no required
+failures. The passing suites include the real job-block journeys, ladder exit
+and two-villager ladder cases, unmanaged-route handoff, profession work, the
+Emeraldsmith processor/construction journey, Mayor bank/door repair, golem
+obstruction, and server-stop lifecycle accounting.
+
+The uninstrumented functional snapshots were:
+
+| Target | Required tests | GameTest runtime | Result |
+| --- | ---: | ---: | --- |
+| 1.21.1 | 226 | 2.483 min | all required tests passed |
+| 1.21.4 | 226 | 2.047 min | all required tests passed |
+
+The counters are emitted in the server shutdown log. With detailed timing
+disabled and event counting enabled, the movement lifecycle snapshots were:
+
+| Target | Submissions | Replans | Preemptions | Rejections | Arrived | Retries | Abandoned | Failures | Unloaded / shutdown |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1.21.1 | 16 | 0 | 2 | 0 | 9 | 6 | 1 | 2 | 1 / 1 |
+| 1.21.4 | 16 | 0 | 2 | 1 | 9 | 8 | 1 | 2 | 1 / 1 |
+
+The corrected diagnostic run used
 `-Demeraldcapitalism.performanceTiming=true` and
 `-Demeraldcapitalism.performanceEvents=true` through `JAVA_TOOL_OPTIONS`.
+On 1.21.4 it recorded 592 manager-tick calls, 16.253 ms total, 0.027 ms
+average, 0.007 ms p50, 0.064 ms p95, 0.141 ms p99, and 3.650 ms maximum.
+The same run recorded 404 behavior-registry calls, 8.114 ms total, and
+0.020 ms average. It exposed two timing-sensitive test assertions (the
+begging journey deadline and an exact boat-preemption count); the ordinary
+functional runs above remained fully green. These diagnostic numbers are
+therefore performance evidence, not an additional green functional gate.
 
-The JVM suite passed (core tests plus both version test source sets). Both
-version compile tasks passed. The final-tree GameTest runs had 218 tests per
-target; all new registry, movement-ownership, stale-memory, preemption,
-look-ownership, and Mayor-follow tests passed on both targets. The named
-Skrimisher periodic-deposit regression also passed. The measurement runs
-reported the following final-tree snapshots:
-
-| Target | GameTest runtime | Manager time (calls / total / avg / max) | Registry time (calls / total / avg / max) | Arrived / abandoned | Retries | Replans | Preemptions | Rejections | Sink path-plan attempts (success / failure) | Remaining failures |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1.21.1 | 1.308 min | 253 / 3.166 / 0.013 / 0.106 ms | 459 / 4.466 / 0.010 / 0.418 ms | 2 / 12 | 12 | 5 | 3 | 2 | 12 (10 / 2) | `resourcescanincludesnearestemeraldprocessorinventory`; unrelated `viruszombiealwaysdropstransferredequipment` |
-| 1.21.4 | 1.505 min | 237 / 4.169 / 0.018 / 0.218 ms | 441 / 6.066 / 0.014 / 0.524 ms | 2 / 11 | 9 | 5 | 3 | 2 | 10 (8 / 2) | `resourcescanincludesnearestemeraldprocessorinventory`; unrelated `bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction` |
-
-The counters are emitted in the server shutdown log. Logical submissions,
-replans, and retries are separate from actual `MoveToTargetSink` path-plan
-attempts, which are recorded by the sink mixin. The measurement-run failures
-listed above are unrelated to the migrated villager movement bridge except for
-the navigation regressions, which passed. The resource-scan failure is also
-present on the parent baseline.
-
-An uninstrumented rerun on the exact final tree also completed all 218 tests on
-both targets; its remaining required failures were the resource-scan test plus
-the unrelated Skrimisher periodic-deposit test on 1.21.1, and the unrelated
-bank-golem selector test on 1.21.4. The movement-manager regression tests
-remained green.
-
-For the controlled comparison, commit `25d1b9bd` was run on the same Windows
-host and Java 21.0.9 toolchain with the same two GameTest commands:
-
-| Target | Parent tests / GameTest runtime | Manager time (calls / total) | Registry time (calls / total) | Arrived / abandoned | Retries | Replans | Preemptions | Rejections | Sink path-plan attempts | Remaining failures |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1.21.1 | 211 / 5.133 s | 136 / 5.874 ms | 187 / 2.092 ms | 8 / 5 | 9 | 7 | 2 | 2 | 24 | `resourcescanincludesnearestemeraldprocessorinventory` |
-| 1.21.4 | 211 / 5.123 s | 157 / 5.177 ms | 223 / 2.601 ms | 9 / 5 | 12 | 7 | 2 | 2 | 25 | `resourcescanincludesnearestemeraldprocessorinventory` |
-
-The repaired tree adds seven long-running regression tests, so the full-suite
-wall times above are not an apples-to-apples speedup claim. They are the same
-commands and host/toolchain, with the changed test population called out
-explicitly. The parent does not emit the repaired tree's path-plan success /
-failure and unload / shutdown fields. No allocation profiler was run, so
-allocation totals remain unmeasured.
+The R4 diagnostic snapshot recorded 214 manager calls, 4.823 ms total,
+0.023 ms average, and 0.219 ms maximum. R5 adds seven long-running real
+journey regressions, eight additional required tests, lifecycle accounting,
+and broader path instrumentation, so the full-suite runtimes and manager-call
+totals are not apples-to-apples. The measured R5 manager average is comparable
+but not lower in this sample. Safety is proven by the two full green suites;
+a strict whole-suite speedup over R4 is not claimed until an identical,
+instrumentation-neutral workload is available. No allocation profiler was
+run, so allocation totals remain unmeasured.
 
 ### Likely cost relative to the pre-refactor code
 

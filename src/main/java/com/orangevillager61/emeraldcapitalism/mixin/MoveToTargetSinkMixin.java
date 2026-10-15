@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.mixin;
 
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
@@ -60,6 +61,7 @@ public abstract class MoveToTargetSinkMixin {
         WalkTarget target = owner.getBrain().getMemory(
                 net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET).orElse(null);
         if (target != null) {
+            emeraldCapitalism$capturedWalkTarget = target;
             MovementRequestManager.observeVanillaSinkStarted(owner, target, path);
         }
     }
@@ -82,7 +84,9 @@ public abstract class MoveToTargetSinkMixin {
     private Path emeraldCapitalism$observeRequestedDestinationPath(
             PathNavigation navigation, BlockPos destination, int accuracy,
             Mob mob, WalkTarget target, long gameTime) {
-        Path path = navigation.createPath(destination, accuracy);
+        Path path = PerformanceTimingCounters.measurePathPlan(
+                PerformanceTimingCounters.Operation.MOVEMENT_VANILLA_PATH_PLAN_ATTEMPT,
+                () -> navigation.createPath(destination, accuracy));
         emeraldCapitalism$requestedDestinationPath = path;
         return path;
     }
@@ -92,7 +96,9 @@ public abstract class MoveToTargetSinkMixin {
     private Path emeraldCapitalism$observeFallbackPath(
             PathNavigation navigation, double x, double y, double z, int accuracy,
             Mob mob, WalkTarget target, long gameTime) {
-        Path path = navigation.createPath(x, y, z, accuracy);
+        Path path = PerformanceTimingCounters.measurePathPlan(
+                PerformanceTimingCounters.Operation.MOVEMENT_VANILLA_PATH_PLAN_ATTEMPT,
+                () -> navigation.createPath(x, y, z, accuracy));
         emeraldCapitalism$fallbackPathCreated = path != null;
         return path;
     }
@@ -107,7 +113,7 @@ public abstract class MoveToTargetSinkMixin {
         MovementRequestManager.observeVanillaPathPlan(
                 mob, target, gameTime, pathCreated,
                 emeraldCapitalism$requestedDestinationPath != null,
-                destinationReachable);
+                destinationReachable, path);
     }
 
     @Inject(method = "stop", at = @At("HEAD"), cancellable = true)

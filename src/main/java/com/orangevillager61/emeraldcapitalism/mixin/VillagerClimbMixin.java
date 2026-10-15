@@ -256,10 +256,12 @@ public abstract class VillagerClimbMixin {
                 // Without the horizontal exit, the completed path can be replaced by a
                 // route back down before the villager has cleared the ladder.
                 BlockState state = villager.level().getBlockState(ladderPos);
-                BlockPos walkExitPos = state.hasProperty(LadderBlock.FACING)
-                        ? emeraldcapitalism$selectValidatedExit(
-                        villager, ladderPos, state.getValue(LadderBlock.FACING))
-                        : null;
+                BlockPos walkExitPos = emeraldcapitalism$findRouteExit(
+                        villager, ladderPos);
+                if (walkExitPos == null && state.hasProperty(LadderBlock.FACING)) {
+                    walkExitPos = emeraldcapitalism$selectValidatedExit(
+                            villager, ladderPos, state.getValue(LadderBlock.FACING));
+                }
                 if (walkExitPos == null) {
                     emeraldcapitalism$recoverFromLadderExit(villager);
                     return;
@@ -355,8 +357,14 @@ public abstract class VillagerClimbMixin {
         emeraldcapitalism$ladderExitTarget = null;
         emeraldcapitalism$activeLadderColumn = null;
         emeraldcapitalism$climbDirection = 0;
+        emeraldcapitalism$ladderExitCooldownUntil = villager.tickCount + 20;
         emeraldcapitalism$resetLadderExitProgress();
+        Path navigationPath = villager.getNavigation().getPath();
         villager.getNavigation().stop();
+        Path brainPath = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
+        if (brainPath == null || brainPath == navigationPath) {
+            villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+        }
         villager.setDeltaMovement(0.0D, 0.0D, 0.0D);
     }
 
@@ -378,6 +386,38 @@ public abstract class VillagerClimbMixin {
         };
         for (Direction direction : candidates) {
             BlockPos candidate = ladderPos.relative(direction);
+            if (emeraldcapitalism$isSafeExitForVillager(villager, candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Selects the first safe horizontal node after the ladder from the live
+     * route. Ladder facing is only a fallback: it is not necessarily the side
+     * on which the destination route continues.
+     */
+    @Unique
+    private static BlockPos emeraldcapitalism$findRouteExit(Villager villager, BlockPos ladderPos) {
+        Path path = villager.getNavigation().getPath();
+        if (path == null) {
+            path = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
+        }
+        if (path == null || path.getNodeCount() == 0) {
+            return null;
+        }
+
+        int start = Math.max(0, path.getNextNodeIndex() - 1);
+        for (int index = start; index < path.getNodeCount(); index++) {
+            Node node = path.getNode(index);
+            int dx = node.x - ladderPos.getX();
+            int dz = node.z - ladderPos.getZ();
+            if (Math.abs(dx) + Math.abs(dz) != 1
+                    || Math.abs(node.y - ladderPos.getY()) > 1) {
+                continue;
+            }
+            BlockPos candidate = new BlockPos(node.x, node.y, node.z);
             if (emeraldcapitalism$isSafeExitForVillager(villager, candidate)) {
                 return candidate;
             }

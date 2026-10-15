@@ -48,7 +48,9 @@ def discoverGameTests = { File sourceRoot ->
         String className = sourceFile.name.substring(0, sourceFile.name.length() - '.java'.length())
                 .toLowerCase(Locale.ROOT)
         def matcher = source =~ /(?s)@GameTest\s*\([^)]*\)\s*public\s+static\s+void\s+([A-Za-z0-9_]+)\s*\(/
-        matcher.each { match -> tests.add("${className}.${match[1].toLowerCase(Locale.ROOT)}") }
+        matcher.each { match ->
+            tests.add(className + '.' + match[1].toLowerCase(Locale.ROOT))
+        }
     }
     tests
 }
@@ -78,7 +80,7 @@ tasks.register('verifySharedSourceLayout') {
             throw new GradleException("Version folders and porting-overrides targets differ: folders=${targets}, manifest=${manifestTargets}")
         }
 
-        List<String> errors = []
+        List errors = []
         targets.each { String targetName ->
             File targetRoot = new File(versionsRoot, targetName)
             if (!new File(targetRoot, 'gradle.properties').isFile()) {
@@ -187,7 +189,7 @@ tasks.register('verifyRegressionCoverage') {
         Set<String> smokeIds = [] as Set<String>
         Map smoke = readPortingJson(file('gradle/client-smoke.json'))
         ((smoke.renderers ?: []) + (smoke.screens ?: []) + (smoke.checks ?: [])).each {
-            smokeIds.add("client-smoke.${it.id}")
+            smokeIds.add('client-smoke.' + it.id.toString())
         }
         List<String> errors = []
         entries.each { Map entry ->
@@ -203,7 +205,8 @@ tasks.register('verifyRegressionCoverage') {
                     errors.add("${id} references missing unit test ${path}")
                 }
             }
-            ((entry.gameTests ?: []) as List<String>).each { String test ->
+            ((entry.gameTests ?: []) as List).each { testValue ->
+                String test = testValue.toString()
                 if (!discovered.contains(test.toLowerCase(Locale.ROOT))) {
                     errors.add("${id} references unknown GameTest ${test}")
                 }

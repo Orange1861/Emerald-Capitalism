@@ -260,7 +260,13 @@ public final class VillagerBreedingSessions {
     }
 
     private static boolean canReach(Villager villager, BlockPos pos, Holder<PoiType> poiType) {
-        Path path = villager.getNavigation().createPath(pos, poiType.value().validRange());
+        Path path = PerformanceTimingCounters.measurePathPlan(
+                PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_PLAN_ATTEMPT,
+                () -> villager.getNavigation().createPath(pos, poiType.value().validRange()));
+        if (path != null) {
+            PerformanceTimingCounters.recordEvent(
+                    PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_OBJECT_CREATED);
+        }
         return path != null && path.canReach();
     }
 

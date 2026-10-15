@@ -1186,28 +1186,44 @@ public final class BankGameplayGameTests {
             return;
         }
 
+        // Establish the processor cache before exercising live inventory
+        // mutation. This keeps the test focused on invalidation of an already
+        // discovered processor rather than on block-placement ordering.
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT, new ItemStack(Items.EMERALD, 4));
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_FUEL, new ItemStack(Items.COAL, 3));
         processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT, new ItemStack(Items.EMERALD_BLOCK, 2));
-        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+        helper.runAfterDelay(1, () -> {
+            BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
 
-        helper.assertValueEqual(bank.getTotalEmeraldCount(), 22,
-                "resource scan did not include emerald input and block output from the processor");
-        helper.assertValueEqual(bank.getTotalEmeraldBlockCount(), 2,
-                "resource scan did not include processor emerald blocks");
-        helper.assertValueEqual(bank.getTotalCoalCount(), 3,
-                "resource scan did not include processor fuel");
+            helper.assertValueEqual(bank.getTotalEmeraldCount(), 22,
+                    "resource scan did not include emerald input and block output from the processor");
+            helper.assertValueEqual(bank.getTotalEmeraldBlockCount(), 2,
+                    "resource scan did not include processor emerald blocks");
+            helper.assertValueEqual(bank.getTotalCoalCount(), 3,
+                    "resource scan did not include processor fuel");
 
-        processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT, new ItemStack(Items.EMERALD_ORE, 2));
-        processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT,
-                new ItemStack(ECAPItems.EMERALD_GREEN_DYE.get(), 5));
-        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
+            processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT,
+                    new ItemStack(Items.EMERALD_ORE, 2));
+            processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT,
+                    new ItemStack(ECAPItems.EMERALD_GREEN_DYE.get(), 5));
+            helper.runAfterDelay(1, () -> {
+                BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
 
-        helper.assertValueEqual(bank.getTotalEmeraldOreCount(), 2,
-                "resource scan did not include processor emerald ore input");
-        helper.assertValueEqual(bank.getTotalEmeraldGreenDyeCount(), 5,
-                "resource scan did not include processor output dye");
-        helper.succeed();
+                if (bank.getTotalEmeraldOreCount() != 2) {
+                    helper.fail("resource scan did not include processor emerald ore input: bankOre="
+                            + bank.getTotalEmeraldOreCount() + ", processorInput="
+                            + processor.getItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT)
+                            + ", processorPos=" + processorPos
+                            + ", cachedProcessor=" + bank.getClosestEmeraldProcessorPos()
+                            + ", processorLevel=" + processor.getLevel());
+                    return;
+                }
+                helper.assertValueEqual(bank.getTotalEmeraldGreenDyeCount(), 5,
+                        "resource scan did not include processor output dye");
+                helper.succeed();
+            });
+        });
     }
 
     @GameTest(template = "empty_20x3x20")

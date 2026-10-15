@@ -568,6 +568,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     public static void serverTick(Level level, BlockPos pos, BlockState state, BankBlockEntity entity) {
         if (!(level instanceof ServerLevel serverLevel)) return;
 
+        // A manually dispatched ticker can run before the chunk callback has
+        // completed its onLoad hook. Index the live bank here as well so
+        // processor mutations in that same tick still invalidate its totals.
+        indexLoadedBank(serverLevel, entity);
         long gameTime = serverLevel.getGameTime();
         entity.tickTransferChestAnimations(serverLevel, gameTime);
         entity.initializeScanSchedule(gameTime);
@@ -633,6 +637,15 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     bank.chestStorageDirty = true;
                 }
                 bank.inventoryTotalsDirty = true;
+                if (!structuralChange) {
+                    // Processor inventories are live inputs to the bank totals.
+                    // Refresh the already-cached processor immediately so a
+                    // same-tick menu mutation cannot expose stale aggregates;
+                    // this remains bounded to the loaded banks near the edit.
+                    PerformanceTimingCounters.measure(
+                            PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH,
+                            () -> bank.refreshInventoryTotals(level, false));
+                }
                 if (structuralChange) {
                     bank.missingChestCountTick = Long.MIN_VALUE;
                 }
@@ -719,6 +732,11 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     /** Removes one unloaded level from the loaded-bank index. */
     public static void clearLoadedBanks(ServerLevel level) {
         LOADED_BANKS.remove(level);
+    }
+
+    private static void indexLoadedBank(ServerLevel level, BankBlockEntity bank) {
+        LOADED_BANKS.computeIfAbsent(level,
+                ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(bank);
     }
 
     /**
@@ -2102,8 +2120,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         if (!(level instanceof ServerLevel serverLevel) || level.isClientSide()) {
             return;
         }
-        LOADED_BANKS.computeIfAbsent(serverLevel,
-                ignored -> Collections.newSetFromMap(new IdentityHashMap<>())).add(this);
+        indexLoadedBank(serverLevel, this);
         updateBankerJobSiteState();
         if (villageId == null) {
             return;

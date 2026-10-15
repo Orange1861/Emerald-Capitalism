@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.villagefarms;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.core.BlockPos;
@@ -99,6 +100,7 @@ public class VillageFarmPlacer {
         private static final int BLOCKS_PER_TICK = 1_024;
         private static final int SURFACE_COLUMNS_PER_TICK = 128;
         private static final int CROP_INFOS_PER_TICK = 64;
+        private static final int CROP_FILTERS_PER_TICK = 1;
 
         private enum Phase {
             VALIDATE,
@@ -160,6 +162,8 @@ public class VillageFarmPlacer {
         private int cropBlockIndex;
         private List<StructureTemplate.StructureBlockInfo> cropInfos = List.of();
         private int cropInfoIndex;
+        @org.jetbrains.annotations.Nullable
+        private Block activeCropBlock;
         private List<Block> cropBlocks = List.of();
         private int verifyX;
         private int verifyZ;
@@ -430,7 +434,11 @@ public class VillageFarmPlacer {
             placePos = StructureTemplate.getZeroPositionWithTransform(
                     desiredMinCorner, Mirror.NONE, placement.rotation(),
                     template.getSize().getX(), template.getSize().getZ());
-            if (!template.placeInWorld(level, placePos, placePos, settings, level.getRandom(), 2)) {
+            boolean placed = PerformanceTimingCounters.measure(
+                    PerformanceTimingCounters.Operation.FARM_TEMPLATE_PLACEMENT,
+                    () -> template.placeInWorld(level, placePos, placePos, settings,
+                            level.getRandom(), 2));
+            if (!placed) {
                 phase = Phase.FAILED;
                 return true;
             }
@@ -581,11 +589,24 @@ public class VillageFarmPlacer {
 
         private boolean repairCropsStep() {
             int processed = 0;
-            while (cropBlockIndex < cropBlocks.size() && processed < CROP_INFOS_PER_TICK) {
-                if (cropInfoIndex >= cropInfos.size()) {
-                    cropInfos = template.filterBlocks(placePos, settings,
-                            cropBlocks.get(cropBlockIndex++));
+            int filtersProcessed = 0;
+            while (cropBlockIndex < cropBlocks.size()
+                    && processed < CROP_INFOS_PER_TICK
+                    && filtersProcessed < CROP_FILTERS_PER_TICK) {
+                if (activeCropBlock == null) {
+                    activeCropBlock = cropBlocks.get(cropBlockIndex);
+                    cropInfos = template.filterBlocks(placePos, settings, activeCropBlock);
                     cropInfoIndex = 0;
+                    filtersProcessed++;
+                    if (cropInfos.isEmpty()) {
+                        activeCropBlock = null;
+                        cropBlockIndex++;
+                    }
+                    continue;
+                }
+                if (cropInfoIndex >= cropInfos.size()) {
+                    activeCropBlock = null;
+                    cropBlockIndex++;
                     continue;
                 }
                 StructureTemplate.StructureBlockInfo cropInfo = cropInfos.get(cropInfoIndex++);
@@ -602,12 +623,16 @@ public class VillageFarmPlacer {
                 if (!level.getBlockState(soilPos).is(Blocks.FARMLAND)) {
                     level.setBlock(soilPos, Blocks.FARMLAND.defaultBlockState(), 2);
                 }
-                if (!level.getBlockState(cropPos).is(cropBlocks.get(cropBlockIndex - 1))) {
+                if (!level.getBlockState(cropPos).is(activeCropBlock)) {
                     level.setBlock(cropPos, cropInfo.state(), 2);
                 }
                 processed++;
             }
-            if (cropBlockIndex < cropBlocks.size()) {
+            if (activeCropBlock != null && cropInfoIndex >= cropInfos.size()) {
+                activeCropBlock = null;
+                cropBlockIndex++;
+            }
+            if (cropBlockIndex < cropBlocks.size() || activeCropBlock != null) {
                 return false;
             }
             verifyX = placement.origin().getX();

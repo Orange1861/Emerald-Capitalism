@@ -19,6 +19,7 @@ public final class PerformanceTimingCounters {
         LUMBERJACK_LOCAL_TREE_PROBE,
         LUMBERJACK_FURNACE_SEARCH,
         PUMPKIN_SEARCH,
+        FARM_TEMPLATE_PLACEMENT,
         MOVEMENT_REQUEST_SUBMISSION,
         MOVEMENT_REQUEST_REPLAN,
         MOVEMENT_REQUEST_PREEMPTION,
@@ -27,12 +28,17 @@ public final class PerformanceTimingCounters {
         BEHAVIOR_REGISTRY_TIME,
         MOVEMENT_PATH_PLAN_ATTEMPT,
         MOVEMENT_PATH_OBJECT_CREATED,
+        MOVEMENT_HELPER_PATH_PLAN_ATTEMPT,
+        MOVEMENT_HELPER_PATH_OBJECT_CREATED,
+        MOVEMENT_VANILLA_PATH_PLAN_ATTEMPT,
+        MOVEMENT_VANILLA_PATH_OBJECT_CREATED,
         MOVEMENT_DESTINATION_REACHABLE,
         MOVEMENT_ARRIVAL,
         MOVEMENT_RETRY,
         MOVEMENT_ABANDONED,
         MOVEMENT_FAILURE,
         MOVEMENT_PREEMPTED,
+        MOVEMENT_REPLACED,
         MOVEMENT_UNLOADED,
         MOVEMENT_SHUTDOWN,
         POI_DYNAMIC_REFRESH,
@@ -40,13 +46,26 @@ public final class PerformanceTimingCounters {
         BANK_INVENTORY_TOTAL_REFRESH
     }
 
-    public record Snapshot(long calls, long totalNanos, long maximumNanos) {
+    public record Snapshot(long calls, long totalNanos, long maximumNanos,
+                           long p50Nanos, long p95Nanos, long p99Nanos) {
         public double averageMillis() {
             return calls == 0 ? 0.0D : totalNanos / (double) calls / 1_000_000.0D;
         }
 
         public double maximumMillis() {
             return maximumNanos / 1_000_000.0D;
+        }
+
+        public double p50Millis() {
+            return p50Nanos / 1_000_000.0D;
+        }
+
+        public double p95Millis() {
+            return p95Nanos / 1_000_000.0D;
+        }
+
+        public double p99Millis() {
+            return p99Nanos / 1_000_000.0D;
         }
     }
 
@@ -76,6 +95,19 @@ public final class PerformanceTimingCounters {
         } finally {
             record(operation, System.nanoTime() - started);
         }
+    }
+
+    /**
+     * Times a path computation and, when event counting is enabled without
+     * detailed timing, still counts the invocation. This keeps helper and
+     * vanilla createPath calls visible in the same opt-in run.
+     */
+    public static <T> T measurePathPlan(Operation operation, Supplier<T> action) {
+        if (detailedTimingEnabled) {
+            return measure(operation, action);
+        }
+        recordEvent(operation);
+        return action.get();
     }
 
     public static void measure(Operation operation, Runnable action) {
@@ -155,6 +187,12 @@ public final class PerformanceTimingCounters {
                     .append(String.format(Locale.ROOT, "%.3f", snapshot.totalNanos() / 1_000_000.0D))
                     .append(",avgMs=")
                     .append(String.format(Locale.ROOT, "%.3f", snapshot.averageMillis()))
+                    .append(",p50Ms=")
+                    .append(String.format(Locale.ROOT, "%.3f", snapshot.p50Millis()))
+                    .append(",p95Ms=")
+                    .append(String.format(Locale.ROOT, "%.3f", snapshot.p95Millis()))
+                    .append(",p99Ms=")
+                    .append(String.format(Locale.ROOT, "%.3f", snapshot.p99Millis()))
                     .append(",maxMs=")
                     .append(String.format(Locale.ROOT, "%.3f", snapshot.maximumMillis()))
                     .append('}');
@@ -178,24 +216,55 @@ public final class PerformanceTimingCounters {
     }
 
     private static final class Counter {
+        private static final int SAMPLE_CAPACITY = 8_192;
         private final LongAdder calls = new LongAdder();
         private final LongAdder totalNanos = new LongAdder();
         private final AtomicLong maximumNanos = new AtomicLong();
+        private final long[] samples = new long[SAMPLE_CAPACITY];
+        private long sampleCount;
+        private long sampleCursor;
 
         private void record(long elapsedNanos) {
             calls.increment();
             totalNanos.add(elapsedNanos);
             maximumNanos.accumulateAndGet(elapsedNanos, Math::max);
+            synchronized (samples) {
+                samples[(int) (sampleCursor++ % SAMPLE_CAPACITY)] = elapsedNanos;
+                if (sampleCount < SAMPLE_CAPACITY) {
+                    sampleCount++;
+                }
+            }
         }
 
         private Snapshot snapshot() {
-            return new Snapshot(calls.sum(), totalNanos.sum(), maximumNanos.get());
+            long[] sampleCopy;
+            synchronized (samples) {
+                sampleCopy = new long[(int) sampleCount];
+                System.arraycopy(samples, 0, sampleCopy, 0, sampleCopy.length);
+            }
+            java.util.Arrays.sort(sampleCopy);
+            return new Snapshot(calls.sum(), totalNanos.sum(), maximumNanos.get(),
+                    percentile(sampleCopy, 0.50D), percentile(sampleCopy, 0.95D),
+                    percentile(sampleCopy, 0.99D));
         }
 
         private void clear() {
             calls.reset();
             totalNanos.reset();
             maximumNanos.set(0L);
+            synchronized (samples) {
+                java.util.Arrays.fill(samples, 0L);
+                sampleCount = 0L;
+                sampleCursor = 0L;
+            }
+        }
+
+        private static long percentile(long[] values, double percentile) {
+            if (values.length == 0) {
+                return 0L;
+            }
+            int index = (int) Math.ceil(percentile * values.length) - 1;
+            return values[Math.max(0, Math.min(index, values.length - 1))];
         }
     }
 }

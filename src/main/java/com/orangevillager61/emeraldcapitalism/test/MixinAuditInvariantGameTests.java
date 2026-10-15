@@ -276,9 +276,16 @@ public final class MixinAuditInvariantGameTests {
         for (int y = 1; y < 5; y++) {
             nodes.add(new Node(ladderBase.getX(), ladderBase.getY() + y, ladderBase.getZ()));
         }
-        helper.assertTrue(villager.getNavigation().moveTo(new Path(nodes, ladderBase.above(4), true), 1.0D),
+        // The ladder faces south, but the route deliberately exits east. This
+        // catches code that uses ladder facing instead of the live route.
+        BlockPos exitPos = ladderBase.above(4).east();
+        BlockPos continuationPos = exitPos.south();
+        nodes.add(new Node(exitPos.getX(), exitPos.getY(), exitPos.getZ()));
+        nodes.add(new Node(continuationPos.getX(), continuationPos.getY(), continuationPos.getZ()));
+        helper.assertTrue(villager.getNavigation().moveTo(new Path(nodes, continuationPos, true), 1.0D),
                 "villager ladder path could not be installed");
-        awaitVillagerLadderExit(helper, villager, ladderBase, 300);
+        awaitVillagerLadderExit(helper, villager, ladderBase,
+                exitPos, new LadderExitObservation(), 300, 0);
     }
 
     @GameTest(template = "empty_3x8x3", batch = "ecap_ladder_two_villagers", timeoutTicks = 800)
@@ -298,13 +305,20 @@ public final class MixinAuditInvariantGameTests {
         helper.runAfterDelay(2, () -> {
             helper.assertTrue(waiter.getNavigation().getPath() != null,
                     "waiting villager lost its ladder path while the column was occupied");
-            awaitVillagersClearLadder(helper, climber, waiter, ladderBase, 600, 0);
+            awaitVillagersClearLadder(helper, climber, waiter, ladderBase,
+                    new LadderExitObservation(), new LadderExitObservation(), 600, 0);
         });
     }
 
     private static void awaitVillagersClearLadder(GameTestHelper helper, Villager first,
                                                   Villager second, BlockPos ladderBase,
+                                                  LadderExitObservation firstObservation,
+                                                  LadderExitObservation secondObservation,
                                                   int remainingTicks, int stableTicks) {
+        if (observeLadderTopOscillation(helper, first, ladderBase, firstObservation)
+                || observeLadderTopOscillation(helper, second, ladderBase, secondObservation)) {
+            return;
+        }
         boolean firstClear = hasClearedLadderTop(first, ladderBase);
         boolean secondClear = hasClearedLadderTop(second, ladderBase);
         if (remainingTicks <= 0) {
@@ -325,11 +339,13 @@ public final class MixinAuditInvariantGameTests {
                 return;
             }
             helper.runAfterDelay(1, () -> awaitVillagersClearLadder(
-                    helper, first, second, ladderBase, remainingTicks - 1, stableTicks + 1));
+                    helper, first, second, ladderBase, firstObservation, secondObservation,
+                    remainingTicks - 1, stableTicks + 1));
             return;
         }
         helper.runAfterDelay(1, () -> awaitVillagersClearLadder(
-                helper, first, second, ladderBase, remainingTicks - 1, 0));
+                helper, first, second, ladderBase, firstObservation, secondObservation,
+                remainingTicks - 1, 0));
     }
 
     private static Path ladderPath(BlockPos ladderBase, int firstOffset) {
@@ -348,18 +364,26 @@ public final class MixinAuditInvariantGameTests {
                     .setValue(LadderBlock.FACING, Direction.SOUTH), 3);
         }
         BlockPos exitPos = ladderBase.above(4).relative(Direction.SOUTH);
-        // Give both villagers room to collide on the landing without being
+        // Give both villagers room to collide on either landing without being
         // pushed sideways into unsupported air. The assertion still requires
-        // each entity to reach the row one block beyond the ladder top.
+        // each entity to reach a row one block beyond the ladder top.
         for (int dx = -1; dx <= 1; dx++) {
             helper.getLevel().setBlock(exitPos.below().offset(dx, 0, 0),
                     Blocks.STONE.defaultBlockState(), 3);
         }
+        BlockPos continuationPos = exitPos.east();
+        helper.getLevel().setBlock(continuationPos.below(), Blocks.STONE.defaultBlockState(), 3);
+        BlockPos routeExitPos = ladderBase.above(4).east();
+        helper.getLevel().setBlock(routeExitPos.below(), Blocks.STONE.defaultBlockState(), 3);
         // The 3x3x3 template has protective barriers above its nominal volume.
         // Clear both the exit cell and headroom so the dismount guard sees a
         // real walkable block in every supported Minecraft version.
         helper.getLevel().setBlock(exitPos, Blocks.AIR.defaultBlockState(), 3);
         helper.getLevel().setBlock(exitPos.above(), Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(continuationPos, Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(continuationPos.above(), Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(routeExitPos, Blocks.AIR.defaultBlockState(), 3);
+        helper.getLevel().setBlock(routeExitPos.above(), Blocks.AIR.defaultBlockState(), 3);
         helper.getLevel().setBlock(ladderBase.above(5), Blocks.AIR.defaultBlockState(), 3);
         helper.getLevel().setBlock(ladderBase.above(6), Blocks.AIR.defaultBlockState(), 3);
         return ladderBase;
@@ -398,9 +422,11 @@ public final class MixinAuditInvariantGameTests {
     }
 
     private static void awaitVillagerLadderExit(GameTestHelper helper, Villager villager,
-                                                BlockPos ladderBase, int remainingTicks) {
-        if (hasClearedLadderTop(villager, ladderBase)) {
-            helper.succeed();
+                                                BlockPos ladderBase,
+                                                BlockPos expectedExit,
+                                                LadderExitObservation observation,
+                                                int remainingTicks, int stableTicks) {
+        if (observeLadderTopOscillation(helper, villager, ladderBase, observation)) {
             return;
         }
         if (remainingTicks <= 0) {
@@ -408,8 +434,24 @@ public final class MixinAuditInvariantGameTests {
                     + ", base=" + ladderBase + ", enabled=" + Config.enableLadderTraversal);
             return;
         }
+        if (hasClearedLadderTop(villager, ladderBase)) {
+            if (stableTicks == 0 && !villager.blockPosition().equals(expectedExit)) {
+                helper.fail("villager left the ladder on the wrong side of its route: expected="
+                        + expectedExit + ", actual=" + villager.blockPosition());
+                return;
+            }
+            if (stableTicks >= 40) {
+                helper.succeed();
+                return;
+            }
+            helper.runAfterDelay(1, () -> awaitVillagerLadderExit(
+                    helper, villager, ladderBase, expectedExit, observation,
+                    remainingTicks - 1, stableTicks + 1));
+            return;
+        }
         helper.runAfterDelay(1, () -> awaitVillagerLadderExit(
-                helper, villager, ladderBase, remainingTicks - 1));
+                helper, villager, ladderBase, expectedExit, observation,
+                remainingTicks - 1, 0));
     }
 
     private static void awaitTraderLadderExit(GameTestHelper helper,
@@ -431,12 +473,58 @@ public final class MixinAuditInvariantGameTests {
     private static boolean hasClearedLadderTop(LivingEntity entity, BlockPos ladderBase) {
         // The ladder's top rung is four blocks above its base. The entity must
         // be at that top-rung height and have physically entered at least one
-        // block beyond the south-facing ladder column before the test accepts
-        // the exit. Checking blockPosition() requires the entity's center to
-        // be in the adjacent exit block, including at negative coordinates.
+        // horizontal block beyond the ladder column before the test accepts the
+        // exit. Checking blockPosition() requires the entity's center to be in
+        // the adjacent exit block, including at negative coordinates.
         return entity.getY() > ladderBase.getY() + 3.0D
-                && entity.blockPosition().getZ() >= ladderBase.getZ() + 1
+                && (Math.abs(entity.blockPosition().getX() - ladderBase.getX())
+                + Math.abs(entity.blockPosition().getZ() - ladderBase.getZ()) >= 1)
                 && !entity.onClimbable();
+    }
+
+    private static boolean observeLadderTopOscillation(GameTestHelper helper, LivingEntity entity,
+                                                       BlockPos ladderBase,
+                                                       LadderExitObservation observation) {
+        double currentY = entity.getY();
+        if (!observation.initialized) {
+            observation.initialized = true;
+            observation.lastY = currentY;
+            return false;
+        }
+
+        double deltaY = currentY - observation.lastY;
+        observation.lastY = currentY;
+        boolean atLadderTop = entity.onClimbable()
+                && currentY > ladderBase.getY() + 3.0D;
+        if (!atLadderTop) {
+            observation.lastDirection = 0;
+            return false;
+        }
+
+        int direction = deltaY > 0.035D ? 1 : deltaY < -0.035D ? -1 : 0;
+        if (direction != 0) {
+            if (observation.lastDirection != 0 && direction != observation.lastDirection) {
+                observation.reversals++;
+            }
+            observation.lastDirection = direction;
+        }
+        if (observation.reversals > 2) {
+            String path = entity instanceof Villager villager
+                    ? String.valueOf(villager.getNavigation().getPath()) : "unavailable";
+            helper.fail("villager oscillated at the ladder top instead of continuing: entity="
+                    + entity.getUUID() + ", pos=" + entity.position()
+                    + ", reversals=" + observation.reversals
+                    + ", path=" + path);
+            return true;
+        }
+        return false;
+    }
+
+    private static final class LadderExitObservation {
+        private boolean initialized;
+        private double lastY;
+        private int lastDirection;
+        private int reversals;
     }
 
     @GameTest(template = "empty_3x3x3")

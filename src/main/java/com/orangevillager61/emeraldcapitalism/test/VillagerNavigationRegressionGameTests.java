@@ -43,7 +43,8 @@ public final class VillagerNavigationRegressionGameTests {
         nodes.add(new Node(workPosition.getX(), workPosition.getY(), workPosition.getZ()));
         helper.assertTrue(villager.getNavigation().moveTo(new Path(nodes, workPosition, true), 1.0D),
                 "ascending route with an offset landing could not be installed");
-        awaitLandingAndWork(helper, villager, ladderBase, workPosition, 500, false);
+        awaitLandingAndWork(helper, villager, ladderBase, workPosition,
+                new LadderExitObservation(), 500, false, 0);
     }
 
     @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_regressions", timeoutTicks = 500)
@@ -285,7 +286,8 @@ public final class VillagerNavigationRegressionGameTests {
                 helper.assertTrue(second.getNavigation().moveTo(
                                 new Path(retryNodes, exit, true), 1.0D),
                         "retry route could not be installed after the first exit recovered");
-                awaitLadderClear(helper, second, ladderBase, 450);
+                awaitLadderClear(helper, second, ladderBase,
+                        new LadderExitObservation(), 450, 0);
             });
         });
     }
@@ -341,13 +343,24 @@ public final class VillagerNavigationRegressionGameTests {
 
     private static void awaitLandingAndWork(GameTestHelper helper, Villager villager,
                                              BlockPos ladderBase, BlockPos workPosition,
-                                             int remainingTicks, boolean startedWork) {
+                                             LadderExitObservation observation,
+                                             int remainingTicks, boolean startedWork,
+                                             int stableTicks) {
+        if (observeLadderTopOscillation(helper, villager, ladderBase, observation)) {
+            return;
+        }
         if (remainingTicks <= 0) {
             helper.fail("villager did not leave the ladder and reach the offset workstation: "
                     + villager.position());
             return;
         }
         if (hasClearedLadder(villager, ladderBase) && !startedWork) {
+            if (stableTicks < 20) {
+                helper.runAfterDelay(1, () -> awaitLandingAndWork(
+                        helper, villager, ladderBase, workPosition, observation,
+                        remainingTicks - 1, false, stableTicks + 1));
+                return;
+            }
             // The landing bridge deliberately avoids teleporting the entity;
             // the first post-exit tick may still be airborne, so retry the
             // ordinary navigator until it can adopt the continuation route.
@@ -355,8 +368,8 @@ public final class VillagerNavigationRegressionGameTests {
                     workPosition.getX() + 0.5D, workPosition.getY(),
                     workPosition.getZ() + 0.5D, 1.0D);
             helper.runAfterDelay(1, () -> awaitLandingAndWork(
-                    helper, villager, ladderBase, workPosition,
-                    remainingTicks - 1, continuationStarted));
+                    helper, villager, ladderBase, workPosition, observation,
+                    remainingTicks - 1, continuationStarted, 0));
             return;
         }
         if (startedWork && villager.blockPosition().distSqr(workPosition) <= 2.25D) {
@@ -365,7 +378,8 @@ public final class VillagerNavigationRegressionGameTests {
         }
         boolean nextStartedWork = startedWork;
         helper.runAfterDelay(1, () -> awaitLandingAndWork(
-                helper, villager, ladderBase, workPosition, remainingTicks - 1, nextStartedWork));
+                helper, villager, ladderBase, workPosition, observation,
+                remainingTicks - 1, nextStartedWork, 0));
     }
 
     private static void awaitAutonomousPumpkinHarvest(GameTestHelper helper, Villager farmer,
@@ -401,20 +415,73 @@ public final class VillagerNavigationRegressionGameTests {
     }
 
     private static void awaitLadderClear(GameTestHelper helper, Villager villager,
-                                          BlockPos ladderBase, int remainingTicks) {
+                                          BlockPos ladderBase,
+                                          LadderExitObservation observation,
+                                          int remainingTicks, int stableTicks) {
+        if (observeLadderTopOscillation(helper, villager, ladderBase, observation)) {
+            return;
+        }
         if (remainingTicks <= 0) {
             helper.fail("retry villager did not clear the ladder after claim recovery");
             return;
         }
         if (hasClearedLadder(villager, ladderBase)) {
-            helper.succeed();
+            if (stableTicks >= 40) {
+                helper.succeed();
+                return;
+            }
+            helper.runAfterDelay(1, () -> awaitLadderClear(
+                    helper, villager, ladderBase, observation, remainingTicks - 1, stableTicks + 1));
             return;
         }
-        helper.runAfterDelay(1, () -> awaitLadderClear(helper, villager, ladderBase, remainingTicks - 1));
+        helper.runAfterDelay(1, () -> awaitLadderClear(
+                helper, villager, ladderBase, observation, remainingTicks - 1, 0));
     }
 
     private static boolean hasClearedLadder(Villager villager, BlockPos ladderBase) {
         return !villager.onClimbable()
                 && villager.blockPosition().getZ() > ladderBase.getZ();
+    }
+
+    private static boolean observeLadderTopOscillation(GameTestHelper helper, Villager villager,
+                                                       BlockPos ladderBase,
+                                                       LadderExitObservation observation) {
+        double currentY = villager.getY();
+        if (!observation.initialized) {
+            observation.initialized = true;
+            observation.lastY = currentY;
+            return false;
+        }
+
+        double deltaY = currentY - observation.lastY;
+        observation.lastY = currentY;
+        boolean atLadderTop = villager.onClimbable()
+                && currentY > ladderBase.getY() + 3.0D;
+        if (!atLadderTop) {
+            observation.lastDirection = 0;
+            return false;
+        }
+
+        int direction = deltaY > 0.035D ? 1 : deltaY < -0.035D ? -1 : 0;
+        if (direction != 0) {
+            if (observation.lastDirection != 0 && direction != observation.lastDirection) {
+                observation.reversals++;
+            }
+            observation.lastDirection = direction;
+        }
+        if (observation.reversals > 2) {
+            helper.fail("villager oscillated at the ladder top instead of continuing: pos="
+                    + villager.position() + ", reversals=" + observation.reversals
+                    + ", path=" + villager.getNavigation().getPath());
+            return true;
+        }
+        return false;
+    }
+
+    private static final class LadderExitObservation {
+        private boolean initialized;
+        private double lastY;
+        private int lastDirection;
+        private int reversals;
     }
 }

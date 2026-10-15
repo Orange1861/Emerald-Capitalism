@@ -141,6 +141,68 @@ public final class MayorDoorRepairGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty_3x3x3")
+    public static void mayorDeclinesRepairWhenInitialBankCheckHasInsufficientPlanks(GameTestHelper helper) {
+        RepairFixture fixture = createFixture(helper);
+        if (fixture == null) {
+            return;
+        }
+        ServerLevel level = fixture.level();
+        BankBlockEntity bank = fixture.bank();
+        EmeraldChestBlockEntity chest = (EmeraldChestBlockEntity) level.getBlockEntity(
+                fixture.bankPos().south());
+        helper.assertTrue(chest != null, "initial-bank-check fixture did not create its linked chest");
+        if (chest == null) {
+            return;
+        }
+        chest.setItem(0, ItemStack.EMPTY);
+        BankBlockEntity.serverTick(level, fixture.bankPos(), level.getBlockState(fixture.bankPos()), bank);
+        helper.assertValueEqual(bank.getTotalPlankCount(), 0,
+                "initial-bank-check fixture still had planks after clearing its chest");
+
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        MayorDoorRepairGoal goal = new MayorDoorRepairGoal(mayor);
+
+        helper.assertFalse(goal.canUse(),
+                "Mayor started a repair after the initial bank plank check failed");
+        helper.assertFalse(goal.canContinueToUse(),
+                "Mayor kept a repair goal active after the initial bank check failed");
+        helper.assertTrue(fixture.village().getClaimedDoorPositions().isEmpty(),
+                "Mayor claimed a door before the initial bank plank check succeeded");
+        helper.assertTrue(mayor.getBrain().getMemory(MemoryModuleType.WALK_TARGET).isEmpty(),
+                "Mayor published a walk target after the initial bank plank check failed");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 0,
+                "Mayor received a door after the initial bank plank check failed");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void mayorDeclinesRepairWhenInitialBankCheckCannotFindBank(GameTestHelper helper) {
+        RepairFixture fixture = createFixture(helper);
+        if (fixture == null) {
+            return;
+        }
+        ServerLevel level = fixture.level();
+        level.removeBlock(fixture.bankPos(), false);
+
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        MayorDoorRepairGoal goal = new MayorDoorRepairGoal(mayor);
+
+        helper.assertFalse(goal.canUse(),
+                "Mayor started a repair after its registered bank became unavailable");
+        helper.assertFalse(goal.canContinueToUse(),
+                "Mayor kept a repair goal active after its registered bank became unavailable");
+        helper.assertTrue(fixture.village().getClaimedDoorPositions().isEmpty(),
+                "Mayor claimed a door before its registered bank was found");
+        helper.assertTrue(mayor.getBrain().getMemory(MemoryModuleType.WALK_TARGET).isEmpty(),
+                "Mayor published a walk target when its registered bank was unavailable");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 0,
+                "Mayor received a door when its registered bank was unavailable");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty_20x3x20", batch = "ecap_mayor_repair_journey", timeoutTicks = 500)
     public static void mayorCompletesScheduledBankAndDoorMovementLegs(GameTestHelper helper) {
         Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before =
@@ -164,9 +226,10 @@ public final class MayorDoorRepairGameTests {
             fixture.village().setDoorRepairEnabled(true);
 
             helper.setBlock(new BlockPos(8, 1, 3), ECAPBlocks.VILLAGE_MANAGER.get().defaultBlockState());
-            Villager mayor = helper.spawn(EntityType.VILLAGER, 8, 1, 4);
+            Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 8, 1, 4);
             mayor.setVillagerData(mayor.getVillagerData()
                     .setProfession(ECAPVillagerProfessions.MAYOR.get()));
+            mayor.refreshBrain(helper.getLevel());
             BlockPos mayorJobSite = helper.absolutePos(new BlockPos(8, 1, 3));
             mayor.getBrain().setMemory(MemoryModuleType.JOB_SITE,
                     net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), mayorJobSite));

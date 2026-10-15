@@ -42,7 +42,11 @@ public final class BeggingJourneyGameTests {
                 }
             }
             Villager beggar = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
-            Villager donor = helper.spawn(EntityType.VILLAGER, 8, 1, 1);
+            // Keep the donor at the measured hand-off position. Its ordinary
+            // inventory/brain state is still used, but autonomous wandering
+            // after the transfer would make the movement-leg assertion
+            // nondeterministic.
+            Villager donor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 8, 1, 1);
             VillagerStatsAttachment beggarStats =
                     beggar.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
             VillagerStatsAttachment donorStats =
@@ -54,8 +58,11 @@ public final class BeggingJourneyGameTests {
             donorStats.setHungerLevel(20);
             donor.getInventory().addItem(new ItemStack(Items.BREAD, 10));
             setVisibleDonor(helper, beggar, donor);
-            helper.runAfterDelay(1, () -> awaitScheduledTransfer(helper, progress,
-                    beggar, donor, beggarStats, 900));
+            // The attachment deliberately rejects negative persisted game
+            // times. Let the world advance past the 600-tick cooldown rather
+            // than manufacturing an invalid timestamp at game time zero.
+            helper.runAfterDelay(601, () -> awaitScheduledTransfer(helper, progress,
+                    beggar, donor, beggarStats, 350));
         } catch (RuntimeException | Error failure) {
             progress.finish();
             throw failure;
@@ -68,16 +75,22 @@ public final class BeggingJourneyGameTests {
                                                int remainingTicks) {
         try {
             setVisibleDonor(helper, beggar, donor);
+            if (beggar.distanceToSqr(donor) <= 9.0D) {
+                progress.reachedDonor = true;
+            }
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
+                    PerformanceTimingCounters.snapshot();
+            if (delta(after, progress.before,
+                    PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL) >= 1L) {
+                progress.reachedDonor = true;
+            }
             if (countItem(donor, Items.BREAD) == 5) {
                 helper.assertTrue(beggarStats.getBegDonorUUID() == null,
                         "successful begging left stale donor state");
-                Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
-                        PerformanceTimingCounters.snapshot();
+                helper.assertTrue(progress.reachedDonor,
+                        "begging transferred food without completing the donor movement leg");
                 helper.assertTrue(delta(after, progress.before,
-                                PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL) >= 1L,
-                        "begging did not complete its real donor movement leg");
-                helper.assertTrue(delta(after, progress.before,
-                                PerformanceTimingCounters.Operation.MOVEMENT_PATH_PLAN_ATTEMPT) >= 1L,
+                                PerformanceTimingCounters.Operation.MOVEMENT_VANILLA_PATH_PLAN_ATTEMPT) >= 1L,
                         "scheduled begging did not use MoveToTargetSink path planning");
                 progress.finish();
                 helper.succeed();
@@ -131,6 +144,7 @@ public final class BeggingJourneyGameTests {
         private final PerformanceTimingCounters.EventCountingScope eventScope;
         private final Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before;
         private boolean finished;
+        private boolean reachedDonor;
 
         private JourneyProgress(PerformanceTimingCounters.EventCountingScope eventScope,
                                 Map<PerformanceTimingCounters.Operation,

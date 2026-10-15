@@ -16,6 +16,10 @@ out
 # gradle
 build
 .gradle
+.gradle-local/
+*.lock
+*.lck
+*.dll
 
 # other
 eclipse
@@ -23,6 +27,12 @@ run
 runs
 run-data
 /world/
+crash-reports/
+logs/
+versions/*/crash-reports/
+versions/*/logs/
+versions/*/world/
+versions/*/config/
 
 # python tooling
 __pycache__/

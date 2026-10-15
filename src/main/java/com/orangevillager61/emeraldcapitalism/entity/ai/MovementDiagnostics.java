@@ -28,6 +28,27 @@ final class MovementDiagnostics {
         }
     }
 
+    static void terminal(Villager villager, MovementRequestHandle handle,
+                         MovementRequestTerminationReason reason) {
+        if (enabled()) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][Navigation] terminal entity={} owner={} generation={} reason={}",
+                    villager.getUUID(), handle.owner(), handle.generation(), reason);
+        }
+    }
+
+    static void pathPlan(Villager villager, MovementRequestHandle handle,
+                         MovementRequestSpec spec, Path path,
+                         boolean requestedPath, boolean destinationReachable) {
+        if (enabled() && handle != null && spec != null) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][Navigation] path-plan entity={} owner={} generation={} destination={} requested={} reachable={} livePath={} pathId={}",
+                    villager.getUUID(), handle.owner(), handle.generation(), spec.destination(),
+                    requestedPath, destinationReachable, path != null && !path.isDone(),
+                    path == null ? 0 : System.identityHashCode(path));
+        }
+    }
+
     static void route(Villager villager, MovementRequestHandle handle,
                       int routeGeneration, Path path) {
         if (enabled()) {

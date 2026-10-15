@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import com.orangevillager61.emeraldcapitalism.Config;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -28,7 +29,13 @@ final class ZombieVillagerSunSafety {
             return true;
         }
 
-        Path path = zombieVillager.getNavigation().createPath(target, 1);
+        Path path = PerformanceTimingCounters.measurePathPlan(
+                PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_PLAN_ATTEMPT,
+                () -> zombieVillager.getNavigation().createPath(target, 1));
+        if (path != null) {
+            PerformanceTimingCounters.recordEvent(
+                    PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_OBJECT_CREATED);
+        }
         if (path == null || !path.canReach()) {
             return false;
         }

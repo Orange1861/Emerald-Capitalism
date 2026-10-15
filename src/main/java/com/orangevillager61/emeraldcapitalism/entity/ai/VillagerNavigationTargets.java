@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
@@ -52,7 +53,13 @@ public final class VillagerNavigationTargets {
             if (!acceptable.test(desired) || !isValidStandingSpace(mob, desired)) {
                 return null;
             }
-            Path exactPath = navigation.createPath(desired, 0);
+            Path exactPath = PerformanceTimingCounters.measurePathPlan(
+                    PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_PLAN_ATTEMPT,
+                    () -> navigation.createPath(desired, 0));
+            if (exactPath != null) {
+                PerformanceTimingCounters.recordEvent(
+                        PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_OBJECT_CREATED);
+            }
             return exactPath != null && exactPath.canReach()
                     && endsWithinInteractionRange(exactPath, desired)
                     ? desired.immutable() : null;
@@ -86,7 +93,13 @@ public final class VillagerNavigationTargets {
             // Require the navigation result to arrive at the candidate itself;
             // a one-block createPath tolerance can otherwise return an
             // endpoint that is not usable by the interaction goal.
-            Path path = navigation.createPath(candidate, 0);
+            Path path = PerformanceTimingCounters.measurePathPlan(
+                    PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_PLAN_ATTEMPT,
+                    () -> navigation.createPath(candidate, 0));
+            if (path != null) {
+                PerformanceTimingCounters.recordEvent(
+                        PerformanceTimingCounters.Operation.MOVEMENT_HELPER_PATH_OBJECT_CREATED);
+            }
             if (path == null || !path.canReach()
                     || !endsWithinInteractionRange(path, desired)) {
                 continue;

@@ -693,11 +693,20 @@ public final class EmeraldGolemGameTests {
         // target selector once after that event so the test checks selector
         // wiring, not the scheduler's ordering for the same server tick.
         helper.runAfterDelay(2, () -> golem.targetSelector.tick());
-        helper.succeedWhen(() -> helper.assertTrue(golem.getTarget() == candidate,
-                "real target selector did not acquire the contested candidate through the obstruction; "
-                        + "golem=" + golem.position() + ", candidate=" + candidate.position()
-                        + ", distanceSq=" + golem.distanceToSqr(candidate)
-                        + ", target=" + golem.getTarget()));
+        helper.succeedWhen(() -> {
+            // Keep driving the real selector while the GameTest poll waits;
+            // the damage callback and selector scheduler are separate server
+            // phases, so a single manual tick can land before the grace-state
+            // mutation is visible to the target predicate.
+            if (golem.getTarget() == null) {
+                golem.targetSelector.tick();
+            }
+            helper.assertTrue(golem.getTarget() == candidate,
+                    "real target selector did not acquire the contested candidate through the obstruction; "
+                            + "golem=" + golem.position() + ", candidate=" + candidate.position()
+                            + ", distanceSq=" + golem.distanceToSqr(candidate)
+                            + ", target=" + golem.getTarget());
+        });
     }
 
     @GameTest(template = "empty_20x3x20", timeoutTicks = 1_105)
