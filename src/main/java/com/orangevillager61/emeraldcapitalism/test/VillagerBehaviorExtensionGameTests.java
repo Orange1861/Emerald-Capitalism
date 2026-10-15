@@ -45,7 +45,10 @@ public final class VillagerBehaviorExtensionGameTests {
 
         @Override
         public void cancel(Villager villager) {
-            MovementRequestManager.cancel(villager, HANDLES.remove(villager));
+            MovementRequestHandle handle = HANDLES.remove(villager);
+            if (handle != null) {
+                MovementRequestManager.cancel(villager, handle);
+            }
             DESTINATIONS.remove(villager);
         }
 
@@ -191,8 +194,6 @@ public final class VillagerBehaviorExtensionGameTests {
                         MovementRequestManager.PRIORITY_AMBIENT));
         helper.assertTrue(!rejected.accepted() && rejected.handle() == null,
                 "rejected request exposed a usable owner handle");
-        helper.assertFalse(MovementRequestManager.cancel(villager, rejected.handle()),
-                "rejected request canceled the active owner");
         helper.assertTrue(MovementRequestManager.isActive(villager, nearbyChange.handle()),
                 "rejected request displaced the active owner");
 

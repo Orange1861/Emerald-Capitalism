@@ -62,9 +62,8 @@ public final class MovementRequestManager {
 
     private static MovementRequestSubmission submitInternal(Villager villager,
                                                             MovementRequestSpec spec) {
-        if (villager == null || spec == null) {
-            throw new IllegalArgumentException("villager and spec are required");
-        }
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(spec, "spec");
         State state = STATES.computeIfAbsent(villager, ignored -> new State());
         if (state.activeSpec != null && state.activeSpec.equals(spec)
                 && state.activeHandle != null && state.unchangedLedgerSubmission != null) {
@@ -148,8 +147,18 @@ public final class MovementRequestManager {
                                                 MovementRequestLedger.Submission submission,
                                                 MovementRequestOutcome outcome,
                                                 MovementRequestHandle handle) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(spec, "spec");
+        Objects.requireNonNull(submission, "submission");
+        Objects.requireNonNull(outcome, "outcome");
+        Objects.requireNonNull(handle, "handle");
         if (submission.changed()) {
             boolean replacingRequest = state.activeHandle != null;
+            if (replacingRequest == (outcome == MovementRequestOutcome.ACCEPTED)) {
+                throw new IllegalStateException(
+                        "Movement ledger outcome does not match manager ownership: " + outcome);
+            }
             MovementRequestHandle previousHandle = state.activeHandle;
             if (!replacingRequest) {
                 state.clearForeignSnapshot();
@@ -181,15 +190,7 @@ public final class MovementRequestManager {
             state.activeHandle = handle;
             state.activeSpec = spec;
             state.lastPublishedHandle = handle;
-            if (!LIFECYCLE.register(state.sessionToken, handle.owner(), handle.generation())) {
-                // Normal villager AI must not take down the server when a
-                // delayed publication repeats. The ledger remains the
-                // authoritative executor owner; the duplicate is ignored by
-                // lifecycle accounting.
-                com.orangevillager61.emeraldcapitalism.EmeraldCapitalism.LOGGER.warn(
-                        "[ECAP][Movement] ignored duplicate lifecycle publication session={} handle={}",
-                        state.sessionToken, handle);
-            }
+            LIFECYCLE.register(state.sessionToken, handle.owner(), handle.generation());
             MovementDiagnostics.transition(villager, outcome, handle, spec);
         }
 
@@ -234,9 +235,9 @@ public final class MovementRequestManager {
 
     private static boolean cancelInternal(Villager villager, MovementRequestHandle handle,
                                           MovementRequestTerminationReason reason) {
-        if (villager == null || handle == null) {
-            return false;
-        }
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(reason, "reason");
         State state = STATES.get(villager);
         if (state == null || !state.ledger.owns(handle.owner(), handle.generation())) {
             return false;
@@ -255,15 +256,15 @@ public final class MovementRequestManager {
     }
 
     public static boolean isActive(Villager villager, MovementRequestHandle handle) {
-        if (villager == null || handle == null) {
-            return false;
-        }
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
         State state = STATES.get(villager);
         return state != null && state.ledger.owns(handle.owner(), handle.generation());
     }
 
     @Nullable
     public static MovementRequestHandle activeHandle(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         State state = STATES.get(villager);
         return state == null ? null : state.activeHandle;
     }
@@ -271,6 +272,7 @@ public final class MovementRequestManager {
     /** Returns the active handle only when it belongs to the requested owner. */
     @Nullable
     public static MovementRequestHandle activeHandle(Villager villager, String owner) {
+        Objects.requireNonNull(owner, "owner");
         MovementRequestHandle handle = activeHandle(villager);
         return handle != null && handle.owner().equals(owner) ? handle : null;
     }
@@ -278,6 +280,7 @@ public final class MovementRequestManager {
     /** Returns the most recently published handle, including a request completed this tick. */
     @Nullable
     public static MovementRequestHandle lastPublishedHandle(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         State state = STATES.get(villager);
         return state == null ? null : state.lastPublishedHandle;
     }
@@ -285,9 +288,8 @@ public final class MovementRequestManager {
     /** Returns terminal transitions for this loaded villager session only. */
     public static long terminalCount(Villager villager,
                                      MovementRequestTerminationReason reason) {
-        if (villager == null || reason == null) {
-            return 0L;
-        }
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(reason, "reason");
         State state = STATES.get(villager);
         return state == null ? 0L : state.terminalCounts.getOrDefault(reason, 0L);
     }
@@ -295,9 +297,9 @@ public final class MovementRequestManager {
     /** Returns terminal transitions for one request owner in this villager session. */
     public static long terminalCount(Villager villager, String owner,
                                      MovementRequestTerminationReason reason) {
-        if (villager == null || owner == null || reason == null) {
-            return 0L;
-        }
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(reason, "reason");
         State state = STATES.get(villager);
         if (state == null) {
             return 0L;
@@ -342,6 +344,8 @@ public final class MovementRequestManager {
                                               boolean requestedPathCreated,
                                               boolean destinationReachable,
                                               @Nullable Path livePath) {
+        Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(target, "target");
         if (!(owner instanceof Villager villager)) {
             return;
         }
@@ -393,6 +397,7 @@ public final class MovementRequestManager {
 
     /** Captures the exact target before vanilla can consume it during sink startup. */
     public static void observeVanillaSinkStart(Mob owner, long gameTime) {
+        Objects.requireNonNull(owner, "owner");
         if (!(owner instanceof Villager villager)) {
             return;
         }
@@ -435,6 +440,7 @@ public final class MovementRequestManager {
 
     /** Records the failure timestamp after vanilla's same-tick WALK_TARGET erase. */
     public static void observeVanillaSinkResult(Mob owner, long gameTime) {
+        Objects.requireNonNull(owner, "owner");
         if (!(owner instanceof Villager villager)) {
             return;
         }
@@ -455,6 +461,7 @@ public final class MovementRequestManager {
 
     /** Captures the ownership epoch observed before an individual sink starts. */
     public static long captureVanillaSinkEpoch(Mob owner) {
+        Objects.requireNonNull(owner, "owner");
         if (!(owner instanceof Villager villager)) {
             return Long.MIN_VALUE;
         }
@@ -465,6 +472,7 @@ public final class MovementRequestManager {
     /** Returns true only when manager ownership changed after this sink captured its epoch. */
     public static boolean isStaleVanillaSink(Mob owner, long capturedEpoch,
                                              @Nullable WalkTarget capturedTarget) {
+        Objects.requireNonNull(owner, "owner");
         if (!(owner instanceof Villager villager) || capturedEpoch == Long.MIN_VALUE) {
             return false;
         }
@@ -507,6 +515,8 @@ public final class MovementRequestManager {
     /** Records the exact route object installed by MoveToTargetSink.start. */
     public static void observeVanillaSinkStarted(Mob owner, WalkTarget target,
                                                  @Nullable Path path) {
+        Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(target, "target");
         if (!(owner instanceof Villager villager)) {
             return;
         }
@@ -519,38 +529,28 @@ public final class MovementRequestManager {
 
     /** Test-visible per-request attempt count, unaffected by other GameTests. */
     public static int pathPlanAttempts(Villager villager, MovementRequestHandle handle) {
-        State state = STATES.get(villager);
-        return state != null && state.ledger.owns(handle.owner(), handle.generation())
-                ? state.pathPlanAttempts : 0;
+        return requireActiveState(villager, handle).pathPlanAttempts;
     }
 
     /** Test-visible count of requested-destination paths that existed but could not reach it. */
     public static int partialDestinationPathPlans(Villager villager,
                                                   MovementRequestHandle handle) {
-        State state = STATES.get(villager);
-        return state != null && state.ledger.owns(handle.owner(), handle.generation())
-                ? state.partialDestinationPathPlans : 0;
+        return requireActiveState(villager, handle).partialDestinationPathPlans;
     }
 
     /** Test-visible retry deadline for the active generation, or MIN_VALUE when ungated. */
     public static long failureRetryNotBefore(Villager villager, MovementRequestHandle handle) {
-        State state = STATES.get(villager);
-        return state != null && state.ledger.owns(handle.owner(), handle.generation())
-                ? state.failureRetryNotBefore : Long.MIN_VALUE;
+        return requireActiveState(villager, handle).failureRetryNotBefore;
     }
 
     @Nullable
     public static WalkTarget ownedWalkTarget(Villager villager, MovementRequestHandle handle) {
-        State state = STATES.get(villager);
-        return state != null && state.ledger.owns(handle.owner(), handle.generation())
-                ? state.ownedWalkTarget : null;
+        return requireActiveState(villager, handle).ownedWalkTarget;
     }
 
     /** Releases all transient ownership when an entity disappears. */
     public static void release(Villager villager) {
-        if (villager == null) {
-            return;
-        }
+        Objects.requireNonNull(villager, "villager");
         State state = STATES.remove(villager);
         if (state == null) {
             return;
@@ -881,10 +881,16 @@ public final class MovementRequestManager {
     private static void finishRequest(Villager villager, State state,
                                       MovementRequestHandle handle,
                                       MovementRequestTerminationReason reason) {
-        if (handle == null || !LIFECYCLE.terminate(new MovementRequestLifecycleCoordinator.RequestKey(
-                state.sessionToken, handle.owner(), handle.generation()),
-                lifecycleReason(reason))) {
-            return;
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(reason, "reason");
+        MovementRequestLifecycleCoordinator.RequestKey key =
+                new MovementRequestLifecycleCoordinator.RequestKey(
+                        state.sessionToken, handle.owner(), handle.generation());
+        if (!LIFECYCLE.terminate(key, lifecycleReason(reason))) {
+            throw new IllegalStateException(
+                    "Movement request was not active in lifecycle coordinator: " + key);
         }
         state.terminalCounts.merge(reason, 1L, Long::sum);
         state.terminalCountsByOwner
@@ -921,14 +927,19 @@ public final class MovementRequestManager {
     }
 
     private static long nextSinkEpoch() {
+        if (sinkEpochSequence == Long.MAX_VALUE) {
+            throw new IllegalStateException("Movement sink epoch exhausted");
+        }
         return ++sinkEpochSequence;
     }
 
     private static MovementRequestHandle toHandle(MovementRequestLedger.Handle handle) {
+        Objects.requireNonNull(handle, "handle");
         return new MovementRequestHandle(handle.owner(), handle.generation());
     }
 
     private static MovementIntent toIntent(MovementRequestSpec spec) {
+        Objects.requireNonNull(spec, "spec");
         return new MovementIntent(
                 spec.owner(),
                 spec.destinationIdentity(),
@@ -943,10 +954,10 @@ public final class MovementRequestManager {
     }
 
     private static long nextEntitySessionToken() {
-        if (++entitySessionSequence <= 0L) {
-            entitySessionSequence = 1L;
+        if (entitySessionSequence == Long.MAX_VALUE) {
+            throw new IllegalStateException("Movement entity-session token exhausted");
         }
-        return entitySessionSequence;
+        return ++entitySessionSequence;
     }
 
     private static final class State {
@@ -1046,8 +1057,13 @@ public final class MovementRequestManager {
 
     private static void observeRoute(Villager villager, State state,
                                      MovementRequestHandle handle) {
-        if (state == null || handle == null) {
-            return;
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(handle, "handle");
+        if (state.activeHandle == null || !state.activeHandle.equals(handle)
+                || !state.ledger.owns(handle.owner(), handle.generation())) {
+            throw new IllegalStateException(
+                    "Route observation does not belong to the active movement request: " + handle);
         }
         Path currentPath = villager.getNavigation().getPath();
         if (currentPath != state.lastObservedPath) {
@@ -1056,5 +1072,16 @@ public final class MovementRequestManager {
             MovementDiagnostics.route(villager, handle, state.routeGeneration, currentPath);
         }
         snapshotMemoryState(villager, state);
+    }
+
+    private static State requireActiveState(Villager villager, MovementRequestHandle handle) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
+        State state = STATES.get(villager);
+        if (state == null || !state.ledger.owns(handle.owner(), handle.generation())) {
+            throw new IllegalStateException(
+                    "Movement diagnostic requested for an inactive handle: " + handle);
+        }
+        return state;
     }
 }

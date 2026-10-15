@@ -96,6 +96,7 @@ public class HarvestPumpkinGoal extends Goal {
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
                 && canStorePumpkin()
                 && isAttachedPumpkin(level, targetPos)
+                && movementHandle != null
                 && MovementRequestManager.isActive(villager, movementHandle);
     }
 
@@ -122,7 +123,7 @@ public class HarvestPumpkinGoal extends Goal {
         if (!(villager.level() instanceof ServerLevel level) || targetPos == null || navigationTarget == null) {
             return;
         }
-        if (!MovementRequestManager.isActive(villager, movementHandle)) {
+        if (movementHandle == null || !MovementRequestManager.isActive(villager, movementHandle)) {
             return;
         }
 

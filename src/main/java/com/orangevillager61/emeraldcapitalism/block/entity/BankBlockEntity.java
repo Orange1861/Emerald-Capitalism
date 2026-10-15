@@ -1,7 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.block.entity;
 
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
@@ -433,43 +432,12 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     settings.attackAllPlayers());
         }
 
-        /**
-         * Decodes each durable field independently for block-entity recovery.
-         * The aggregate codec remains strict for ordinary codec callers, while a
-         * damaged list or optional field cannot erase unrelated saved bank state.
-         */
-        static PersistedState decodeForLoad(CompoundTag tag) {
-            return new PersistedState(
-                    decodeField(tag, "village_id", VILLAGE_ID_FIELD, Optional.empty()),
-                    decodeField(tag, "bank_independent", BANK_INDEPENDENT_FIELD, true),
-                    decodeField(tag, "controller_id", CONTROLLER_ID_FIELD, Optional.empty()),
-                    decodeField(tag, "bank_name", BANK_NAME_FIELD, ""),
-                    decodeField(tag, "employee_ids", EMPLOYEE_IDS_FIELD, List.of()),
-                    decodeField(tag, "job_employee_ids", JOB_EMPLOYEE_IDS_FIELD, List.of()),
-                    decodeField(tag, "emerald_golem_employee_ids", GOLEM_EMPLOYEE_IDS_FIELD, List.of()),
-                    decodeField(tag, "tracked_chest_positions", TRACKED_CHEST_POSITIONS_FIELD, List.of()),
-                    decodeField(tag, "prepared_emerald_chest_count", PREPARED_CHEST_COUNT_FIELD, 0),
-                    decodeField(tag, "composter_pos", COMPOSTER_POS_FIELD, Optional.empty()),
-                    decodeField(tag, "golem_construction_pos", GOLEM_CONSTRUCTION_POS_FIELD, Optional.empty()),
-                    decodeField(tag, "takeover_lock_player", TAKEOVER_LOCK_PLAYER_FIELD, Optional.empty()),
-                    decodeField(tag, "takeover_lock_until", TAKEOVER_LOCK_UNTIL_FIELD, 0L),
-                    decodeField(tag, "manual_targets", MANUAL_TARGETS_FIELD, false),
-                    decodeField(tag, "emerald_golem_target", EMERALD_GOLEM_TARGET_FIELD, 0),
-                    decodeField(tag, "emerald_skrimisher_target", EMERALD_SKIRMISHER_TARGET_FIELD, 0),
-                    decodeField(tag, "food_days", FOOD_DAYS_FIELD, BankTargets.INTERNAL_BREAD_DAYS),
-                    decodeField(tag, "villager_deliveries_enabled", VILLAGER_DELIVERIES_FIELD, true),
-                    decodeField(tag, "random_deliveries_enabled", RANDOM_DELIVERIES_FIELD, true),
-                    decodeField(tag, "bread_deliveries_enabled", BREAD_DELIVERIES_FIELD, true),
-                    decodeField(tag, "lumberjack_deliveries_enabled", LUMBERJACK_DELIVERIES_FIELD, true),
-                    decodeField(tag, "attack_all_players", ATTACK_ALL_PLAYERS_FIELD, false));
-        }
-
-        private static <T> T decodeField(CompoundTag tag, String fieldName,
-                                          MapCodec<T> fieldCodec, T defaultValue) {
-            DataResult<T> decoded = fieldCodec.codec().parse(NbtOps.INSTANCE, tag);
-            decoded.error().ifPresent(error -> EmeraldCapitalism.LOGGER.warn(
-                    "Ignoring malformed bank field {}: {}", fieldName, error.message()));
-            return decoded.result().orElse(defaultValue);
+        static PersistedState decodeForLoad(CompoundTag tag, BlockPos bankPos) {
+            Objects.requireNonNull(tag, "tag");
+            Objects.requireNonNull(bankPos, "bankPos");
+            return CODEC.parse(NbtOps.INSTANCE, tag)
+                    .getOrThrow(error -> new IllegalArgumentException(
+                            "Failed to decode BankBlockEntity at " + bankPos + ": " + error));
         }
 
         PersistedState {
@@ -2677,7 +2645,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     protected void loadAdditional(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider registries) {
         super.loadAdditional(tag, registries);
         resetDerivedAndTransientStateAfterLoad();
-        PersistedState.decodeForLoad(tag).applyTo(this);
+        PersistedState.decodeForLoad(tag, worldPosition).applyTo(this);
     }
 
     @Override

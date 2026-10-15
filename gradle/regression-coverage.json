@@ -10,7 +10,7 @@
       ],
       "gameTests": [
         "bankgameplaygametests.durablebankstatesurvivesreloadandcachesrebuild",
-        "bankgameplaygametests.malformedbankstatepreservesunrelatedpopulatedfields",
+        "bankgameplaygametests.malformedbankstatefailsloudly",
         "bankgameplaygametests.durablebankmutationsmarkchunkchanged"
       ],
       "manualChecks": []

@@ -1063,7 +1063,7 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
-    public static void malformedBankStatePreservesUnrelatedPopulatedFields(GameTestHelper helper) {
+    public static void malformedBankStateFailsLoudly(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
@@ -1096,8 +1096,7 @@ public final class BankGameplayGameTests {
 
         CompoundTag wrongType = valid.copy();
         wrongType.putString("employee_ids", "not-an-uuid-list");
-        assertRecoveredPopulatedBank(helper, bankPos, bankState, wrongType, level,
-                villageId, controllerId, employeeId, settings, chestPos, takeoverKiller);
+        assertMalformedBankStateRejected(helper, bankPos, bankState, wrongType, level);
 
         CompoundTag oversized = valid.copy();
         ListTag employeeIds = (ListTag) valid.get("employee_ids");
@@ -1106,45 +1105,29 @@ public final class BankGameplayGameTests {
             tooManyEmployees.add(employeeIds.get(0).copy());
         }
         oversized.put("employee_ids", tooManyEmployees);
-        assertRecoveredPopulatedBank(helper, bankPos, bankState, oversized, level,
-                villageId, controllerId, employeeId, settings, chestPos, takeoverKiller);
+        assertMalformedBankStateRejected(helper, bankPos, bankState, oversized, level);
         helper.succeed();
     }
 
-    private static void assertRecoveredPopulatedBank(GameTestHelper helper, BlockPos bankPos,
-                                                     BlockState bankState, CompoundTag malformed,
-                                                     ServerLevel level, UUID villageId,
-                                                     UUID controllerId, UUID employeeId,
-                                                     BankMenuOpenData.ControlSettings settings,
-                                                     BlockPos chestPos, UUID takeoverKiller) {
-        BlockEntity loaded;
+    private static void assertMalformedBankStateRejected(GameTestHelper helper, BlockPos bankPos,
+                                                         BlockState bankState, CompoundTag malformed,
+                                                         ServerLevel level) {
+        RuntimeException failure = null;
         try {
-            loaded = BlockEntity.loadStatic(bankPos, bankState, malformed, level.registryAccess());
+            BlockEntity.loadStatic(bankPos, bankState, malformed, level.registryAccess());
         } catch (RuntimeException ex) {
-            helper.fail("malformed bank state crashed block-entity reload: " + ex.getMessage());
-            return;
+            failure = ex;
         }
-        helper.assertTrue(loaded instanceof BankBlockEntity,
-                "malformed bank state discarded the bank block entity");
-        if (!(loaded instanceof BankBlockEntity restored)) {
-            return;
+        helper.assertTrue(failure != null,
+                "malformed bank state was silently accepted");
+        if (failure != null) {
+            String message = failure.getMessage();
+            helper.assertTrue(message != null
+                            && message.contains("BankBlockEntity at " + bankPos),
+                    "malformed bank failure did not identify the affected bank: " + message);
+            helper.assertTrue(message.contains("Not a list") || message.contains("List is too long"),
+                    "malformed bank failure did not include the codec error: " + message);
         }
-        helper.assertTrue(villageId.equals(restored.getVillageId()),
-                "valid village ID was lost when employee_ids was malformed");
-        helper.assertTrue(!restored.isBankIndependent()
-                        && controllerId.equals(restored.getControllerId()),
-                "valid controller state was lost when employee_ids was malformed");
-        helper.assertTrue("Populated Recovery Bank".equals(restored.getBankName()),
-                "valid bank name was lost when employee_ids was malformed");
-        helper.assertTrue(settings.equals(restored.getControlSettings()),
-                "valid control settings were lost when employee_ids was malformed");
-        helper.assertTrue(restored.getTrackedChestPositions().contains(chestPos),
-                "valid tracked chest position was lost when employee_ids was malformed");
-        helper.assertTrue(restored.isTakeoverLocked(level),
-                "valid takeover lock was lost when employee_ids was malformed");
-        helper.assertTrue(restored.getEmployeeIds().isEmpty()
-                        || restored.getEmployeeIds().contains(employeeId),
-                "malformed employee_ids did not fall back only to that field");
     }
 
     private static BankBlockEntity setupBreadBank(GameTestHelper helper, int bread) {

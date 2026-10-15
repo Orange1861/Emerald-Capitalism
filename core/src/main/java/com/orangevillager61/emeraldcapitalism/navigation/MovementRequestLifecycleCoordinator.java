@@ -70,8 +70,11 @@ public final class MovementRequestLifecycleCoordinator {
 
     public boolean register(RequestKey key) {
         Objects.requireNonNull(key, "key");
-        if (active.containsKey(key) || terminal.containsKey(key)) {
-            return false;
+        if (active.containsKey(key)) {
+            throw new IllegalStateException("Movement request is already active: " + key);
+        }
+        if (terminal.containsKey(key)) {
+            throw new IllegalStateException("Movement request was already terminated: " + key);
         }
         active.put(key, Boolean.TRUE);
         return true;

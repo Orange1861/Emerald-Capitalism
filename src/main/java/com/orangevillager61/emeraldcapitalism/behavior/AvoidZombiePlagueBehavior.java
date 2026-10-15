@@ -104,6 +104,7 @@ public final class AvoidZombiePlagueBehavior extends Behavior<Villager> {
         }
         Villager threat = findClosestThreat(villager);
         return threat != null && isTooClose(villager, threat)
+                && movementHandle != null
                 && MovementRequestManager.isActive(villager, movementHandle);
     }
 

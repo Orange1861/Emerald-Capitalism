@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MovementRequestLedgerTest {
@@ -57,8 +58,20 @@ class MovementRequestLedgerTest {
         assertEquals(MovementRequestLedger.Outcome.REJECTED_LOWER_PRIORITY, ambient.outcome());
         assertEquals(null, ambient.handle());
         assertTrue(ledger.owns(work));
-        assertFalse(ledger.clear(ambient.handle()));
+        assertThrows(NullPointerException.class, () -> ledger.clear(ambient.handle()));
         assertTrue(ledger.owns(work));
+    }
+
+    @Test
+    void nullHandlesAndOwnersAreInvariantViolations() {
+        MovementRequestLedger ledger = new MovementRequestLedger();
+
+        assertThrows(NullPointerException.class,
+                () -> ledger.clear((MovementRequestLedger.Handle) null));
+        assertThrows(NullPointerException.class,
+                () -> ledger.owns((MovementRequestLedger.Handle) null));
+        assertThrows(NullPointerException.class, () -> ledger.clear((String) null, 1L));
+        assertThrows(NullPointerException.class, () -> ledger.owns((String) null, 1L));
     }
 
     @Test

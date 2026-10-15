@@ -122,8 +122,10 @@ public abstract class VillagerClimbMixin {
     /** Releases this villager's current ladder claim. */
     @Unique
     private void emeraldcapitalism$releaseLadder(Villager villager) {
-        VillagerLadderClaims.release(villager, emeraldcapitalism$claimedLadder);
-        emeraldcapitalism$claimedLadder = null;
+        if (emeraldcapitalism$claimedLadder != null) {
+            VillagerLadderClaims.release(villager, emeraldcapitalism$claimedLadder);
+            emeraldcapitalism$claimedLadder = null;
+        }
     }
 
     /**

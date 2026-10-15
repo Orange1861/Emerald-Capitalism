@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BankPersistedStateCodecTest {
@@ -157,7 +158,7 @@ class BankPersistedStateCodecTest {
     }
 
     @Test
-    void loadDecodeKeepsPopulatedStateWhenOneEmployeeFieldIsMalformed() {
+    void loadDecodeRejectsMalformedEmployeeFieldWithBankContext() {
         UUID controller = UUID.randomUUID();
         UUID killer = UUID.randomUUID();
         BankBlockEntity.PersistedState source = new BankBlockEntity.PersistedState(
@@ -172,7 +173,12 @@ class BankPersistedStateCodecTest {
 
         CompoundTag wrongType = valid.copy();
         wrongType.putString("employee_ids", "not-an-uuid-list");
-        assertRecoveredState(wrongType, controller, killer, source);
+        IllegalArgumentException wrongTypeFailure = assertThrows(IllegalArgumentException.class,
+                () -> BankBlockEntity.PersistedState.decodeForLoad(
+                        wrongType, new BlockPos(12, 34, 56)));
+        assertTrue(wrongTypeFailure.getMessage().contains(
+                "BankBlockEntity at BlockPos{x=12, y=34, z=56}"));
+        assertTrue(wrongTypeFailure.getMessage().contains("Not a list"));
 
         CompoundTag oversized = valid.copy();
         ListTag tooManyEmployees = new ListTag();
@@ -181,32 +187,12 @@ class BankPersistedStateCodecTest {
             tooManyEmployees.add(encodedEmployees.get(0).copy());
         }
         oversized.put("employee_ids", tooManyEmployees);
-        assertRecoveredState(oversized, controller, killer, source);
-    }
-
-    private static void assertRecoveredState(CompoundTag malformed, UUID controller, UUID killer,
-                                             BankBlockEntity.PersistedState source) {
-        BankBlockEntity.PersistedState recovered = BankBlockEntity.PersistedState.decodeForLoad(malformed);
-        assertTrue(recovered.employeeIds().isEmpty(), "malformed employee IDs were not defaulted");
-        assertEquals(source.villageId(), recovered.villageId());
-        assertEquals(source.bankIndependent(), recovered.bankIndependent());
-        assertEquals(Optional.of(controller), recovered.controllerId());
-        assertEquals(source.bankName(), recovered.bankName());
-        assertEquals(source.trackedChestPositions(), recovered.trackedChestPositions());
-        assertEquals(source.preparedEmeraldChestCount(), recovered.preparedEmeraldChestCount());
-        assertEquals(source.composterPos(), recovered.composterPos());
-        assertEquals(source.golemConstructionPos(), recovered.golemConstructionPos());
-        assertEquals(Optional.of(killer), recovered.takeoverLockPlayer());
-        assertEquals(source.takeoverLockUntil(), recovered.takeoverLockUntil());
-        assertEquals(source.manualTargets(), recovered.manualTargets());
-        assertEquals(source.emeraldGolemTarget(), recovered.emeraldGolemTarget());
-        assertEquals(source.emeraldSkrimisherTarget(), recovered.emeraldSkrimisherTarget());
-        assertEquals(source.foodDays(), recovered.foodDays());
-        assertEquals(source.villagerDeliveriesEnabled(), recovered.villagerDeliveriesEnabled());
-        assertEquals(source.randomDeliveriesEnabled(), recovered.randomDeliveriesEnabled());
-        assertEquals(source.breadDeliveriesEnabled(), recovered.breadDeliveriesEnabled());
-        assertEquals(source.lumberjackDeliveriesEnabled(), recovered.lumberjackDeliveriesEnabled());
-        assertEquals(source.attackAllPlayers(), recovered.attackAllPlayers());
+        IllegalArgumentException oversizedFailure = assertThrows(IllegalArgumentException.class,
+                () -> BankBlockEntity.PersistedState.decodeForLoad(
+                        oversized, new BlockPos(12, 34, 56)));
+        assertTrue(oversizedFailure.getMessage().contains(
+                "BankBlockEntity at BlockPos{x=12, y=34, z=56}"));
+        assertTrue(oversizedFailure.getMessage().contains("List is too long"));
     }
 
     private static BankBlockEntity.PersistedState roundTrip(BankBlockEntity.PersistedState source) {

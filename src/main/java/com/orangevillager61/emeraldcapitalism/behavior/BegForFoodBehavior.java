@@ -185,7 +185,9 @@ public class BegForFoodBehavior extends Behavior<Villager> {
                 <= INTERACTION_DISTANCE * INTERACTION_DISTANCE
                 ? MovementRequestTerminationReason.ARRIVED
                 : MovementRequestTerminationReason.ABANDONED;
-        MovementRequestManager.cancel(villager, movementHandle, terminalReason);
+        if (movementHandle != null) {
+            MovementRequestManager.cancel(villager, movementHandle, terminalReason);
+        }
         movementHandle = null;
         cachedMovementSpec = null;
         cachedMovementDonor = null;
@@ -222,7 +224,8 @@ public class BegForFoodBehavior extends Behavior<Villager> {
             && villager.distanceToSqr(donorVillager) < MAX_DISTANCE * MAX_DISTANCE
             && (villager.distanceToSqr(donorVillager)
                     <= INTERACTION_DISTANCE * INTERACTION_DISTANCE
-                    || MovementRequestManager.isActive(villager, movementHandle));
+                    || (movementHandle != null
+                    && MovementRequestManager.isActive(villager, movementHandle)));
     }
 
     private boolean submitMovement(Villager villager, Villager donorVillager) {

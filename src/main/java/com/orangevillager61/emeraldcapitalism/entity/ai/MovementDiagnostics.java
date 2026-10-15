@@ -4,6 +4,8 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.pathfinder.Path;
 
+import java.util.Objects;
+
 /** Bounded transition diagnostics; it is enabled with a JVM system property. */
 final class MovementDiagnostics {
 
@@ -12,6 +14,10 @@ final class MovementDiagnostics {
 
     static void transition(Villager villager, MovementRequestOutcome outcome,
                            MovementRequestHandle handle, MovementRequestSpec spec) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(outcome, "outcome");
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(spec, "spec");
         if (enabled()) {
             EmeraldCapitalism.LOGGER.info(
                     "[ECAP][Navigation] transition entity={} owner={} generation={} outcome={} destination={} speed={} arrival={} traversal={}",
@@ -21,6 +27,8 @@ final class MovementDiagnostics {
     }
 
     static void cleanup(Villager villager, MovementRequestHandle handle) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
         if (enabled()) {
             EmeraldCapitalism.LOGGER.info(
                     "[ECAP][Navigation] cleanup entity={} owner={} generation={}",
@@ -30,6 +38,9 @@ final class MovementDiagnostics {
 
     static void terminal(Villager villager, MovementRequestHandle handle,
                          MovementRequestTerminationReason reason) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(reason, "reason");
         if (enabled()) {
             EmeraldCapitalism.LOGGER.info(
                     "[ECAP][Navigation] terminal entity={} owner={} generation={} reason={}",
@@ -40,7 +51,10 @@ final class MovementDiagnostics {
     static void pathPlan(Villager villager, MovementRequestHandle handle,
                          MovementRequestSpec spec, Path path,
                          boolean requestedPath, boolean destinationReachable) {
-        if (enabled() && handle != null && spec != null) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(spec, "spec");
+        if (enabled()) {
             EmeraldCapitalism.LOGGER.info(
                     "[ECAP][Navigation] path-plan entity={} owner={} generation={} destination={} requested={} reachable={} livePath={} pathId={}",
                     villager.getUUID(), handle.owner(), handle.generation(), spec.destination(),
@@ -51,6 +65,8 @@ final class MovementDiagnostics {
 
     static void route(Villager villager, MovementRequestHandle handle,
                       int routeGeneration, Path path) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(handle, "handle");
         if (enabled()) {
             EmeraldCapitalism.LOGGER.info(
                     "[ECAP][Navigation] route entity={} owner={} requestGeneration={} routeGeneration={} state={} pathId={}",

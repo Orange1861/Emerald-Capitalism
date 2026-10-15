@@ -9,6 +9,7 @@ import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.WeakHashMap;
 
@@ -27,6 +28,8 @@ public final class VillagerLadderClaims {
     }
 
     public static LadderColumn column(Villager villager, BlockPos pos) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(pos, "pos");
         PerformanceTimingCounters.recordEvent(
                 PerformanceTimingCounters.Operation.LADDER_SEGMENT_SCAN);
         int minY = pos.getY();
@@ -55,6 +58,8 @@ public final class VillagerLadderClaims {
     }
 
     public static boolean tryClaim(Villager villager, LadderColumn column) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(column, "column");
         Villager owner = CLAIMS.get(column);
         if (owner == null || owner == villager || isStale(column, owner)) {
             CLAIMS.put(column, villager);
@@ -64,36 +69,44 @@ public final class VillagerLadderClaims {
     }
 
     public static void release(Villager villager, LadderColumn column) {
-        if (column != null) {
-            CLAIMS.remove(column, villager);
-        }
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(column, "column");
+        CLAIMS.remove(column, villager);
     }
 
     public static void releaseAll(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         CLAIMS.values().removeIf(owner -> owner == villager);
         ACTIVE_EXITS.remove(villager);
     }
 
     /** Records the validated route exit for diagnostics and traversal tests. */
     public static void setActiveExit(Villager villager, BlockPos exit) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(exit, "exit");
         ACTIVE_EXITS.put(villager, exit.immutable());
     }
 
     public static void clearActiveExit(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         ACTIVE_EXITS.remove(villager);
     }
 
     public static BlockPos activeExit(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         return ACTIVE_EXITS.get(villager);
     }
 
     /** Returns whether this exact cached segment is still owned by the villager. */
     public static boolean isOwnedBy(Villager villager, LadderColumn column) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(column, "column");
         return CLAIMS.get(column) == villager;
     }
 
     /** Test and diagnostics hook for observing ownership without mutating it. */
     public static LadderColumn claimedColumn(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         for (Map.Entry<LadderColumn, Villager> entry : CLAIMS.entrySet()) {
             if (entry.getValue() == villager) {
                 return entry.getKey();
@@ -104,12 +117,15 @@ public final class VillagerLadderClaims {
 
     /** Invalidates cached segments when a ladder block changes in their column. */
     public static void invalidateAt(Level level, BlockPos pos) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(pos, "pos");
         CLAIMS.keySet().removeIf(column -> column.dimension().equals(level.dimension())
                 && column.x() == pos.getX() && column.z() == pos.getZ());
     }
 
     /** Drops claims for a dimension before its server level is unloaded. */
     public static void releaseDimension(ResourceKey<Level> dimension) {
+        Objects.requireNonNull(dimension, "dimension");
         CLAIMS.keySet().removeIf(column -> column.dimension().equals(dimension));
         ACTIVE_EXITS.entrySet().removeIf(entry -> entry.getKey().level().dimension().equals(dimension));
         purgeIterator = null;
@@ -128,7 +144,10 @@ public final class VillagerLadderClaims {
 
     /** Removes at most {@code maxVisits} entries for the periodic fallback. */
     public static int purgeStale(int maxVisits) {
-        if (maxVisits <= 0 || CLAIMS.isEmpty()) {
+        if (maxVisits <= 0) {
+            throw new IllegalArgumentException("maxVisits must be positive");
+        }
+        if (CLAIMS.isEmpty()) {
             return 0;
         }
         if (purgeIterator == null || !purgeIterator.hasNext()) {

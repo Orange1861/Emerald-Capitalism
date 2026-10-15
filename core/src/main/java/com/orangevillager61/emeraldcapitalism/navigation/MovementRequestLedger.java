@@ -84,15 +84,15 @@ public final class MovementRequestLedger {
     }
 
     public boolean clear(Handle handle) {
-        if (handle == null || !handle.equals(activeHandle)) {
-            return false;
-        }
+        Objects.requireNonNull(handle, "handle");
+        if (!handle.equals(activeHandle)) return false;
         activeIntent = null;
         activeHandle = null;
         return true;
     }
 
     public boolean clear(String owner, long generation) {
+        Objects.requireNonNull(owner, "owner");
         return activeHandle != null
                 && activeHandle.generation() == generation
                 && activeHandle.owner().equals(owner)
@@ -100,10 +100,11 @@ public final class MovementRequestLedger {
     }
 
     public boolean owns(Handle handle) {
-        return handle != null && handle.equals(activeHandle);
+        return Objects.requireNonNull(handle, "handle").equals(activeHandle);
     }
 
     public boolean owns(String owner, long generation) {
+        Objects.requireNonNull(owner, "owner");
         return activeHandle != null
                 && activeHandle.generation() == generation
                 && activeHandle.owner().equals(owner);

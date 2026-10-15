@@ -104,6 +104,7 @@ public final class FleeHostileVillagePlayerBehavior extends Behavior<Villager> {
     @Override
     protected boolean canStillUse(ServerLevel level, Villager villager, long gameTime) {
         return findClosestThreat(level, villager) != null
+                && movementHandle != null
                 && MovementRequestManager.isActive(villager, movementHandle);
     }
 

@@ -111,6 +111,7 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
         }
         Boat boat = findClosestBoat(villager);
         return boat != null && isTooClose(villager, boat)
+                && movementHandle != null
                 && MovementRequestManager.isActive(villager, movementHandle);
     }
 

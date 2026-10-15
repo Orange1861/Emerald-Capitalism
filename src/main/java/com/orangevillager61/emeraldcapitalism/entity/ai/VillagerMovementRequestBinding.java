@@ -4,6 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.npc.Villager;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Objects;
+
 /**
  * Per-goal convenience wrapper that retains the current capability token.
  * Each goal instance has its own binding; the manager still arbitrates the
@@ -17,6 +19,8 @@ public final class VillagerMovementRequestBinding {
     private MovementRequestSpec cachedSpec;
 
     public boolean submit(Villager villager, MovementRequestSpec spec) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(spec, "spec");
         if (cachedSpec != null && cachedSpec.equals(spec)) {
             spec = cachedSpec;
         }
@@ -49,6 +53,8 @@ public final class VillagerMovementRequestBinding {
     }
 
     private boolean submitResolved(Villager villager, MovementRequestSpec spec) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(spec, "spec");
         MovementRequestSubmission submission;
         if (handle != null) {
             if (!MovementRequestManager.isActive(villager, handle)) {
@@ -71,10 +77,15 @@ public final class VillagerMovementRequestBinding {
     }
 
     public boolean isActive(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
+        if (handle == null) {
+            return false;
+        }
         return MovementRequestManager.isActive(villager, handle);
     }
 
     public void cancel(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
         if (handle != null) {
             MovementRequestManager.cancel(villager, handle);
             handle = null;
@@ -83,6 +94,8 @@ public final class VillagerMovementRequestBinding {
     }
 
     public void cancel(Villager villager, MovementRequestTerminationReason reason) {
+        Objects.requireNonNull(villager, "villager");
+        Objects.requireNonNull(reason, "reason");
         if (handle != null) {
             MovementRequestManager.cancel(villager, handle, reason);
             handle = null;

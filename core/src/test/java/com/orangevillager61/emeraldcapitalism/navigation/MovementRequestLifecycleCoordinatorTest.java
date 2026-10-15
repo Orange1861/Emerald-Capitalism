@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MovementRequestLifecycleCoordinatorTest {
@@ -18,6 +19,8 @@ class MovementRequestLifecycleCoordinatorTest {
                 MovementRequestLifecycleCoordinator.TerminalReason.ARRIVED));
         assertFalse(coordinator.terminate(1L, "farmer", 1L,
                 MovementRequestLifecycleCoordinator.TerminalReason.ABANDONED));
+        assertThrows(IllegalStateException.class,
+                () -> coordinator.register(1L, "farmer", 1L));
 
         assertEquals(0, coordinator.activeCount());
         assertEquals(1, coordinator.terminalRequestCount());
@@ -35,7 +38,8 @@ class MovementRequestLifecycleCoordinatorTest {
         assertTrue(coordinator.register(7L, "manager", 1L));
         assertTrue(coordinator.register(7L, "foreign", 1L));
         assertTrue(coordinator.register(7L, "manager", 2L));
-        assertFalse(coordinator.register(7L, "manager", 1L));
+        assertThrows(IllegalStateException.class,
+                () -> coordinator.register(7L, "manager", 1L));
 
         assertTrue(coordinator.terminate(7L, "manager", 1L,
                 MovementRequestLifecycleCoordinator.TerminalReason.REPLACED));
