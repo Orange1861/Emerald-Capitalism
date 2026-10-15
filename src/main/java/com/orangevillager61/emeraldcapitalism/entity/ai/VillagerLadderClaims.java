@@ -2,33 +2,46 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.Level;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** UUID-based, dimension-aware ownership for one-villager-at-a-time ladder columns. */
+/** Entity-session, dimension-aware ownership for one-villager-at-a-time ladder segments. */
 public final class VillagerLadderClaims {
-    private static final Map<LadderColumn, UUID> CLAIMS = new ConcurrentHashMap<>();
+    private static final int MAX_SEGMENT_SCAN = 64;
+    private static final Map<LadderColumn, Villager> CLAIMS = new ConcurrentHashMap<>();
 
     private VillagerLadderClaims() {
     }
 
-    public record LadderColumn(ResourceKey<Level> dimension, int x, int z) {
+    public record LadderColumn(ResourceKey<Level> dimension, int x, int z, int minY, int maxY) {
     }
 
     public static LadderColumn column(Villager villager, BlockPos pos) {
-        return new LadderColumn(villager.level().dimension(), pos.getX(), pos.getZ());
+        int minY = pos.getY();
+        int maxY = pos.getY();
+        int steps = 0;
+        while (steps++ < MAX_SEGMENT_SCAN
+                && villager.level().getBlockState(new BlockPos(pos.getX(), maxY + 1, pos.getZ()))
+                .is(BlockTags.CLIMBABLE)) {
+            maxY++;
+        }
+        steps = 0;
+        while (steps++ < MAX_SEGMENT_SCAN
+                && villager.level().getBlockState(new BlockPos(pos.getX(), minY - 1, pos.getZ()))
+                .is(BlockTags.CLIMBABLE)) {
+            minY--;
+        }
+        return new LadderColumn(villager.level().dimension(), pos.getX(), pos.getZ(), minY, maxY);
     }
 
     public static boolean tryClaim(Villager villager, LadderColumn column) {
-        UUID owner = CLAIMS.get(column);
-        if (owner == null || owner.equals(villager.getUUID()) || isStale(villager, column, owner)) {
-            CLAIMS.put(column, villager.getUUID());
+        Villager owner = CLAIMS.get(column);
+        if (owner == null || owner == villager || isStale(column, owner)) {
+            CLAIMS.put(column, villager);
             return true;
         }
         return false;
@@ -36,12 +49,12 @@ public final class VillagerLadderClaims {
 
     public static void release(Villager villager, LadderColumn column) {
         if (column != null) {
-            CLAIMS.remove(column, villager.getUUID());
+            CLAIMS.remove(column, villager);
         }
     }
 
-    public static void releaseAll(UUID villagerId) {
-        CLAIMS.values().removeIf(villagerId::equals);
+    public static void releaseAll(Villager villager) {
+        CLAIMS.values().removeIf(owner -> owner == villager);
     }
 
     /** Drops claims for a dimension before its server level is unloaded. */
@@ -53,13 +66,21 @@ public final class VillagerLadderClaims {
         CLAIMS.clear();
     }
 
-    private static boolean isStale(Villager villager, LadderColumn column, UUID owner) {
-        if (!(villager.level() instanceof ServerLevel serverLevel)) {
-            return true;
-        }
-        var entity = serverLevel.getEntity(owner);
-        return !(entity instanceof LivingEntity living) || !entity.isAlive() || !living.onClimbable()
-                || entity.blockPosition().getX() != column.x()
-                || entity.blockPosition().getZ() != column.z();
+    /** Removes owners that have unloaded, changed dimensions, or left the segment. */
+    public static void purgeStale() {
+        CLAIMS.entrySet().removeIf(entry -> isStale(entry.getKey(), entry.getValue()));
+    }
+
+    /** Test and diagnostics hook; ownership itself remains entity-identity based. */
+    public static int claimCount() {
+        purgeStale();
+        return CLAIMS.size();
+    }
+
+    private static boolean isStale(LadderColumn column, Villager owner) {
+        BlockPos pos = owner.blockPosition();
+        return !owner.isAlive() || !owner.level().dimension().equals(column.dimension())
+                || pos.getX() != column.x() || pos.getZ() != column.z()
+                || pos.getY() < column.minY() - 1 || pos.getY() > column.maxY() + 1;
     }
 }

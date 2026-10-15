@@ -155,6 +155,8 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
     private int totalEmeraldGreenDyeCount = 0;
     /** Plank-equivalent stock: one log contributes four planks. */
     private int totalPlankCount = 0;
+    /** Number of aggregate inventory refreshes, exposed for bounded performance diagnostics. */
+    private long inventoryTotalsRefreshCount;
 
     private long nextFullScanTick = Long.MIN_VALUE;
     private long nextVerifyTick = Long.MIN_VALUE;
@@ -583,6 +585,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             entity.processorCacheDirty = false;
             entity.nextFullScanTick = gameTime + FULL_SCAN_INTERVAL;
         } else if (entity.inventoryTotalsDirty) {
+            if (!PerformanceTimingCounters.isDetailedTimingEnabled()) {
+                PerformanceTimingCounters.recordEvent(
+                        PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH);
+            }
             PerformanceTimingCounters.measure(
                     PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH,
                     () -> entity.refreshInventoryTotals(serverLevel, entity.chestStorageDirty));
@@ -637,15 +643,6 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
                     bank.chestStorageDirty = true;
                 }
                 bank.inventoryTotalsDirty = true;
-                if (!structuralChange) {
-                    // Processor inventories are live inputs to the bank totals.
-                    // Refresh the already-cached processor immediately so a
-                    // same-tick menu mutation cannot expose stale aggregates;
-                    // this remains bounded to the loaded banks near the edit.
-                    PerformanceTimingCounters.measure(
-                            PerformanceTimingCounters.Operation.BANK_INVENTORY_TOTAL_REFRESH,
-                            () -> bank.refreshInventoryTotals(level, false));
-                }
                 if (structuralChange) {
                     bank.missingChestCountTick = Long.MIN_VALUE;
                 }
@@ -883,6 +880,10 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             restoreChestSlots(level, originalSlots);
             return false;
         }
+        // This is one logical bank transaction even when several chest slots were
+        // touched. Keep the public aggregate totals current without making each
+        // processor slot mutation perform this rebuild.
+        refreshInventoryTotals(level);
         return true;
     }
 
@@ -1947,6 +1948,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
      * capacity answers, so they can use {@code invalidateCapacity=false}.
      */
     private void refreshInventoryTotals(ServerLevel level, boolean invalidateCapacity) {
+        inventoryTotalsRefreshCount++;
         if (invalidateCapacity) {
             inventoryRevision++;
             capacityCache.clear();
@@ -2325,6 +2327,11 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         return totalPlankCount;
     }
 
+    /** Returns the number of aggregate inventory refreshes performed by this bank. */
+    public long getInventoryTotalsRefreshCount() {
+        return inventoryTotalsRefreshCount;
+    }
+
     /** Returns the event-driven cached stock of one market item in linked chests. */
     public int getMarketStock(ServerLevel level, Item item) {
         if (isLogMarketItem(item)) {
@@ -2441,8 +2448,11 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
             return;
         }
         cachedChestTotals.put(immutablePos, counts);
-        if (level instanceof ServerLevel serverLevel) {
-            refreshInventoryTotals(serverLevel);
+        if (level instanceof ServerLevel) {
+            // Chest and processor mutations are coalesced by the bank ticker;
+            // rebuilding every cached total synchronously for each slot write
+            // caused an O(banks * linked-chests) same-tick regression.
+            inventoryTotalsDirty = true;
         }
     }
 

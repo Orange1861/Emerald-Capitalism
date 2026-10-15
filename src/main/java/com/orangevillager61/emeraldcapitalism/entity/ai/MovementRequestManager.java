@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -42,6 +43,7 @@ public final class MovementRequestManager {
     private static final MovementRequestLifecycleCoordinator LIFECYCLE =
             new MovementRequestLifecycleCoordinator();
     private static long sinkEpochSequence;
+    private static long entitySessionSequence;
 
     private MovementRequestManager() {
     }
@@ -157,7 +159,7 @@ public final class MovementRequestManager {
             state.partialDestinationPathPlans = 0;
             rememberForeignMemories(villager, state);
             if (replacingRequest) {
-                finishRequest(villager, previousHandle,
+                finishRequest(villager, state, previousHandle,
                         outcome == MovementRequestOutcome.REPLACED
                                 ? MovementRequestTerminationReason.REPLACED
                                 : MovementRequestTerminationReason.PREEMPTED);
@@ -179,8 +181,14 @@ public final class MovementRequestManager {
             state.activeHandle = handle;
             state.activeSpec = spec;
             state.lastPublishedHandle = handle;
-            if (!LIFECYCLE.register(lifecycleKey(villager, handle), handle.generation())) {
-                throw new IllegalStateException("movement generation was registered twice: " + handle);
+            if (!LIFECYCLE.register(state.sessionToken, handle.owner(), handle.generation())) {
+                // Normal villager AI must not take down the server when a
+                // delayed publication repeats. The ledger remains the
+                // authoritative executor owner; the duplicate is ignored by
+                // lifecycle accounting.
+                com.orangevillager61.emeraldcapitalism.EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP][Movement] ignored duplicate lifecycle publication session={} handle={}",
+                        state.sessionToken, handle);
             }
             MovementDiagnostics.transition(villager, outcome, handle, spec);
         }
@@ -235,7 +243,7 @@ public final class MovementRequestManager {
         }
         state.ledger.clear(handle.owner(), handle.generation());
         state.sinkEpoch = nextSinkEpoch();
-        finishRequest(villager, handle, reason);
+        finishRequest(villager, state, handle, reason);
         rememberForeignMemories(villager, state);
         cleanupOwnedExecutor(villager, state, true, true);
         state.activeHandle = null;
@@ -265,6 +273,16 @@ public final class MovementRequestManager {
     public static MovementRequestHandle lastPublishedHandle(Villager villager) {
         State state = STATES.get(villager);
         return state == null ? null : state.lastPublishedHandle;
+    }
+
+    /** Returns terminal transitions for this loaded villager session only. */
+    public static long terminalCount(Villager villager,
+                                     MovementRequestTerminationReason reason) {
+        if (villager == null || reason == null) {
+            return 0L;
+        }
+        State state = STATES.get(villager);
+        return state == null ? 0L : state.terminalCounts.getOrDefault(reason, 0L);
     }
 
     /** Writes and claims a manually-created look tracker for an active request. */
@@ -518,7 +536,7 @@ public final class MovementRequestManager {
         MovementRequestHandle handle = state.activeHandle;
         if (handle != null) {
             state.sinkEpoch = nextSinkEpoch();
-            finishRequest(villager, handle, MovementRequestTerminationReason.UNLOADED);
+            finishRequest(villager, state, handle, MovementRequestTerminationReason.UNLOADED);
         }
         rememberForeignMemories(villager, state);
         cleanupOwnedExecutor(villager, state, true, true);
@@ -540,7 +558,7 @@ public final class MovementRequestManager {
             MovementRequestHandle handle = state.activeHandle;
             if (handle != null && reason != null) {
                 state.sinkEpoch = nextSinkEpoch();
-                finishRequest(entry.getKey(), handle, reason);
+                finishRequest(entry.getKey(), state, handle, reason);
             }
             rememberForeignMemories(entry.getKey(), state);
             // Shutdown must not reactivate a displaced vanilla route while the
@@ -838,12 +856,15 @@ public final class MovementRequestManager {
         return villager.level().getGameTime();
     }
 
-    private static void finishRequest(Villager villager, MovementRequestHandle handle,
+    private static void finishRequest(Villager villager, State state,
+                                      MovementRequestHandle handle,
                                       MovementRequestTerminationReason reason) {
-        if (handle == null || !LIFECYCLE.terminate(lifecycleKey(villager, handle), handle.generation(),
+        if (handle == null || !LIFECYCLE.terminate(new MovementRequestLifecycleCoordinator.RequestKey(
+                state.sessionToken, handle.owner(), handle.generation()),
                 lifecycleReason(reason))) {
             return;
         }
+        state.terminalCounts.merge(reason, 1L, Long::sum);
         recordTermination(reason);
         MovementDiagnostics.terminal(villager, handle, reason);
     }
@@ -878,11 +899,6 @@ public final class MovementRequestManager {
         return ++sinkEpochSequence;
     }
 
-    /** Lifecycle generations are local to an entity, even when owners reuse generation numbers. */
-    private static String lifecycleKey(Villager villager, MovementRequestHandle handle) {
-        return villager.getUUID() + "|" + handle.owner();
-    }
-
     private static MovementRequestHandle toHandle(MovementRequestLedger.Handle handle) {
         return new MovementRequestHandle(handle.owner(), handle.generation());
     }
@@ -901,8 +917,18 @@ public final class MovementRequestManager {
                 spec.hasLookTarget() ? spec.lookTarget().asLong() : 0L);
     }
 
+    private static long nextEntitySessionToken() {
+        if (++entitySessionSequence <= 0L) {
+            entitySessionSequence = 1L;
+        }
+        return entitySessionSequence;
+    }
+
     private static final class State {
+        private final long sessionToken = nextEntitySessionToken();
         private final MovementRequestLedger ledger = new MovementRequestLedger();
+        private final EnumMap<MovementRequestTerminationReason, Long> terminalCounts =
+                new EnumMap<>(MovementRequestTerminationReason.class);
         @Nullable
         private MovementRequestSpec activeSpec;
         @Nullable

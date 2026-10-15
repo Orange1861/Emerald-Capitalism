@@ -50,6 +50,14 @@ public abstract class VillagerClimbMixin {
     @Unique
     private BlockPos emeraldcapitalism$ladderExitTarget;
 
+    /**
+     * The first horizontal route node after the selected connected ladder
+     * segment. This is captured while the full Path is still available; the
+     * vanilla navigator may consume same-column nodes before dismount starts.
+     */
+    @Unique
+    private BlockPos emeraldcapitalism$plannedLadderExitTarget;
+
     /** Prevents a completed dismount from being immediately reselected by a new brain path. */
     @Unique
     private int emeraldcapitalism$ladderExitCooldownUntil;
@@ -114,12 +122,23 @@ public abstract class VillagerClimbMixin {
             emeraldcapitalism$releaseLadder(villager);
             emeraldcapitalism$climbDirection = 0;
             emeraldcapitalism$ladderExitTarget = null;
+            emeraldcapitalism$plannedLadderExitTarget = null;
             emeraldcapitalism$activeLadderColumn = null;
             return;
         }
 
         Villager villager = (Villager) (Object) this;
         boolean onClimbable = villager.onClimbable();
+
+        // A normal work goal can finish on the first walk node beyond the
+        // ladder, after the navigation path has already been consumed. Do not
+        // let that successful hand-off retain the segment claim.
+        if (emeraldcapitalism$claimedLadder != null
+                && emeraldcapitalism$ladderExitTarget == null
+                && !emeraldcapitalism$isOnActiveLadderColumn(villager, villager.blockPosition())) {
+            emeraldcapitalism$releaseLadder(villager);
+            emeraldcapitalism$activeLadderColumn = null;
+        }
 
         if (emeraldcapitalism$ladderExitTarget != null) {
             BlockPos target = emeraldcapitalism$ladderExitTarget;
@@ -136,6 +155,10 @@ public abstract class VillagerClimbMixin {
                 emeraldcapitalism$ladderExitStagnantTicks++;
             }
             emeraldcapitalism$ladderExitLastDistanceSq = distanceSq;
+            if (!onClimbable
+                    && !emeraldcapitalism$isOnActiveLadderColumn(villager, villager.blockPosition())) {
+                emeraldcapitalism$releaseLadder(villager);
+            }
             if (villager.tickCount - emeraldcapitalism$ladderExitStartedTick
                     >= EMERALDCAPITALISM_MAX_LADDER_EXIT_TICKS
                     || emeraldcapitalism$ladderExitStagnantTicks
@@ -158,6 +181,7 @@ public abstract class VillagerClimbMixin {
                 // memory clearing is allowed at this traversal boundary.
                 emeraldcapitalism$releaseLadder(villager);
                 emeraldcapitalism$ladderExitTarget = null;
+                emeraldcapitalism$plannedLadderExitTarget = null;
                 emeraldcapitalism$activeLadderColumn = null;
                 emeraldcapitalism$climbDirection = 0;
                 emeraldcapitalism$ladderExitCooldownUntil = villager.tickCount + 20;
@@ -256,8 +280,7 @@ public abstract class VillagerClimbMixin {
                 // Without the horizontal exit, the completed path can be replaced by a
                 // route back down before the villager has cleared the ladder.
                 BlockState state = villager.level().getBlockState(ladderPos);
-                BlockPos walkExitPos = emeraldcapitalism$findRouteExit(
-                        villager, ladderPos);
+                BlockPos walkExitPos = emeraldcapitalism$plannedLadderExitTarget;
                 if (walkExitPos == null && state.hasProperty(LadderBlock.FACING)) {
                     walkExitPos = emeraldcapitalism$selectValidatedExit(
                             villager, ladderPos, state.getValue(LadderBlock.FACING));
@@ -337,6 +360,7 @@ public abstract class VillagerClimbMixin {
     @Unique
     private void emeraldcapitalism$beginLadderExit(Villager villager, BlockPos target) {
         emeraldcapitalism$ladderExitTarget = target.immutable();
+        emeraldcapitalism$plannedLadderExitTarget = null;
         emeraldcapitalism$climbDirection = 0;
         emeraldcapitalism$ladderExitStartedTick = villager.tickCount;
         emeraldcapitalism$ladderExitLastDistanceSq = emeraldcapitalism$distanceToExitSq(villager, target);
@@ -355,6 +379,7 @@ public abstract class VillagerClimbMixin {
     private void emeraldcapitalism$recoverFromLadderExit(Villager villager) {
         emeraldcapitalism$releaseLadder(villager);
         emeraldcapitalism$ladderExitTarget = null;
+        emeraldcapitalism$plannedLadderExitTarget = null;
         emeraldcapitalism$activeLadderColumn = null;
         emeraldcapitalism$climbDirection = 0;
         emeraldcapitalism$ladderExitCooldownUntil = villager.tickCount + 20;
@@ -372,6 +397,7 @@ public abstract class VillagerClimbMixin {
     private void emeraldcapitalism$clearClimbRoute(Villager villager) {
         emeraldcapitalism$releaseLadder(villager);
         emeraldcapitalism$climbDirection = 0;
+        emeraldcapitalism$plannedLadderExitTarget = null;
         emeraldcapitalism$activeLadderColumn = null;
     }
 
@@ -386,38 +412,6 @@ public abstract class VillagerClimbMixin {
         };
         for (Direction direction : candidates) {
             BlockPos candidate = ladderPos.relative(direction);
-            if (emeraldcapitalism$isSafeExitForVillager(villager, candidate)) {
-                return candidate;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Selects the first safe horizontal node after the ladder from the live
-     * route. Ladder facing is only a fallback: it is not necessarily the side
-     * on which the destination route continues.
-     */
-    @Unique
-    private static BlockPos emeraldcapitalism$findRouteExit(Villager villager, BlockPos ladderPos) {
-        Path path = villager.getNavigation().getPath();
-        if (path == null) {
-            path = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
-        }
-        if (path == null || path.getNodeCount() == 0) {
-            return null;
-        }
-
-        int start = Math.max(0, path.getNextNodeIndex() - 1);
-        for (int index = start; index < path.getNodeCount(); index++) {
-            Node node = path.getNode(index);
-            int dx = node.x - ladderPos.getX();
-            int dz = node.z - ladderPos.getZ();
-            if (Math.abs(dx) + Math.abs(dz) != 1
-                    || Math.abs(node.y - ladderPos.getY()) > 1) {
-                continue;
-            }
-            BlockPos candidate = new BlockPos(node.x, node.y, node.z);
             if (emeraldcapitalism$isSafeExitForVillager(villager, candidate)) {
                 return candidate;
             }
@@ -444,6 +438,8 @@ public abstract class VillagerClimbMixin {
                 continue;
             }
             emeraldcapitalism$activeLadderColumn = new BlockPos(from.x, position.getY(), from.z);
+            emeraldcapitalism$plannedLadderExitTarget =
+                    emeraldcapitalism$findRouteExitAfter(path, index, from.x, from.z);
             emeraldcapitalism$lastLadderProgressY = villager.getY();
             return to.y > from.y ? 1 : -1;
         }
@@ -457,11 +453,42 @@ public abstract class VillagerClimbMixin {
                     && villager.level().getBlockState(new BlockPos(node.x, node.y, node.z))
                     .is(BlockTags.CLIMBABLE)) {
                 emeraldcapitalism$activeLadderColumn = new BlockPos(node.x, position.getY(), node.z);
+                emeraldcapitalism$plannedLadderExitTarget =
+                        emeraldcapitalism$findRouteExitAfter(path, index, node.x, node.z);
                 emeraldcapitalism$lastLadderProgressY = villager.getY();
                 return node.y > position.getY() ? 1 : -1;
             }
         }
         return 0;
+    }
+
+    /** Captures the first horizontal node after a connected vertical segment. */
+    @Unique
+    private static BlockPos emeraldcapitalism$findRouteExitAfter(Path path, int verticalIndex,
+                                                                   int columnX, int columnZ) {
+        int lastVertical = verticalIndex;
+        while (lastVertical + 1 < path.getNodeCount()) {
+            Node from = path.getNode(lastVertical);
+            Node to = path.getNode(lastVertical + 1);
+            if (from.x != columnX || from.z != columnZ
+                    || to.x != columnX || to.z != columnZ
+                    || from.y == to.y) {
+                break;
+            }
+            lastVertical++;
+        }
+        for (int index = lastVertical + 1; index < path.getNodeCount(); index++) {
+            Node node = path.getNode(index);
+            if (Math.abs(node.x - columnX) + Math.abs(node.z - columnZ) == 1) {
+                return new BlockPos(node.x, node.y, node.z);
+            }
+            // A second vertical segment belongs to a later traversal; the
+            // first segment has no direct route exit to preserve.
+            if (node.x == columnX && node.z == columnZ) {
+                continue;
+            }
+        }
+        return null;
     }
 
     @Unique

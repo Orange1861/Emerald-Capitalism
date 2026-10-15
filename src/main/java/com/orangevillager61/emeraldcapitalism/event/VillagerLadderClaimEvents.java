@@ -10,6 +10,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.server.level.ServerLevel;
 
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
@@ -23,7 +24,7 @@ public final class VillagerLadderClaimEvents {
             return;
         }
         if (event.getEntity() instanceof Villager villager) {
-            VillagerLadderClaims.releaseAll(villager.getUUID());
+            VillagerLadderClaims.releaseAll(villager);
             VillagerBehaviorRegistry.release(villager);
             MovementRequestManager.release(villager);
         }
@@ -32,6 +33,11 @@ public final class VillagerLadderClaimEvents {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         VillagerLadderClaims.clear();
+    }
+
+    @SubscribeEvent
+    public static void onServerTick(ServerTickEvent.Post event) {
+        VillagerLadderClaims.purgeStale();
     }
 
     @SubscribeEvent

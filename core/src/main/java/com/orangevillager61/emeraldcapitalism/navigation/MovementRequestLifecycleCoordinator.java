@@ -1,7 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.navigation;
 
 import java.util.EnumMap;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -25,8 +25,11 @@ public final class MovementRequestLifecycleCoordinator {
         SERVER_SHUTDOWN
     }
 
-    public record RequestKey(String owner, long generation) {
+    public record RequestKey(long sessionToken, String owner, long generation) {
         public RequestKey {
+            if (sessionToken <= 0L) {
+                throw new IllegalArgumentException("sessionToken must be positive");
+            }
             Objects.requireNonNull(owner, "owner");
             if (owner.isBlank()) {
                 throw new IllegalArgumentException("owner must not be blank");
@@ -37,20 +40,32 @@ public final class MovementRequestLifecycleCoordinator {
         }
     }
 
-    private final Map<RequestKey, Boolean> active = new HashMap<>();
-    private final Map<RequestKey, TerminalReason> terminal = new HashMap<>();
+    /** Bounded duplicate-callback fence; session tokens are never reused. */
+    public static final int DEFAULT_TERMINAL_HISTORY_LIMIT = 4_096;
+
+    private final int terminalHistoryLimit;
+    private final Map<RequestKey, Boolean> active = new LinkedHashMap<>();
+    private final Map<RequestKey, TerminalReason> terminal = new LinkedHashMap<>();
     private final EnumMap<TerminalReason, Long> terminalCounts =
             new EnumMap<>(TerminalReason.class);
 
     public MovementRequestLifecycleCoordinator() {
+        this(DEFAULT_TERMINAL_HISTORY_LIMIT);
+    }
+
+    public MovementRequestLifecycleCoordinator(int terminalHistoryLimit) {
+        if (terminalHistoryLimit <= 0) {
+            throw new IllegalArgumentException("terminalHistoryLimit must be positive");
+        }
+        this.terminalHistoryLimit = terminalHistoryLimit;
         for (TerminalReason reason : TerminalReason.values()) {
             terminalCounts.put(reason, 0L);
         }
     }
 
     /** Registers a newly published generation. Duplicate registration is rejected. */
-    public boolean register(String owner, long generation) {
-        return register(new RequestKey(owner, generation));
+    public boolean register(long sessionToken, String owner, long generation) {
+        return register(new RequestKey(sessionToken, owner, generation));
     }
 
     public boolean register(RequestKey key) {
@@ -66,8 +81,9 @@ public final class MovementRequestLifecycleCoordinator {
      * Commits a terminal reason once. Returns false for unknown or already
      * terminal generations, which is the intended result for delayed cleanup.
      */
-    public boolean terminate(String owner, long generation, TerminalReason reason) {
-        return terminate(new RequestKey(owner, generation), reason);
+    public boolean terminate(long sessionToken, String owner, long generation,
+                             TerminalReason reason) {
+        return terminate(new RequestKey(sessionToken, owner, generation), reason);
     }
 
     public boolean terminate(RequestKey key, TerminalReason reason) {
@@ -78,12 +94,15 @@ public final class MovementRequestLifecycleCoordinator {
         }
         active.remove(key);
         terminal.put(key, reason);
+        while (terminal.size() > terminalHistoryLimit) {
+            terminal.remove(terminal.keySet().iterator().next());
+        }
         terminalCounts.compute(reason, (ignored, count) -> count + 1L);
         return true;
     }
 
-    public boolean isActive(String owner, long generation) {
-        return active.containsKey(new RequestKey(owner, generation));
+    public boolean isActive(long sessionToken, String owner, long generation) {
+        return active.containsKey(new RequestKey(sessionToken, owner, generation));
     }
 
     public int activeCount() {

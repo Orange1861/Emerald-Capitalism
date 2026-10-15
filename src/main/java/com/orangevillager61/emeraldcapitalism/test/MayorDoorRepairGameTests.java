@@ -142,6 +142,64 @@ public final class MayorDoorRepairGameTests {
     }
 
     @GameTest(template = "empty_3x3x3")
+    public static void mayorRefundsExactlyOnceWhenAnotherActorRepairsDoor(GameTestHelper helper) {
+        RepairFixture fixture = createFixture(helper);
+        if (fixture == null) {
+            return;
+        }
+        ServerLevel level = fixture.level();
+        BankBlockEntity bank = fixture.bank();
+        VillageRecord village = fixture.village();
+        BlockPos doorPos = fixture.doorPos();
+        VillageRecord.DoorPlacement placement = village.getDoorPlacement(doorPos);
+        helper.assertTrue(placement != null, "race fixture did not retain the door placement");
+        if (placement == null) {
+            return;
+        }
+
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 0);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        MayorDoorRepairGoal goal = new MayorDoorRepairGoal(mayor);
+        BlockPos bankApproach = BankBlock.getDepositApproachPos(bank.getBlockState(), bank.getBlockPos());
+        mayor.setPos(bankApproach.getX() + 0.5D, bankApproach.getY(), bankApproach.getZ() + 0.5D);
+        helper.assertTrue(goal.canUse(), "Mayor did not select the race fixture");
+        goal.start();
+        goal.tick();
+        helper.assertValueEqual(bank.getTotalPlankCount(), 0,
+                "Mayor did not withdraw the repair materials before the race");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 1,
+                "Mayor did not carry the crafted door before the race");
+
+        BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(DoorBlock.FACING, placement.facing())
+                .setValue(DoorBlock.HINGE, placement.hinge());
+        level.setBlock(doorPos, lower, Block.UPDATE_ALL);
+        level.setBlock(doorPos.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER),
+                Block.UPDATE_ALL);
+        // The real door-cache block-change listener publishes the competing
+        // actor's repair and removes the missing entry on this same server
+        // thread; do not call the village mutator a second time.
+
+        helper.assertFalse(goal.canContinueToUse(),
+                "Mayor continued toward a door repaired by another actor");
+        goal.stop();
+        goal.stop();
+
+        helper.assertTrue(VillageRecord.isDoorBase(level.getBlockState(doorPos))
+                        && level.getBlockState(doorPos.above()).is(Blocks.OAK_DOOR),
+                "the competing actor's repaired door was overwritten or removed");
+        helper.assertValueEqual(bank.getTotalPlankCount(), 6,
+                "Mayor did not refund the carried materials exactly once after the race");
+        helper.assertValueEqual(mayor.getInventory().countItem(Items.OAK_DOOR), 0,
+                "Mayor retained the carried door after the race refund");
+        helper.assertTrue(village.getClaimedDoorPositions().isEmpty(),
+                "Mayor retained its door claim after another actor repaired the door");
+        helper.assertTrue(village.getMissingDoorRegistry().isEmpty(),
+                "the repaired door remained in the missing-door registry");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
     public static void mayorDeclinesRepairWhenInitialBankCheckHasInsufficientPlanks(GameTestHelper helper) {
         RepairFixture fixture = createFixture(helper);
         if (fixture == null) {

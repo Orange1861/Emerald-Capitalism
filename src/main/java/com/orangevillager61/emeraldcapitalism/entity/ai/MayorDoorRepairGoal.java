@@ -130,6 +130,9 @@ public final class MayorDoorRepairGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (!(villager.level() instanceof ServerLevel level)) {
+            return stopBecause("villager went to a non-server level");
+        }
         if (villager.isSleeping()) {
             return stopBecause("villager went to sleep");
         }
@@ -156,6 +159,9 @@ public final class MayorDoorRepairGoal extends Goal {
         }
         if (!village.isDoorRepairEnabled()) {
             return stopBecause("door repair disabled for village " + village.getVillageId());
+        }
+        if (isDoorAlreadyRepaired(level)) {
+            return stopBecause("door already repaired by another actor");
         }
         if (!village.getMissingDoorRegistry().contains(targetPos)) {
             return stopBecause("target is no longer in missing-door registry: " + targetPos);
@@ -251,6 +257,11 @@ public final class MayorDoorRepairGoal extends Goal {
 
         logProgress(level);
         clearSocialInteractionMemories();
+        if (stage == Stage.DOOR && isDoorAlreadyRepaired(level)) {
+            finish(level, "door already repaired by another actor",
+                    MovementRequestTerminationReason.ARRIVED);
+            return;
+        }
         if (stage == Stage.BANK && BankBlock.isAtDepositApproach(
                 bank.getBlockState(), bank.getBlockPos(), villager.position())) {
             EmeraldCapitalism.LOGGER.info("[ECAP][MayorRepair] ARRIVED at bank approach={} bank={} mayor={}",
@@ -312,6 +323,10 @@ public final class MayorDoorRepairGoal extends Goal {
                 villager.getUUID(), villager.blockPosition(), stage, targetPos, navigationTarget,
                 failed, finished, finishReason, carryingRepairDoor);
         if (villager.level() instanceof ServerLevel level) {
+            if (!finished && isDoorAlreadyRepaired(level)) {
+                finish(level, "door already repaired by another actor",
+                        MovementRequestTerminationReason.ARRIVED);
+            }
             refundCarriedDoor(level);
         }
         if (village != null && targetPos != null) {
@@ -477,7 +492,7 @@ public final class MayorDoorRepairGoal extends Goal {
         }
         if (!village.getMissingDoorRegistry().contains(targetPos)) {
             EmeraldCapitalism.LOGGER.warn(
-                    "[ECAP][MayorRepair] PLACE failed: target={} is no longer missing village={} missingCount={}",
+                    "[ECAP][MayorRepair] PLACE not attempted: door already repaired by another actor target={} village={} missingCount={}",
                     targetPos, village.getVillageId(), village.getMissingDoorRegistry().size());
             return false;
         }
@@ -656,6 +671,12 @@ public final class MayorDoorRepairGoal extends Goal {
     private boolean isAt(BlockPos pos) {
         return villager.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D,
                 pos.getZ() + 0.5D) <= ARRIVAL_DISTANCE_SQ;
+    }
+
+    private boolean isDoorAlreadyRepaired(ServerLevel level) {
+        return targetPos != null
+                && VillageRecord.isDoorBase(level.getBlockState(targetPos))
+                && level.getBlockState(targetPos.above()).is(Blocks.OAK_DOOR);
     }
 
     private boolean canStore(Item item, int amount) {

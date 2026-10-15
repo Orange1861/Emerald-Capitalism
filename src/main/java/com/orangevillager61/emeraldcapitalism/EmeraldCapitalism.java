@@ -109,8 +109,13 @@ public class EmeraldCapitalism {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        clearServerSessionState(true);
+        clearServerSessionStateForShutdown();
         LOGGER.info("[ECAP][Performance] {}", PerformanceTimingCounters.formatSnapshot());
+    }
+
+    /** The production shutdown boundary, exposed for an integration lifecycle check. */
+    public static void clearServerSessionStateForShutdown() {
+        clearServerSessionState(true);
     }
 
     private static void clearServerSessionState(boolean recordServerShutdown) {

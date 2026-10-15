@@ -1,12 +1,14 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerLadderClaims;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -119,6 +121,288 @@ public final class VillagerNavigationRegressionGameTests {
                 "normal villager registration did not install the pumpkin goal");
         BlockPos absolutePumpkin = helper.absolutePos(localPumpkin);
         awaitAutonomousPumpkinHarvest(helper, farmer, absolutePumpkin, 680);
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_000)
+    public static void normalVillagerAiAscendsLadderAndCompletesUpperWork(GameTestHelper helper) {
+        BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
+        Villager farmer = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
+        awaitRealLadderWork(helper, farmer, pumpkin, new RealLadderProgress(), 980, true);
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_000)
+    public static void normalVillagerAiDescendsLadderAndCompletesLowerWork(GameTestHelper helper) {
+        BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, false);
+        Villager farmer = spawnNormalFarmer(helper, new BlockPos(1, 5, 1));
+        awaitRealLadderWork(helper, farmer, pumpkin, new RealLadderProgress(), 980, false);
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_000)
+    public static void twoNormalVillagersContendForOneLadderAndOneWorkTarget(GameTestHelper helper) {
+        BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
+        Villager first = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
+        Villager second = spawnNormalFarmer(helper, new BlockPos(0, 1, 1));
+        BlockPos absolutePumpkin = helper.absolutePos(pumpkin);
+        helper.runAfterDelay(1, () -> awaitContendedLadderWork(
+                helper, first, second, absolutePumpkin, 980));
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_200)
+    public static void normalVillagerBlockedTopExitCancelsAndReplansWithoutCollision(
+            GameTestHelper helper) {
+        BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
+        Villager farmer = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
+        RealLadderProgress progress = new RealLadderProgress();
+        awaitBlockedTopExitRecovery(helper, farmer, pumpkin, progress, 360);
+    }
+
+    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_200)
+    public static void ladderDestructionAndEntityReloadReleaseRealGoalState(GameTestHelper helper) {
+        BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
+        Villager original = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
+        awaitLadderDestructionBeforeCompletion(helper, original, pumpkin,
+                new RealLadderProgress(), 360);
+    }
+
+    private static BlockPos installTwoLevelLadderPumpkin(GameTestHelper helper, boolean upper) {
+        for (int x = 0; x < 3; x++) {
+            for (int z = 0; z < 3; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+            }
+        }
+        for (int y = 0; y < 5; y++) {
+            helper.setBlock(new BlockPos(1, 1 + y, 0), Blocks.LADDER.defaultBlockState()
+                    .setValue(LadderBlock.FACING, Direction.SOUTH));
+        }
+        // The upper platform is supported beside the ladder, leaving the
+        // ladder column itself open for a planner-generated vertical route.
+        for (int x = 0; x < 3; x++) {
+            for (int z = 1; z < 3; z++) {
+                helper.setBlock(new BlockPos(x, 4, z), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(x, 5, z), Blocks.AIR.defaultBlockState());
+                helper.setBlock(new BlockPos(x, 6, z), Blocks.AIR.defaultBlockState());
+            }
+        }
+        BlockPos pumpkin = upper ? new BlockPos(1, 5, 2) : new BlockPos(2, 1, 2);
+        BlockPos stem = upper ? pumpkin.relative(Direction.WEST) : pumpkin.relative(Direction.WEST);
+        helper.setBlock(pumpkin, Blocks.PUMPKIN.defaultBlockState());
+        helper.setBlock(stem, Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState()
+                .setValue(HorizontalDirectionalBlock.FACING,
+                        upper ? Direction.EAST : Direction.EAST));
+        return pumpkin;
+    }
+
+    private static Villager spawnNormalFarmer(GameTestHelper helper, BlockPos localPosition) {
+        Villager farmer = helper.spawn(EntityType.VILLAGER, localPosition.getX(),
+                localPosition.getY(), localPosition.getZ());
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setOnGround(true);
+        helper.getLevel().setDayTime(1000L);
+        farmer.refreshBrain(helper.getLevel());
+        helper.assertTrue(farmer.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(wrapper -> wrapper.getGoal() instanceof HarvestPumpkinGoal),
+                "normal villager registration did not install the pumpkin goal");
+        return farmer;
+    }
+
+    private static void awaitRealLadderWork(GameTestHelper helper, Villager farmer,
+                                             BlockPos localPumpkin, RealLadderProgress progress,
+                                             int remainingTicks, boolean ascending) {
+        BlockPos pumpkin = helper.absolutePos(localPumpkin);
+        progress.observe(farmer, pumpkin);
+        if (helper.getLevel().getBlockState(pumpkin).isAir()
+                && farmer.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN) > 0) {
+            helper.assertTrue(progress.sawClimbable,
+                    "real farmer completed the work without entering the ladder route");
+            helper.assertTrue(ascending ? progress.maximumY >= pumpkin.getY() : progress.minimumY <= pumpkin.getY(),
+                    "real farmer did not complete the expected ladder direction: "
+                            + farmer.position() + " progress=" + progress);
+            // The target is deliberately beyond the ladder and the normal
+            // HarvestPumpkinGoal has just completed its real interaction. That
+            // completion is the durable route-exit assertion; the sampled
+            // position is retained only as diagnostic progress because a
+            // villager may take its next ordinary step in the same server tick.
+            awaitClaimsReleasedAfterSuccess(helper, 80);
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("normal villager AI did not complete ladder work: pos=" + farmer.position()
+                    + " pumpkin=" + helper.getLevel().getBlockState(pumpkin)
+                    + " progress=" + progress);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitRealLadderWork(
+                helper, farmer, localPumpkin, progress, remainingTicks - 1, ascending));
+    }
+
+    private static void awaitClaimsReleasedAfterSuccess(GameTestHelper helper, int remainingTicks) {
+        if (VillagerLadderClaims.claimCount() == 0) {
+            helper.succeed();
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("successful real ladder work retained a ladder claim: "
+                    + VillagerLadderClaims.claimCount());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitClaimsReleasedAfterSuccess(helper, remainingTicks - 1));
+    }
+
+    private static void awaitBlockedTopExitRecovery(GameTestHelper helper, Villager farmer,
+                                                     BlockPos localPumpkin,
+                                                     RealLadderProgress progress,
+                                                     int remainingTicks) {
+        BlockPos pumpkin = helper.absolutePos(localPumpkin);
+        progress.observe(farmer, pumpkin);
+        if (progress.sawClimbable && !helper.getLevel().getBlockState(pumpkin).isAir()) {
+            helper.setBlock(new BlockPos(1, 5, 1), Blocks.STONE.defaultBlockState());
+            helper.runAfterDelay(35, () -> awaitBlockedExitClaimRelease(helper, farmer,
+                    localPumpkin, progress, 80));
+            return;
+        }
+        if (helper.getLevel().getBlockState(pumpkin).isAir()) {
+            helper.fail("real farmer completed the ladder job before the blocked-exit interruption");
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("real farmer never entered the ladder before the blocked-exit interruption: "
+                    + farmer.position() + " progress=" + progress);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitBlockedTopExitRecovery(
+                helper, farmer, localPumpkin, progress, remainingTicks - 1));
+    }
+
+    private static void awaitBlockedExitClaimRelease(GameTestHelper helper, Villager farmer,
+                                                       BlockPos localPumpkin, RealLadderProgress progress,
+                                                       int remainingTicks) {
+        progress.observe(farmer, helper.absolutePos(localPumpkin));
+        if (VillagerLadderClaims.claimCount() == 0) {
+            helper.assertTrue(helper.getLevel().noCollision(farmer, farmer.getBoundingBox()),
+                    "blocked top exit left the real villager colliding");
+            helper.setBlock(new BlockPos(1, 5, 1), Blocks.AIR.defaultBlockState());
+            awaitRealLadderWork(helper, farmer, localPumpkin, progress, 700, true);
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("blocked top exit did not release its ladder claim before replan: "
+                    + VillagerLadderClaims.claimCount());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitBlockedExitClaimRelease(
+                helper, farmer, localPumpkin, progress, remainingTicks - 1));
+    }
+
+    private static void awaitLadderDestructionBeforeCompletion(GameTestHelper helper,
+                                                                 Villager farmer,
+                                                                 BlockPos localPumpkin,
+                                                                 RealLadderProgress progress,
+                                                                 int remainingTicks) {
+        BlockPos pumpkin = helper.absolutePos(localPumpkin);
+        progress.observe(farmer, pumpkin);
+        if (progress.sawClimbable && !helper.getLevel().getBlockState(pumpkin).isAir()) {
+            // This is a real-world interruption: remove the ladder while the
+            // normal farmer is pursuing its planner-selected work target.
+            for (int y = 1; y <= 5; y++) {
+                helper.setBlock(new BlockPos(1, y, 0), Blocks.AIR.defaultBlockState());
+            }
+            helper.assertTrue(helper.getLevel().noCollision(farmer, farmer.getBoundingBox()),
+                    "ladder destruction left the original villager colliding");
+            farmer.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+            awaitReloadAfterUnload(helper, farmer, localPumpkin, 80);
+            return;
+        }
+        if (helper.getLevel().getBlockState(pumpkin).isAir()) {
+            helper.fail("real farmer completed before the ladder-destruction interruption");
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("real farmer never entered the ladder before ladder destruction: "
+                    + farmer.position() + " progress=" + progress);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitLadderDestructionBeforeCompletion(
+                helper, farmer, localPumpkin, progress, remainingTicks - 1));
+    }
+
+    private static void awaitReloadAfterUnload(GameTestHelper helper, Villager unloaded,
+                                                BlockPos localPumpkin, int remainingTicks) {
+        if (VillagerLadderClaims.claimCount() == 0) {
+                // Reload the entity/session and restore the same route fixture.
+                for (int y = 0; y < 5; y++) {
+                    helper.setBlock(new BlockPos(1, 1 + y, 0), Blocks.LADDER.defaultBlockState()
+                            .setValue(LadderBlock.FACING, Direction.SOUTH));
+                }
+                Villager reloaded = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
+                awaitRealLadderWork(helper, reloaded, localPumpkin,
+                        new RealLadderProgress(), 1_100, true);
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("entity unload did not release its ladder claim: " + unloaded.getUUID());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitReloadAfterUnload(
+                helper, unloaded, localPumpkin, remainingTicks - 1));
+    }
+
+    private static void awaitContendedLadderWork(GameTestHelper helper, Villager first,
+                                                  Villager second, BlockPos pumpkin,
+                                                  int remainingTicks) {
+        if (helper.getLevel().getBlockState(pumpkin).isAir()) {
+            int harvested = first.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN)
+                    + second.getInventory().countItem(net.minecraft.world.item.Items.PUMPKIN);
+            helper.assertValueEqual(harvested, 1,
+                    "two normal villagers harvested the contended work target more than once");
+            awaitContendedClaimsReleased(helper, 120);
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("two normal villagers did not complete contended ladder work: first="
+                    + first.position() + " second=" + second.position()
+                    + " pumpkin=" + helper.getLevel().getBlockState(pumpkin));
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitContendedLadderWork(
+                helper, first, second, pumpkin, remainingTicks - 1));
+    }
+
+    private static void awaitContendedClaimsReleased(GameTestHelper helper, int remainingTicks) {
+        if (VillagerLadderClaims.claimCount() == 0) {
+            helper.succeed();
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("contended ladder work retained claims after the target completed: "
+                    + VillagerLadderClaims.claimCount());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitContendedClaimsReleased(helper, remainingTicks - 1));
+    }
+
+    private static final class RealLadderProgress {
+        private int maximumY = Integer.MIN_VALUE;
+        private int minimumY = Integer.MAX_VALUE;
+        private boolean sawClimbable;
+        private boolean sawBeyondLadder;
+
+        private void observe(Villager villager, BlockPos target) {
+            maximumY = Math.max(maximumY, villager.blockPosition().getY());
+            minimumY = Math.min(minimumY, villager.blockPosition().getY());
+            sawClimbable |= villager.onClimbable();
+            // A villager may validly interact from the supported landing one
+            // block below the crop; the horizontal step beyond the ladder is
+            // the part that proves the dismount route completed.
+            sawBeyondLadder |= villager.blockPosition().getY() >= target.getY() - 1
+                    && villager.blockPosition().getZ() >= target.getZ() - 1;
+        }
+
+        @Override
+        public String toString() {
+            return "RealLadderProgress{maximumY=" + maximumY + ", minimumY=" + minimumY
+                    + ", sawClimbable=" + sawClimbable + ", sawBeyondLadder="
+                    + sawBeyondLadder + '}';
+        }
     }
 
     private static void verifyOuterNavigationCandidate(GameTestHelper helper, Villager farmer,

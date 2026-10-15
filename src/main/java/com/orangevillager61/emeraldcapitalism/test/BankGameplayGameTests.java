@@ -910,7 +910,7 @@ public final class BankGameplayGameTests {
     }
 
     @GameTest(template = "empty_20x3x20")
-    public static void linkedChestMutationsUpdateBankTotalsImmediately(GameTestHelper helper) {
+    public static void linkedChestMutationsUpdateBankTotalsOnNextBankTick(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
         BlockPos chestPos = helper.absolutePos(new BlockPos(1, 1, 2));
@@ -930,10 +930,13 @@ public final class BankGameplayGameTests {
         chest.setItem(0, new ItemStack(Items.EMERALD_BLOCK, 2));
         chest.setItem(1, new ItemStack(Items.PUMPKIN, 3));
 
+        helper.assertValueEqual(bank.getTotalEmeraldCount(), 0,
+                "linked chest mutation synchronously rebuilt bank totals");
+        BankBlockEntity.serverTick(level, bankPos, level.getBlockState(bankPos), bank);
         helper.assertValueEqual(bank.getTotalEmeraldCount(), 18,
-                "linked chest mutation did not update bank emerald totals immediately");
+                "linked chest mutation did not update bank emerald totals on the bank tick");
         helper.assertValueEqual(bank.getTotalPumpkinCount(), 3,
-                "linked chest mutation did not update bank pumpkin totals immediately");
+                "linked chest mutation did not update bank pumpkin totals on the bank tick");
         helper.succeed();
     }
 
@@ -1045,6 +1048,37 @@ public final class BankGameplayGameTests {
                 "next normal bank scan did not rebuild the pumpkin-count cache");
         helper.assertTrue(restored.beginGolemConstruction(CONSTRUCTION_VILLAGER),
                 "a fresh construction reservation could not be queued after reload");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void malformedBankStateDefaultsWithoutCrashing(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockState bankState = ECAPBlocks.BANK.get().defaultBlockState();
+        helper.setBlock(new BlockPos(1, 1, 1), bankState);
+        BankBlockEntity original = bankAt(helper, bankPos);
+        if (original == null) {
+            return;
+        }
+
+        CompoundTag malformed = original.saveWithId(level.registryAccess());
+        malformed.putString("employee_ids", "not-an-uuid-list");
+        BlockEntity loaded;
+        try {
+            loaded = BlockEntity.loadStatic(bankPos, bankState, malformed, level.registryAccess());
+        } catch (RuntimeException ex) {
+            helper.fail("malformed bank state crashed block-entity reload: " + ex.getMessage());
+            return;
+        }
+        helper.assertTrue(loaded instanceof BankBlockEntity,
+                "malformed bank state discarded the bank block entity");
+        if (loaded instanceof BankBlockEntity restored) {
+            helper.assertTrue(restored.getVillageId() == null
+                            && restored.getEmployeeIds().isEmpty()
+                            && restored.getBankName().isEmpty(),
+                    "malformed bank state did not default to an empty safe state");
+        }
         helper.succeed();
     }
 
@@ -1224,6 +1258,65 @@ public final class BankGameplayGameTests {
                 helper.succeed();
             });
         });
+    }
+
+    @GameTest(template = "empty_20x3x20", timeoutTicks = 80)
+    public static void processorMutationsCoalesceBankRefreshesPerServerTick(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BankBlockEntity[] banks = new BankBlockEntity[3];
+        EmeraldOreProcessorBlockEntity[] processors = new EmeraldOreProcessorBlockEntity[3];
+        for (int index = 0; index < banks.length; index++) {
+            int x = 1 + index * 8;
+            BlockPos bankPos = helper.absolutePos(new BlockPos(x, 1, 1));
+            BlockPos processorPos = helper.absolutePos(new BlockPos(x + 1, 1, 1));
+            helper.setBlock(new BlockPos(x, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
+            helper.setBlock(new BlockPos(x, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+            helper.setBlock(new BlockPos(x + 1, 1, 2), ECAPBlocks.EMERALD_CHEST.get().defaultBlockState());
+            helper.setBlock(new BlockPos(x + 1, 1, 1),
+                    ECAPBlocks.EMERALD_ORE_PROCESSOR.get().defaultBlockState());
+            banks[index] = bankAt(helper, bankPos);
+            if (!(level.getBlockEntity(processorPos) instanceof EmeraldOreProcessorBlockEntity processor)) {
+                helper.fail("processor refresh stress fixture did not create its processor");
+                return;
+            }
+            processors[index] = processor;
+            if (banks[index] == null) {
+                helper.fail("processor refresh stress fixture did not create its bank");
+                return;
+            }
+        }
+
+        for (BankBlockEntity bank : banks) {
+            BankBlockEntity.serverTick(level, bank.getBlockPos(),
+                    level.getBlockState(bank.getBlockPos()), bank);
+        }
+
+        long[] refreshesBefore = new long[banks.length];
+        for (int index = 0; index < banks.length; index++) {
+            refreshesBefore[index] = banks[index].getInventoryTotalsRefreshCount();
+        }
+        for (EmeraldOreProcessorBlockEntity processor : processors) {
+            for (int mutation = 0; mutation < 4; mutation++) {
+                processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_INPUT,
+                        new ItemStack(Items.EMERALD, mutation + 1));
+                processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_FUEL,
+                        new ItemStack(Items.COAL, mutation + 1));
+                processor.setItem(EmeraldOreProcessorBlockEntity.SLOT_OUTPUT,
+                        new ItemStack(Items.EMERALD_BLOCK, mutation + 1));
+            }
+        }
+        for (BankBlockEntity bank : banks) {
+            BankBlockEntity.serverTick(level, bank.getBlockPos(),
+                    level.getBlockState(bank.getBlockPos()), bank);
+        }
+        for (int index = 0; index < banks.length; index++) {
+            helper.assertValueEqual(banks[index].getInventoryTotalsRefreshCount()
+                            - refreshesBefore[index],
+                    1L,
+                    "processor slot mutations refreshed bank " + index
+                            + " more than once per server tick");
+        }
+        helper.succeed();
     }
 
     @GameTest(template = "empty_20x3x20")

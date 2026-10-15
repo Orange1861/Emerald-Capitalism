@@ -83,64 +83,61 @@ snapshots for both supported targets. A faster run is not considered an
 improvement if it only abandons more work; successful task outcomes and retry
 counts are part of the comparison.
 
-The final R5 verification on 2026-10-14 used Java 21.0.9 (Eclipse Adoptium)
-with the project Gradle wrapper. The checked-out R5 commit is
-`e05ae933f153d552afd47c8939b42736fcba4137`; the controlled R4 comparison
-commit is `954713348362c7fc18703fdd04d91615551bf949`.
+The final R6 verification on 2026-10-14/15 used Java 21.0.9 (Eclipse
+Adoptium) with the project Gradle wrapper. The implementation is verified
+from the working tree after the R6 repair pass; generated server output is
+not part of the source evidence.
 
 The exact functional commands were:
 
 ```text
 .\gradlew test verifyRegressionCoverage --no-daemon --no-configuration-cache --console=plain
-.\gradlew :1.21.1:compileJava --rerun-tasks --no-daemon --no-configuration-cache --console=plain
+.\gradlew :1.21.1:compileJava --no-daemon --no-configuration-cache --console=plain
 .\gradlew :1.21.1:runGameTestServer --no-daemon --no-configuration-cache --console=plain
 .\gradlew :1.21.4:runGameTestServer --no-daemon --no-configuration-cache --console=plain
 git diff --check
 ```
 
 The JVM suite passed: core tests plus both version test source sets. The
-coverage gate verified 7 risk boundaries and 227 discovered GameTests. Both
-supported targets completed all 226 required GameTests with no required
-failures. The passing suites include the real job-block journeys, ladder exit
-and two-villager ladder cases, unmanaged-route handoff, profession work, the
-Emeraldsmith processor/construction journey, Mayor bank/door repair, golem
-obstruction, and server-stop lifecycle accounting.
+coverage gate verified 7 risk boundaries and 239 discovered GameTests. Both
+supported targets completed all 237 required GameTests with no required
+failures. The passing suites include the real job-block journeys, normal-AI
+ladder ascent/descent, intermediate landing, route continuation, blocked-top
+exit, two-villager contention, ladder destruction, entity reload, unmanaged
+route handoff, profession work, the Emeraldsmith processor/construction
+journey, Mayor bank/door repair and repair-race refunding, golem obstruction,
+and production-boundary server-stop lifecycle accounting.
 
-The uninstrumented functional snapshots were:
+The functional results were:
 
 | Target | Required tests | GameTest runtime | Result |
 | --- | ---: | ---: | --- |
-| 1.21.1 | 226 | 2.483 min | all required tests passed |
-| 1.21.4 | 226 | 2.047 min | all required tests passed |
+| 1.21.1 | 237 | completed | all required tests passed |
+| 1.21.4 | 237 | completed | all required tests passed |
 
-The counters are emitted in the server shutdown log. With detailed timing
-disabled and event counting enabled, the movement lifecycle snapshots were:
+The functional gates above are separate from diagnostic runs. Shutdown logs
+may emit movement and bank counters, but those counters are not used as a
+substitute for the real journeys. In particular, ladder acceptance requires a
+normal villager with normal goal registration to harvest the real target after
+climbing; the component ladder tests that install handcrafted paths remain
+component-only coverage.
 
-| Target | Submissions | Replans | Preemptions | Rejections | Arrived | Retries | Abandoned | Failures | Unloaded / shutdown |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1.21.1 | 16 | 0 | 2 | 0 | 9 | 6 | 1 | 2 | 1 / 1 |
-| 1.21.4 | 16 | 0 | 2 | 1 | 9 | 8 | 1 | 2 | 1 / 1 |
+The bank stress journey records each bank's refresh count and verifies that
+repeated same-tick processor mutations coalesce to one aggregate refresh per
+bank. The lifecycle tests use a loaded-entity/session token, bound terminal
+history, duplicate cleanup, unload/reload, delayed callbacks, and the actual
+server-stopping production boundary. Mayor diagnostics distinguish an already
+repaired door from placement failure, and the race test verifies one claim
+release and one material refund.
 
-The corrected diagnostic run used
-`-Demeraldcapitalism.performanceTiming=true` and
-`-Demeraldcapitalism.performanceEvents=true` through `JAVA_TOOL_OPTIONS`.
-On 1.21.4 it recorded 592 manager-tick calls, 16.253 ms total, 0.027 ms
-average, 0.007 ms p50, 0.064 ms p95, 0.141 ms p99, and 3.650 ms maximum.
-The same run recorded 404 behavior-registry calls, 8.114 ms total, and
-0.020 ms average. It exposed two timing-sensitive test assertions (the
-begging journey deadline and an exact boat-preemption count); the ordinary
-functional runs above remained fully green. These diagnostic numbers are
-therefore performance evidence, not an additional green functional gate.
+When detailed timing and event counting are explicitly enabled, the counters
+are diagnostic snapshots only. They should be compared only across equivalent
+instrumented workloads; the final functional commands intentionally do not
+present those counters as acceptance evidence.
 
-The R4 diagnostic snapshot recorded 214 manager calls, 4.823 ms total,
-0.023 ms average, and 0.219 ms maximum. R5 adds seven long-running real
-journey regressions, eight additional required tests, lifecycle accounting,
-and broader path instrumentation, so the full-suite runtimes and manager-call
-totals are not apples-to-apples. The measured R5 manager average is comparable
-but not lower in this sample. Safety is proven by the two full green suites;
-a strict whole-suite speedup over R4 is not claimed until an identical,
-instrumentation-neutral workload is available. No allocation profiler was
-run, so allocation totals remain unmeasured.
+No performance improvement claim is made from test counts or from an
+instrumented diagnostic run; the repaired behavior is established by the
+functional assertions and their durable world effects.
 
 ### Likely cost relative to the pre-refactor code
 

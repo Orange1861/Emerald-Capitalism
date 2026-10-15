@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
@@ -46,8 +47,9 @@ public final class ZzzServerStopLifecycleGameTests {
             helper.assertValueEqual(MovementRequestManager.activeRequestCount(), 2L,
                     "server-stop fixture did not publish two active requests");
 
-            // This is the exact manager boundary used by EmeraldCapitalism.onServerStopping.
-            MovementRequestManager.clearAll(MovementRequestTerminationReason.SERVER_SHUTDOWN);
+            // Invoke the real production shutdown boundary, not a direct
+            // manager clear, so lifecycle ordering is covered end to end.
+            EmeraldCapitalism.clearServerSessionStateForShutdown();
             Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
                     PerformanceTimingCounters.snapshot();
             helper.assertValueEqual(MovementRequestManager.activeRequestCount(), 0L,
@@ -59,12 +61,45 @@ public final class ZzzServerStopLifecycleGameTests {
                             PerformanceTimingCounters.Operation.MOVEMENT_UNLOADED), 0L,
                     "server-stop cleanup misclassified requests as entity unloads");
 
-            MovementRequestManager.clearAll(MovementRequestTerminationReason.SERVER_SHUTDOWN);
+            EmeraldCapitalism.clearServerSessionStateForShutdown();
             Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> repeated =
                     PerformanceTimingCounters.snapshot();
             helper.assertValueEqual(delta(repeated, after,
                             PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN), 0L,
                     "repeated server-stop cleanup changed terminal counters");
+            helper.succeed();
+        } finally {
+            MovementRequestManager.clearAll();
+            PerformanceTimingCounters.setEventCountingEnabled(previousEvents);
+        }
+    }
+
+    /** Retains direct manager clearAll coverage alongside the production-boundary test. */
+    @GameTest(template = "empty_3x3x3", batch = "server_stop_cleanup", timeoutTicks = 40)
+    public static void directManagerClearAllRemainsIdempotent(GameTestHelper helper) {
+        boolean previousEvents = PerformanceTimingCounters.isEventCountingEnabled();
+        PerformanceTimingCounters.setEventCountingEnabled(true);
+        Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> before =
+                PerformanceTimingCounters.snapshot();
+        try {
+            Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+            MovementRequestSubmission request = MovementRequestManager.submit(villager,
+                    spec("regression:direct-clear:first", villager.blockPosition().offset(1, 0, 0)));
+            helper.assertTrue(request.accepted(), "direct-clear fixture request was rejected");
+            MovementRequestManager.clearAll(MovementRequestTerminationReason.SERVER_SHUTDOWN);
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
+                    PerformanceTimingCounters.snapshot();
+            helper.assertValueEqual(MovementRequestManager.activeRequestCount(), 0L,
+                    "direct clearAll left an active request behind");
+            helper.assertValueEqual(delta(after, before,
+                            PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN), 1L,
+                    "direct clearAll did not classify the request as shutdown");
+            MovementRequestManager.clearAll(MovementRequestTerminationReason.SERVER_SHUTDOWN);
+            Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> repeated =
+                    PerformanceTimingCounters.snapshot();
+            helper.assertValueEqual(delta(repeated, after,
+                            PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN), 0L,
+                    "repeated direct clearAll changed terminal counters");
             helper.succeed();
         } finally {
             MovementRequestManager.clearAll();

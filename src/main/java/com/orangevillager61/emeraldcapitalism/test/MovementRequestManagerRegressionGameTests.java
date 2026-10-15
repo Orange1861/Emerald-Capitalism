@@ -35,6 +35,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /** Direct regression coverage for brain movement ownership and vanilla failure memory. */
 @GameTestHolder("emeraldcapitalism")
@@ -606,6 +607,35 @@ public final class MovementRequestManagerRegressionGameTests {
         }
     }
 
+    @GameTest(template = "empty_3x3x3", batch = "ecap_movement_terminal_counters")
+    public static void reloadedEntitySessionCanReuseUuidWithGenerationOne(GameTestHelper helper) {
+        UUID uuid = UUID.randomUUID();
+        Villager oldSession = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        oldSession.setUUID(uuid);
+        MovementRequestSubmission oldRequest = MovementRequestManager.submit(oldSession,
+                spec("regression:reload-session", "same-owner", oldSession.blockPosition()
+                        .offset(1, 0, 0), MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(oldRequest.accepted(), "old session request was rejected");
+        MovementRequestHandle oldHandle = oldRequest.handle();
+        MovementRequestManager.release(oldSession);
+
+        Villager newSession = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 1, 1, 1);
+        newSession.setUUID(uuid);
+        MovementRequestSubmission newRequest = MovementRequestManager.submit(newSession,
+                spec("regression:reload-session", "same-owner", newSession.blockPosition()
+                        .offset(1, 0, 0), MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(newRequest.accepted(), "reloaded session request was rejected");
+        helper.assertValueEqual(newRequest.handle().generation(), 1L,
+                "reloaded entity session did not restart its local generation at one");
+        helper.assertFalse(MovementRequestManager.cancel(oldSession, oldHandle,
+                        MovementRequestTerminationReason.ABANDONED),
+                "a delayed callback from the old entity session terminated anything");
+        helper.assertTrue(MovementRequestManager.isActive(newSession, newRequest.handle()),
+                "the delayed old-session callback disturbed the reloaded request");
+        MovementRequestManager.release(newSession);
+        helper.succeed();
+    }
+
     private static void tickRetryWindow(GameTestHelper helper, RetryProgress progress,
                                         int remainingTicks) {
         try {
@@ -953,13 +983,11 @@ public final class MovementRequestManagerRegressionGameTests {
                                 + ", active=" + MovementRequestManager.activeHandle(progress.farmer)
                                 + ", goalTarget=" + progress.pumpkinGoal.getTargetPos()
                                 + ", position=" + progress.farmer.blockPosition());
-                Map<PerformanceTimingCounters.Operation, PerformanceTimingCounters.Snapshot> after =
-                        PerformanceTimingCounters.snapshot();
-                helper.assertValueEqual(delta(after, progress.before,
-                                PerformanceTimingCounters.Operation.MOVEMENT_PREEMPTED), 1L,
-                        "boat escape did not record exactly one work-request preemption");
-                helper.assertTrue(delta(after, progress.before,
-                                PerformanceTimingCounters.Operation.MOVEMENT_ARRIVAL) >= 1L,
+                helper.assertValueEqual(MovementRequestManager.terminalCount(progress.farmer,
+                                MovementRequestTerminationReason.PREEMPTED), 1L,
+                        "boat escape did not record exactly one work-request preemption for this villager");
+                helper.assertTrue(MovementRequestManager.terminalCount(progress.farmer,
+                                MovementRequestTerminationReason.ARRIVED) >= 1L,
                         "resumed production work did not record a completed movement leg");
                 helper.succeed();
                 progress.finish();
