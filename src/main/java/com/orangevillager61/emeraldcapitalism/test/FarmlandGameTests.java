@@ -56,6 +56,14 @@ public class FarmlandGameTests {
         record.addToRepairQueue(pos);
     }
 
+    private static VillageRecord createTrackedVillage(ServerLevel level, BlockPos center,
+                                                       BlockPos min, BlockPos max) {
+        return VillageRegistryData.get(level).getOrCreateVillage(
+                UUID.randomUUID(), center,
+                new AABB(min.getX(), min.getY(), min.getZ(),
+                        max.getX() + 1.0D, max.getY() + 1.0D, max.getZ() + 1.0D));
+    }
+
     @GameTest(template = "empty_3x3x3")
     public static void sturdyFarmSurfaceIsAccepted(GameTestHelper helper) {
         BlockPos candidate = new BlockPos(1, 2, 1);
@@ -509,6 +517,99 @@ public class FarmlandGameTests {
         helper.assertFalse(hasGoal,
                 "ReplenishFarmlandGoal should be absent in non-farmer's goal set");
 
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void farmerCannotProcessRepairWorkFromAnotherVillage(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos farmerPos = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos otherCenter = helper.absolutePos(new BlockPos(16, 1, 2));
+        VillageRecord farmerVillage = createTrackedVillage(level, farmerPos,
+                helper.absolutePos(new BlockPos(0, 0, 0)), helper.absolutePos(new BlockPos(7, 2, 7)));
+        VillageRecord otherVillage = createTrackedVillage(level, otherCenter,
+                helper.absolutePos(new BlockPos(12, 0, 0)), helper.absolutePos(new BlockPos(19, 2, 7)));
+        BlockPos repairPos = helper.absolutePos(new BlockPos(16, 1, 2));
+        addRepairPosition(otherVillage, repairPos);
+        otherVillage.setFarmlandRepairEnabled(true);
+
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, new BlockPos(2, 1, 2));
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        helper.assertTrue(farmerVillage.hasMember(farmer.getUUID()),
+                "farmer fixture was not registered in its containing village");
+        helper.assertFalse(new ReplenishFarmlandGoal(farmer).canUse(),
+                "farmer selected repair work owned by another village");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void nonFarmerCannotProcessExistingFarmerRepairWork(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(2, 1, 2));
+        VillageRecord village = createTrackedVillage(level, center,
+                helper.absolutePos(new BlockPos(0, 0, 0)), helper.absolutePos(new BlockPos(8, 2, 8)));
+        BlockPos repairPos = helper.absolutePos(new BlockPos(4, 1, 2));
+        addRepairPosition(village, repairPos);
+        village.setFarmlandRepairEnabled(true);
+
+        Villager librarian = helper.spawnWithNoFreeWill(EntityType.VILLAGER, new BlockPos(2, 1, 2));
+        librarian.setVillagerData(librarian.getVillagerData().setProfession(VillagerProfession.LIBRARIAN));
+        helper.assertFalse(new ReplenishFarmlandGoal(librarian).canUse(),
+                "non-farmer selected existing farmer repair work");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void farmerOutsideTrackedVillageCannotUseRepairWork(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos villageCenter = helper.absolutePos(new BlockPos(2, 1, 2));
+        VillageRecord village = createTrackedVillage(level, villageCenter,
+                helper.absolutePos(new BlockPos(0, 0, 0)), helper.absolutePos(new BlockPos(7, 2, 7)));
+        BlockPos repairPos = helper.absolutePos(new BlockPos(4, 1, 2));
+        addRepairPosition(village, repairPos);
+        village.setFarmlandRepairEnabled(true);
+
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, new BlockPos(16, 1, 2));
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        helper.assertFalse(new ReplenishFarmlandGoal(farmer).canUse(),
+                "farmer outside tracked villages was assigned existing village work");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void repairWorkNeverFallsBackToGloballyNearestVillage(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos farmerPos = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos nearestVillageCenter = helper.absolutePos(new BlockPos(8, 1, 2));
+        VillageRecord nearestVillage = createTrackedVillage(level, nearestVillageCenter,
+                helper.absolutePos(new BlockPos(8, 0, 0)), helper.absolutePos(new BlockPos(12, 2, 7)));
+        BlockPos repairPos = helper.absolutePos(new BlockPos(9, 1, 2));
+        addRepairPosition(nearestVillage, repairPos);
+        nearestVillage.setFarmlandRepairEnabled(true);
+
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, new BlockPos(2, 1, 2));
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        helper.assertFalse(new ReplenishFarmlandGoal(farmer).canUse(),
+                "repair goal fell back to a globally nearest village");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void repairLookupDoesNotSearchUnrelatedVillageRecords(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos farmerPos = helper.absolutePos(new BlockPos(2, 1, 2));
+        createTrackedVillage(level, farmerPos,
+                helper.absolutePos(new BlockPos(0, 0, 0)), helper.absolutePos(new BlockPos(7, 2, 7)));
+        VillageRecord unrelatedVillage = createTrackedVillage(level,
+                helper.absolutePos(new BlockPos(16, 1, 2)),
+                helper.absolutePos(new BlockPos(12, 0, 0)), helper.absolutePos(new BlockPos(19, 2, 7)));
+        addRepairPosition(unrelatedVillage, helper.absolutePos(new BlockPos(16, 1, 2)));
+        unrelatedVillage.setFarmlandRepairEnabled(true);
+
+        Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, new BlockPos(2, 1, 2));
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        helper.assertFalse(new ReplenishFarmlandGoal(farmer).canUse(),
+                "repair lookup searched unrelated villages for replacement work");
         helper.succeed();
     }
 

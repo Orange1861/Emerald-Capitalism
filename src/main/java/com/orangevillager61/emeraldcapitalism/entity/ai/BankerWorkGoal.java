@@ -141,7 +141,7 @@ public final class BankerWorkGoal extends Goal {
             return null;
         }
 
-        BankBlockEntity bank = BankEmployeeLookup.findEmployeeBank(level, villager);
+        BankBlockEntity bank = BankEmployeeLookup.findContainingVillageEmployeeBank(level, villager);
         if (bank == null || !bank.isBankIndependent()) {
             return null;
         }

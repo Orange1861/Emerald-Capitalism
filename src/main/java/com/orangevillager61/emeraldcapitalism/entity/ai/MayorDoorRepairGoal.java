@@ -352,7 +352,7 @@ public final class MayorDoorRepairGoal extends Goal {
 
     @Nullable
     private WorkContext resolveContext(ServerLevel level) {
-        BankBlockEntity resolvedBank = BankEmployeeLookup.findVillageBank(level, villager);
+        BankBlockEntity resolvedBank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         if (resolvedBank == null) {
             logEligibility(level, "context unresolved: no loaded bank found for mayor");
             return null;

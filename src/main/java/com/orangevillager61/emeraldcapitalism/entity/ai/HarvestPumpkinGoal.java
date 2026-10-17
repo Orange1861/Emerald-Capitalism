@@ -91,6 +91,8 @@ public class HarvestPumpkinGoal extends Goal {
     public boolean canContinueToUse() {
         return targetPos != null
                 && !failed
+                && villager.isAlive()
+                && villager.getVillagerData().getProfession() == VillagerProfession.FARMER
                 && villager.level() instanceof ServerLevel level
                 && !VillagerBreedingSessions.shouldYieldCustomWork(villager)
                 && level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)

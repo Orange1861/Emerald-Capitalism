@@ -34,6 +34,32 @@ public final class BankEmployeeLookup {
         return findEmployeeBank(level, villager) != null;
     }
 
+    /**
+     * Finds the loaded bank registered to the deterministic containing village.
+     *
+     * <p>Village work goals use this scoped lookup when assigning new work. It
+     * intentionally does not search membership records or banks belonging to
+     * other villages when the villager is outside every tracked boundary.</p>
+     */
+    @Nullable
+    public static BankBlockEntity findContainingVillageBank(ServerLevel level, Villager villager) {
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        VillageRecord village = registry.getVillageFor(villager.blockPosition());
+        return village == null
+                ? null
+                : findBankAt(level, registry.getBankPos(village.getVillageId()));
+    }
+
+    /** Finds an employee bank only through the deterministic containing village. */
+    @Nullable
+    public static BankBlockEntity findContainingVillageEmployeeBank(ServerLevel level, Villager villager) {
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        VillageRecord village = registry.getVillageFor(villager.blockPosition());
+        return village == null
+                ? null
+                : findEmployeeBankAt(level, registry.getBankPos(village.getVillageId()), villager);
+    }
+
     /** Finds the loaded Bank registered to the villager's village, regardless of employee status. */
     @Nullable
     public static BankBlockEntity findVillageBank(ServerLevel level, Villager villager) {

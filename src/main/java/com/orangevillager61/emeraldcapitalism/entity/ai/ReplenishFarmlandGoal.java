@@ -60,7 +60,11 @@ public class ReplenishFarmlandGoal extends Goal {
         if (!Config.enableFarmlandRepair || VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
             return false;
         }
-        if (villager.getVillagerData().getProfession() != VillagerProfession.FARMER) {
+        if (!villager.isAlive()
+                || villager.isBaby()
+                || villager.isSleeping()
+                || villager.isTrading()
+                || villager.getVillagerData().getProfession() != VillagerProfession.FARMER) {
             return false;
         }
         if (!(villager.level() instanceof ServerLevel serverLevel)) {
@@ -73,36 +77,37 @@ public class ReplenishFarmlandGoal extends Goal {
         }
 
         VillageRegistryData data = VillageRegistryData.get(serverLevel);
-        VillageRecord found = data.getVillageFor(villager.blockPosition());
-        if (found == null) {
-            found = data.getNearestVillage(villager.blockPosition());
-        }
-        if (found == null) {
+        VillageRecord assignedVillage = data.getVillageFor(villager.blockPosition());
+        if (assignedVillage == null || !assignedVillage.hasMember(villager.getUUID())) {
             scheduleNextQueueLookup(gameTime);
             tryAlternativeRepairsDuringCooldown = false;
             return false;
         }
-        if (!found.isFarmlandRepairEnabled()) {
+        if (!assignedVillage.isFarmlandRepairEnabled()) {
             scheduleNextQueueLookup(gameTime);
             tryAlternativeRepairsDuringCooldown = false;
             return false;
         }
 
-        BlockPos nearest = findNearestAvailableRepair(found, villager.blockPosition(), gameTime);
+        BlockPos nearest = findNearestAvailableRepair(assignedVillage, villager.blockPosition(), gameTime);
         if (nearest == null) {
             tryAlternativeRepairsDuringCooldown = false;
             scheduleNextQueueLookup(gameTime);
             return false;
         }
 
-        this.village = found;
+        this.village = assignedVillage;
         this.targetPos = nearest;
         return true;
     }
 
     @Override
     public boolean canContinueToUse() {
-        if (targetPos == null || village == null || VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
+        if (targetPos == null || village == null
+                || !villager.isAlive()
+                || villager.getVillagerData().getProfession() != VillagerProfession.FARMER
+                || !village.hasMember(villager.getUUID())
+                || VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
             return false;
         }
         // Continue only while this goal still owns a valid queued target.

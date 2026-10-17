@@ -86,7 +86,7 @@ public final class VillagerInventoryBankGoal extends Goal {
             return false;
         }
 
-        bank = BankEmployeeLookup.findVillageBank(level, villager);
+        bank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         if (bank == null || !bank.isVillagerDeliveriesEnabled() || !isDeliveryModeEnabled()) {
             nextActionTick = level.getGameTime() + FAILURE_COOLDOWN;
             return false;
@@ -118,7 +118,7 @@ public final class VillagerInventoryBankGoal extends Goal {
             return;
         }
 
-        bank = BankEmployeeLookup.findVillageBank(level, villager);
+        bank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         if (bank == null) {
             finish(level, FAILURE_COOLDOWN);
             return;

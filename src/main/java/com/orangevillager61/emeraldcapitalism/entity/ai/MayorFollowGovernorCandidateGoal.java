@@ -124,8 +124,10 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
     public boolean canContinueToUse() {
         if (pathingFailed
                 || !(mayor.level() instanceof ServerLevel level)
+                || !mayor.isAlive()
                 || mayor.isSleeping()
-                || mayor.isTrading()) {
+                || mayor.isTrading()
+                || mayor.getVillagerData().getProfession() != ECAPVillagerProfessions.MAYOR.get()) {
             return false;
         }
 
@@ -186,17 +188,7 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
 
     @Nullable
     private VillageRecord findVillage(ServerLevel level) {
-        VillageRegistryData data = VillageRegistryData.get(level);
-        VillageRecord containing = data.getVillageFor(mayor.blockPosition());
-        if (containing != null) {
-            return containing;
-        }
-
-        UUID mayorId = mayor.getUUID();
-        return data.getVillages().values().stream()
-                .filter(village -> village.hasMember(mayorId))
-                .findFirst()
-                .orElse(null);
+        return VillageRegistryData.get(level).getVillageFor(mayor.blockPosition());
     }
 
     @Nullable

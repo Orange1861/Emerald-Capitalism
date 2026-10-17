@@ -112,6 +112,9 @@ public abstract class HarvestFarmlandMixin {
     private void emeraldCapitalism$captureMatureHarvest(ServerLevel level, Villager villager,
                                                         long gameTime, CallbackInfo callback) {
         emeraldCapitalism$matureHarvest = null;
+        if (villager.getVillagerData().getProfession() != VillagerProfession.FARMER) {
+            return;
+        }
         if (aboveFarmlandPos != null) {
             BlockState state = level.getBlockState(aboveFarmlandPos);
             if (state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state)) {
@@ -125,7 +128,8 @@ public abstract class HarvestFarmlandMixin {
                                                         long gameTime, CallbackInfo callback) {
         BlockPos harvested = emeraldCapitalism$matureHarvest;
         emeraldCapitalism$matureHarvest = null;
-        if (harvested == null || !level.getBlockState(harvested).isAir()) {
+        if (villager.getVillagerData().getProfession() != VillagerProfession.FARMER
+                || harvested == null || !level.getBlockState(harvested).isAir()) {
             return;
         }
         emeraldCapitalism$lastHarvestedPos = harvested;

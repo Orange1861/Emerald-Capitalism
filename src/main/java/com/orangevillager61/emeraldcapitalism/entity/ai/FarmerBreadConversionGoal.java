@@ -38,7 +38,9 @@ public final class FarmerBreadConversionGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return !finished;
+        return !finished
+                && farmer.isAlive()
+                && farmer.getVillagerData().getProfession() == VillagerProfession.FARMER;
     }
 
     @Override

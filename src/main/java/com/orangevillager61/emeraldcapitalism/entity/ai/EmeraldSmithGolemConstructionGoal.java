@@ -653,7 +653,7 @@ public final class EmeraldSmithGolemConstructionGoal extends Goal {
     }
 
     private WorkContext resolveContext(ServerLevel level) {
-        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+        BankBlockEntity bank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         if (bank == null) {
             logDiagnostic(level, "blocked: no bank-backed village contains villager; pos="
                     + villager.blockPosition());

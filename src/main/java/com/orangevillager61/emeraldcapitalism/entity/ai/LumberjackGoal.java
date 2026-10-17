@@ -602,7 +602,7 @@ public final class LumberjackGoal extends Goal {
 
         cachedBankLevel = level;
         nextBankLookupTick = gameTime + BANK_LOOKUP_INTERVAL_TICKS;
-        cachedVillageBank = BankEmployeeLookup.findVillageBank(level, villager);
+        cachedVillageBank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         return cachedVillageBank;
     }
 

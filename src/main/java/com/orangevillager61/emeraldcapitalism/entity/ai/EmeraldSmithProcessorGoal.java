@@ -268,7 +268,7 @@ public final class EmeraldSmithProcessorGoal extends Goal {
     }
 
     private WorkContext resolveContext(ServerLevel level) {
-        BankBlockEntity bank = BankEmployeeLookup.findVillageBank(level, villager);
+        BankBlockEntity bank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         if (bank == null) return null;
 
         BlockPos processorPos = bank.getClosestEmeraldProcessorPos();
