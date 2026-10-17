@@ -2,6 +2,8 @@ package com.orangevillager61.emeraldcapitalism.block.entity;
 
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlockEntityTypes;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -63,6 +65,21 @@ public class EmeraldChestBlockEntity extends ChestBlockEntity {
 
     void unlinkBank(BlockPos bankPos) {
         linkedBanks.remove(bankPos);
+    }
+
+    /** Returns whether a live registered bank currently owns this cached chest. */
+    public boolean hasRegisteredBankLink(ServerLevel serverLevel) {
+        VillageRegistryData registry = VillageRegistryData.get(serverLevel);
+        for (BlockPos bankPos : linkedBanks) {
+            if (BankEmployeeLookup.getLoadedBlockEntity(serverLevel, bankPos)
+                    instanceof BankBlockEntity bank
+                    && bank.getVillageId() != null
+                    && bankPos.equals(registry.getBankPos(bank.getVillageId()))
+                    && bank.getCachedChestPositions().contains(worldPosition)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Recounts this chest once per inventory mutation and notifies linked banks. */

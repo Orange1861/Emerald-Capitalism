@@ -46,6 +46,7 @@ public final class VillageGovernance {
     public static Villager findLivingMayor(ServerLevel level, VillageRecord village) {
         return level.getEntitiesOfClass(Villager.class, village.getBoundingBox(),
                         villager -> villager.isAlive()
+                                && village.hasMember(villager.getUUID())
                                 && villager.getVillagerData().getProfession()
                                 == ECAPVillagerProfessions.MAYOR.get())
                 .stream()
@@ -97,7 +98,8 @@ public final class VillageGovernance {
         List<Villager> currentMayors = level.getEntitiesOfClass(
                 Villager.class,
                 village.getBoundingBox(),
-                villager -> villager.getVillagerData().getProfession()
+                villager -> village.hasMember(villager.getUUID())
+                        && villager.getVillagerData().getProfession()
                         == ECAPVillagerProfessions.MAYOR.get());
         if (currentMayors.stream().anyMatch(mayor -> holdsManagerJobSite(level, mayor, managerPos))) {
             return false;
@@ -115,15 +117,21 @@ public final class VillageGovernance {
             staleMayor.refreshBrain(level);
         }
 
+        BlockPos bankPos = registry.getBankPos(village.getVillageId());
+        BankBlockEntity villageBank = bankPos != null
+                && BankEmployeeLookup.getLoadedBlockEntity(level, bankPos) instanceof BankBlockEntity bank
+                && village.getVillageId().equals(bank.getVillageId()) ? bank : null;
+
         List<Villager> candidates = level.getEntitiesOfClass(
                         Villager.class,
                         village.getBoundingBox(),
                         villager -> villager.isAlive()
                                 && !villager.isBaby()
+                                && village.hasMember(villager.getUUID())
                                 && !staleMayorIds.contains(villager.getUUID())
                                 && villager.getVillagerData().getProfession()
                                 != ECAPVillagerProfessions.MAYOR.get()
-                                && !BankEmployeeLookup.isEmployee(level, villager))
+                                && (villageBank == null || !villageBank.isEmployee(villager.getUUID())))
                 .stream()
                 .sorted(Comparator.comparingDouble((Villager villager) -> villager.distanceToSqr(managerPos.getCenter()))
                         .thenComparing(villager -> villager.getUUID().toString()))

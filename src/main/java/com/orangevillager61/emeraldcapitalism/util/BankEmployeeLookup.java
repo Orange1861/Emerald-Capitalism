@@ -38,16 +38,16 @@ public final class BankEmployeeLookup {
      * Finds the loaded bank registered to the deterministic containing village.
      *
      * <p>Village work goals use this scoped lookup when assigning new work. It
-     * intentionally does not search membership records or banks belonging to
-     * other villages when the villager is outside every tracked boundary.</p>
+     * checks membership only in that village and does not search other villages'
+     * membership records or banks when the villager is outside every tracked boundary.</p>
      */
     @Nullable
     public static BankBlockEntity findContainingVillageBank(ServerLevel level, Villager villager) {
         VillageRegistryData registry = VillageRegistryData.get(level);
         VillageRecord village = registry.getVillageFor(villager.blockPosition());
-        return village == null
+        return village == null || !village.hasMember(villager.getUUID())
                 ? null
-                : findBankAt(level, registry.getBankPos(village.getVillageId()));
+                : findVillageBankAt(level, registry, village);
     }
 
     /** Finds an employee bank only through the deterministic containing village. */
@@ -55,9 +55,11 @@ public final class BankEmployeeLookup {
     public static BankBlockEntity findContainingVillageEmployeeBank(ServerLevel level, Villager villager) {
         VillageRegistryData registry = VillageRegistryData.get(level);
         VillageRecord village = registry.getVillageFor(villager.blockPosition());
-        return village == null
-                ? null
-                : findEmployeeBankAt(level, registry.getBankPos(village.getVillageId()), villager);
+        if (village == null || !village.hasMember(villager.getUUID())) {
+            return null;
+        }
+        BankBlockEntity bank = findVillageBankAt(level, registry, village);
+        return bank != null && bank.isEmployee(villager.getUUID()) ? bank : null;
     }
 
     /** Finds the loaded Bank registered to the villager's village, regardless of employee status. */
@@ -73,12 +75,21 @@ public final class BankEmployeeLookup {
         }
 
         VillageRegistryData registry = VillageRegistryData.get(level);
+        VillageRecord containing = registry.getVillageFor(villager.blockPosition());
+        if (containing != null && containing.hasMember(villagerId)) {
+            BankBlockEntity bank = findVillageBankAt(level, registry, containing);
+            cache.put(villagerId, new CachedLookup(
+                    gameTime + LOOKUP_CACHE_TICKS,
+                    bank == null ? null : bank.getBlockPos().immutable()));
+            return bank;
+        }
+
         // Prefer the villager's durable membership when it is available. This
         // avoids choosing an unrelated overlapping village during structure
         // placement or while neighboring village bounds are still broad.
         for (VillageRecord village : registry.getVillages().values()) {
-            if (village.hasMember(villager.getUUID())) {
-                BankBlockEntity bank = findBankAt(level, registry.getBankPos(village.getVillageId()));
+            if (village.hasMember(villagerId)) {
+                BankBlockEntity bank = findVillageBankAt(level, registry, village);
                 if (bank != null) {
                     cache.put(villagerId, new CachedLookup(
                             gameTime + LOOKUP_CACHE_TICKS, bank.getBlockPos().immutable()));
@@ -87,31 +98,10 @@ public final class BankEmployeeLookup {
             }
         }
 
-        // A newly spawned villager may not have been registered yet. Check every
-        // containing village because an automatically-created overlapping record
-        // can be nearer than the bank-backed village.
-        double x = villager.getX();
-        double y = villager.getY();
-        double z = villager.getZ();
-        BankBlockEntity nearestBank = null;
-        double nearestDistance = Double.MAX_VALUE;
-        for (VillageRecord village : registry.getVillages().values()) {
-            if (!village.getBoundingBox().contains(x, y, z)) {
-                continue;
-            }
-            BankBlockEntity bank = findBankAt(level, registry.getBankPos(village.getVillageId()));
-            if (bank == null) {
-                continue;
-            }
-            double distance = bank.getBlockPos().distSqr(villager.blockPosition());
-            if (distance < nearestDistance
-                    || (Double.compare(distance, nearestDistance) == 0
-                    && (nearestBank == null
-                    || bank.getBlockPos().asLong() < nearestBank.getBlockPos().asLong()))) {
-                nearestBank = bank;
-                nearestDistance = distance;
-            }
-        }
+        // A newly spawned villager may not have been registered yet. The
+        // spatial index has already selected the deterministic containing record.
+        BankBlockEntity nearestBank = containing == null
+                ? null : findVillageBankAt(level, registry, containing);
         cache.put(villagerId, new CachedLookup(
                 gameTime + LOOKUP_CACHE_TICKS,
                 nearestBank == null ? null : nearestBank.getBlockPos().immutable()));
@@ -127,13 +117,21 @@ public final class BankEmployeeLookup {
         }
 
         VillageRegistryData registry = VillageRegistryData.get(level);
-        for (VillageRecord village : registry.getVillages().values()) {
-            BlockPos bankPos = registry.getBankPos(village.getVillageId());
-            if (bankPos != null && bankPos.equals(bank.getBlockPos())) {
+        UUID villageId = bank.getVillageId();
+        if (villageId != null) {
+            VillageRecord village = registry.getVillages().get(villageId);
+            if (village != null && bank.getBlockPos().equals(registry.getBankPos(villageId))) {
                 return village;
             }
         }
-        return null;
+
+        // Placement can register the bank position before the block entity has
+        // received its durable village ID. Resolve that short initialization
+        // window through the spatial index instead of scanning every village.
+        VillageRecord containing = registry.getVillageFor(bank.getBlockPos());
+        return containing != null
+                && bank.getBlockPos().equals(registry.getBankPos(containing.getVillageId()))
+                ? containing : null;
     }
 
     /**
@@ -152,22 +150,16 @@ public final class BankEmployeeLookup {
         }
 
         VillageRegistryData registry = VillageRegistryData.get(level);
-        // Employees may be inside an overlapping unbanked record. Check every
-        // containing record before falling back to employees outside their bounds.
-        double x = villager.getX();
-        double y = villager.getY();
-        double z = villager.getZ();
-        for (VillageRecord village : registry.getVillages().values()) {
-            if (!village.getBoundingBox().contains(x, y, z)) {
-                continue;
+        VillageRecord containing = registry.getVillageFor(villager.blockPosition());
+        if (containing != null && containing.hasMember(villagerId)) {
+            BankBlockEntity bank = findVillageBankAt(level, registry, containing);
+            if (bank != null && !bank.isEmployee(villagerId)) {
+                bank = null;
             }
-            BankBlockEntity bank = findEmployeeBankAt(level,
-                    registry.getBankPos(village.getVillageId()), villager);
-            if (bank != null) {
-                cache.put(villagerId, new CachedLookup(
-                        gameTime + LOOKUP_CACHE_TICKS, bank.getBlockPos().immutable()));
-                return bank;
-            }
+            cache.put(villagerId, new CachedLookup(
+                    gameTime + LOOKUP_CACHE_TICKS,
+                    bank == null ? null : bank.getBlockPos().immutable()));
+            return bank;
         }
 
         // Employees may temporarily be outside their village bounds. Check loaded
@@ -202,6 +194,13 @@ public final class BankEmployeeLookup {
         }
         BlockEntity blockEntity = getLoadedBlockEntity(level, bankPos);
         return blockEntity instanceof BankBlockEntity bank ? bank : null;
+    }
+
+    @Nullable
+    private static BankBlockEntity findVillageBankAt(ServerLevel level, VillageRegistryData registry,
+                                                      VillageRecord village) {
+        BankBlockEntity bank = findBankAt(level, registry.getBankPos(village.getVillageId()));
+        return bank != null && village.getVillageId().equals(bank.getVillageId()) ? bank : null;
     }
 
     /** Returns a block entity only when its full chunk is already loaded. */

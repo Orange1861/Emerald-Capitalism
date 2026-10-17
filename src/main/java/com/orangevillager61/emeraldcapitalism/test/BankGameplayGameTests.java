@@ -26,7 +26,9 @@ import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankAccountData;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
@@ -67,6 +69,46 @@ public final class BankGameplayGameTests {
     private static final UUID CONSTRUCTION_VILLAGER = UUID.fromString("20000000-0000-0000-0000-000000000001");
 
     private BankGameplayGameTests() {
+    }
+
+    @GameTest(template = "empty_20x3x20")
+    public static void containingBankLookupRejectsForeignVillageMember(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos homeBankPos = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos foreignBankPos = helper.absolutePos(new BlockPos(16, 1, 2));
+        helper.setBlock(new BlockPos(2, 1, 2), ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(new BlockPos(16, 1, 2), ECAPBlocks.BANK.get().defaultBlockState());
+
+        BankBlockEntity homeBank = bankAt(helper, homeBankPos);
+        BankBlockEntity foreignBank = bankAt(helper, foreignBankPos);
+        if (homeBank == null || foreignBank == null) {
+            return;
+        }
+
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        UUID homeVillageId = UUID.randomUUID();
+        UUID foreignVillageId = UUID.randomUUID();
+        VillageRecord homeVillage = registry.getOrCreateVillage(homeVillageId, homeBankPos,
+                new AABB(homeBankPos).inflate(4.0D));
+        VillageRecord foreignVillage = registry.getOrCreateVillage(foreignVillageId, foreignBankPos,
+                new AABB(foreignBankPos).inflate(4.0D));
+        registry.registerBankPosition(homeVillageId, homeBankPos);
+        registry.registerBankPosition(foreignVillageId, foreignBankPos);
+        homeBank.setVillageId(homeVillageId);
+        foreignBank.setVillageId(foreignVillageId);
+
+        Villager villager = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 16, 1, 2);
+        foreignVillage.removeMember(villager.getUUID());
+        homeVillage.addMember(new VillagerPOIRecord(
+                villager.getUUID(), villager.getName().getString(), "NONE",
+                null, null, null, villager.getHealth(), VillagerPOIRecord.Status.ACTIVE,
+                0, level.getGameTime()));
+
+        helper.assertTrue(BankEmployeeLookup.findContainingVillageBank(level, villager) == null,
+                "foreign village bank was returned solely because the villager stood inside its bounds");
+        helper.assertTrue(BankEmployeeLookup.findVillageBank(level, villager) == homeBank,
+                "durable membership fallback did not resolve the villager's home bank");
+        helper.succeed();
     }
 
     @GameTest(template = "empty_20x3x20")

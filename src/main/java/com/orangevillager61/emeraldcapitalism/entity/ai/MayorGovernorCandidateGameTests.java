@@ -7,6 +7,7 @@ import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -30,6 +31,37 @@ public final class MayorGovernorCandidateGameTests {
     private MayorGovernorCandidateGameTests() {
     }
 
+    @GameTest(template = "empty_20x3x20")
+    public static void mayorDoesNotFollowForeignVillageCandidate(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Villager mayor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 2, 1, 2);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+
+        BlockPos homeCenter = helper.absolutePos(new BlockPos(16, 1, 2));
+        BlockPos foreignCenter = helper.absolutePos(new BlockPos(2, 1, 2));
+        VillageRecord homeVillage = VillageRegistryData.get(level).getOrCreateVillage(
+                UUID.randomUUID(), homeCenter, new AABB(homeCenter).inflate(3.0D));
+        homeVillage.addMember(new VillagerPOIRecord(
+                mayor.getUUID(), mayor.getName().getString(), "MAYOR",
+                null, null, null, mayor.getHealth(), VillagerPOIRecord.Status.ACTIVE,
+                0, level.getGameTime()));
+        VillageRecord foreignVillage = VillageRegistryData.get(level).getOrCreateVillage(
+                UUID.randomUUID(), foreignCenter, new AABB(foreignCenter).inflate(6.0D));
+
+        ServerPlayer foreignCandidate = createCandidate(
+                level, helper.absolutePos(new BlockPos(8, 1, 2)));
+        helper.assertTrue(foreignVillage.becomeGovernorCandidate(
+                        foreignCandidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
+                        level.getGameTime()),
+                "could not start the foreign governor candidate process");
+
+        MayorFollowGovernorCandidateGoal goal =
+                new MayorFollowGovernorCandidateGoal(mayor, foreignCandidate);
+        helper.assertFalse(goal.canUse(),
+                "mayor followed a candidate belonging to the village it was merely standing in");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty_3x3x3")
     public static void mayorStopsFollowingWhenCandidateIsUnreachable(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -37,7 +69,7 @@ public final class MayorGovernorCandidateGameTests {
         mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
 
         ServerPlayer candidate = createCandidate(level, mayor.blockPosition().above(20));
-        VillageRecord village = createVillage(level, mayor.blockPosition());
+        VillageRecord village = createVillage(level, mayor);
         helper.assertTrue(village.becomeGovernorCandidate(
                         candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
                         level.getGameTime()),
@@ -67,7 +99,7 @@ public final class MayorGovernorCandidateGameTests {
 
         BlockPos candidateStart = helper.absolutePos(new BlockPos(12, 1, 1));
         ServerPlayer candidate = createCandidate(level, candidateStart);
-        VillageRecord village = createVillage(level, mayor.blockPosition());
+        VillageRecord village = createVillage(level, mayor);
         helper.assertTrue(village.becomeGovernorCandidate(
                         candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
                         level.getGameTime()),
@@ -89,7 +121,7 @@ public final class MayorGovernorCandidateGameTests {
         mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
 
         ServerPlayer candidate = createCandidate(level, mayor.blockPosition());
-        VillageRecord village = createVillage(level, mayor.blockPosition());
+        VillageRecord village = createVillage(level, mayor);
         helper.assertTrue(village.becomeGovernorCandidate(
                         candidate.getUUID(), Config.governorCandidateOpinionThreshold + 1,
                         level.getGameTime()),
@@ -104,9 +136,15 @@ public final class MayorGovernorCandidateGameTests {
         helper.succeed();
     }
 
-    private static VillageRecord createVillage(ServerLevel level, BlockPos mayorPos) {
-        return VillageRegistryData.get(level).getOrCreateVillage(
+    private static VillageRecord createVillage(ServerLevel level, Villager mayor) {
+        BlockPos mayorPos = mayor.blockPosition();
+        VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
                 UUID.randomUUID(), mayorPos, new AABB(mayorPos).inflate(16.0D));
+        village.addMember(new VillagerPOIRecord(
+                mayor.getUUID(), mayor.getName().getString(), "MAYOR",
+                null, null, null, mayor.getHealth(), VillagerPOIRecord.Status.ACTIVE,
+                0, level.getGameTime()));
+        return village;
     }
 
     private static ServerPlayer createCandidate(ServerLevel level, BlockPos position) {

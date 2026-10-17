@@ -188,7 +188,8 @@ public final class MayorFollowGovernorCandidateGoal extends Goal {
 
     @Nullable
     private VillageRecord findVillage(ServerLevel level) {
-        return VillageRegistryData.get(level).getVillageFor(mayor.blockPosition());
+        VillageRecord village = VillageRegistryData.get(level).getVillageFor(mayor.blockPosition());
+        return village != null && village.hasMember(mayor.getUUID()) ? village : null;
     }
 
     @Nullable
