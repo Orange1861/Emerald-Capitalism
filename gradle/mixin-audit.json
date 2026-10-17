@@ -157,7 +157,7 @@
       "tests": [
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
         "villagergoalbehaviorgametests.bankerjobsiteusesworksidebeforeassignment",
-        "villagergoalbehaviorgametests.starvingvillagerbegsandreceivesfood",
+        "beggingjourneygametests.starvingvillagerbegsandreceivesfood",
         "villagergoalbehaviorgametests.fencegatebehavioropensandclosesthepathgate",
         "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat"
       ],
@@ -192,6 +192,38 @@
       "target": "net.minecraft.world.level.pathfinder.WalkNodeEvaluator#getPathTypeOfMob and #getNeighbors",
       "injectionPoint": "RETURN of both path-type and neighbor enumeration methods",
       "supportedEventAlternative": "No supported event exposes WalkNodeEvaluator's current context and mutable neighbor array."
+    },
+    {
+      "id": "movement-request-sink",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
+      "mixins": ["MoveToTargetSinkMixin"],
+      "invariant": "Vanilla MoveToTargetSink path attempts are observed without consuming fresh movement ownership, and stale sink stops cannot cancel newer journeys or block fallback paths.",
+      "tests": [
+        "movementrequestmanagerregressiongametests.staleownercannotstoparealbrainjourneyafterprioritypreemption",
+        "movementrequestmanagerregressiongametests.stalepathandfailuredonotblockfreshvanillasinkjourney",
+        "movementrequestmanagerregressiongametests.fallbackpathsurvivesvanillacantreachmemory",
+        "movementrequestmanagerregressiongametests.cancelaftervanillaconsumedwalktargetclearsfailureforlaterjourney",
+        "movementrequestmanagerregressiongametests.changedrequestdoesnotadoptequalforeignwalktargetandcancelrestoresit"
+      ],
+      "target": "net.minecraft.world.entity.ai.behavior.MoveToTargetSink#checkExtraStartConditions, #start, #tryComputePath, and #stop",
+      "injectionPoint": "HEAD/RETURN lifecycle hooks plus two PathNavigation#createPath redirects inside tryComputePath",
+      "supportedEventAlternative": "No supported behavior event exposes vanilla sink epochs, path attempts, and stale-stop ownership at these exact lifecycle points."
+    },
+    {
+      "id": "vanilla-farmer-crop-work",
+      "config": "src/main/resources/emeraldcapitalism.mixins.json",
+      "side": "server",
+      "auditMode": "gametest",
+      "mixins": ["HarvestFarmlandMixin"],
+      "invariant": "A farmer can complete vanilla mature-crop work after bounded crop discovery, reach the vanilla interaction footing, and replant a harvested crop without bypassing the vanilla behavior.",
+      "tests": [
+        "vanillafarmergametests.normalfarmerharvestsandreplantsmaturewheat"
+      ],
+      "target": "net.minecraft.world.entity.ai.behavior.HarvestFarmland#checkExtraStartConditions and #tick",
+      "injectionPoint": "RETURN fallback target discovery in checkExtraStartConditions, HEAD/RETURN harvest observation in tick, and ModifyConstant of the crop interaction-range literal",
+      "supportedEventAlternative": "No supported behavior event exposes HarvestFarmland's private interaction-range predicate."
     },
     {
       "id": "villager-ladder-movement",

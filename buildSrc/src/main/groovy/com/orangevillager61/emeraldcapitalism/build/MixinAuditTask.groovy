@@ -342,7 +342,7 @@ abstract class MixinAuditTask extends DefaultTask {
         Set<String> ids = new HashSet<>()
         ((manifest.renderers ?: []) + (manifest.screens ?: []) + (manifest.checks ?: [])).each { Map entry ->
             String id = entry.id as String
-            if (!id || !ids.add("client-smoke.${id}")) {
+            if (!id || !ids.add('client-smoke.' + id)) {
                 throw new GradleException("Client smoke manifest contains a duplicate or empty id: ${id}")
             }
         }

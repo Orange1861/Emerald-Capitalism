@@ -45,6 +45,11 @@
       "id": "village-poi-overlay",
       "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/VillagePOIOverlayRenderer.java",
       "checks": "Markers track server data, clear on dimension/disconnect, and do not request stale data repeatedly."
+    },
+    {
+      "id": "bank-ownership-overlay",
+      "path": "src/main/java/com/orangevillager61/emeraldcapitalism/client/renderer/BankOwnershipOverlayRenderer.java",
+      "checks": "Owned bank outlines render at the exact bank bounds, toggle per bank, clear on ownership/session changes, and do not leak stale client state."
     }
   ],
   "screens": [

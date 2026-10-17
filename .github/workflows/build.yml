@@ -12,11 +12,12 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup JDK 25
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'temurin'
+          cache: gradle
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -27,13 +28,86 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Verify porting setup and regression manifests
-        run: ./gradlew verifyPortSetup --console=plain
+        id: verify_port_setup
+        continue-on-error: true
+        run: ./gradlew verifyPortSetup --no-daemon --no-configuration-cache --console=plain
+
+      - name: Run unit tests
+        id: unit_tests
+        continue-on-error: true
+        run: ./gradlew test --no-daemon --no-configuration-cache --console=plain
+
+      - name: Compile 1.21.1
+        id: compile_1211
+        continue-on-error: true
+        run: ./gradlew :1.21.1:compileJava --no-daemon --no-configuration-cache --console=plain
+
+      - name: Compile 1.21.4
+        id: compile_1214
+        continue-on-error: true
+        run: ./gradlew :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain
 
       - name: Run 1.21.1 GameTests
-        run: ./gradlew :1.21.1:runGameTestServer --console=plain
+        id: gametest_1211
+        continue-on-error: true
+        run: ./gradlew :1.21.1:runGameTestServer --no-daemon --no-configuration-cache --console=plain
+
+      - name: Run 1.21.4 GameTests
+        id: gametest_1214
+        continue-on-error: true
+        run: ./gradlew :1.21.4:runGameTestServer --no-daemon --no-configuration-cache --console=plain
 
       - name: Audit 1.21.1 mixin units
-        run: ./gradlew :1.21.1:auditMixins --console=plain
+        id: audit_1211
+        continue-on-error: true
+        run: ./gradlew :1.21.1:auditMixins --no-daemon --no-configuration-cache --console=plain
+
+      - name: Audit 1.21.4 mixin units
+        id: audit_1214
+        continue-on-error: true
+        run: ./gradlew :1.21.4:auditMixins --no-daemon --no-configuration-cache --console=plain
 
       - name: Build with Gradle
-        run: ./gradlew build --console=plain
+        id: build
+        continue-on-error: true
+        run: ./gradlew build --no-daemon --no-configuration-cache --console=plain
+
+      - name: Upload verification artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-artifacts
+          if-no-files-found: ignore
+          path: |
+            logs/**
+            crash-reports/**
+            versions/*/logs/**
+            versions/*/crash-reports/**
+            versions/*/build/mixin-audit/**
+            build/reports/**
+            build/test-results/**
+            versions/*/build/reports/**
+            versions/*/build/test-results/**
+
+      - name: Enforce Phase 1 verification gate
+        if: ${{ always() }}
+        env:
+          VERIFY_PORT_SETUP: ${{ steps.verify_port_setup.outcome }}
+          UNIT_TESTS: ${{ steps.unit_tests.outcome }}
+          COMPILE_1211: ${{ steps.compile_1211.outcome }}
+          COMPILE_1214: ${{ steps.compile_1214.outcome }}
+          GAMETEST_1211: ${{ steps.gametest_1211.outcome }}
+          GAMETEST_1214: ${{ steps.gametest_1214.outcome }}
+          AUDIT_1211: ${{ steps.audit_1211.outcome }}
+          AUDIT_1214: ${{ steps.audit_1214.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+        run: |
+          test "$VERIFY_PORT_SETUP" = success
+          test "$UNIT_TESTS" = success
+          test "$COMPILE_1211" = success
+          test "$COMPILE_1214" = success
+          test "$GAMETEST_1211" = success
+          test "$GAMETEST_1214" = success
+          test "$AUDIT_1211" = success
+          test "$AUDIT_1214" = success
+          test "$BUILD" = success
