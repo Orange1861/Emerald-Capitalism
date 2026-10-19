@@ -230,6 +230,57 @@ tests listed directly under that phase before the phase may close. The
 developer then performs the stated manual verification. A focused passing test
 cannot substitute for the phase's gameplay gate.
 
+### How developer manual verification is performed
+
+There is no assumption that Emerald Capitalism has a player-facing AI debug
+UI. Luna is responsible for making every manual check runnable without the
+developer having to construct entities with NBT, edit Brain memories, locate
+internal IDs, or infer hidden state from source code.
+
+Starting in Phase 6, Luna must maintain a development/test-only QA command
+surface with these capabilities (the exact command spelling may follow the
+project's command conventions, but the phase run sheet must give copy-paste
+commands):
+
+- `scenario load <id>` creates or resets an isolated scenario with its
+  villagers, professions, village ownership, blocks, inventories, time,
+  weather, and observation markers already configured;
+- `scenario start` releases the actors to ordinary production AI;
+- `scenario action <id>` performs a named external event such as starting
+  panic, opening a trade, invalidating a target, removing a furnace, moving a
+  candidate, or preparing a chunk-unload boundary;
+- `scenario inspect [entity]` prints read-only information needed to judge the
+  test: active Brain activity, task and stage, relevant memories, village and
+  profession, leases, route state, and ladder/furnace ownership;
+- `scenario result` reports elapsed ticks and the scenario's observable pass
+  and failure conditions without changing AI state; and
+- `scenario reset` removes the isolated setup and transient QA records.
+
+These commands must be unavailable in normal production play. Setup and named
+external actions may be automated, but after `scenario start` the runner must
+not tick a behavior directly, install a path, write Brain movement memories,
+release a claim, teleport a working villager, force an interaction result, or
+otherwise manufacture the behavior being evaluated. Inspection is read-only.
+
+For every phase, Luna must add a short run sheet under
+`docs/qa/navigation/` containing:
+
+1. the exact `runClient` or server/client launch command for each applicable
+   Minecraft target;
+2. the exact scenario and action commands, expected starting camera location,
+   and any ordinary player input required;
+3. what should be visible, what `scenario inspect` and `scenario result`
+   should report, the maximum observation time, and unambiguous failure signs;
+4. exact save/quit/reopen, teleport-away/return, or server-restart steps where
+   lifecycle behavior is under test; and
+5. reset and cleanup instructions.
+
+Before Phase 6 creates the shared runner, Phases 1–4 use copy-paste vanilla or
+existing development commands supplied in their run sheets. Review-only
+phases may use a generated Markdown/HTML report instead of a game scenario.
+Video capture is optional evidence; it does not replace the run sheet or
+recorded result.
+
 ## Group I — Major architectural fixes for the mod
 
 ### Phase 1 — Restore a trustworthy build and port baseline
@@ -252,9 +303,13 @@ cannot substitute for the phase's gameplay gate.
 
 **Developer manual verification**
 
-- Launch one development client for each target, create or load a disposable
-  world, and confirm a normal villager can spawn, acquire a profession, and
-  walk without a crash or mixin error.
+- Luna supplies a Phase 1 run sheet with the exact 1.21.1 and 1.21.4
+  `runClient` commands plus copy-paste commands that create a disposable flat
+  world, one villager, a reachable workstation, and a bounded walking area.
+  The developer runs it once per target, assigns the profession by placing the
+  workstation as directed, and observes until the villager walks and claims
+  it. Pass means no crash, mixin error, frozen entity, or target-specific setup
+  difference; the run sheet identifies the relevant log file if launch fails.
 
 **Gate:** both targets reach and execute tests in CI. No gameplay behavior is
 changed in this phase.
@@ -281,9 +336,13 @@ changed in this phase.
 
 **Developer manual verification**
 
-- Review the inventory for farmer, lumberjack, mayor, banker, smith,
-  avoidance, and begging; confirm each has exactly one future scheduler and a
-  named activity.
+- Luna generates the ownership inventory as a Markdown or HTML report with one
+  row per farmer, lumberjack, mayor, banker, smith, avoidance, and begging
+  producer. The developer opens the linked report and checks that every row
+  names its current executor, target Brain activity, memory writes, claim
+  scope, persistence class, migration phase, and the legacy path to remove.
+  Pass requires exactly one target scheduler per row and no unexplained direct
+  navigation or global claim entry; no in-game UI is involved.
 
 **Gate:** every current producer has a documented owner and migration
 destination, and no ambiguous global task state remains in the plan.
@@ -309,9 +368,14 @@ destination, and no ambiguous global task state remains in the plan.
 
 **Developer manual verification**
 
-- Start a multi-stage job, save and reload mid-job, and confirm the villager
-  resumes safely or reacquires work without frozen movement, duplicated work,
-  or an immortal claim.
+- Luna supplies a temporary Phase 3 `state_reload` scenario command and tells
+  the developer which visible stage and console marker indicate that the
+  worker is mid-job. At that marker, the developer uses Save and Quit, relaunches
+  the same development target, and reopens the world. Luna also supplies a
+  read-only inspection command or log query for outstanding leases before and
+  after reload. Pass means the same villager safely resumes or reacquires once,
+  with no duplicated world effect, frozen movement, or pre-reload transient
+  claim. This scenario is migrated to the common runner in Phase 6.
 
 **Gate:** all transient state has a single cleanup owner and no execution-only
 record is serialized as authoritative gameplay state.
@@ -335,8 +399,13 @@ record is serialized as authoritative gameplay state.
 
 **Developer manual verification**
 
-- Compare the two version implementations for one representative task and
-  confirm that only Minecraft API wiring differs, not gameplay policy.
+- Luna generates a version-boundary report listing common task files beside
+  each 1.21.1/1.21.4 adapter file and a semantic diff for one representative
+  task. The developer reviews the report rather than searching the codebase:
+  gameplay stages, retry rules, claims, and outcomes must appear once in common
+  code, while only package construction and Minecraft API calls may differ.
+  The developer then runs the Phase 1 smoke scene on both targets and compares
+  the supplied `scenario result` equivalent.
 
 **Gate:** future Minecraft ports have a narrow list of adapter touchpoints
 instead of copies of every profession behavior.
@@ -361,8 +430,12 @@ instead of copies of every profession behavior.
 
 **Developer manual verification**
 
-- Inspect the coverage report and confirm it clearly distinguishes helper
-  correctness from real scheduled behavior.
+- Luna generates a linked coverage matrix grouped by acceptance item with
+  separate columns for unit, component, natural-AI, and manual evidence. The
+  developer opens the report and spot-checks farmer, ladder contention,
+  begging, and lumberjack entries. Any test that injects a path, manually ticks
+  AI, releases ownership, or removes the actor must be visibly labeled
+  component coverage and cannot occupy the natural-AI column.
 
 **Gate:** the suite can no longer turn an artificial component setup into a
 claim that player-visible behavior works.
@@ -376,6 +449,9 @@ claim that player-visible behavior works.
 - Standardize time of day, weather, gamerules, inventories, points of
   interest, reachability, and observation timeouts.
 - Observe world and inventory outcomes instead of private test hooks.
+- Implement the development/test-only scenario load, start, action, inspect,
+  result, and reset capabilities defined above. Reuse the same fixture
+  builders for automated tests and manual scenes so the two do not drift.
 
 **Luna automated verification**
 
@@ -383,11 +459,18 @@ claim that player-visible behavior works.
   receives no handcrafted path, and is not manually ticked.
 - Add reachable, unreachable, interrupted, and two-villager contention
   fixture variants.
+- Add permission/environment tests proving QA commands are unavailable in a
+  normal production server or client.
 
 **Developer manual verification**
 
-- Watch one generated fixture world in a client and confirm its setup matches
-  the scenario the test claims to exercise.
+- After launching the client with the run-sheet command, the developer runs
+  `scenario load fixture_reachable`, checks the marked start, target, village,
+  and obstacle locations, then runs `scenario start`. Spectator mode may be
+  used for observation but not to move actors or blocks. The developer runs
+  `scenario inspect` and `scenario result` after the documented timeout and
+  repeats with `fixture_unreachable`; the two scenes must differ only in the
+  intended reachability condition and must use production Brain scheduling.
 
 **Gate:** future behavior phases can express natural journeys without copying
 fragile world setup or controlling the result from the test.
@@ -412,9 +495,13 @@ fragile world setup or controlling the result from the test.
 
 **Developer manual verification**
 
-- In a mixed village, observe a full day/night cycle including work, social
-  time, sleep, panic, and trading; record any pre-existing deviations before
-  migration starts.
+- The developer loads `vanilla_baseline_mixed_village`, starts it, and follows
+  the run sheet's accelerated-but-valid schedule checkpoints for work, meet,
+  rest, and sleep. At the named checkpoints, `scenario action trade` and
+  `scenario action panic` create external interruptions; they do not edit AI
+  memories. The developer records `scenario result` plus any visible failure
+  such as missed sleep, ignored panic, stuck trading, or failure to return to
+  schedule. Luna records these as the pre-migration baseline.
 
 **Gate:** later phases can identify whether a change fixed a mod feature while
 breaking vanilla villagers.
@@ -454,11 +541,19 @@ breaking vanilla villagers.
 
 **Developer manual verification**
 
-- Interrupt a representative worker by panic, trading, sleep, and chunk
-  unload; confirm it neither freezes nor resumes obsolete work.
-- For a performance-sensitive change, review one Luna-generated before/after
-  report and confirm both runs completed the same visible work before
-  accepting a claimed improvement.
+- The developer loads `interruption_representative`, starts it, waits for the
+  inspect output to report the documented movement or interaction stage, and
+  invokes the run sheet's `panic`, `trade`, and `advance_to_sleep` actions in
+  separate resets. For unload, the command places the developer at the correct
+  boundary; the developer teleports away, waits for the stated interval, and
+  returns. Pass requires prompt interruption, no stale inspected ownership,
+  and either documented resumption or clean reacquisition.
+- For a performance-sensitive change, Luna runs the benchmark command and
+  links the generated before/after report. The developer does not time the
+  game by hand; they confirm the report used matching seed, population,
+  warm-up, measurement window, and completed outcomes, then watch the supplied
+  benchmark scene once for visible jitter or abandoned work before accepting
+  the performance claim.
 
 **Gate:** every later phase has reusable automated and human checks for the
 most common regression pattern—interruption followed by stale state—and Luna
@@ -485,8 +580,12 @@ performance evidence is needed.
 
 **Developer manual verification**
 
-- Observe an unmodified farmer and one other profession for a day/night cycle
-  with the seam enabled; confirm no change in schedule or movement.
+- Luna provides paired `brain_seam_off` and `brain_seam_on` scenarios with the
+  same seed and actors. The developer starts each, uses the run-sheet schedule
+  checkpoints, and compares the generated result summaries for one farmer and
+  one other profession. Pass requires matching work, meet, rest, sleep, and
+  path outcomes; the no-op behavior may appear in read-only inspection but
+  must produce no visible action or memory conflict.
 
 **Gate:** the integration point exists on both targets without changing
 gameplay.
@@ -511,9 +610,13 @@ gameplay.
 
 **Developer manual verification**
 
-- Enable scheduler diagnostics in a mixed village and confirm each visible
-  action corresponds to one active Brain behavior, without rapid start/stop
-  oscillation.
+- The developer loads `scheduler_single_owner_mixed`, starts it, and runs
+  `scenario inspect` on the marked villagers while they begin work. The
+  inspection output must show the active Brain behavior, task ID, start count,
+  stop count, and whether any legacy executor is active. Pass requires one
+  Brain-owned executor for the pilot feature, no legacy executor, and no
+  repeated start/stop sequence beyond the run sheet's allowed interruption
+  points.
 
 **Gate:** the Brain is demonstrably the only scheduler for one pilot task and
 the pattern is ready for other behaviors.
@@ -538,9 +641,12 @@ the pattern is ready for other behaviors.
 
 **Developer manual verification**
 
-- Watch a multi-stage pilot job through arrival, interaction, continuation,
-  interruption, and resumption; confirm diagnostics match what occurs in the
-  world.
+- The developer loads `task_lifecycle_pilot`, starts it, and uses inspection at
+  the marked acquire, move, interact, and continue checkpoints. At the
+  documented intermediate route arrival, the task must remain incomplete.
+  The developer then invokes the named interruption action and checks that the
+  visible stop/resumption or reacquisition matches the reported lifecycle and
+  claim state. `scenario result` must show one final world effect.
 
 **Gate:** all later profession migrations use one lifecycle vocabulary and
 cannot mistake route completion for job completion.
@@ -567,8 +673,14 @@ cannot mistake route completion for job completion.
 
 **Developer manual verification**
 
-- Observe a villager approach a block and a moving entity, then trigger panic
-  mid-route; confirm immediate safety movement and clean later recovery.
+- The developer runs `movement_static_target` and
+  `movement_moving_entity` separately. In the moving scene, the run sheet tells
+  the developer whether to walk a marked player route or invoke a deterministic
+  candidate-motion action. During each route, the developer invokes `panic`
+  at the marked position, then uses inspection to confirm the safety activity
+  replaced movement intent without an old snapshot returning afterward.
+  Pass requires visible redirection and clean recovery within the stated tick
+  limits.
 
 **Gate:** the pilot task completes real journeys without
 `MovementRequestManager` or direct navigation ownership.
@@ -592,9 +704,12 @@ cannot mistake route completion for job completion.
 
 **Developer manual verification**
 
-- Trigger each high-priority interruption while a pilot worker is travelling
-  and interacting; verify responsive behavior rather than delayed or
-  alternating movement.
+- The developer loads `activity_priority_pilot` and runs separate resets for
+  panic, raid, sleep, trade, meeting, and profession-loss actions. Each action
+  is supplied by the QA runner at both a travel checkpoint and, where
+  applicable, an interaction checkpoint. Inspection must show exactly one
+  winning activity and no alternating walk target. The run sheet states
+  whether the original task should resume or reacquire after each action.
 
 **Gate:** vanilla safety and schedule behavior wins deterministically without
 custom preemption arbitration.
@@ -620,9 +735,14 @@ custom preemption arbitration.
 
 **Developer manual verification**
 
-- Watch workers traverse each structure in both directions, including ladder
-  contention and a gate closing during travel; check for clipping,
-  teleportation, jitter, or permanent blockage.
+- The developer runs the scenario playlist `route_capabilities_manual`, which
+  pauses before door, closed-gate, obstacle, short-ladder, tall-ladder,
+  descent, invalid-exit, and two-worker contention scenes. After starting each
+  scene, the developer only observes or invokes the specifically named
+  close-gate/invalidate-exit action. Pass requires natural entry and exit,
+  continued travel to the real task target, no clipping or teleportation, and
+  an empty claim report at completion. The runner records the entity and exit
+  coordinates so permanent blockage is unambiguous.
 
 **Gate:** route capabilities work for the pilot task without profession-aware
 code and do not alter unrelated vanilla villagers.
@@ -651,9 +771,13 @@ code and do not alter unrelated vanilla villagers.
 
 **Developer manual verification**
 
-- Observe at least two farmers for a full work period on a mixed farm; verify
-  normal crops, pumpkins, repair, and bread behavior without oscillation or
-  one farmer monopolizing all work.
+- The developer loads `farmer_mixed_work`, which contains two normally
+  registered farmers, labeled crop/pumpkin/repair/bread targets, the required
+  inventories, and a fixed work period. After `scenario start`, no task is
+  manually selected. The developer watches until `scenario result` or the
+  documented timeout, uses inspection only if a farmer stalls, and checks the
+  labeled world/inventory outcomes plus claim ownership. Pass requires both
+  farmers to remain useful without oscillation or permanent monopolization.
 
 **Gate:** ordinary farmer gameplay works before and after mod work, with no
 stale walk target or claim.
@@ -678,9 +802,13 @@ stale walk target or claim.
 
 **Developer manual verification**
 
-- Drop seeds and profession-relevant items at near and path-requiring
-  distances after a villager finishes work; verify eligible pickup and clean
-  abandonment when blocked.
+- The developer loads `wanted_items_manual`; the runner supplies labeled
+  eligible, rejected, full-inventory, and unreachable actors and item-drop
+  locations. Named actions drop the exact items only after inspection reports
+  that prior work has stopped. The developer observes near and path-requiring
+  pickups and the unreachable timeout, then checks inventories and the
+  ownership report. The command creates the setup but does not give the
+  villager a walk target or force pickup.
 
 **Gate:** policy failures are not mislabeled as pathing failures, and eligible
 pickup is no longer suppressed by mod movement state.
@@ -720,12 +848,21 @@ pickup is no longer suppressed by mod movement state.
 
 **Developer manual verification**
 
-- Watch one complete small and one tall tree cycle, then interrupt a third
-  cycle; confirm continuity, drop handling, production, replanting, and safe
-  resumption or reacquisition.
-- Run at least three lumberjacks with one furnace, then remove or obstruct that
-  furnace during production; confirm workers serialize access and remain
-  responsive without duplicating furnaces, jobs, fuel, or outputs.
+- The developer runs `lumberjack_small_tree` and `lumberjack_tall_tree`. Each
+  scene marks the selected tree, expected accepted drops, production station,
+  and replant position. After starting, the developer does not break logs or
+  select the next target; they observe until the result reports every stage
+  and then compare the labeled inventory, furnace, and replanted block. A
+  third reset uses the named panic action at the documented middle-log stage
+  and checks the stated resume/reacquire result.
+- The developer then loads `lumberjack_shared_furnace`, containing at least
+  three lumberjacks and one furnace. Inspection shows the current furnace
+  lease. The developer invokes the remove-or-obstruct action only after the
+  first production claim, then observes bounded backoff and recovery. Pass
+  requires serialized access before removal, responsive workers afterward,
+  and result totals showing no duplicated furnace, job, fuel, input, or
+  output. Luna provides a second reset that restores capacity so eventual
+  progress can be observed.
 
 **Gate:** the player-observed one-log-then-walk-away regression is reproduced
 by a test first and eliminated in ordinary gameplay.
@@ -749,8 +886,14 @@ by a test first and eliminated in ordinary gameplay.
 
 **Developer manual verification**
 
-- Walk a candidate through turns, doors, and a moderate route while the mayor
-  follows, then cancel eligibility; separately observe a complete door repair.
+- The developer loads `mayor_candidate_follow`, stands on the marked route,
+  starts the scenario, and walks through its numbered turns and door at normal
+  speed; inspection identifies the mayor's live tracker but does not move it.
+  At the final marker, the developer invokes the eligibility-off action and
+  confirms following stops without oscillation or a stale destination. The
+  separate `mayor_door_repair` scene is started and observed until the marked
+  door and result report confirm exactly one completed repair and released
+  claim.
 
 **Gate:** mayor movement follows current entity position smoothly and civic
 work never leaves stale movement or claims.
@@ -774,9 +917,13 @@ work never leaves stale movement or claims.
 
 **Developer manual verification**
 
-- Observe multiple bankers using the same and different bank locations; check
-  for crowding loops, cross-village work, duplicate inventory effects, and
-  failure to resume normal schedule.
+- The developer loads `banker_shared_and_separate_banks`, which labels two
+  villages, their bankers, bank locations, and starting inventories. After
+  starting, the developer observes the marked common approach and separate
+  locations until the result timeout. Inspection must show village, bank,
+  reservation, and task stage for any waiting banker. Pass requires no
+  cross-village target, crowding loop, duplicate inventory effect, or failure
+  to return to the normal schedule.
 
 **Gate:** bank-related movement uses the common lifecycle without expanding
 into unrelated persistence or performance work.
@@ -799,8 +946,14 @@ into unrelated persistence or performance work.
 
 **Developer manual verification**
 
-- Observe a complete processing cycle and construction cycle, then invalidate
-  each target during travel and confirm no phantom consumption or build.
+- The developer runs `emerald_processing_manual` and
+  `golem_construction_manual` once to completion, using the labeled input,
+  output, and site markers to verify one transactional result. On separate
+  resets, the developer waits for the travel-stage marker and invokes the
+  invalidate-target action. Result and inspection must show released claims,
+  unchanged or correctly refunded materials, and no phantom output or
+  construction. The runner may invalidate the target but may not force task
+  success or failure directly.
 
 **Gate:** both behaviors use the shared task/movement contract and preserve
 transactional gameplay outcomes.
@@ -828,9 +981,17 @@ transactional gameplay outcomes.
 
 **Developer manual verification**
 
-- Trigger each fear source separately while villagers are idle, working, and
-  socializing; verify prompt escape and clean return. Observe reachable and
-  blocked begging and confirm emeralds transfer only after arrival.
+- The developer uses `fear_idle`, `fear_work`, and `fear_social`, resetting
+  each for the boat, plague, and hostile-player threat actions. The run sheet
+  marks the threat origin and minimum safe area; inspection reports the active
+  safety activity and stop reason. Pass requires prompt visible escape,
+  bounded scan frequency, and the documented clean return when the threat is
+  removed.
+- The developer then runs `begging_reachable` and `begging_unreachable`. The
+  donor and emerald counts are labeled before start. The developer does not
+  move either actor after start. Transfer must occur only after visible arrival
+  in the reachable scene; the unreachable scene must reach its documented
+  timeout with unchanged counts and no inspected movement or task ownership.
 
 **Gate:** fear behaviors preempt safely without fighting Brain movement, and
 begging cannot pay at a distance or leak state.
@@ -861,9 +1022,14 @@ begging cannot pay at a distance or leak state.
 
 **Developer manual verification**
 
-- Play a mixed village through work, meeting, panic, trading, sleep, chunk
-  unload/reload, and server restart with diagnostics enabled; confirm no
-  legacy execution appears and no villager remains frozen.
+- Luna supplies `mixed_village_legacy_retirement` and a run sheet split into
+  work, meet, panic, trade, sleep, unload/reload, and restart checkpoints. The
+  developer starts the scene, invokes only the named external actions, and
+  saves/quits/reopens when instructed. After each checkpoint, the developer
+  captures `scenario inspect` and `scenario result`; output must include a
+  legacy-executor count of zero. After restart, every marked villager must
+  either resume a valid activity or naturally reacquire one, with no stale
+  ownership.
 
 **Gate:** there is one villager scheduler and one ordinary route executor in
 production, with all transitional ownership code removed.
@@ -891,9 +1057,14 @@ production, with all transitional ownership code removed.
 
 **Developer manual verification**
 
-- Run a dense mixed village long enough to observe a work period and inspect
-  server tick behavior, visible jitter, stalled villagers, and diagnostic
-  counters before accepting an optimization.
+- Luna runs the standardized Phase 8 benchmark before and after the candidate
+  optimization and supplies both raw reports plus the comparison report. The
+  developer verifies matching environment metadata and outcome totals, then
+  loads the corresponding `benchmark_mixed_village` scene and watches one
+  fixed measurement window shown by the scenario timer. The developer records
+  visible jitter, stalled workers, crowding, or abandoned tasks; server timing
+  and operation-count conclusions come from the generated report rather than
+  manual stopwatch timing.
 
 **Gate:** repeated work is bounded and reduced without reducing task success,
 changing retries, or hiding regressions through earlier abandonment.
@@ -929,11 +1100,19 @@ git diff --check
 
 **Developer manual verification**
 
-- On both targets, perform the complete farmer, wanted-item, lumberjack,
-  mayor, banker, processor/construction, avoidance, begging, door/gate, ladder,
-  interruption, unload/reload, and restart journeys from the phase checklist.
-- Repeat with the project's supported compatibility-mod set and record any mod
-  that replaces the same Brain or navigation seams.
+- Luna generates a release run sheet that lists the exact client command and
+  ordered scenario playlist for farmer, wanted-item, lumberjack, mayor,
+  banker, processor/construction, avoidance, begging, route capabilities,
+  interruption, unload/reload, and restart. The developer runs that playlist
+  once on 1.21.1 and once on 1.21.4, records each `scenario result`, and notes
+  only the visual checks called out by the individual phase run sheets. The
+  playlist must reset between scenarios and may not skip a failure.
+- Luna also supplies one launch profile per supported compatibility-mod set.
+  The developer repeats the reduced compatibility playlist and records the
+  loaded mod versions and results. If a mod replaces the same Brain package,
+  activity priority, memory, sink, path evaluator, door/gate behavior, or
+  navigation seam, Luna identifies the overlap in the report; the developer
+  is not expected to discover it through an unavailable UI.
 
 **Gate:** all automated checks and the developer checklist pass on both
 targets, no generated artifact is tracked, and the exact-commit release report

@@ -50,12 +50,24 @@ jobs:
       - name: Run 1.21.1 GameTests
         id: gametest_1211
         continue-on-error: true
-        run: ./gradlew :1.21.1:runGameTestServer --no-daemon --no-configuration-cache --console=plain
+        run: |
+          mkdir -p build/reports/phase1
+          set +e
+          ./gradlew :1.21.1:runGameTestServer --no-daemon --no-configuration-cache --console=plain 2>&1 | tee build/reports/phase1/gametest-1.21.1.log
+          status=${PIPESTATUS[0]}
+          set -e
+          exit "$status"
 
       - name: Run 1.21.4 GameTests
         id: gametest_1214
         continue-on-error: true
-        run: ./gradlew :1.21.4:runGameTestServer --no-daemon --no-configuration-cache --console=plain
+        run: |
+          mkdir -p build/reports/phase1
+          set +e
+          ./gradlew :1.21.4:runGameTestServer --no-daemon --no-configuration-cache --console=plain 2>&1 | tee build/reports/phase1/gametest-1.21.4.log
+          status=${PIPESTATUS[0]}
+          set -e
+          exit "$status"
 
       - name: Audit 1.21.1 mixin units
         id: audit_1211
@@ -71,6 +83,64 @@ jobs:
         id: build
         continue-on-error: true
         run: ./gradlew build --no-daemon --no-configuration-cache --console=plain
+
+      - name: Report Phase 1 evidence
+        id: phase1_evidence
+        if: ${{ always() }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          batch_pattern = re.compile(r"Running test batch '[^']+' \((\d+) tests?\)")
+
+          def game_test_count(path):
+              log_path = Path(path)
+              if not log_path.is_file():
+                  return 0
+              text = log_path.read_text(encoding='utf-8', errors='replace')
+              return sum(int(count) for count in batch_pattern.findall(text))
+
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          java_version = subprocess.run(
+              ['java', '-version'],
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              text=True,
+              check=True,
+          ).stdout.splitlines()[0]
+          counts = {
+              '1.21.1': game_test_count('build/reports/phase1/gametest-1.21.1.log'),
+              '1.21.4': game_test_count('build/reports/phase1/gametest-1.21.4.log'),
+          }
+
+          print(f'Phase 1 commit: {commit}')
+          print(f'Phase 1 Java: {java_version}')
+          for target, count in counts.items():
+              print(f'Phase 1 GameTests ({target}): {count}')
+
+          summary = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary:
+              with open(summary, 'a', encoding='utf-8') as output:
+                  output.write('## Phase 1 verification evidence\n\n')
+                  output.write(f'- Commit: `{commit}`\n')
+                  output.write(f'- Java: `{java_version}`\n\n')
+                  output.write('| Target | Executed GameTests |\n')
+                  output.write('| --- | ---: |\n')
+                  for target, count in counts.items():
+                      output.write(f'| {target} | {count} |\n')
+
+          missing = [target for target, count in counts.items() if count <= 0]
+          if missing:
+              print(
+                  'Phase 1 GameTest evidence is missing for: ' + ', '.join(missing),
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          PY
 
       - name: Upload verification artifacts
         if: ${{ always() }}
@@ -101,6 +171,7 @@ jobs:
           AUDIT_1211: ${{ steps.audit_1211.outcome }}
           AUDIT_1214: ${{ steps.audit_1214.outcome }}
           BUILD: ${{ steps.build.outcome }}
+          PHASE1_EVIDENCE: ${{ steps.phase1_evidence.outcome }}
         run: |
           test "$VERIFY_PORT_SETUP" = success
           test "$UNIT_TESTS" = success
@@ -111,3 +182,4 @@ jobs:
           test "$AUDIT_1211" = success
           test "$AUDIT_1214" = success
           test "$BUILD" = success
+          test "$PHASE1_EVIDENCE" = success
