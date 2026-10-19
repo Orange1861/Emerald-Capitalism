@@ -17,6 +17,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
+import java.security.MessageDigest
 import java.util.regex.Pattern
 
 /** Runs the full suite in fresh JVMs while subtracting one declared mixin unit at a time. */
@@ -72,30 +73,40 @@ abstract class MixinAuditTask extends DefaultTask {
         Map manifest = readJson(manifestFile.get().asFile.toPath())
         List<Map> mixinConfigs = readMixinConfigs(repository, manifest, mixinConfigFile.get().asFile.toPath())
         Set<String> configuredMixins = mixinConfigs.collectMany { it.names as List<String> } as Set<String>
+        Set<String> serverMixins = mixinConfigs.findAll { it.side == 'server' }
+                .collectMany { it.names as List<String> } as Set<String>
         List<Map> units = (manifest.units ?: []) as List<Map>
         Set<String> discoveredTests = discoverGameTests(repository.resolve('src/main/java'))
         validateManifest(repository, manifest, mixinConfigs, configuredMixins, units, discoveredTests)
 
         List<String> classpath = buildClasspath(repository, buildRoot)
         List<Map> results = []
-        Map baseline = runVariant(repository, auditRoot, 'baseline', [], classpath)
-        baseline.classification = baseline.completed && baseline.allRequiredPassed && baseline.exitCode == 0
+        Map baseline = runVariant(repository, auditRoot, 'baseline', [], classpath, serverMixins)
+        baseline.classification = baseline.completed && baseline.allRequiredPassed && baseline.exitCode == 0 &&
+                baseline.mixinEvidenceValid
                 ? 'BASELINE_PASSED' : 'BASELINE_FAILED'
+        if (baseline.classification == 'BASELINE_FAILED') {
+            baseline.reason = baseline.mixinEvidenceValid
+                    ? 'The fresh baseline reached the GameTest completion marker but required tests failed.'
+                    : 'Required server mixin application evidence was missing or disagreed with the requested audit variant.'
+        }
         results.add(baseline)
 
         if (baseline.classification == 'BASELINE_PASSED') {
             units.findAll { (it.auditMode ?: 'gametest') == 'gametest' }.each { Map unit ->
                 Map result = runVariant(repository, auditRoot, unit.id as String,
-                        (unit.mixins as List).collect { it as String }, classpath)
+                        (unit.mixins as List).collect { it as String }, classpath, serverMixins)
                 Set<String> mappedTests = (unit.tests as List).collect { (it as String).toLowerCase(Locale.ROOT) } as Set
                 Set<String> failures = (result.failedTests as List).collect {
                     (it as String).toLowerCase(Locale.ROOT)
                 } as Set
 
-                if (!result.completed || !result.selectorConfirmed) {
+                if (!result.completed || !result.selectorConfirmed || !result.mixinEvidenceValid) {
                     result.classification = 'AUDIT_ERROR'
                     result.reason = !result.selectorConfirmed
                             ? 'The audit selector did not confirm the requested unit.'
+                            : !result.mixinEvidenceValid
+                            ? 'Required server mixin application evidence was missing or disagreed with the requested audit variant.'
                             : 'The fresh GameTest JVM did not reach suite completion.'
                 } else if (result.allRequiredPassed && result.exitCode == 0) {
                     result.classification = 'REMOVAL_CANDIDATE'
@@ -126,12 +137,25 @@ abstract class MixinAuditTask extends DefaultTask {
             ])
         }
 
+        String gitCommit = readGitCommit(repository)
+        String javaVersion = readJavaVersion()
+        String generatedAt = new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")
         Map report = [
-                schemaVersion   : 1,
-                generatedAt     : new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX"),
-                mixinConfigs    : mixinConfigs.collect { [path: it.path, side: it.side, entryKey: it.entryKey] },
+                schemaVersion    : 2,
+                generatedAt      : generatedAt,
+                gitCommit        : gitCommit,
+                javaVersion      : javaVersion,
+                manifest         : [path: repository.relativize(manifestFile.get().asFile.toPath()).toString().replace('\\', '/'),
+                                    sha256: MixinAuditTask.sha256(manifestFile.get().asFile.toPath())],
+                mixinConfigs     : mixinConfigs.collect {
+                    [path: it.path, side: it.side, entryKey: it.entryKey,
+                     sha256: MixinAuditTask.sha256(repository.resolve(it.path as String))]
+                },
                 configuredMixins : configuredMixins.toList().sort(),
+                serverMixins     : serverMixins.toList().sort(),
                 discoveredTests  : discoveredTests.toList().sort(),
+                artifacts        : [mergedMinecraftJar: [path: mergedMinecraftJar.get().asFile.absolutePath,
+                                                         sha256: MixinAuditTask.sha256(mergedMinecraftJar.get().asFile.toPath())]],
                 results          : results
         ]
         Path jsonReport = reportRoot.resolve('report.json')
@@ -385,7 +409,7 @@ abstract class MixinAuditTask extends DefaultTask {
     }
 
     private Map runVariant(Path repository, Path auditRoot, String unit, List<String> disabledMixins,
-                           List<String> classpath) {
+                           List<String> classpath, Set<String> serverMixins) {
         Path variantDirectory = auditRoot.resolve(unit)
         Files.createDirectories(variantDirectory)
         copyTree(repository.resolve('gameteststructures'), variantDirectory.resolve('gameteststructures'))
@@ -429,6 +453,19 @@ abstract class MixinAuditTask extends DefaultTask {
         boolean allRequiredPassed = text =~ /All \d+ required tests passed/
         boolean selectorConfirmed = text.contains("MIXIN_AUDIT_ACTIVE unit=${unit}")
         List<String> failedTests = parseRequiredFailures(text)
+        Map<String, Boolean> mixinDecisions = parseMixinDecisions(text, unit)
+        Set<String> expectedApplied = new LinkedHashSet<>(serverMixins)
+        expectedApplied.removeAll(disabledMixins as Set<String>)
+        Set<String> missingMixinDecisions = new TreeSet<>(serverMixins)
+        missingMixinDecisions.removeAll(mixinDecisions.keySet())
+        Set<String> unappliedRequiredMixins = new TreeSet<>(expectedApplied.findAll {
+            mixinDecisions[it] != Boolean.TRUE
+        })
+        Set<String> disabledMixinsStillApplied = new TreeSet<>((disabledMixins as Set<String>).findAll {
+            mixinDecisions[it] == Boolean.TRUE
+        })
+        boolean mixinEvidenceValid = missingMixinDecisions.isEmpty() && unappliedRequiredMixins.isEmpty() &&
+                disabledMixinsStillApplied.isEmpty()
         return [
                 unit              : unit,
                 disabledMixins    : disabledMixins,
@@ -436,10 +473,59 @@ abstract class MixinAuditTask extends DefaultTask {
                 completed         : completed,
                 allRequiredPassed : allRequiredPassed,
                 selectorConfirmed : selectorConfirmed,
+                mixinDecisions    : mixinDecisions,
+                missingMixinDecisions: missingMixinDecisions.toList(),
+                unappliedRequiredMixins: unappliedRequiredMixins.toList(),
+                disabledMixinsStillApplied: disabledMixinsStillApplied.toList(),
+                mixinEvidenceValid: mixinEvidenceValid,
                 failedTests       : failedTests,
                 directory         : variantDirectory.toString(),
-                log               : latestLog.toString()
+                log               : latestLog.toString(),
+                logSha256         : MixinAuditTask.sha256(Files.isRegularFile(latestLog) ? latestLog : consoleLog)
         ]
+    }
+
+    private static Map<String, Boolean> parseMixinDecisions(String text, String unit) {
+        Map<String, Boolean> decisions = new LinkedHashMap<>()
+        Pattern pattern = Pattern.compile('MIXIN_AUDIT_MIXIN unit=([A-Za-z0-9-]+) mixin=([A-Za-z0-9_$]+) applied=(true|false)')
+        def matcher = pattern.matcher(text)
+        while (matcher.find()) {
+            if (matcher.group(1) == unit) {
+                decisions[matcher.group(2)] = matcher.group(3) == 'true'
+            }
+        }
+        decisions
+    }
+
+    private static String sha256(Path path) {
+        if (!Files.isRegularFile(path)) {
+            throw new GradleException("Cannot fingerprint missing audit input: ${path}")
+        }
+        byte[] digest = MessageDigest.getInstance('SHA-256').digest(Files.readAllBytes(path))
+        digest.collect { String.format('%02x', it & 0xff) }.join()
+    }
+
+    private static String readGitCommit(Path repository) {
+        Process process = new ProcessBuilder('git', 'rev-parse', 'HEAD')
+                .directory(repository.toFile())
+                .redirectErrorStream(true)
+                .start()
+        String output = process.inputStream.getText(StandardCharsets.UTF_8.name()).trim()
+        if (process.waitFor() != 0 || output.isEmpty()) {
+            throw new GradleException("Could not identify the audited Git commit: ${output}")
+        }
+        output
+    }
+
+    private String readJavaVersion() {
+        Process process = new ProcessBuilder(javaExecutable.get(), '-version')
+                .redirectErrorStream(true)
+                .start()
+        String output = process.inputStream.getText(StandardCharsets.UTF_8.name()).trim()
+        if (process.waitFor() != 0 || output.isEmpty()) {
+            throw new GradleException("Could not identify the audit Java runtime: ${output}")
+        }
+        output.readLines().find { it.contains('version') } ?: output.readLines().first()
     }
 
     private static List<String> parseRequiredFailures(String text) {

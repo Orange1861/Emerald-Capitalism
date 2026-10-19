@@ -96,6 +96,9 @@ config/emeraldcapitalism-common-1.toml.bak
 *.md
 !docs/plans/navigation-refactor-implementation.md
 !docs/plans/deferred-non-pathing-audit-findings.md
+!docs/qa/
+!docs/qa/navigation/
+!docs/qa/navigation/phase-1-environment-verification.md
 !Books needed to write.md
 /config
 *.gz

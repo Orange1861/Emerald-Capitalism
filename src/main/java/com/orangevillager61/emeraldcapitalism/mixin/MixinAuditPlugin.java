@@ -31,6 +31,7 @@ public final class MixinAuditPlugin implements IMixinConfigPlugin {
     private static final Pattern JSON_STRING = Pattern.compile("\\\"([^\\\"]+)\\\"");
 
     private Set<String> disabledMixins = Set.of();
+    private String auditUnit;
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -38,8 +39,8 @@ public final class MixinAuditPlugin implements IMixinConfigPlugin {
             return;
         }
 
-        String unit = System.getProperty(AUDIT_UNIT, "").trim();
-        if (unit.isEmpty()) {
+        auditUnit = System.getProperty(AUDIT_UNIT, "").trim();
+        if (auditUnit.isEmpty()) {
             throw new IllegalStateException("Mixin audit marker is set without an audit unit");
         }
 
@@ -59,7 +60,8 @@ public final class MixinAuditPlugin implements IMixinConfigPlugin {
         }
 
         disabledMixins = Set.copyOf(requested);
-        LOGGER.warn("MIXIN_AUDIT_ACTIVE unit={} disabledMixins={}", unit, disabledMixins);
+        LOGGER.warn("MIXIN_AUDIT_ACTIVE unit={} configuredMixins={} disabledMixins={}",
+                auditUnit, configuredMixins.size(), disabledMixins);
     }
 
     private static Set<String> loadConfiguredMixins() {
@@ -92,7 +94,11 @@ public final class MixinAuditPlugin implements IMixinConfigPlugin {
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         int separator = mixinClassName.lastIndexOf('.');
         String simpleName = separator < 0 ? mixinClassName : mixinClassName.substring(separator + 1);
-        return !disabledMixins.contains(simpleName);
+        boolean apply = !disabledMixins.contains(simpleName);
+        if (auditUnit != null) {
+            LOGGER.info("MIXIN_AUDIT_MIXIN unit={} mixin={} applied={}", auditUnit, simpleName, apply);
+        }
+        return apply;
     }
 
     @Override
