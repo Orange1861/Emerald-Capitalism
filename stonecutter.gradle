@@ -228,9 +228,296 @@ tasks.register('verifyRegressionCoverage') {
     }
 }
 
+tasks.register('verifyNavigationArchitecture') {
+    group = 'verification'
+    description = 'Validates the Phase 2 scheduler, ownership, scope, and navigation architecture inventory.'
+
+    doLast {
+        Map manifest = readPortingJson(file('gradle/navigation-architecture.json'))
+        List<String> errors = []
+        def asList = { Object value -> value instanceof Collection ? value as List : [] }
+        def text = { Object value -> value == null ? '' : value.toString().trim() }
+        def paths = { Map entry -> asList(entry.sourcePaths).collect { it.toString().replace('\\', '/') } }
+        def requireText = { String label, Object value ->
+            if (!text(value)) errors.add("${label} must be documented")
+        }
+        def requireList = { String label, Object value ->
+            if (asList(value).isEmpty()) errors.add("${label} must not be empty")
+        }
+        def validPhases = asList(manifest.validMigrationPhases).collect { it as Integer } as Set<Integer>
+        if (manifest.schemaVersion != 2 || manifest.phase != 2) {
+            errors.add('gradle/navigation-architecture.json must use schemaVersion 2 and phase 2')
+        }
+        if (validPhases != (8..22) as Set<Integer>) {
+            errors.add('validMigrationPhases must enumerate exactly Phase 8 through Phase 22')
+        }
+        List<Map> migrationPlan = asList(manifest.migrationPlan) as List<Map>
+        Set<Integer> plannedPhases = [] as Set<Integer>
+        migrationPlan.each { Map entry ->
+            Integer plannedPhase = entry.phase as Integer
+            if (!plannedPhases.add(plannedPhase)) errors.add("duplicate migration plan phase ${plannedPhase}")
+            if (!validPhases.contains(plannedPhase)) errors.add("migrationPlan.${plannedPhase} must be a valid Phase 8-22 number")
+            requireText("migrationPlan.${plannedPhase}.name", entry.name)
+            requireText("migrationPlan.${plannedPhase}.scope", entry.scope)
+            String planScope = text(entry.scope).toLowerCase()
+            if (plannedPhase == 8 && planScope.contains('behavior migration') && !planScope.contains('no behavior migration')) {
+                errors.add('migrationPlan Phase 8 must remain infrastructure-only')
+            }
+        }
+        if (plannedPhases != validPhases) errors.add('migrationPlan must cover every valid phase exactly once')
+
+        Map architecture = (manifest.architecture ?: [:]) as Map
+        if (text(architecture.scheduler).toLowerCase() != 'brain') errors.add('The enforced villager scheduler must be Brain')
+        ['current', 'target'].each { String side ->
+            Map section = (architecture[side] ?: [:]) as Map
+            ['scheduler', 'taskOwnership', 'movementIntent', 'routeExecutor', 'cleanup'].each { String key ->
+                requireText("architecture.${side}.${key}", section[key])
+            }
+        }
+        requireText('architecture.decision', architecture.decision)
+
+        Set<String> allIds = [] as Set<String>
+        Set<String> inventorySources = [] as Set<String>
+        def registerId = { String category, Map entry ->
+            String id = text(entry.id)
+            if (!id || !allIds.add(id)) errors.add("duplicate or empty ${category} id: ${id}")
+            paths(entry).each { String sourcePath ->
+                inventorySources.add(sourcePath)
+                if (!file(sourcePath).isFile()) errors.add("${category} ${id} references missing source ${sourcePath}")
+            }
+        }
+        def phase = { String label, Object value ->
+            if (!(value instanceof Number) || !validPhases.contains(value as Integer)) errors.add("${label} must be a valid Phase 8-22 number")
+        }
+
+        List<Map> producers = asList(manifest.producers) as List<Map>
+        Set<String> producerRoles = [] as Set<String>
+        producers.each { Map producer ->
+            registerId('producer', producer)
+            String id = text(producer.id)
+            String role = text(producer.role)
+            producerRoles.add(role)
+            requireText("${id}.role", role)
+            requireList("${id}.sourcePaths", producer.sourcePaths)
+            Map current = (producer.current ?: [:]) as Map
+            Map target = (producer.target ?: [:]) as Map
+            ['executor', 'scheduler', 'activity', 'memoryReads', 'memoryWrites', 'directNavigationOps', 'claimScope', 'durableState', 'transientState', 'cleanupOwner'].each { String key ->
+                key in ['memoryReads', 'memoryWrites', 'directNavigationOps'] ? requireList("${id}.current.${key}", current[key]) : requireText("${id}.current.${key}", current[key])
+            }
+            ['activity', 'finality', 'priority', 'requiredMemoryConditions', 'interruptions', 'resumeReacquire', 'claimScope', 'durableState', 'transientState', 'cleanupOwner'].each { String key ->
+                requireText("${id}.target.${key}", target[key])
+            }
+            phase("${id}.migrationPhase", producer.migrationPhase)
+            if ((producer.migrationPhase as Integer) == 8) errors.add("${id} assigns behavior migration to Phase 8; Phase 8 is infrastructure only")
+            requireText("${id}.legacyPathToRemove", producer.legacyPathToRemove)
+            requireText("${id}.knownGap", producer.knownGap)
+        }
+        Set<String> requiredRoles = asList(manifest.requiredRoles).collect { it.toString() } as Set<String>
+        (requiredRoles - producerRoles).each { errors.add("navigation inventory is missing required role ${it}") }
+        Set<String> requiredCoverage = asList(manifest.requiredCoverage).collect { it.toString() } as Set<String>
+        (requiredCoverage - producerRoles).each { errors.add("navigation inventory is missing required coverage role ${it}") }
+
+        def validateEntries = { String category, List<Map> entries, List<String> requiredKeys, boolean requirePhase ->
+            entries.each { Map entry ->
+                registerId(category, entry)
+                String id = text(entry.id)
+                requireList("${id}.sourcePaths", entry.sourcePaths)
+                requiredKeys.each { String key -> requireText("${id}.${key}", entry[key]) }
+                if (requirePhase) phase("${id}.migrationPhase", entry.migrationPhase)
+                if (entry.containsKey('legacyPathToRemove')) requireText("${id}.legacyPathToRemove", entry.legacyPathToRemove)
+            }
+        }
+        validateEntries('registered Brain behavior', asList(manifest.registeredBrainBehaviors) as List<Map>, ['owner', 'currentExecutor', 'targetBrainActivity', 'finality', 'requiredMemoryConditions', 'claimScope', 'durableState', 'transientState', 'cleanupOwner', 'migrationPhase', 'legacyPathToRemove', 'knownGap'], true)
+        validateEntries('request owner', asList(manifest.requestOwners) as List<Map>, ['owner', 'currentExecutor', 'targetBrainActivity', 'currentClaimScope', 'targetClaimScope', 'currentCleanupOwner', 'targetCleanupOwner', 'migrationPhase', 'legacyPathToRemove', 'knownGap'], true)
+        asList(manifest.requestOwners).each { Map entry -> requireList("${entry.id}.memoryReads", entry.memoryReads); requireList("${entry.id}.memoryWrites", entry.memoryWrites); requireList("${entry.id}.directNavigationOps", entry.directNavigationOps) }
+        validateEntries('memory mutation', asList(manifest.memoryMutations) as List<Map>, ['mutationKind', 'owner', 'classification', 'targetOwner', 'targetPhase', 'notes'], false)
+        asList(manifest.memoryMutations).each { Map entry -> requireList("${entry.id}.memories", entry.memories); phase("${entry.id}.targetPhase", entry.targetPhase) }
+        validateEntries('direct navigation entry', asList(manifest.directNavigationCalls) as List<Map>, ['currentOwner', 'currentExecutor', 'currentClaimScope', 'targetDisposition', 'migrationPhase', 'legacyPathToRemove', 'notes'], true)
+        asList(manifest.directNavigationCalls).each { Map entry -> requireList("${entry.id}.operations", entry.operations) }
+        validateEntries('GoalSelector registrar', asList(manifest.goalSelectorRegistrars) as List<Map>, ['executor', 'scope', 'targetDisposition', 'migrationPhase', 'legacyPathToRemove', 'notes'], true)
+        validateEntries('transitional movement caller', asList(manifest.transitionalMovementCallers) as List<Map>, ['owner', 'currentUse', 'targetDisposition', 'migrationPhase', 'legacyPathToRemove', 'notes'], true)
+        validateEntries('persistent gameplay state', asList(manifest.persistentGameplayState) as List<Map>, ['owner', 'currentState', 'targetOwner', 'targetState', 'cleanupOwner', 'migrationPhase', 'knownGap'], true)
+        validateEntries('transient claim', asList(manifest.transientClaims) as List<Map>, ['owner', 'currentScope', 'targetScope', 'durability', 'cleanupOwner', 'migrationPhase', 'violation'], true)
+        validateEntries('non-villager exception', asList(manifest.nonVillagerExceptions) as List<Map>, ['entityClass', 'reason', 'disposition'], false)
+        asList(manifest.violations).each { Map entry -> registerId('violation', entry); ['status', 'statement', 'resolutionPhase'].each { String key -> requireText("${entry.id}.${key}", entry[key]) }; phase("${entry.id}.resolutionPhase", entry.resolutionPhase); requireList("${entry.id}.affectedPaths", entry.affectedPaths) }
+        asList(manifest.unresolvedDecisions).each { Map entry -> registerId('unresolved decision', entry); ['question', 'provisionalDecision', 'decisionPhase'].each { String key -> requireText("${entry.id}.${key}", entry[key]) }; phase("${entry.id}.decisionPhase", entry.decisionPhase); requireList("${entry.id}.affectedPaths", entry.affectedPaths) }
+
+        Map allowlists = (manifest.allowlists ?: [:]) as Map
+        ['pathMemoryWriters', 'directNavigationCallers', 'goalSelectorRegistrars', 'transitionalMovementCallers'].each { String key ->
+            List<String> entries = asList(allowlists[key]).collect { it.toString().replace('\\', '/') }
+            if (entries.isEmpty()) errors.add("allowlists.${key} must not be empty")
+            entries.each { String sourcePath ->
+                if (!file(sourcePath).isFile()) errors.add("allowlists.${key} references missing source ${sourcePath}")
+            }
+        }
+        List<Map> ownership = asList(manifest.sourceOwnership) as List<Map>
+        Set<String> ownedPaths = [] as Set<String>
+        ownership.each { Map entry ->
+            String sourcePath = text(entry.path).replace('\\', '/')
+            if (!sourcePath || !ownedPaths.add(sourcePath)) errors.add("duplicate or empty source ownership entry: ${sourcePath}")
+            if (!file(sourcePath).isFile()) errors.add("sourceOwnership references missing source ${sourcePath}")
+            requireText("sourceOwnership ${sourcePath}.ownerId", entry.ownerId)
+        }
+
+        Set<String> productionSources = fileTree('src/main/java').matching { include '**/*.java' }.files
+                .collect { relativePath(it).replace('\\', '/') }
+                .findAll { String path -> !path.contains('/test/') && !path.endsWith('GameTests.java') } as Set<String>
+        Set<String> exceptionSources = (asList(manifest.nonVillagerExceptions) as List<Map>).collectMany { paths(it) } as Set<String>
+        Set<String> allowlistedSources = ['pathMemoryWriters', 'directNavigationCallers', 'goalSelectorRegistrars', 'transitionalMovementCallers']
+                .collectMany { String key -> asList(allowlists[key]).collect { it.toString().replace('\\', '/') } } as Set<String>
+        (allowlistedSources - inventorySources - exceptionSources).each { errors.add("allowlisted source has no inventory explanation: ${it}") }
+        Set<String> memoryMutationSources = (asList(manifest.memoryMutations) as List<Map>).collectMany { paths(it) } as Set<String>
+        Set<String> allowedDirectNavigation = (asList(allowlists.directNavigationCallers).collect { it.toString().replace('\\', '/') } as Set<String>) + exceptionSources
+        def stripJavaLiterals = { String source ->
+            StringBuilder cleaned = new StringBuilder(source.length())
+            boolean lineComment = false
+            boolean blockComment = false
+            boolean stringLiteral = false
+            boolean charLiteral = false
+            boolean escaped = false
+            int index = 0
+            while (index < source.length()) {
+                char current = source.charAt(index)
+                char next = index + 1 < source.length() ? source.charAt(index + 1) : '\0'
+                if (lineComment) {
+                    if (current == '\n') {
+                        lineComment = false
+                        cleaned.append('\n')
+                    } else {
+                        cleaned.append(' ')
+                    }
+                } else if (blockComment) {
+                    if (current == '*' && next == '/') {
+                        blockComment = false
+                        cleaned.append(' ').append(' ')
+                        index++
+                    } else {
+                        cleaned.append(current == '\n' ? '\n' : ' ')
+                    }
+                } else if (stringLiteral || charLiteral) {
+                    cleaned.append(current == '\n' ? '\n' : ' ')
+                    if (escaped) {
+                        escaped = false
+                    } else if (current == '\\') {
+                        escaped = true
+                    } else if ((stringLiteral && current == '"') || (charLiteral && current == '\'')) {
+                        stringLiteral = false
+                        charLiteral = false
+                    }
+                } else if (current == '/' && next == '/') {
+                    lineComment = true
+                    cleaned.append(' ').append(' ')
+                    index++
+                } else if (current == '/' && next == '*') {
+                    blockComment = true
+                    cleaned.append(' ').append(' ')
+                    index++
+                } else if (current == '"') {
+                    stringLiteral = true
+                    cleaned.append(' ')
+                } else if (current == '\'') {
+                    charLiteral = true
+                    cleaned.append(' ')
+                } else {
+                    cleaned.append(current)
+                }
+                index++
+            }
+            cleaned.toString()
+        }
+        def scanForUnauthorized = { String findingName, java.util.regex.Pattern pattern, Set<String> allowed ->
+            productionSources.each { String sourcePath ->
+                String source = stripJavaLiterals(file(sourcePath).getText('UTF-8'))
+                if (pattern.matcher(source).find() && !allowed.contains(sourcePath)) errors.add("${findingName} outside inventory/allowlist: ${sourcePath}")
+            }
+        }
+        scanForUnauthorized('Brain memory mutation', ~/(?s)(?:setMemory|eraseMemory)\s*\(\s*(?:[A-Za-z0-9_$.]+\s*,\s*)?MemoryModuleType\.[A-Z0-9_]+/, memoryMutationSources)
+        scanForUnauthorized('direct navigation/path operation', ~/(?s)(?:getNavigation\(\)|\bnavigation)\s*\.\s*(?:moveTo|createPath|stop|getPath)\s*\(/, allowedDirectNavigation)
+        scanForUnauthorized('GoalSelector registration', ~/(?s)goalSelector\s*\.\s*addGoal\s*\(/, (asList(allowlists.goalSelectorRegistrars).collect { it.toString().replace('\\', '/') } as Set<String>) + exceptionSources)
+        scanForUnauthorized('transitional MovementRequestManager caller', ~/(?s)MovementRequestManager/, asList(allowlists.transitionalMovementCallers).collect { it.toString().replace('\\', '/') } as Set<String>)
+        scanForUnauthorized('PATH memory mutation outside declared writer', ~/(?s)(?:setMemory|eraseMemory)\s*\(\s*MemoryModuleType\.PATH/, asList(allowlists.pathMemoryWriters).collect { it.toString().replace('\\', '/') } as Set<String>)
+        def gitOutput = { List<String> args ->
+            Process process = (['git'] + args).execute(null, project.projectDir)
+            String output = process.text
+            if (process.waitFor() != 0) throw new GradleException("git ${args.join(' ')} failed: ${output}")
+            output.trim()
+        }
+        String gitCommit = gitOutput(['rev-parse', 'HEAD'])
+        String gitStatusOutput = gitOutput(['status', '--porcelain'])
+        String dirtyStatus = gitStatusOutput ? 'dirty' : 'clean'
+
+        File report = file('build/reports/phase2/navigation-ownership.md')
+        report.parentFile.mkdirs()
+        def markdownCell = { Object value ->
+            Object rendered = value instanceof Collection ? value.collect { it.toString() }.join('; ') : value
+            (rendered == null ? '' : rendered.toString()).replace('|', '\\|').replace('\r', ' ').replace('\n', ' ')
+        }
+        def appendTable = { StringBuilder builder, String title, List<String> headers, List<List<Object>> rows ->
+            builder.append('\n## ').append(title).append('\n\n')
+            builder.append('| ').append(headers.collect { markdownCell(it) }.join(' | ')).append(' |\n')
+            builder.append('| ').append(headers.collect { '---' }.join(' | ')).append(' |\n')
+            rows.each { List<Object> row -> builder.append('| ').append(row.collect { markdownCell(it) }.join(' | ')).append(' |\n') }
+        }
+        StringBuilder markdownBuilder = new StringBuilder()
+                .append('# Phase 2 navigation ownership inventory\n\n')
+                .append('Generated from `gradle/navigation-architecture.json`; this report has no timestamp so the source revision is reproducible.\n\n')
+                .append('**Git commit:** `').append(gitCommit).append('`  \n')
+                .append('**Working tree:** ').append(dirtyStatus).append('\n')
+        if (gitStatusOutput) markdownBuilder.append('**Dirty paths:**\n\n```text\n').append(gitStatusOutput).append('\n```\n')
+        markdownBuilder.append('\n**Enforced decision:** ').append(markdownCell(architecture.decision)).append('\n')
+                .append('**Valid migration phases:** Phase 8 infrastructure through Phase 22 legacy removal. Phase 8 is explicitly not a behavior migration.\n')
+        appendTable(markdownBuilder, 'Architecture: current versus target', ['Boundary', 'Current', 'Target'], [
+                ['Scheduler', architecture.current.scheduler, architecture.target.scheduler],
+                ['Task ownership', architecture.current.taskOwnership, architecture.target.taskOwnership],
+                ['Movement intent', architecture.current.movementIntent, architecture.target.movementIntent],
+                ['Route executor', architecture.current.routeExecutor, architecture.target.routeExecutor],
+                ['Cleanup', architecture.current.cleanup, architecture.target.cleanup]
+        ])
+        appendTable(markdownBuilder, 'Migration phase plan', ['Phase', 'Name', 'Scope'],
+                migrationPlan.sort { Map left, Map right -> (left.phase as Integer) <=> (right.phase as Integer) }
+                        .collect { Map entry -> [entry.phase, entry.name, entry.scope] })
+        appendTable(markdownBuilder, 'Task and integration producers', ['ID / role', 'Sources', 'Current executor / scheduler / activity', 'Target activity / finality / priority', 'Memory reads / writes', 'Direct navigation', 'Current scope', 'Target scope', 'Durable / transient current', 'Durable / transient target', 'Cleanup current / target', 'Phase', 'Legacy path', 'Known gap'],
+                producers.collect { Map producer ->
+                    Map current = producer.current as Map; Map target = producer.target as Map
+                    ["${producer.id} / ${producer.role}", paths(producer), "${current.executor} / ${current.scheduler} / ${current.activity}", "${target.activity} / ${target.finality} / ${target.priority}", "R: ${current.memoryReads}; W: ${current.memoryWrites}", current.directNavigationOps, current.claimScope, target.claimScope, "D: ${current.durableState}; T: ${current.transientState}", "D: ${target.durableState}; T: ${target.transientState}", "Current: ${current.cleanupOwner}; Target: ${target.cleanupOwner}", producer.migrationPhase, producer.legacyPathToRemove, producer.knownGap]
+                })
+        appendTable(markdownBuilder, 'Registered Brain behaviors', ['ID', 'Owner / sources', 'Current executor', 'Target activity / finality', 'Memory conditions / reads / writes', 'Direct navigation', 'Scope', 'Durable / transient', 'Cleanup', 'Phase / legacy path / gap'],
+                (asList(manifest.registeredBrainBehaviors) as List<Map>).collect { Map e -> [e.id, "${e.owner}; ${paths(e)}", e.currentExecutor, "${e.targetBrainActivity}; ${e.finality}", "${e.requiredMemoryConditions}; R: ${e.memoryReads}; W: ${e.memoryWrites}", e.directNavigationOps, e.claimScope, "D: ${e.durableState}; T: ${e.transientState}", e.cleanupOwner, "${e.migrationPhase}; ${e.legacyPathToRemove}; ${e.knownGap}"] })
+        appendTable(markdownBuilder, 'Request owners', ['ID', 'Owner / sources', 'Current executor', 'Target activity', 'Memory reads / writes', 'Direct navigation', 'Current / target scope', 'Current / target cleanup', 'Phase / legacy path / gap'],
+                (asList(manifest.requestOwners) as List<Map>).collect { Map e -> [e.id, "${e.owner}; ${paths(e)}", e.currentExecutor, e.targetBrainActivity, "R: ${e.memoryReads}; W: ${e.memoryWrites}", e.directNavigationOps, "${e.currentClaimScope} / ${e.targetClaimScope}", "${e.currentCleanupOwner} / ${e.targetCleanupOwner}", "${e.migrationPhase}; ${e.legacyPathToRemove}; ${e.knownGap}"] })
+        appendTable(markdownBuilder, 'Brain memory mutations and observations', ['ID', 'Sources', 'Memories', 'Mutation kind', 'Current owner / classification', 'Target owner', 'Phase', 'Notes'],
+                (asList(manifest.memoryMutations) as List<Map>).collect { Map e -> [e.id, paths(e), e.memories, e.mutationKind, "${e.owner} / ${e.classification}", e.targetOwner, e.targetPhase, e.notes] })
+        appendTable(markdownBuilder, 'Direct navigation and path operations', ['ID', 'Sources', 'Operations', 'Current owner / executor', 'Current scope', 'Target disposition', 'Phase', 'Legacy path', 'Notes'],
+                (asList(manifest.directNavigationCalls) as List<Map>).collect { Map e -> [e.id, paths(e), e.operations, "${e.currentOwner} / ${e.currentExecutor}", e.currentClaimScope, e.targetDisposition, e.migrationPhase, e.legacyPathToRemove, e.notes] })
+        appendTable(markdownBuilder, 'GoalSelector registrars', ['ID', 'Sources', 'Executor', 'Scope', 'Target disposition', 'Phase', 'Legacy path', 'Notes'],
+                (asList(manifest.goalSelectorRegistrars) as List<Map>).collect { Map e -> [e.id, paths(e), e.executor, e.scope, e.targetDisposition, e.migrationPhase, e.legacyPathToRemove, e.notes] })
+        appendTable(markdownBuilder, 'Transitional movement callers', ['ID', 'Sources', 'Owner', 'Current use', 'Target disposition', 'Phase', 'Legacy path', 'Notes'],
+                (asList(manifest.transitionalMovementCallers) as List<Map>).collect { Map e -> [e.id, paths(e), e.owner, e.currentUse, e.targetDisposition, e.migrationPhase, e.legacyPathToRemove, e.notes] })
+        appendTable(markdownBuilder, 'Persistent gameplay state', ['ID', 'Sources', 'Owner / current state', 'Target owner / state', 'Cleanup owner', 'Phase', 'Known gap'],
+                (asList(manifest.persistentGameplayState) as List<Map>).collect { Map e -> [e.id, paths(e), "${e.owner} / ${e.currentState}", "${e.targetOwner} / ${e.targetState}", e.cleanupOwner, e.migrationPhase, e.knownGap] })
+        appendTable(markdownBuilder, 'Transient claims, leases, reservations, and caches', ['ID', 'Sources', 'Owner', 'Current scope', 'Target scope', 'Durability', 'Cleanup owner', 'Phase', 'Violation / decision'],
+                (asList(manifest.transientClaims) as List<Map>).collect { Map e -> [e.id, paths(e), e.owner, e.currentScope, e.targetScope, e.durability, e.cleanupOwner, e.migrationPhase, e.violation] })
+        appendTable(markdownBuilder, 'Explicit non-villager exceptions', ['ID', 'Entity class', 'Sources', 'Reason', 'Disposition'],
+                (asList(manifest.nonVillagerExceptions) as List<Map>).collect { Map e -> [e.id, e.entityClass, paths(e), e.reason, e.disposition] })
+        appendTable(markdownBuilder, 'Violations and unresolved decisions', ['ID', 'Status / question', 'Statement / provisional decision', 'Affected paths', 'Resolution phase'],
+                (asList(manifest.violations) as List<Map>).collect { Map e -> [e.id, e.status, e.statement, e.affectedPaths, e.resolutionPhase] } +
+                        (asList(manifest.unresolvedDecisions) as List<Map>).collect { Map e -> [e.id, "unresolved / ${e.question}", e.provisionalDecision, e.affectedPaths, e.decisionPhase] })
+        markdownBuilder.append('\n## Validation evidence\n\n')
+                .append('- Inventory categories: architecture current/target, producers, registered Brain behaviors, request owners, memory mutations, direct navigation, GoalSelector registrars, transitional callers, persistent gameplay state, transient claims, non-villager exceptions, violations, and unresolved decisions.\n')
+                .append('- Production Java sources scanned: ').append(productionSources.size()).append('.\n')
+                .append('- Source-backed allowlists: ').append(allowlistedSources.size()).append(' paths; explicit source ownership entries: ').append(ownership.size()).append('.\n')
+                .append('- Validation result: ').append(errors.isEmpty() ? 'PASS' : 'FAIL').append('.\n')
+        report.setText(markdownBuilder.toString(), 'UTF-8')
+
+        if (!errors.isEmpty()) throw new GradleException('Navigation architecture validation failed:\n' + errors.unique().join('\n'))
+        logger.lifecycle("Verified Phase 2 navigation architecture: ${producers.size()} producers, ${asList(manifest.transientClaims).size()} transient claim scopes, and ${productionSources.size()} production sources scanned.")
+        logger.lifecycle("Generated ownership inventory: ${relativePath(report)} at commit ${gitCommit} (${dirtyStatus} tree)")
+    }
+}
+
 tasks.register('verifyPortSetup') {
     group = 'verification'
     description = 'Verifies shared-source policy, target mapping/toolchain readiness, and regression manifests.'
-    dependsOn 'verifySharedSourceLayout', 'verifyClientSmokeManifest', 'verifyRegressionCoverage'
+    dependsOn 'verifySharedSourceLayout', 'verifyClientSmokeManifest', 'verifyRegressionCoverage', 'verifyNavigationArchitecture'
     dependsOn ':1.21.1:verifyTargetSetup', ':1.21.4:verifyTargetSetup'
 }

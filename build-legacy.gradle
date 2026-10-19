@@ -206,6 +206,7 @@ tasks.named('check').configure {
     dependsOn rootProject.tasks.named('verifySharedSourceLayout')
     dependsOn rootProject.tasks.named('verifyClientSmokeManifest')
     dependsOn rootProject.tasks.named('verifyRegressionCoverage')
+    dependsOn rootProject.tasks.named('verifyNavigationArchitecture')
     dependsOn tasks.named('verifyTargetSetup')
 }
 

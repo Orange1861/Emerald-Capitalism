@@ -155,6 +155,34 @@ class VillageWorkCellTest {
     }
 
     @Test
+    void identicalTargetsInSeparateVillagesDoNotShareFarmerLeases() {
+        BlockPos target = new BlockPos(3, 64, 3);
+        AABB bounds = new AABB(-8, 60, -8, 24, 80, 24);
+        UUID firstFarmer = UUID.randomUUID();
+        UUID secondFarmer = UUID.randomUUID();
+        VillageRecord firstVillage = new VillageRecord(UUID.randomUUID(), BlockPos.ZERO, bounds);
+        VillageRecord secondVillage = new VillageRecord(UUID.randomUUID(), BlockPos.ZERO, bounds);
+
+        firstVillage.addFarmland(target);
+        secondVillage.addFarmland(target);
+        assertTrue(firstVillage.addToRepairQueue(target));
+        assertTrue(secondVillage.addToRepairQueue(target));
+
+        firstVillage.getWorkCell(target).assignLease(firstFarmer, 0L, 100L);
+        secondVillage.getWorkCell(target).assignLease(secondFarmer, 0L, 100L);
+
+        assertTrue(firstVillage.claimRepairPosition(firstFarmer, target));
+        assertTrue(secondVillage.claimRepairPosition(secondFarmer, target));
+        assertTrue(firstVillage.getClaimedPositions().contains(target));
+        assertTrue(secondVillage.getClaimedPositions().contains(target));
+
+        assertTrue(firstVillage.releaseRepairPositionClaim(firstFarmer, target));
+        assertFalse(firstVillage.getClaimedPositions().contains(target));
+        assertTrue(secondVillage.getClaimedPositions().contains(target),
+                "releasing one village's lease must not release an identical target in another village");
+    }
+
+    @Test
     void workCellsRoundTripWithoutMergingRepairAndCropWork() {
         VillageRecord source = new VillageRecord(
                 UUID.randomUUID(), BlockPos.ZERO, new AABB(-8, 60, -8, 40, 80, 40));
