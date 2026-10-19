@@ -108,7 +108,7 @@ jobs:
               ['java', '-version'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
               text=True, check=True,
           ).stdout.strip().splitlines()
-          java_version = next((line for line in java_output if 'version' in line), java_output[0])
+          host_java_version = next((line for line in java_output if 'version' in line), java_output[0])
 
           def parse_discovered():
               text = read_text(evidence_root / 'verify-port-setup.log')
@@ -246,6 +246,14 @@ jobs:
               }
 
           audits = {target: parse_audit(target) for target in targets}
+          target_java_versions = {target: audits[target].get('javaVersion') for target in targets}
+          java_versions = {version for version in target_java_versions.values() if version}
+          java_version = next(iter(java_versions), host_java_version)
+          if len(java_versions) != 1:
+              errors.append(f'per-target mixin audit Java identities are incomplete or disagree: {target_java_versions}')
+          for target in targets:
+              gametests[target]['gitCommit'] = commit
+              gametests[target]['javaVersion'] = target_java_versions.get(target) or host_java_version
 
           for task_id, status in statuses.items():
               if status != 0:
@@ -264,6 +272,8 @@ jobs:
               'taskOutcomes': statuses,
               'targets': {
                   target: {
+                      'gitCommit': commit,
+                      'javaVersion': target_java_versions.get(target) or host_java_version,
                       'gameTest': gametests[target],
                       'mixinAudit': audits[target],
                   }
@@ -278,25 +288,25 @@ jobs:
           print(f'Phase 1 Java: {java_version}')
           print(f'Static GameTests discovered: {static_discovered}')
           print('')
-          print('| Target | Launched | Static discovered | Executed | Required passed | Required failed | Optional failed | Gradle outcome | GameTest log |')
-          print('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |')
+          print('| Target | Git commit | Java | Launched | Static discovered | Executed | Required passed | Required failed | Optional failed | Gradle outcome | GameTest log |')
+          print('| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |')
           for target in targets:
               item = gametests[target]
               outcome = 'PASS' if statuses.get(f'gametest-{target}') == 0 else 'FAIL'
               print(
-                  f"| {target} | {item['launched']} | {static_discovered} | {item['executed']} | "
+                  f"| {target} | `{commit}` | `{item['javaVersion']}` | {item['launched']} | {static_discovered} | {item['executed']} | "
                   f"{item['requiredPassed']} | {item['requiredFailed']} | {item['optionalFailed']} | "
                   f"{outcome} | `{item['log']}` |"
               )
           print('')
-          print('| Target | Configured mixins | Server mixins | Baseline classification | Applied evidence | Gradle outcome | Report |')
-          print('| --- | ---: | ---: | --- | --- | --- | --- |')
+          print('| Target | Git commit | Java | Configured mixins | Server mixins | Baseline classification | Applied evidence | Gradle outcome | Report |')
+          print('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- |')
           for target in targets:
               item = audits[target]
               baseline = item.get('baseline', {})
               outcome = 'PASS' if statuses.get(f'audit-{target}') == 0 else 'FAIL'
               print(
-                  f"| {target} | {item.get('configuredMixins')} | {item.get('serverMixins')} | "
+                  f"| {target} | `{commit}` | `{item.get('javaVersion')}` | {item.get('configuredMixins')} | {item.get('serverMixins')} | "
                   f"{baseline.get('classification')} | {baseline.get('mixinEvidenceValid')} | {outcome} | "
                   f"`{item.get('report')}` |"
               )
@@ -308,24 +318,24 @@ jobs:
                   output.write(f'- Git commit: `{commit}`\n')
                   output.write(f'- Java: `{java_version}`\n')
                   output.write(f'- Static GameTests discovered: `{static_discovered}`\n\n')
-                  output.write('| Target | Launched | Static discovered | Executed | Required passed | Required failed | Optional failed | Gradle outcome | GameTest log |\n')
-                  output.write('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n')
+                  output.write('| Target | Git commit | Java | Launched | Static discovered | Executed | Required passed | Required failed | Optional failed | Gradle outcome | GameTest log |\n')
+                  output.write('| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |\n')
                   for target in targets:
                       item = gametests[target]
                       outcome = 'PASS' if statuses.get(f'gametest-{target}') == 0 else 'FAIL'
                       output.write(
-                          f"| {target} | {item['launched']} | {static_discovered} | {item['executed']} | "
+                          f"| {target} | `{commit}` | `{item['javaVersion']}` | {item['launched']} | {static_discovered} | {item['executed']} | "
                           f"{item['requiredPassed']} | {item['requiredFailed']} | {item['optionalFailed']} | "
                           f"{outcome} | `{item['log']}` |\n"
                       )
-                  output.write('\n| Target | Configured mixins | Server mixins | Baseline classification | Applied evidence | Gradle outcome | Report |\n')
-                  output.write('| --- | ---: | ---: | --- | --- | --- | --- |\n')
+                  output.write('\n| Target | Git commit | Java | Configured mixins | Server mixins | Baseline classification | Applied evidence | Gradle outcome | Report |\n')
+                  output.write('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- |\n')
                   for target in targets:
                       item = audits[target]
                       baseline = item.get('baseline', {})
                       outcome = 'PASS' if statuses.get(f'audit-{target}') == 0 else 'FAIL'
                       output.write(
-                          f"| {target} | {item.get('configuredMixins')} | {item.get('serverMixins')} | "
+                          f"| {target} | `{commit}` | `{item.get('javaVersion')}` | {item.get('configuredMixins')} | {item.get('serverMixins')} | "
                           f"{baseline.get('classification')} | {baseline.get('mixinEvidenceValid')} | {outcome} | "
                           f"`{item.get('report')}` |\n"
                       )

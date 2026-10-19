@@ -119,6 +119,73 @@ required passed/failed tests, optional failures, final Gradle outcome, and log
 or report path for both targets. A report from another commit, an incomplete
 audit, or a stale log is not evidence.
 
+## Current automated verification record
+
+Run date: 2026-10-19. Exact commit:
+`f409d615f592301f64415e1b5e65fadfd49e73b4`. Both target toolchains reported
+Java `openjdk version "21.0.9" 2025-10-21 LTS`; the target logs identified
+NeoForge 21.1.219 for 1.21.1 and 21.4.157 for 1.21.4. Static source
+discovery found 265 GameTests, while each server launched and executed 263.
+Each run had 254 required passes, 9 required failures, and 0 optional failures.
+The final Gradle task outcome was failure for both GameTest tasks. Evidence logs
+are [1.21.1](../../../build/reports/phase1/gametest-1.21.1.log) and
+[1.21.4](../../../build/reports/phase1/gametest-1.21.4.log).
+
+The direct GameTest failure names were:
+
+- **1.21.1:** `normalvillageraiharvestspumpkinatabsoluteposition`,
+  `contestedgovernormaykillbankemployeewithoutvillageopinionpenalty`,
+  `malformedbankstatefailsloudly`,
+  `normalvillageraidescendsladderandcompleteslowerwork`,
+  `normalvillageraiascendsladderandcompletesupperwork`,
+  `normalvillagerunloadreloadreleasesladderclaim`,
+  `twonormalvillagerscontendforoneladderandoneworktarget`,
+  `normalvillagerblockedtopexitcancelsandreplanswithoutcollision`,
+  `boatescapepreemptsandthenresumesarealpumpkinworkjourney`.
+- **1.21.4:** `normalvillageraiharvestspumpkinatabsoluteposition`,
+  `contestedgovernormaykillbankemployeewithoutvillageopinionpenalty`,
+  `malformedbankstatefailsloudly`,
+  `normalfarmerharvestsandreplantsmaturewheat`,
+  `normalvillageraidescendsladderandcompleteslowerwork`,
+  `normalvillageraiascendsladderandcompletesupperwork`,
+  `normalvillagerunloadreloadreleasesladderclaim`,
+  `twonormalvillagerscontendforoneladderandoneworktarget`,
+  `normalvillagerblockedtopexitcancelsandreplanswithoutcollision`.
+
+Fresh mixin reports were generated for both targets at the same commit. Each
+report has schema 2, 18 configured mixins (17 server mixins), 265 discovered
+tests, a confirmed audit selector, and complete application evidence: all 17
+required server mixins were observed with `applied=true`, with no missing or
+unapplied required mixin. The baseline still classified as
+`BASELINE_FAILED`, so no subtractive unit was allowed to claim a removal
+result. The fresh audit report paths are
+[1.21.1](../../../versions/1.21.1/build/reports/mixin-audit/report.json) and
+[1.21.4](../../../versions/1.21.4/build/reports/mixin-audit/report.json).
+The independent audit baseline had 10 required failures in each target,
+demonstrating run-to-run fixture/behavior variability rather than stale output:
+
+- **1.21.1 audit baseline:** the direct failures above except the boat journey,
+  plus `staleownercannotstoparealbrainjourneyafterprioritypreemption` and
+  `ladderdestructionreleasesloadedentityclaim`.
+- **1.21.4 audit baseline:** the 9 direct failures above, plus
+  `ladderdestructionreleasesloadedentityclaim`; the direct run's failure set
+  did not include that ladder-destruction test.
+
+Failure ownership is intentionally left for later phases: pumpkin and mature
+wheat behavior are **Phase 15 farmer/crop work**; ladder ascent/descent,
+destruction, unload cleanup, contention, and blocked exits are **Phase 14
+route capabilities**; the stale movement-owner and boat-preemption failures
+are **Phase 12 movement intent**; the contested governor failure is **Phase 18
+mayor following/civic work**; and malformed bank state is **Phase 19 banker and
+inventory-bank work**. These are genuine later-phase behavior/regression gates
+or their current nondeterministic fixtures, not Phase 1 infrastructure fixes.
+
+The setup gate, regression manifest, unit tests, both compilations, complete
+build, and `git diff --check` passed. The two GameTest tasks and two mixin audit
+tasks failed as recorded above. Therefore the Phase 1 gate is **NOT COMPLETE**;
+the report does not claim completion, and no later-phase gameplay behavior was
+changed to make the gate pass.
+
 Phase 1 is complete only when the required setup, unit/regression tests,
 1.21.1 and 1.21.4 compilation, both GameTest servers, both mixin audits, the
 complete build, and this manual smoke check have passed. Later-phase gameplay
