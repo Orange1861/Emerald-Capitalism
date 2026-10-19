@@ -147,6 +147,13 @@ public class VillagerSpawnEvents {
             return;
         }
 
+        // Roster membership is reconciled at a bounded cadence rather than by
+        // maintaining exact villager positions every AI tick. Cell-local work
+        // assignment uses Minecraft's loaded entity sections for nearby lookup.
+        if (villager.tickCount % 20 == 0) {
+            VillageRegistryEvents.refreshFarmerRoster(villager);
+        }
+
         if (VillagerBehaviorRegistry.hasDefinitions()) {
             // Profession/config changes and brain rebuilds do not necessarily
             // emit an entity-join event. Reconcile the stable definition registry

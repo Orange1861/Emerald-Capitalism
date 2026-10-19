@@ -212,20 +212,6 @@
       "supportedEventAlternative": "No supported behavior event exposes vanilla sink epochs, path attempts, and stale-stop ownership at these exact lifecycle points."
     },
     {
-      "id": "vanilla-farmer-crop-work",
-      "config": "src/main/resources/emeraldcapitalism.mixins.json",
-      "side": "server",
-      "auditMode": "gametest",
-      "mixins": ["HarvestFarmlandMixin"],
-      "invariant": "A farmer can complete vanilla mature-crop work after bounded crop discovery, reach the vanilla interaction footing, and replant a harvested crop without bypassing the vanilla behavior.",
-      "tests": [
-        "vanillafarmergametests.normalfarmerharvestsandreplantsmaturewheat"
-      ],
-      "target": "net.minecraft.world.entity.ai.behavior.HarvestFarmland#checkExtraStartConditions and #tick",
-      "injectionPoint": "RETURN fallback target discovery in checkExtraStartConditions, HEAD/RETURN harvest observation in tick, and ModifyConstant of the crop interaction-range literal",
-      "supportedEventAlternative": "No supported behavior event exposes HarvestFarmland's private interaction-range predicate."
-    },
-    {
       "id": "villager-ladder-movement",
       "config": "src/main/resources/emeraldcapitalism.mixins.json",
       "side": "server",

@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSiteSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -424,14 +425,26 @@ public class FarmlandGameTests {
             village.addToRepairQueue(repairPos);
 
             Villager farmer = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
+            farmer.refreshBrain(level);
             farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+            farmer.setVillagerXp(1);
+            farmer.setOnGround(true);
+            village.addMember(new VillagerPOIRecord(
+                    farmer.getUUID(), farmer.getName().getString(), "FARMER",
+                    null, null, null, farmer.getHealth(), VillagerPOIRecord.Status.ACTIVE,
+                    0, level.getGameTime()));
+            helper.assertTrue(village.refreshFarmerRoster(farmer),
+                    "farmer was not registered with the village roster");
             farmer.goalSelector.removeAllGoals(ignored -> true);
             farmer.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
             farmer.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             farmer.getBrain().eraseMemory(MemoryModuleType.PATH);
             farmer.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
             farmer.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
-            farmer.goalSelector.addGoal(0, new ReplenishFarmlandGoal(farmer));
+            ReplenishFarmlandGoal repairGoal = new ReplenishFarmlandGoal(farmer);
+            helper.assertTrue(repairGoal.canUse(),
+                    "farmer could not select its registered queued repair position");
+            farmer.goalSelector.addGoal(0, repairGoal);
             helper.runAfterDelay(1,
                     () -> awaitFarmlandRepair(helper, farmer, repairPos, village, progress, 450));
             helper.runAfterDelay(490, progress::restore);

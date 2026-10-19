@@ -3,10 +3,14 @@ package com.orangevillager61.emeraldcapitalism.entity.ai;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageWorkCell;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.level.block.Blocks;
@@ -31,8 +35,8 @@ public class ReplenishFarmlandGoal extends Goal {
     private static final double MAX_RANGE = 32.0;
     private static final double ARRIVAL_DISTANCE_SQ = 2.25; // 1.5 blocks
     private static final float SPEED_MODIFIER = 0.6F;
-    /** Close-enough distance for the brain's WalkTarget (in blocks). */
-    private static final int WALK_TARGET_CLOSE_ENOUGH = 0;
+    /** Match vanilla farmer interaction: the farmer stands beside the task block. */
+    private static final int WALK_TARGET_CLOSE_ENOUGH = 1;
     private static final int EMPTY_QUEUE_RETRY_TICKS = 100;
     private static final int FAILED_TARGET_RETRY_TICKS = 100;
 
@@ -67,7 +71,13 @@ public class ReplenishFarmlandGoal extends Goal {
                 || villager.getVillagerData().getProfession() != VillagerProfession.FARMER) {
             return false;
         }
+        if (isSocialInteractionActive()) {
+            return false;
+        }
         if (!(villager.level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        if (isVanillaJobSiteWorkActive(serverLevel)) {
             return false;
         }
         long gameTime = serverLevel.getGameTime();
@@ -89,7 +99,23 @@ public class ReplenishFarmlandGoal extends Goal {
             return false;
         }
 
-        BlockPos nearest = findNearestAvailableRepair(assignedVillage, villager.blockPosition(), gameTime);
+        if (!assignedVillage.ensureFarmerWorkLease(serverLevel, villager, gameTime)) {
+            scheduleNextQueueLookup(gameTime);
+            tryAlternativeRepairsDuringCooldown = false;
+            return false;
+        }
+        VillageWorkCell leasedCell = assignedVillage.getWorkCellLeasedTo(villager.getUUID());
+        if (leasedCell == null || leasedCell.getPendingRepairCount() == 0) {
+            if (leasedCell != null && leasedCell.getWorkPosition() != null) {
+                assignedVillage.releaseWorkLease(villager.getUUID(), leasedCell.getWorkPosition());
+            }
+            scheduleNextQueueLookup(gameTime);
+            tryAlternativeRepairsDuringCooldown = false;
+            return false;
+        }
+
+        BlockPos nearest = findNearestAvailableRepair(
+                assignedVillage, villager.blockPosition(), gameTime, leasedCell.getKey());
         if (nearest == null) {
             tryAlternativeRepairsDuringCooldown = false;
             scheduleNextQueueLookup(gameTime);
@@ -110,6 +136,16 @@ public class ReplenishFarmlandGoal extends Goal {
                 || VillagerBreedingSessions.shouldYieldCustomWork(villager)) {
             return false;
         }
+        if (isSocialInteractionActive()) {
+            return false;
+        }
+        if (failed || !(villager.level() instanceof ServerLevel serverLevel)
+                || !village.renewWorkLease(villager.getUUID(), targetPos, serverLevel.getGameTime())) {
+            return false;
+        }
+        if (isVanillaJobSiteWorkActive(serverLevel)) {
+            return false;
+        }
         // Continue only while this goal still owns a valid queued target.
         //
         // Why include claimedPositions?
@@ -117,10 +153,18 @@ public class ReplenishFarmlandGoal extends Goal {
         //   before start() claims it.
         // - if claims are lost/reset while running, this goal should stop immediately
         //   and allow normal arbitration to pick a fresh target next tick.
-        return !failed
-                && village.getRepairQueue().contains(targetPos)
+        // The movement request can complete on the same tick that the farmer
+        // reaches its standing position. Keep the goal alive for that arrival
+        // tick so tick() can restore the farmland before stop() releases it.
+        boolean arrived = villager.blockPosition().distSqr(targetPos) <= ARRIVAL_DISTANCE_SQ;
+        return village.getRepairQueue().contains(targetPos)
                 && village.getClaimedPositions().contains(targetPos)
-                && movement.isActive(villager);
+                && village.hasWorkLease(villager.getUUID(), targetPos)
+                // A failed/preempted sink route is recoverable. Keep the
+                // queued claim alive so tick() can republish the same request
+                // after the vanilla sink's retry window instead of stopping
+                // the work goal permanently.
+                && (arrived || !failed);
     }
 
     @Override
@@ -128,21 +172,17 @@ public class ReplenishFarmlandGoal extends Goal {
         if (village != null && targetPos != null) {
             // If claiming fails, another farmer took this position between canUse() and start().
             // Abort this run so goal arbitration can pick a fresh target next cycle.
-            if (!village.claimPosition(targetPos)) {
+            if (!village.claimRepairPosition(villager.getUUID(), targetPos)) {
+                village.releaseWorkLease(villager.getUUID(), targetPos);
                 targetPos = null;
                 village = null;
                 return;
             }
-            navigationTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
-                    villager, targetPos, 2);
-            if (navigationTarget == null) {
-                village.unclaimPosition(targetPos);
-                rememberFailedTarget(targetPos);
-                targetPos = null;
-                village = null;
-                failed = true;
-                return;
-            }
+            // A queued repair position is a solid dirt/grass block, unlike the
+            // crop block targeted by vanilla HarvestFarmland.  Target the open
+            // block above it so MoveToTargetSink can build a normal route; the
+            // repair position remains the authoritative interaction target.
+            navigationTarget = targetPos.above();
             failed = false;
             navigationWatchdog.reset();
             setWalkTarget();
@@ -163,6 +203,9 @@ public class ReplenishFarmlandGoal extends Goal {
         } else if (navigationWatchdog.isStuck(villager, navigationTarget)) {
             rememberFailedTarget(targetPos);
             failed = true;
+            if (villager.level() instanceof ServerLevel level) {
+                village.reportWorkLeaseFailure(villager.getUUID(), targetPos, level.getGameTime());
+            }
             movement.cancel(villager, MovementRequestTerminationReason.FAILED);
         } else {
             // Keep the brain's walk target pointed at our repair position.
@@ -174,7 +217,12 @@ public class ReplenishFarmlandGoal extends Goal {
     @Override
     public void stop() {
         if (village != null && targetPos != null) {
-            village.unclaimPosition(targetPos);
+            village.releaseRepairPositionClaim(villager.getUUID(), targetPos);
+            if (failed && villager.level() instanceof ServerLevel level) {
+                village.reportWorkLeaseFailure(villager.getUUID(), targetPos, level.getGameTime());
+            } else {
+                village.releaseWorkLease(villager.getUUID(), targetPos);
+            }
         }
         targetPos = null;
         navigationTarget = null;
@@ -217,8 +265,9 @@ public class ReplenishFarmlandGoal extends Goal {
         BlockState currentState = serverLevel.getBlockState(targetPos);
         if (!currentState.is(Blocks.DIRT) && !currentState.is(Blocks.GRASS_BLOCK)) {
             // Not a tillable block: remove from repair queue and registry
+            village.releaseWorkLease(villager.getUUID(), targetPos);
             village.removeFarmland(targetPos);
-            village.unclaimPosition(targetPos);
+            village.releaseRepairPositionClaim(villager.getUUID(), targetPos);
             VillageRegistryData data = VillageRegistryData.get(serverLevel);
             data.setDirty();
             targetPos = null;
@@ -230,8 +279,9 @@ public class ReplenishFarmlandGoal extends Goal {
         serverLevel.setBlock(targetPos, Blocks.FARMLAND.defaultBlockState(), 3);
 
         // Clean up tracking state
+        village.releaseWorkLease(villager.getUUID(), targetPos);
         village.removeFromRepairQueue(targetPos);
-        village.unclaimPosition(targetPos);
+        village.releaseRepairPositionClaim(villager.getUUID(), targetPos);
         // Ensure the position remains in the farmland registry
         village.addFarmland(targetPos);
 
@@ -259,22 +309,10 @@ public class ReplenishFarmlandGoal extends Goal {
     }
 
     @Nullable
-    private BlockPos findNearestAvailableRepair(VillageRecord found, BlockPos origin, long gameTime) {
-        double maxRangeSq = MAX_RANGE * MAX_RANGE;
-        BlockPos nearest = null;
-        double nearestDistSq = Double.MAX_VALUE;
-        for (BlockPos pos : found.getRepairQueue()) {
-            if (found.getClaimedPositions().contains(pos)
-                    || failedTargetExpiryTicks.getOrDefault(pos, Long.MIN_VALUE) > gameTime) {
-                continue;
-            }
-            double distSq = origin.distSqr(pos);
-            if (distSq <= maxRangeSq && distSq < nearestDistSq) {
-                nearestDistSq = distSq;
-                nearest = pos;
-            }
-        }
-        return nearest;
+    private BlockPos findNearestAvailableRepair(VillageRecord found, BlockPos origin, long gameTime,
+                                                VillageWorkCell.Key cellKey) {
+        return found.getNearestUnclaimedRepair(origin, MAX_RANGE, cellKey,
+                pos -> failedTargetExpiryTicks.getOrDefault(pos, Long.MIN_VALUE) <= gameTime);
     }
 
     private void scheduleNextQueueLookup(long gameTime) {
@@ -285,6 +323,29 @@ public class ReplenishFarmlandGoal extends Goal {
         nextQueueLookupTick = earliestExpiry == Long.MAX_VALUE
                 ? gameTime + EMPTY_QUEUE_RETRY_TICKS
                 : earliestExpiry;
+    }
+
+    /** Keeps custom repair work from taking movement away from the farmer's vanilla job site. */
+    private boolean isVanillaJobSiteWorkActive(ServerLevel level) {
+        GlobalPos jobSite = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
+        if (jobSite == null || jobSite.dimension() != level.dimension()) {
+            return false;
+        }
+        Long lastWorkedAtPoi = villager.getBrain().getMemory(MemoryModuleType.LAST_WORKED_AT_POI).orElse(null);
+        if (lastWorkedAtPoi != null && level.getGameTime() - lastWorkedAtPoi <= 1L) {
+            return true;
+        }
+
+        WalkTarget walkTarget = villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        return walkTarget != null
+                && walkTarget.getTarget().currentBlockPosition().equals(jobSite.pos())
+                && !jobSite.pos().closerToCenterThan(villager.position(), 1.73D);
+    }
+
+    /** Social villager behavior must finish before custom work takes MOVE/LOOK. */
+    private boolean isSocialInteractionActive() {
+        return villager.getBrain().hasMemoryValue(MemoryModuleType.INTERACTION_TARGET)
+                || villager.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET);
     }
 
     /** Returns the current target position, for testing purposes. */

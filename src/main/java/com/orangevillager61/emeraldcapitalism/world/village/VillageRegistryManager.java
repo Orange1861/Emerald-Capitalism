@@ -39,6 +39,8 @@ public class VillageRegistryManager {
     private static final int ENTITY_QUERY_CHUNKS_PER_TICK = 2;
     /** Total cached block positions verified during one governance tick. */
     private static final int GOVERNANCE_VERIFICATION_BUDGET = 128;
+    /** Dispatch ready work cells often enough to react quickly without per-tick scans. */
+    private static final int FARMER_WORK_DISPATCH_INTERVAL_TICKS = 5;
 
     private final ServerLevel level;
     private final InitialVillageScanChunkLoadPool initialScanChunkLoadPool;
@@ -116,6 +118,10 @@ public class VillageRegistryManager {
 
         tickCounter++;
         promoteDeferredInitialFullScans();
+
+        if (tickCounter % FARMER_WORK_DISPATCH_INTERVAL_TICKS == 0) {
+            dispatchFarmerWork();
+        }
 
         if (tickCounter % 20 == 0) {
             refreshVillageGovernance();
@@ -205,6 +211,14 @@ public class VillageRegistryManager {
                         "[ECAP][DoorCache] MANAGER verification changed village={} doors={} missingDoors={} gameTime={}",
                         village.getVillageId(), village.getDoorRegistry().size(),
                         village.getMissingDoorRegistry().size(), level.getGameTime());
+            }
+            if (remaining > 0) {
+                VillageRecord.MatureCropVerificationResult cropResult =
+                        village.verifyMatureCropWork(level, remaining);
+                remaining -= cropResult.positionsChecked();
+                if (cropResult.changed()) {
+                    registryData.setDirty();
+                }
             }
             villagesVisited++;
         }
@@ -615,6 +629,7 @@ public class VillageRegistryManager {
 
         UUID villagerUUID = villager.getUUID();
         for (VillageRecord village : registryData.getVillages().values()) {
+            village.removeFarmerFromRoster(villagerUUID);
             if (village.hasMember(villagerUUID)) {
                 village.removeMember(villagerUUID);
                 BlockPos bankPos = registryData.getBankPos(village.getVillageId());
@@ -635,6 +650,34 @@ public class VillageRegistryManager {
                         villager.getName().getString(), village.getVillageId());
                 return;
             }
+        }
+    }
+
+    /** Removes a villager from transient farmer rosters when its entity unloads. */
+    public void handleVillagerLeave(Villager villager) {
+        if (registryData == null) {
+            registryData = VillageRegistryData.get(level);
+        }
+        UUID villagerUUID = villager.getUUID();
+        for (VillageRecord village : registryData.getVillages().values()) {
+            village.removeFarmerFromRoster(villagerUUID);
+        }
+    }
+
+    /** Refreshes one loaded villager's roster membership after a profession/position change. */
+    public void handleVillagerRosterRefresh(Villager villager) {
+        if (registryData == null) {
+            registryData = VillageRegistryData.get(level);
+        }
+        VillageRecord owningVillage = registryData.getVillageFor(villager.blockPosition());
+        UUID villagerUUID = villager.getUUID();
+        for (VillageRecord village : registryData.getVillages().values()) {
+            if (village != owningVillage) {
+                village.removeFarmerFromRoster(villagerUUID);
+            }
+        }
+        if (owningVillage != null && owningVillage.hasMember(villagerUUID)) {
+            owningVillage.refreshFarmerRoster(villager);
         }
     }
 
@@ -660,6 +703,7 @@ public class VillageRegistryManager {
             // chunk load; the periodic village scan will refresh the rest of the POI data.
             updateBankEmployeeTracking(village, villager,
                     getMemoryBlockPos(villager, MemoryModuleType.JOB_SITE), false);
+            village.refreshFarmerRoster(villager);
         }
     }
 
@@ -747,10 +791,23 @@ public class VillageRegistryManager {
         }
 
         updateBankEmployeeTracking(village, villager, jobSitePos, existing == null);
+        village.refreshFarmerRoster(villager);
+    }
+
+    private void dispatchFarmerWork() {
+        long gameTime = level.getGameTime();
+        for (VillageRecord village : registryData.getVillages().values()) {
+            village.dispatchFarmerWork(level, gameTime);
+        }
     }
 
     /** Releases transient chunk tickets before this level's manager is discarded. */
     public void shutdown() {
+        if (registryData != null) {
+            for (VillageRecord village : registryData.getVillages().values()) {
+                village.clearTransientFarmerAssignments();
+            }
+        }
         deferredInitialFullScans.clear();
         initialScanChunkLoadPool.close();
     }
@@ -826,6 +883,11 @@ public class VillageRegistryManager {
             if (foundInWorld.contains(villagerUUID)) {
                 continue; // Present: already handled
             }
+
+            // A roster is a loaded-entity index, so unload/departure removes
+            // the farmer immediately even while the persisted member record
+            // remains through its normal departure grace period.
+            village.removeFarmerFromRoster(villagerUUID);
 
             // Not found in entity query: increment departure counter
             int newCount = record.getDepartureCounter() + 1;

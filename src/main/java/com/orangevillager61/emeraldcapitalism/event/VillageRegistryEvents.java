@@ -11,6 +11,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoa
 import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.BankerWorkGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestQueuedCropGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithProcessorGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithGolemConstructionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
@@ -47,6 +48,7 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FarmBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -55,11 +57,13 @@ import net.minecraft.world.phys.AABB;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.BlockGrowFeatureEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import net.neoforged.neoforge.event.level.block.CropGrowEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import java.util.Map;
@@ -168,6 +172,39 @@ public class VillageRegistryEvents {
                 villager -> villager.getVillagerData().getProfession()
                         == ECAPVillagerProfessions.LUMBERJACK.get()).isEmpty()) {
             event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Indexes a crop only after the server has observed it reach maximum age.
+     * The queue is position-keyed and deliberately does not perform farmer
+     * lookup or assignment.
+     */
+    @SubscribeEvent
+    public static void onCropGrowth(CropGrowEvent.Post event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) {
+            return;
+        }
+
+        BlockPos pos = event.getPos();
+        // Post carries the authoritative state produced by the growth tick.
+        // Use it instead of depending on the block-state visibility timing of
+        // another level hook; the queue is validated against the live state
+        // again immediately before a farmer harvests.
+        BlockState state = event.getState();
+        if (!(state.getBlock() instanceof CropBlock crop)
+                || !crop.isMaxAge(state)
+                || !(level.getBlockState(pos.below()).getBlock() instanceof FarmBlock)) {
+            return;
+        }
+
+        VillageRegistryData data = VillageRegistryData.get(level);
+        VillageRecord village = data.getVillageFor(pos);
+        if (village != null && village.addMatureCropWork(pos, level.getGameTime())) {
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][CropQueue] GROWTH queued mature crop village={} pos={} gameTime={}",
+                    village.getVillageId(), pos, level.getGameTime());
+            data.setDirty();
         }
     }
 
@@ -410,6 +447,27 @@ public class VillageRegistryEvents {
         injectEmeraldSmithGoal(villager);
     }
 
+    /** Removes unloaded villagers from transient farmer rosters and cell leases. */
+    @SubscribeEvent
+    public static void onVillagerLeaveLevel(EntityLeaveLevelEvent event) {
+        if (!(event.getEntity() instanceof Villager villager)
+                || !(event.getLevel() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        VillageRegistryManager manager = MANAGERS.get(serverLevel);
+        if (manager != null) {
+            manager.handleVillagerLeave(villager);
+        }
+    }
+
+    /** Reconciles farmer roster membership after a profession or cell-boundary change. */
+    public static void refreshFarmerRoster(Villager villager) {
+        if (!(villager.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        getManager(serverLevel).handleVillagerRosterRefresh(villager);
+    }
+
     /** Adds the once-daily/full-inventory bank delivery task to villagers when needed. */
     private static void injectVillagerInventoryBankGoal(Villager villager) {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
@@ -469,6 +527,13 @@ public class VillageRegistryEvents {
                 .anyMatch(g -> g.getGoal() instanceof ReplenishFarmlandGoal);
         if (!hasFarmlandRepairGoal) {
             villager.goalSelector.addGoal(4, new ReplenishFarmlandGoal(villager));
+        }
+
+        boolean hasQueuedCropHarvestGoal = villager.goalSelector.getAvailableGoals().stream()
+                .anyMatch(g -> g.getGoal() instanceof HarvestQueuedCropGoal);
+        if (!hasQueuedCropHarvestGoal) {
+            villager.goalSelector.addGoal(HarvestQueuedCropGoal.GOAL_PRIORITY,
+                    new HarvestQueuedCropGoal(villager));
         }
 
         boolean hasPumpkinHarvestGoal = villager.goalSelector.getAvailableGoals().stream()
@@ -566,14 +631,25 @@ public class VillageRegistryEvents {
         boolean isBed = state.getBlock() instanceof BedBlock;
         boolean isWorkstation = VillageRecord.getWorkstationType(state.getBlock()) != null;
         boolean isFarmland = state.getBlock() instanceof FarmBlock;
+        boolean isCrop = state.getBlock() instanceof CropBlock;
         boolean isDoor = state.getBlock() instanceof DoorBlock;
         boolean isEmeraldChest = state.is(com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks.EMERALD_CHEST.get());
         boolean isEmeraldProcessor = state.is(com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks.EMERALD_ORE_PROCESSOR.get());
-        if (!isBed && !isWorkstation && !isFarmland && !isDoor && !isEmeraldChest && !isEmeraldProcessor) {
+        BlockPos pos = event.getPos();
+        if (!isBed && !isWorkstation && !isFarmland && !isCrop && !isDoor
+                && !isEmeraldChest && !isEmeraldProcessor) {
+            VillageRegistryData data = VillageRegistryData.get(level);
+            VillageRecord village = data.getVillageFor(pos);
+            if (village != null) {
+                boolean matureCropQueueChanged = village.removeMatureCropWork(pos);
+                matureCropQueueChanged |= village.validateMatureCropWork(level, pos.above());
+                if (matureCropQueueChanged) {
+                    data.setDirty();
+                }
+            }
             return;
         }
 
-        BlockPos pos = event.getPos();
         if (isEmeraldChest || isEmeraldProcessor) {
             BankBlockEntity.markChestCachesDirtyNear(level, pos);
         }
@@ -588,6 +664,13 @@ public class VillageRegistryEvents {
                     village != null && village.isCacheInitialized());
         }
         if (village != null) {
+            boolean matureCropQueueChanged = village.removeMatureCropWork(pos);
+            if (isFarmland) {
+                matureCropQueueChanged |= village.validateMatureCropWork(level, pos.above());
+            }
+            if (matureCropQueueChanged) {
+                data.setDirty();
+            }
             village.onBlockPlaced(pos, state);
             if (isFarmland && village.addFarmland(pos)) {
                 data.setDirty();
@@ -630,6 +713,7 @@ public class VillageRegistryEvents {
         }
         BlockPos pos = event.getPos();
         BlockState state = event.getLevel().getBlockState(pos);
+        boolean isCrop = state.getBlock() instanceof CropBlock;
         boolean isDoor = state.getBlock() instanceof DoorBlock;
 
         if (state.is(com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks.EMERALD_CHEST.get())
@@ -687,9 +771,17 @@ public class VillageRegistryEvents {
                     village != null && village.isCacheInitialized(), event.isCanceled());
         }
         if (village != null) {
+            boolean matureCropQueueChanged = isCrop && village.removeMatureCropWork(pos);
+            if (state.getBlock() instanceof FarmBlock) {
+                matureCropQueueChanged |= village.removeMatureCropWork(pos.above());
+            }
             village.onBlockRemoved(pos);
             // BreakEvent fires before the block actually changes, so check the current state
-            if (state.getBlock() instanceof FarmBlock && village.addToRepairQueue(pos)) {
+            if (state.getBlock() instanceof FarmBlock
+                    && village.addToRepairQueue(pos, level.getGameTime())) {
+                data.setDirty();
+            }
+            if (matureCropQueueChanged) {
                 data.setDirty();
             }
             if (isDoor) {
@@ -751,8 +843,12 @@ public class VillageRegistryEvents {
         BlockPos pos = event.getPos();
         VillageRegistryData data = VillageRegistryData.get(level);
         VillageRecord village = data.getVillageFor(pos);
-        if (village != null && village.addToRepairQueue(pos)) {
-            data.setDirty();
+        if (village != null) {
+            boolean changed = village.removeMatureCropWork(pos.above());
+            changed |= village.addToRepairQueue(pos, level.getGameTime());
+            if (changed) {
+                data.setDirty();
+            }
         }
     }
 
@@ -774,6 +870,11 @@ public class VillageRegistryEvents {
         }
 
         BlockState newState = event.getLevel().getBlockState(pos);
+        boolean matureCropQueueChanged = village.validateMatureCropWork(level, pos);
+        matureCropQueueChanged |= village.validateMatureCropWork(level, pos.above());
+        if (matureCropQueueChanged) {
+            data.setDirty();
+        }
 
         if (newState.getBlock() instanceof DoorBlock) {
             BlockPos basePos = VillageRecord.doorBasePos(pos, newState);
@@ -789,7 +890,7 @@ public class VillageRegistryEvents {
             if (village.addFarmland(pos)) {
                 data.setDirty();
             }
-        } else if (village.addToRepairQueue(pos)) {
+        } else if (village.addToRepairQueue(pos, level.getGameTime())) {
             // If tracked farmland became dirt (for example, through dehydration), queue one repair.
             data.setDirty();
         }

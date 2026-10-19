@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestOutcome;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerMovementRequestBinding;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -58,6 +59,36 @@ public final class MovementRequestManagerRegressionGameTests {
         helper.assertTrue(first.accepted(), "initial brain journey was rejected");
         waitForLivePathBeforePreemption(helper, villager, first, firstDestination,
                 higherDestination, 180);
+    }
+
+    @GameTest(template = "empty_3x3x3")
+    public static void movementBindingResubmitsAfterItsHandleIsRetired(GameTestHelper helper) {
+        Villager villager = spawnBrainJourneyVillager(helper);
+        BlockPos destination = helper.absolutePos(new BlockPos(1, 1, 1));
+        MovementRequestSpec spec = spec("regression:binding-recovery", "destination", destination,
+                MovementRequestManager.PRIORITY_WORK);
+        VillagerMovementRequestBinding binding = new VillagerMovementRequestBinding();
+
+        helper.assertTrue(binding.submit(villager, spec),
+                "initial binding request was rejected");
+        MovementRequestHandle firstHandle = binding.handle();
+        helper.assertTrue(firstHandle != null,
+                "initial binding request did not publish a handle");
+        if (firstHandle == null) {
+            return;
+        }
+
+        helper.assertTrue(MovementRequestManager.cancel(villager, firstHandle,
+                        MovementRequestTerminationReason.PREEMPTED),
+                "test could not retire the initial binding request");
+        helper.assertTrue(binding.submit(villager, spec),
+                "binding did not resubmit after its handle became stale");
+        helper.assertTrue(binding.handle() != null
+                        && !binding.handle().equals(firstHandle)
+                        && MovementRequestManager.isActive(villager, binding.handle()),
+                "binding did not retain the recovered movement request");
+        binding.cancel(villager, MovementRequestTerminationReason.ABANDONED);
+        helper.succeed();
     }
 
     @GameTest(template = "empty_20x3x20", batch = "ecap_movement_unmanaged_handoff", timeoutTicks = 500)

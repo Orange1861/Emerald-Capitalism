@@ -12,12 +12,14 @@ import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
 import com.orangevillager61.emeraldcapitalism.block.VillageManagerBlock;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.AdaptiveChunkScanPlan;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.InitialVillageScanChunkLoadPool;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
@@ -27,9 +29,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 
@@ -49,6 +54,10 @@ public class VillageRecord {
     private static final int INITIAL_SCAN_PREFETCH_WINDOW = 4;
     private static final double MAX_PERSISTED_COORDINATE = 30_000_000.0D;
     private static final double MAX_PERSISTED_BOUNDING_EXTENT = 1_000_000.0D;
+    private static final long FARMER_WORK_LEASE_TICKS = 200L;
+    private static final long FARMER_WORK_RETRY_TICKS = 40L;
+    private static final int FARMER_CELL_QUERY_PADDING = 32;
+    private static final double FARMER_WORK_MAX_RANGE_SQ = 32.0D * 32.0D;
 
     /** Default welcome message shown when a player enters the village. */
     public static final String DEFAULT_WELCOME_MESSAGE = "Welcome to our village!";
@@ -58,6 +67,7 @@ public class VillageRecord {
     static final int MAX_PERSISTED_OPINION_MODIFIERS = 4_096;
     static final int MAX_PERSISTED_GOVERNOR_CANDIDATES = 1;
     static final int MAX_PERSISTED_FARMLAND_POSITIONS = 65_536;
+    static final int MAX_PERSISTED_WORK_CELLS = MAX_PERSISTED_FARMLAND_POSITIONS;
     public static final int MAX_PERSISTED_DOOR_POSITIONS = 65_536;
     private static final int MAX_PERSISTED_NAMING_PAIRS = 400;
     private static final int MAX_NAMING_ELEMENT_LENGTH = 64;
@@ -264,23 +274,29 @@ public class VillageRecord {
                     .optionalFieldOf("farmland_registry", List.of())
                     .forGetter(record -> new ArrayList<>(record.farmlandRegistry)),
             BlockPos.CODEC.sizeLimitedListOf(MAX_PERSISTED_FARMLAND_POSITIONS)
-                    .optionalFieldOf("repair_queue", List.of())
-                    .forGetter(record -> new ArrayList<>(record.repairQueue))
+                    .optionalFieldOf("mature_crop_work_queue", List.of())
+                    .forGetter(record -> new ArrayList<>(record.matureCropWorkQueue))
             ).apply(instance, (villageId, bellPosition, boundingBox, initialScanAnchorBounds, name,
                        villagerNamingBiome, villagerNamingDriftRules, villagerNamingAllocatedPairs,
                        members, welcomeMessage, abandonedVillage, opinionModifiers, governorId,
-                       governorCandidates, farmlandRegistry, repairQueue) -> fromCodec(
+                       governorCandidates, farmlandRegistry, matureCropWorkQueue) -> fromCodec(
             villageId, bellPosition, boundingBox, initialScanAnchorBounds, name, villagerNamingBiome,
             villagerNamingDriftRules, villagerNamingAllocatedPairs, members, welcomeMessage,
             abandonedVillage, opinionModifiers, governorId, governorCandidates, farmlandRegistry,
-            List.of(), List.of(), repairQueue)));
+            List.of(), List.of(), matureCropWorkQueue)));
 
     /** Adds the door registry as a flat top-level field without exceeding the codec arity limit. */
     public static final Codec<VillageRecord> CODEC = Codec.of(
             new Encoder<>() {
                 @Override
                 public <T> DataResult<T> encode(VillageRecord input, DynamicOps<T> ops, T prefix) {
-                    return BASE_CODEC.encode(input, ops, prefix).flatMap(encoded -> {
+                    return BASE_CODEC.encode(input, ops, prefix)
+                            .flatMap(encoded -> BlockPos.CODEC.sizeLimitedListOf(
+                                            MAX_PERSISTED_FARMLAND_POSITIONS)
+                                    .encodeStart(ops, new ArrayList<>(input.repairQueue))
+                                    .flatMap(encodedRepairs -> ops.mergeToMap(encoded,
+                                            ops.createString("repair_queue"), encodedRepairs)))
+                            .flatMap(encoded -> {
                         List<T> positions = new ArrayList<>(input.doorRegistry.size());
                         for (BlockPos pos : input.doorRegistry) {
                             DataResult<T> encodedPos = BlockPos.CODEC.encodeStart(ops, pos);
@@ -344,6 +360,17 @@ public class VillageRecord {
                     return BASE_CODEC.decode(ops, input).flatMap(decoded ->
                             ops.getMap(input).flatMap(map -> {
                                 T encodedDoors = map.get(ops.createString("door_registry"));
+                                T encodedRepairQueue = map.get(ops.createString("repair_queue"));
+                                DataResult<List<BlockPos>> repairQueueResult = encodedRepairQueue == null
+                                        ? DataResult.success(List.of())
+                                        : BlockPos.CODEC.sizeLimitedListOf(MAX_PERSISTED_FARMLAND_POSITIONS)
+                                                .parse(ops, encodedRepairQueue);
+                                T encodedLegacyWorkCells = map.get(ops.createString("work_cells"));
+                                DataResult<List<VillageWorkCell>> legacyWorkCellsResult =
+                                        encodedLegacyWorkCells == null
+                                                ? DataResult.success(List.of())
+                                                : VillageWorkCell.CODEC.sizeLimitedListOf(MAX_PERSISTED_WORK_CELLS)
+                                                        .parse(ops, encodedLegacyWorkCells);
                                 T encodedVillageType = map.get(ops.createString("village_type"));
                                 DataResult<VillageType> villageTypeResult = encodedVillageType == null
                                         ? DataResult.success(VillageType.PLAINS)
@@ -364,7 +391,9 @@ public class VillageRecord {
                                         encodedDoorPlacements == null
                                                 ? DataResult.success(List.of())
                                                 : DOOR_PLACEMENTS_CODEC.parse(ops, encodedDoorPlacements);
-                                return doorsResult.flatMap(doors -> missingDoorsResult.flatMap(missingDoors ->
+                                return repairQueueResult.flatMap(repairQueue -> legacyWorkCellsResult.flatMap(legacyWorkCells ->
+                                        doorsResult.flatMap(doors ->
+                                        missingDoorsResult.flatMap(missingDoors ->
                                         doorPlacementsResult.flatMap(doorPlacements ->
                                                 validateDoorPlacements(doorPlacements, doors, missingDoors)
                                                         .flatMap(validPlacements ->
@@ -408,8 +437,10 @@ public class VillageRecord {
                                                             completeGrace ? graceMayorId : null;
                                                     decoded.getFirst().governorCandidateAttackGraceUntil =
                                                             completeGrace ? graceUntil : 0L;
+                                                    decoded.getFirst().mergeLegacyWorkCells(legacyWorkCells);
+                                                    decoded.getFirst().mergeLegacyRepairQueue(repairQueue);
                                                     return decoded;
-                                                })))))))))).flatMap(decodedWithDoors ->
+                                                })))))))))))).flatMap(decodedWithDoors ->
                                         villageTypeResult.flatMap(villageType ->
                                                 villageColorResult.map(villageColor -> {
                                                     decodedWithDoors.getFirst().villageType = villageType;
@@ -532,8 +563,16 @@ public class VillageRecord {
     private final Map<BlockPos, DoorPlacement> doorPlacements = new HashMap<>();
     /** Farmland positions that need repair (trampled or turned to dirt). */
     private final Set<BlockPos> repairQueue = new HashSet<>();
+    /** Mature crop positions waiting for harvest/replant work. */
+    private final Set<BlockPos> matureCropWorkQueue = new HashSet<>();
+    /** Transient materialized non-empty, chunk-aligned farmer work cells. */
+    private final Map<VillageWorkCell.Key, VillageWorkCell> workCells = new HashMap<>();
+    /** Transient loaded, eligible farmer roster for this village. */
+    private final Set<UUID> farmerRoster = new HashSet<>();
     /** Farmland positions currently claimed by a farmer for repair. Cleared on server load. */
     private final Set<BlockPos> claimedPositions = new HashSet<>();
+    /** Mature-crop positions currently claimed by a farmer for queued harvest. */
+    private final Set<BlockPos> claimedMatureCropPositions = new HashSet<>();
     /** Missing-door positions currently claimed by a mayor for repair. Cleared on server load. */
     private final Set<BlockPos> claimedDoorPositions = new HashSet<>();
     /** Whether farmer repair work is enabled for this village. */
@@ -547,6 +586,8 @@ public class VillageRecord {
     private boolean fullScanCompletionPending;
     /** Round-robin cursor for bounded loaded-cache verification. */
     private int verificationCursor;
+    /** Round-robin cursor for bounded mature-crop queue verification. */
+    private int matureCropVerificationCursor;
 
     private static final class FullScanState {
         private final int minX, minY, minZ, maxX, maxY, maxZ;
@@ -562,6 +603,7 @@ public class VillageRecord {
         private final Set<BlockPos> beds = new HashSet<>();
         private final Map<BlockPos, String> jobSites = new HashMap<>();
         private final Set<BlockPos> farmland = new HashSet<>();
+        private final Set<BlockPos> matureCrops = new HashSet<>();
         private final Set<BlockPos> doors = new HashSet<>();
         private final Map<BlockPos, DoorPlacement> doorPlacements = new HashMap<>();
 
@@ -788,7 +830,7 @@ public class VillageRecord {
             List<BlockPos> farmlandRegistry,
             List<BlockPos> doorRegistry,
             List<BlockPos> missingDoorRegistry,
-            List<BlockPos> repairQueue
+            List<BlockPos> matureCropWorkQueue
     ) {
         VillageRecord record = new VillageRecord(villageId, bellPosition, boundingBox);
         record.initialScanAnchorBounds = initialScanAnchorBounds.orElse(null);
@@ -824,8 +866,92 @@ public class VillageRecord {
         record.farmlandRegistry.addAll(farmlandRegistry);
         record.doorRegistry.addAll(doorRegistry);
         record.missingDoorRegistry.addAll(missingDoorRegistry);
-        record.repairQueue.addAll(repairQueue);
+        for (BlockPos position : matureCropWorkQueue) {
+            if (containsPos(boundingBox, position)) {
+                record.matureCropWorkQueue.add(position.immutable());
+            }
+        }
+        record.rebuildWorkCellIndex();
         return record;
+    }
+
+    /** Migrates the phase-2 persisted cell buckets into canonical position sets. */
+    private void mergeLegacyWorkCells(Collection<VillageWorkCell> persistedCells) {
+        for (VillageWorkCell persistedCell : persistedCells) {
+            for (BlockPos position : persistedCell.getFarmlandRepairPositions()) {
+                if (containsPos(boundingBox, position)) {
+                    repairQueue.add(position.immutable());
+                }
+            }
+            for (BlockPos position : persistedCell.getMatureCropWorkPositions()) {
+                if (containsPos(boundingBox, position)) {
+                    matureCropWorkQueue.add(position.immutable());
+                }
+            }
+        }
+        rebuildWorkCellIndex();
+    }
+
+    /** Merges the legacy top-level repair queue with the cell index on load. */
+    private void mergeLegacyRepairQueue(Collection<BlockPos> persistedPositions) {
+        for (BlockPos position : persistedPositions) {
+            if (containsPos(boundingBox, position)) {
+                addRepairQueuePosition(position);
+            }
+        }
+        synchronizeRepairCells();
+    }
+
+    private void addRepairQueuePosition(BlockPos position) {
+        BlockPos immutablePosition = position.immutable();
+        repairQueue.add(immutablePosition);
+        VillageWorkCell cell = workCells.computeIfAbsent(
+                VillageWorkCell.Key.from(immutablePosition), VillageWorkCell::new);
+        cell.addFarmlandRepair(immutablePosition);
+    }
+
+    /** Rebuilds only the transient spatial index from canonical queue sets. */
+    private void rebuildWorkCellIndex() {
+        workCells.clear();
+        for (BlockPos position : repairQueue) {
+            if (containsPos(boundingBox, position)) {
+                workCells.computeIfAbsent(
+                        VillageWorkCell.Key.from(position), VillageWorkCell::new)
+                        .addFarmlandRepair(position);
+            }
+        }
+        for (BlockPos position : matureCropWorkQueue) {
+            if (containsPos(boundingBox, position)) {
+                workCells.computeIfAbsent(
+                        VillageWorkCell.Key.from(position), VillageWorkCell::new)
+                        .addMatureCropWork(position);
+            }
+        }
+    }
+
+    private void synchronizeRepairCells() {
+        workCells.values().forEach(cell ->
+                cell.retainFarmlandRepairs(position -> repairQueue.contains(position)
+                        && containsPos(boundingBox, position)));
+        for (BlockPos position : repairQueue) {
+            if (containsPos(boundingBox, position)) {
+                addRepairQueuePosition(position);
+            }
+        }
+        workCells.values().removeIf(VillageWorkCell::isEmpty);
+    }
+
+    private void pruneWorkCellsToBounds() {
+        repairQueue.removeIf(position -> !containsPos(boundingBox, position));
+        matureCropWorkQueue.removeIf(position -> !containsPos(boundingBox, position));
+        workCells.values().forEach(cell -> {
+            cell.retainFarmlandRepairs(position -> containsPos(boundingBox, position));
+            cell.retainMatureCropWork(position -> containsPos(boundingBox, position));
+        });
+        synchronizeRepairCells();
+        claimedPositions.retainAll(repairQueue);
+        claimedMatureCropPositions.retainAll(matureCropWorkQueue);
+        workCells.values().removeIf(VillageWorkCell::isEmpty);
     }
 
     private List<OpinionModifier> opinionModifiers() {
@@ -1041,6 +1167,7 @@ public class VillageRecord {
         this.boundingBox = newBox;
         VillageHostility.clearLookupCache();
         VillageOpinionCache.invalidateVillage(villageId);
+        pruneWorkCellsToBounds();
 
         if (!cacheInitialized) {
             return;
@@ -1053,7 +1180,6 @@ public class VillageRecord {
         doorRegistry.removeIf(pos -> !containsPos(newBox, pos));
         missingDoorRegistry.removeIf(pos -> !containsPos(newBox, pos));
         doorPlacements.keySet().removeIf(pos -> !containsPos(newBox, pos));
-        repairQueue.removeIf(pos -> !containsPos(newBox, pos));
         claimedPositions.removeIf(pos -> !containsPos(newBox, pos));
         claimedDoorPositions.removeIf(pos -> !containsPos(newBox, pos));
 
@@ -1064,6 +1190,7 @@ public class VillageRecord {
     /** Legacy setter without level: does not trigger delta scan. */
     public void setBoundingBox(AABB boundingBox) {
         this.boundingBox = boundingBox;
+        pruneWorkCellsToBounds();
         VillageHostility.clearLookupCache();
         VillageOpinionCache.invalidateVillage(villageId);
     }
@@ -1522,6 +1649,10 @@ public class VillageRecord {
             }
             if (blockState.getBlock() instanceof FarmBlock) {
                 state.farmland.add(pos.immutable());
+                BlockPos cropPos = pos.above();
+                if (isMatureCropOnFarmland(level, cropPos)) {
+                    state.matureCrops.add(cropPos.immutable());
+                }
                 interesting = true;
             }
             if (doorRepairEnabled && isDoorBase(blockState)) {
@@ -1593,6 +1724,17 @@ public class VillageRecord {
         doorPlacements.keySet().retainAll(trackedDoorPositions);
         claimedDoorPositions.retainAll(missingDoorRegistry);
         reconcileRepairQueue(level);
+        int matureCropsAdded = 0;
+        for (BlockPos position : state.matureCrops) {
+            if (addMatureCropWork(position, level.getGameTime())) {
+                matureCropsAdded++;
+            }
+        }
+        if (matureCropsAdded > 0) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][CropQueue] SCAN indexed {} already-mature crops village={} gameTime={}",
+                    matureCropsAdded, villageId, level.getGameTime());
+        }
         cacheInitialized = true;
         fullScanState = null;
         shrinkToFit();
@@ -1758,6 +1900,439 @@ public class VillageRecord {
         }
     }
 
+    /** Returns the materialized non-empty work cells owned by this village. */
+    public Collection<VillageWorkCell> getWorkCells() {
+        return Collections.unmodifiableCollection(workCells.values());
+    }
+
+    /** Returns a materialized cell for a position, or {@code null} when it is empty or out of bounds. */
+    @Nullable
+    public VillageWorkCell getWorkCell(BlockPos position) {
+        Objects.requireNonNull(position, "position");
+        if (!containsPos(boundingBox, position)) {
+            return null;
+        }
+        return workCells.get(VillageWorkCell.Key.from(position));
+    }
+
+    /** Returns the current village-edge view of a cell's stable chunk-aligned rectangle. */
+    public AABB getWorkCellBounds(VillageWorkCell.Key key) {
+        Objects.requireNonNull(key, "key");
+        return new VillageWorkCell(key).getBounds(boundingBox);
+    }
+
+    public int getPendingRepairCount() {
+        return repairQueue.size();
+    }
+
+    public int getPendingCropWorkCount() {
+        return matureCropWorkQueue.size();
+    }
+
+    /** Returns the transient loaded farmer roster owned by this village. */
+    public Set<UUID> getFarmerRoster() {
+        return Collections.unmodifiableSet(farmerRoster);
+    }
+
+    /**
+     * Adds or removes one loaded villager from this village's farmer roster.
+     * Position is sampled only at lifecycle/reconciliation boundaries; the
+     * roster does not maintain an exact per-tick position index.
+     */
+    public boolean refreshFarmerRoster(Villager villager) {
+        Objects.requireNonNull(villager, "villager");
+        if (isEligibleFarmer(villager)) {
+            return farmerRoster.add(villager.getUUID());
+        }
+        return removeFarmerFromRoster(villager.getUUID());
+    }
+
+    /** Removes a farmer and any leases that still point at that entity. */
+    public boolean removeFarmerFromRoster(UUID farmerId) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        boolean changed = farmerRoster.remove(farmerId);
+        for (VillageWorkCell cell : workCells.values()) {
+            changed |= releaseLeaseAndClaims(cell, farmerId);
+        }
+        return changed;
+    }
+
+    /** Clears transient roster and lease state when the owning level unloads. */
+    public void clearTransientFarmerAssignments() {
+        farmerRoster.clear();
+        for (VillageWorkCell cell : workCells.values()) {
+            VillageWorkCell.WorkLease lease = cell.getActiveLease();
+            if (lease != null) {
+                releaseClaimsForLease(cell, lease);
+            }
+            cell.clearTransientLeaseState();
+        }
+        claimedPositions.clear();
+        claimedMatureCropPositions.clear();
+    }
+
+    /** Releases a farmer's active cell lease without removing the roster entry. */
+    public boolean releaseWorkLease(UUID farmerId, BlockPos workPosition) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        Objects.requireNonNull(workPosition, "workPosition");
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(workPosition));
+        return cell != null && releaseLeaseAndClaims(cell, farmerId);
+    }
+
+    /** Extends an active lease while its farmer is still making progress. */
+    public boolean renewWorkLease(UUID farmerId, BlockPos workPosition, long gameTime) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        Objects.requireNonNull(workPosition, "workPosition");
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(workPosition));
+        return cell != null && cell.renewLease(farmerId, gameTime, FARMER_WORK_LEASE_TICKS);
+    }
+
+    /** Reports a pathing failure and leaves the cell ready for later reassignment. */
+    public boolean reportWorkLeaseFailure(UUID farmerId, BlockPos workPosition, long gameTime) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        Objects.requireNonNull(workPosition, "workPosition");
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(workPosition));
+        if (cell == null) {
+            return false;
+        }
+        VillageWorkCell.WorkLease lease = cell.getActiveLease();
+        if (lease == null || !lease.farmerId().equals(farmerId)) {
+            return false;
+        }
+        releaseClaimsForLease(cell, lease);
+        return cell.recordLeaseFailure(farmerId, gameTime, FARMER_WORK_RETRY_TICKS);
+    }
+
+    /** Returns the cell currently leased to a farmer, if any. */
+    @Nullable
+    public VillageWorkCell getWorkCellLeasedTo(UUID farmerId) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        for (VillageWorkCell cell : workCells.values()) {
+            VillageWorkCell.WorkLease lease = cell.getActiveLease();
+            if (lease != null && lease.farmerId().equals(farmerId)) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    /** Checks whether a farmer owns the lease covering a particular work position. */
+    public boolean hasWorkLease(UUID farmerId, BlockPos workPosition) {
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(workPosition));
+        VillageWorkCell.WorkLease lease = cell == null ? null : cell.getActiveLease();
+        return lease != null && lease.farmerId().equals(farmerId);
+    }
+
+    /**
+     * Assigns ready cells to loaded farmers using only the village roster and
+     * bounded entity-section queries around each ready cell.
+     */
+    public int dispatchFarmerWork(ServerLevel level, long gameTime) {
+        Objects.requireNonNull(level, "level");
+        pruneFarmerRoster(level);
+
+        // Vanilla HarvestFarmland can consume a queued crop before a separate
+        // queue consumer reaches it. Revalidate queued crops before assigning
+        // a cell lease so stale entries cannot become custom work targets.
+        for (VillageWorkCell cell : new ArrayList<>(workCells.values())) {
+            for (BlockPos position : new ArrayList<>(cell.getMatureCropWorkPositions())) {
+                validateMatureCropWork(level, position);
+            }
+        }
+
+        List<VillageWorkCell> readyCells = new ArrayList<>();
+        Map<VillageWorkCell, List<Villager>> nearbyFarmersByCell = new HashMap<>();
+        for (VillageWorkCell cell : workCells.values()) {
+            if (cell.isEmpty()) {
+                continue;
+            }
+            if (cell.getWorkReadySince() == Long.MIN_VALUE) {
+                cell.markWorkReady(gameTime);
+            }
+            VillageWorkCell.WorkLease lease = cell.getActiveLease();
+            if (lease != null && lease.isExpired(gameTime)) {
+                releaseLeaseAndClaims(cell, lease.farmerId());
+                lease = null;
+            }
+            if (lease != null && !farmerRoster.contains(lease.farmerId())) {
+                releaseLeaseAndClaims(cell, lease.farmerId());
+            }
+            if (cell.canLease(gameTime)) {
+                List<Villager> nearbyFarmers = refreshNearbyFarmers(level, cell);
+                if (!nearbyFarmers.isEmpty()) {
+                    readyCells.add(cell);
+                    nearbyFarmersByCell.put(cell, nearbyFarmers);
+                }
+            }
+        }
+
+        readyCells.sort(Comparator
+                .comparingInt(VillageWorkCell::getPendingWorkCount).reversed()
+                .thenComparingLong(cell -> -workAge(cell, gameTime))
+                .thenComparing(cell -> cell.getKey().chunkX())
+                .thenComparing(cell -> cell.getKey().chunkZ()));
+
+        int assigned = 0;
+        for (VillageWorkCell cell : readyCells) {
+            Villager farmer = selectFarmerForCell(cell, nearbyFarmersByCell.get(cell));
+            if (farmer == null) {
+                continue;
+            }
+            cell.assignLease(farmer.getUUID(), gameTime, FARMER_WORK_LEASE_TICKS);
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP][FarmerWork] LEASE village={} farmer={} cell={} repairs={} crops={} gameTime={}",
+                    villageId, farmer.getUUID(), cell.getKey(), cell.getPendingRepairCount(),
+                    cell.getPendingCropWorkCount(), gameTime);
+            assigned++;
+        }
+        return assigned;
+    }
+
+    /**
+     * Ensures the caller can make progress when a goal runs before the next
+     * manager dispatch slice. This still selects through the same roster and
+     * cell lease path; it never scans all villagers in the level.
+     */
+    public boolean ensureFarmerWorkLease(ServerLevel level, Villager farmer, long gameTime) {
+        if (!isEligibleFarmer(farmer)) {
+            return false;
+        }
+        refreshFarmerRoster(farmer);
+        if (getWorkCellLeasedTo(farmer.getUUID()) != null) {
+            return true;
+        }
+        dispatchFarmerWork(level, gameTime);
+        return getWorkCellLeasedTo(farmer.getUUID()) != null;
+    }
+
+    private long workAge(VillageWorkCell cell, long gameTime) {
+        long readySince = cell.getWorkReadySince();
+        return readySince == Long.MIN_VALUE ? 0L : Math.max(0L, gameTime - readySince);
+    }
+
+    private List<Villager> refreshNearbyFarmers(ServerLevel level, VillageWorkCell cell) {
+        List<Villager> nearbyFarmers = new ArrayList<>();
+        AABB queryBounds = getWorkCellBounds(cell.getKey()).inflate(
+                FARMER_CELL_QUERY_PADDING, 0.0D, FARMER_CELL_QUERY_PADDING);
+        for (Villager villager : level.getEntitiesOfClass(Villager.class, queryBounds,
+                this::isEligibleFarmer)) {
+            farmerRoster.add(villager.getUUID());
+            nearbyFarmers.add(villager);
+        }
+        return nearbyFarmers;
+    }
+
+    @Nullable
+    private Villager selectFarmerForCell(VillageWorkCell cell, List<Villager> nearbyFarmers) {
+        List<FarmerCandidate> candidates = new ArrayList<>();
+        for (Villager farmer : nearbyFarmers) {
+            UUID farmerId = farmer.getUUID();
+            if (getWorkCellLeasedTo(farmerId) != null || !isAvailableForCustomWork(farmer)) {
+                continue;
+            }
+
+            BlockPos workPosition = nearestPendingWorkPosition(cell, farmer.blockPosition());
+            if (workPosition == null) {
+                continue;
+            }
+            double distance = farmer.blockPosition().distSqr(workPosition);
+            // The work goals deliberately select queued positions within 32
+            // blocks. Do not lease a cell to a farmer found by the padded
+            // entity query when none of that cell's pending positions is in
+            // the goal's selection range.
+            if (distance > FARMER_WORK_MAX_RANGE_SQ) {
+                continue;
+            }
+            boolean reachable = workPosition == null
+                    || VillagerNavigationTargets.findReachableTarget(farmer, workPosition, 2) != null;
+            candidates.add(new FarmerCandidate(farmer, reachable, distance));
+        }
+        return candidates.stream()
+                .sorted(Comparator.comparing(FarmerCandidate::reachable).reversed()
+                        .thenComparingDouble(FarmerCandidate::distance)
+                        .thenComparing(candidate -> candidate.farmer().getUUID().toString()))
+                .map(FarmerCandidate::farmer)
+                .findFirst()
+                .orElse(null);
+    }
+
+    @Nullable
+    private BlockPos nearestPendingWorkPosition(VillageWorkCell cell, BlockPos origin) {
+        BlockPos nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (BlockPos position : cell.getFarmlandRepairPositions()) {
+            double distance = origin.distSqr(position);
+            if (distance < nearestDistance) {
+                nearest = position;
+                nearestDistance = distance;
+            }
+        }
+        for (BlockPos position : cell.getMatureCropWorkPositions()) {
+            double distance = origin.distSqr(position);
+            if (distance < nearestDistance) {
+                nearest = position;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
+    /** Leaves farmers at or walking to their assigned job site for vanilla work. */
+    private boolean isAvailableForCustomWork(Villager farmer) {
+        if (!(farmer.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        if (farmer.getBrain().hasMemoryValue(MemoryModuleType.INTERACTION_TARGET)
+                || farmer.getBrain().hasMemoryValue(MemoryModuleType.BREED_TARGET)) {
+            return false;
+        }
+        GlobalPos jobSite = farmer.getBrain().getMemory(MemoryModuleType.JOB_SITE).orElse(null);
+        if (jobSite == null || jobSite.dimension() != level.dimension()) {
+            return true;
+        }
+        Long lastWorkedAtPoi = farmer.getBrain().getMemory(MemoryModuleType.LAST_WORKED_AT_POI).orElse(null);
+        if (lastWorkedAtPoi != null && level.getGameTime() - lastWorkedAtPoi <= 1L) {
+            return false;
+        }
+        WalkTarget walkTarget = farmer.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        return walkTarget == null
+                || !walkTarget.getTarget().currentBlockPosition().equals(jobSite.pos())
+                || jobSite.pos().closerToCenterThan(farmer.position(), 1.73D);
+    }
+
+    private void pruneFarmerRoster(ServerLevel level) {
+        Iterator<UUID> iterator = farmerRoster.iterator();
+        while (iterator.hasNext()) {
+            UUID farmerId = iterator.next();
+            if (!(level.getEntity(farmerId) instanceof Villager farmer) || !isEligibleFarmer(farmer)) {
+                iterator.remove();
+                for (VillageWorkCell cell : workCells.values()) {
+                    releaseLeaseAndClaims(cell, farmerId);
+                }
+            }
+        }
+    }
+
+    private boolean isEligibleFarmer(Villager villager) {
+        return villager.isAlive()
+                && !villager.isRemoved()
+                && !villager.isBaby()
+                && villager.getVillagerData().getProfession() == VillagerProfession.FARMER
+                && hasMember(villager.getUUID())
+                && containsPos(boundingBox, villager.blockPosition());
+    }
+
+    private record FarmerCandidate(Villager farmer, boolean reachable, double distance) {
+    }
+
+    /** Adds mature-crop work without introducing claims or farmer assignment state. */
+    public boolean addMatureCropWork(BlockPos position) {
+        return addMatureCropWork(position, 0L);
+    }
+
+    /** Adds mature-crop work and records when its cell became ready. */
+    public boolean addMatureCropWork(BlockPos position, long gameTime) {
+        Objects.requireNonNull(position, "position");
+        if (!containsPos(boundingBox, position)) {
+            return false;
+        }
+        BlockPos immutablePosition = position.immutable();
+        VillageWorkCell cell = workCells.computeIfAbsent(
+                VillageWorkCell.Key.from(immutablePosition), VillageWorkCell::new);
+        cell.markWorkReady(gameTime);
+        cell.addMatureCropWork(immutablePosition);
+        return matureCropWorkQueue.add(immutablePosition);
+    }
+
+    public boolean removeMatureCropWork(BlockPos position) {
+        Objects.requireNonNull(position, "position");
+        releaseMatureCropPositionClaim(position);
+        boolean changed = matureCropWorkQueue.remove(position);
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(position));
+        if (cell != null && cell.removeMatureCropWork(position)) {
+            changed = true;
+            cell.clearWorkStateIfEmpty();
+            if (cell.isEmpty()) {
+                workCells.remove(cell.getKey(), cell);
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Validates one mature-crop index entry against the live server state.
+     * The queue is only a fast work index; this method is the authoritative
+     * gate immediately before a future crop-work consumer acts on an entry.
+     */
+    public boolean validateMatureCropWork(ServerLevel level, BlockPos position) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(position, "position");
+        if (!matureCropWorkQueue.contains(position)) {
+            return removeMatureCropWork(position);
+        }
+        if (!containsPos(boundingBox, position)
+                || !level.hasChunk(position.getX() >> 4, position.getZ() >> 4)
+                || !isMatureCropOnFarmland(level, position)) {
+            return removeMatureCropWork(position);
+        }
+        workCells.computeIfAbsent(
+                VillageWorkCell.Key.from(position), VillageWorkCell::new)
+                .addMatureCropWork(position);
+        return false;
+    }
+
+    /** Result of one bounded pass over mature-crop work-index entries. */
+    public record MatureCropVerificationResult(boolean changed, int positionsChecked) {
+    }
+
+    /**
+     * Revalidates a bounded number of mature-crop entries without loading
+     * chunks. Entries in unloaded chunks are discarded because their cached
+     * world state is no longer valid for work dispatch.
+     */
+    public MatureCropVerificationResult verifyMatureCropWork(ServerLevel level, int budget) {
+        Objects.requireNonNull(level, "level");
+        if (budget <= 0) {
+            return new MatureCropVerificationResult(false, 0);
+        }
+
+        List<BlockPos> positions = new ArrayList<>();
+        for (VillageWorkCell cell : workCells.values()) {
+            positions.addAll(cell.getMatureCropWorkPositions());
+        }
+        int total = positions.size();
+        if (total == 0) {
+            matureCropVerificationCursor = 0;
+            return new MatureCropVerificationResult(false, 0);
+        }
+
+        int start = Math.floorMod(matureCropVerificationCursor, total);
+        int checks = Math.min(budget, total);
+        boolean changed = false;
+        for (int offset = 0; offset < checks; offset++) {
+            changed |= validateMatureCropWork(level, positions.get((start + offset) % total));
+        }
+        matureCropVerificationCursor = (start + checks) % total;
+        return new MatureCropVerificationResult(changed, checks);
+    }
+
+    private static boolean isMatureCropOnFarmland(ServerLevel level, BlockPos position) {
+        BlockState cropState = level.getBlockState(position);
+        return cropState.getBlock() instanceof CropBlock crop
+                && crop.isMaxAge(cropState)
+                && level.getBlockState(position.below()).getBlock() instanceof FarmBlock;
+    }
+
+    /** Returns an unmodifiable flattened view for presentation and diagnostics. */
+    public Set<BlockPos> getMatureCropWorkQueue() {
+        return Collections.unmodifiableSet(matureCropWorkQueue);
+    }
+
+    /** Returns mature-crop positions currently claimed by active farmer leases. */
+    public Set<BlockPos> getClaimedMatureCropPositions() {
+        return Collections.unmodifiableSet(claimedMatureCropPositions);
+    }
+
     // Farmland registry methods
 
     /** Returns an unmodifiable view of the farmland registry. */
@@ -1821,6 +2396,7 @@ public class VillageRecord {
             }
         }
         claimedPositions.retainAll(repairQueue);
+        synchronizeRepairCells();
     }
 
     /** Adds a position to the farmland registry, returning whether persistent state changed. */
@@ -1919,18 +2495,47 @@ public class VillageRecord {
     public void removeFarmland(BlockPos pos) {
         farmlandRegistry.remove(pos);
         if (fullScanState != null) fullScanState.farmland.remove(pos);
-        repairQueue.remove(pos);
+        removeFromRepairQueue(pos);
+        removeMatureCropWork(pos.above());
         claimedPositions.remove(pos);
     }
 
     /** Adds a position to the repair queue if it is in the farmland registry. */
     public boolean addToRepairQueue(BlockPos pos) {
-        return farmlandRegistry.contains(pos) && repairQueue.add(pos.immutable());
+        return addToRepairQueue(pos, 0L);
+    }
+
+    /** Adds repair work and records when its cell became ready. */
+    public boolean addToRepairQueue(BlockPos pos, long gameTime) {
+        Objects.requireNonNull(pos, "pos");
+        if (!farmlandRegistry.contains(pos) || !containsPos(boundingBox, pos)) {
+            return false;
+        }
+        if (repairQueue.contains(pos)) {
+            VillageWorkCell cell = workCells.computeIfAbsent(
+                    VillageWorkCell.Key.from(pos), VillageWorkCell::new);
+            cell.markWorkReady(gameTime);
+            cell.addFarmlandRepair(pos);
+            return false;
+        }
+        addRepairQueuePosition(pos);
+        workCells.get(VillageWorkCell.Key.from(pos)).markWorkReady(gameTime);
+        return true;
     }
 
     /** Removes a position from the repair queue. */
     public void removeFromRepairQueue(BlockPos pos) {
+        Objects.requireNonNull(pos, "pos");
+        releaseRepairPositionClaim(pos);
         repairQueue.remove(pos);
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(pos));
+        if (cell != null) {
+            cell.removeFarmlandRepair(pos);
+            cell.clearWorkStateIfEmpty();
+            if (cell.isEmpty()) {
+                workCells.remove(cell.getKey(), cell);
+            }
+        }
     }
 
     /**
@@ -1938,21 +2543,137 @@ public class VillageRecord {
      * was unclaimed and in the repair queue.
      */
     public boolean claimPosition(BlockPos pos) {
-        if (repairQueue.contains(pos) && !claimedPositions.contains(pos)) {
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(pos));
+        // Retain this compatibility API for non-farmer repair callers, but do
+        // not create an unowned claim on a cell already leased to a farmer.
+        if (repairQueue.contains(pos) && !claimedPositions.contains(pos)
+                && (cell == null || cell.getActiveLease() == null)) {
             claimedPositions.add(pos.immutable());
             return true;
         }
         return false;
     }
 
+    /** Claims a queued repair position for the farmer's active work lease. */
+    public boolean claimRepairPosition(UUID farmerId, BlockPos position) {
+        return claimLeasePosition(farmerId, position, true);
+    }
+
+    /** Claims a queued mature crop position for the farmer's active work lease. */
+    public boolean claimMatureCropPosition(UUID farmerId, BlockPos position) {
+        return claimLeasePosition(farmerId, position, false);
+    }
+
+    /** Releases one repair claim owned by the farmer's active lease. */
+    public boolean releaseRepairPositionClaim(UUID farmerId, BlockPos position) {
+        return releaseLeasePositionClaim(farmerId, position, true);
+    }
+
+    /** Releases one mature-crop claim owned by the farmer's active lease. */
+    public boolean releaseMatureCropPositionClaim(UUID farmerId, BlockPos position) {
+        return releaseLeasePositionClaim(farmerId, position, false);
+    }
+
+    private boolean claimLeasePosition(UUID farmerId, BlockPos position, boolean repair) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        Objects.requireNonNull(position, "position");
+        if (repair ? !repairQueue.contains(position) : !matureCropWorkQueue.contains(position)) {
+            return false;
+        }
+
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(position));
+        VillageWorkCell.WorkLease lease = cell == null ? null : cell.getActiveLease();
+        if (lease == null || !lease.farmerId().equals(farmerId)) {
+            return false;
+        }
+
+        Set<BlockPos> claims = repair ? claimedPositions : claimedMatureCropPositions;
+        if (claims.contains(position)) {
+            return false;
+        }
+        if (!lease.claimPosition(position)) {
+            return false;
+        }
+        claims.add(position.immutable());
+        return true;
+    }
+
+    private boolean releaseLeasePositionClaim(UUID farmerId, BlockPos position, boolean repair) {
+        Objects.requireNonNull(farmerId, "farmerId");
+        Objects.requireNonNull(position, "position");
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(position));
+        VillageWorkCell.WorkLease lease = cell == null ? null : cell.getActiveLease();
+        if (lease == null || !lease.farmerId().equals(farmerId)) {
+            return false;
+        }
+        boolean released = lease.releaseClaim(position);
+        released |= (repair ? claimedPositions : claimedMatureCropPositions).remove(position);
+        return released;
+    }
+
+    private boolean releaseLeaseAndClaims(VillageWorkCell cell, UUID farmerId) {
+        VillageWorkCell.WorkLease lease = cell.getActiveLease();
+        if (lease == null || !lease.farmerId().equals(farmerId)) {
+            return false;
+        }
+        releaseClaimsForLease(cell, lease);
+        return cell.releaseLease(farmerId);
+    }
+
+    private void releaseClaimsForLease(VillageWorkCell cell, VillageWorkCell.WorkLease lease) {
+        for (BlockPos position : lease.claimedPositions()) {
+            if (cell.getFarmlandRepairPositions().contains(position)) {
+                claimedPositions.remove(position);
+            }
+            if (cell.getMatureCropWorkPositions().contains(position)) {
+                claimedMatureCropPositions.remove(position);
+            }
+        }
+    }
+
+    private void releaseRepairPositionClaim(BlockPos position) {
+        claimedPositions.remove(position);
+        releasePositionFromActiveLeases(position, true);
+    }
+
+    private void releaseMatureCropPositionClaim(BlockPos position) {
+        claimedMatureCropPositions.remove(position);
+        releasePositionFromActiveLeases(position, false);
+    }
+
+    private void releasePositionFromActiveLeases(BlockPos position, boolean repair) {
+        VillageWorkCell cell = workCells.get(VillageWorkCell.Key.from(position));
+        if (cell == null || !cell.containsPosition(position)) {
+            return;
+        }
+        VillageWorkCell.WorkLease lease = cell.getActiveLease();
+        if (lease != null && (repair
+                ? cell.getFarmlandRepairPositions().contains(position)
+                : cell.getMatureCropWorkPositions().contains(position))) {
+            lease.releaseClaim(position);
+        }
+    }
+
     /** Unclaims a position so another farmer can take it. */
     public void unclaimPosition(BlockPos pos) {
-        claimedPositions.remove(pos);
+        releaseRepairPositionClaim(pos);
     }
 
     /** Clears all claimed positions. Called on server load. */
     public void clearClaimed() {
         claimedPositions.clear();
+        claimedMatureCropPositions.clear();
+        for (VillageWorkCell cell : workCells.values()) {
+            VillageWorkCell.WorkLease lease = cell.getActiveLease();
+            if (lease != null) {
+                for (BlockPos position : new ArrayList<>(lease.claimedPositions())) {
+                    if (cell.getFarmlandRepairPositions().contains(position)
+                            || cell.getMatureCropWorkPositions().contains(position)) {
+                        lease.releaseClaim(position);
+                    }
+                }
+            }
+        }
         claimedDoorPositions.clear();
     }
 
@@ -1961,17 +2682,95 @@ public class VillageRecord {
      * of the specified position, or null if none found.
      */
     public BlockPos getNearestUnclaimedRepair(BlockPos origin, double maxRange) {
+        return getNearestUnclaimedRepair(origin, maxRange, ignored -> true);
+    }
+
+    /** Returns the nearest unclaimed repair accepted by the supplied predicate. */
+    @Nullable
+    public BlockPos getNearestUnclaimedRepair(
+            BlockPos origin, double maxRange, java.util.function.Predicate<BlockPos> acceptable) {
+        return getNearestUnclaimedRepair(origin, maxRange, null, acceptable);
+    }
+
+    /** Returns the nearest acceptable repair restricted to one leased work cell. */
+    @Nullable
+    public BlockPos getNearestUnclaimedRepair(
+            BlockPos origin, double maxRange, @Nullable VillageWorkCell.Key allowedCell,
+            java.util.function.Predicate<BlockPos> acceptable) {
+        Objects.requireNonNull(origin, "origin");
+        Objects.requireNonNull(acceptable, "acceptable");
         double maxRangeSq = maxRange * maxRange;
         BlockPos nearest = null;
         double nearestDistSq = Double.MAX_VALUE;
-        for (BlockPos pos : repairQueue) {
-            if (claimedPositions.contains(pos)) {
-                continue;
+
+        int minX = (int) Math.floor(origin.getX() - maxRange);
+        int maxX = (int) Math.floor(origin.getX() + maxRange);
+        int minZ = (int) Math.floor(origin.getZ() - maxRange);
+        int maxZ = (int) Math.floor(origin.getZ() + maxRange);
+        for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
+            for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
+                VillageWorkCell.Key cellKey = new VillageWorkCell.Key(chunkX, chunkZ);
+                if (allowedCell != null && !allowedCell.equals(cellKey)) {
+                    continue;
+                }
+                VillageWorkCell cell = workCells.get(cellKey);
+                if (cell == null) {
+                    continue;
+                }
+                for (BlockPos pos : cell.getFarmlandRepairPositions()) {
+                    if (!repairQueue.contains(pos)
+                            || claimedPositions.contains(pos)
+                            || !acceptable.test(pos)) {
+                        continue;
+                    }
+                    double distSq = origin.distSqr(pos);
+                    if (distSq <= maxRangeSq && distSq < nearestDistSq) {
+                        nearestDistSq = distSq;
+                        nearest = pos;
+                    }
+                }
             }
-            double distSq = origin.distSqr(pos);
-            if (distSq <= maxRangeSq && distSq < nearestDistSq) {
-                nearestDistSq = distSq;
-                nearest = pos;
+        }
+        return nearest;
+    }
+
+    /** Returns the nearest acceptable queued crop in one leased work cell. */
+    @Nullable
+    public BlockPos getNearestUnclaimedMatureCrop(
+            BlockPos origin, double maxRange, @Nullable VillageWorkCell.Key allowedCell,
+            java.util.function.Predicate<BlockPos> acceptable) {
+        Objects.requireNonNull(origin, "origin");
+        Objects.requireNonNull(acceptable, "acceptable");
+        double maxRangeSq = maxRange * maxRange;
+        BlockPos nearest = null;
+        double nearestDistSq = Double.MAX_VALUE;
+
+        int minX = (int) Math.floor(origin.getX() - maxRange);
+        int maxX = (int) Math.floor(origin.getX() + maxRange);
+        int minZ = (int) Math.floor(origin.getZ() - maxRange);
+        int maxZ = (int) Math.floor(origin.getZ() + maxRange);
+        for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
+            for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
+                VillageWorkCell.Key cellKey = new VillageWorkCell.Key(chunkX, chunkZ);
+                if (allowedCell != null && !allowedCell.equals(cellKey)) {
+                    continue;
+                }
+                VillageWorkCell cell = workCells.get(cellKey);
+                if (cell == null) {
+                    continue;
+                }
+                for (BlockPos pos : cell.getMatureCropWorkPositions()) {
+                    if (!matureCropWorkQueue.contains(pos)
+                            || claimedMatureCropPositions.contains(pos)
+                            || !acceptable.test(pos)) {
+                        continue;
+                    }
+                    double distSq = origin.distSqr(pos);
+                    if (distSq <= maxRangeSq && distSq < nearestDistSq) {
+                        nearestDistSq = distSq;
+                        nearest = pos;
+                    }
+                }
             }
         }
         return nearest;
@@ -2136,7 +2935,7 @@ public class VillageRecord {
 
     /**
      * Adjusts the bounding box to fit all discovered village blocks (beds, job
-     * sites, farmland, repair queue) and the bell position, plus
+     * sites, farmland, repair queues) and the bell position, plus
      * {@link #BOUNDARY_MARGIN} blocks on each side. The margin is allowed to
      * extend past the previous scan box so edge blocks retain tracking space.
      * If no blocks were found the box is left unchanged.
@@ -2150,6 +2949,7 @@ public class VillageRecord {
         allPositions.addAll(doorRegistry);
         allPositions.addAll(missingDoorRegistry);
         allPositions.addAll(repairQueue);
+        allPositions.addAll(matureCropWorkQueue);
 
         if (allPositions.isEmpty()) {
             // Nothing found: keep current box (village might just have a bell)
@@ -2199,6 +2999,7 @@ public class VillageRecord {
             );
 
             this.boundingBox = adjusted;
+            pruneWorkCellsToBounds();
         }
     }
 

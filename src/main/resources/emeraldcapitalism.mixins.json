@@ -19,7 +19,6 @@
     "WalkNodeLadderMixin",
     "MobMeleeReachMixin",
     "MoveToTargetSinkMixin",
-    "HarvestFarmlandMixin",
     "ZombieDoorBreakingMixin",
     "ZombieVillagerConversionMixin"
   ],

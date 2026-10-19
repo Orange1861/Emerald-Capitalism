@@ -2,12 +2,14 @@ package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankReputationData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageGovernance;
-import net.minecraft.core.BlockPos;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.CompoundContainer;
@@ -17,8 +19,6 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -85,8 +85,7 @@ public final class BankReputationEvents {
             return;
         }
 
-        List<EmeraldChestBlockEntity> bankChests = findBankChests(
-                level, player.blockPosition(), chestMenu.getContainer());
+        List<EmeraldChestBlockEntity> bankChests = findBankChests(level, chestMenu.getContainer());
         if (bankChests.isEmpty()) {
             return;
         }
@@ -118,36 +117,25 @@ public final class BankReputationEvents {
      * Finds the emerald chest containers represented by a chest menu and
      * verifies that each is currently linked to a registered bank.
      */
-    private static List<EmeraldChestBlockEntity> findBankChests(
-            ServerLevel level, BlockPos playerPos, Container opened) {
+    private static List<EmeraldChestBlockEntity> findBankChests(ServerLevel level, Container opened) {
         List<EmeraldChestBlockEntity> result = new ArrayList<>();
+        VillageRegistryData registry = VillageRegistryData.get(level);
 
-        if (opened instanceof EmeraldChestBlockEntity chest) {
-            if (chest.hasRegisteredBankLink(level)) {
-                result.add(chest);
+        for (VillageRecord village : registry.getVillages().values()) {
+            if (registry.getBankPos(village.getVillageId()) == null) {
+                continue;
             }
-            return result;
-        }
+            if (!(level.getBlockEntity(registry.getBankPos(village.getVillageId()))
+                    instanceof BankBlockEntity bank)) {
+                continue;
+            }
 
-        // A double chest exposes only CompoundContainer.contains(), so inspect
-        // the few loaded chunks within vanilla's eight-block interaction range.
-        int minChunkX = (playerPos.getX() - 8) >> 4;
-        int maxChunkX = (playerPos.getX() + 8) >> 4;
-        int minChunkZ = (playerPos.getZ() - 8) >> 4;
-        int maxChunkZ = (playerPos.getZ() + 8) >> 4;
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
-                if (chunk == null) {
+            for (var chestPos : bank.getCachedChestPositions()) {
+                if (!(level.getBlockEntity(chestPos) instanceof EmeraldChestBlockEntity chest)
+                        || !containsContainer(opened, chest)) {
                     continue;
                 }
-                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                    if (blockEntity instanceof EmeraldChestBlockEntity chest
-                            && containsContainer(opened, chest)
-                            && chest.hasRegisteredBankLink(level)) {
-                        result.add(chest);
-                    }
-                }
+                result.add(chest);
             }
         }
         return result;

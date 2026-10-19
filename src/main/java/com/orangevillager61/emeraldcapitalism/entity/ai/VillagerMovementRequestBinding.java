@@ -58,11 +58,17 @@ public final class VillagerMovementRequestBinding {
         MovementRequestSubmission submission;
         if (handle != null) {
             if (!MovementRequestManager.isActive(villager, handle)) {
+                // The previous executor may have been preempted or retired by
+                // another owner. Clear only this binding's stale token, then
+                // publish the same request as a fresh owner. Returning false
+                // here made work goals stop permanently even after movement
+                // became available again.
                 handle = null;
                 cachedSpec = null;
-                return false;
             }
-            submission = MovementRequestManager.maintain(villager, handle, spec);
+            submission = handle == null
+                    ? MovementRequestManager.submit(villager, spec)
+                    : MovementRequestManager.maintain(villager, handle, spec);
         } else {
             submission = MovementRequestManager.submit(villager, spec);
         }
