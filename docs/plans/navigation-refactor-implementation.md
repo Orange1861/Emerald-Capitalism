@@ -223,6 +223,65 @@ Handcrafted paths, direct behavior ticks, forced navigation stops, and manual
 claim release may be used in component tests. They must be labeled as such and
 cannot satisfy a normal-AI acceptance item.
 
+## Phase completion protocol
+
+A phase is not complete merely because compilation succeeds or a verifier
+introduced by that phase passes.
+
+Before implementation, Luna must create a requirement-to-evidence ledger for
+the phase. Every item under **Work**, **Luna automated verification**,
+**Developer manual verification**, and **Gate** must name:
+
+1. the implementation or decision that satisfies it;
+2. the automated evidence that verifies it;
+3. at least one relevant negative or adversarial case;
+4. any required developer observation; and
+5. a final status of `PASS`, `FAIL`, or `BLOCKED`.
+
+The ledger must preserve the meaning of the original requirement. A substitute
+feature with a similar name does not satisfy the requirement.
+
+### Semantic review
+
+After implementation, Luna must reread the original phase text without relying
+on the new manifest, generated report, or verifier. Luna must compare the
+actual code and behavior against every original requirement.
+
+Self-authored validation proves only that the implementation matches the
+validator. It does not independently prove that either one matches this plan.
+
+### Negative verification
+
+Architecture and source-enforcement checks must be tested with temporary
+negative fixtures or an equivalent isolated test harness. At minimum, prove
+that each prohibited category is rejected and that each intended exception is
+accepted.
+
+A source scanner must not depend on variable names, formatting, import style,
+or one particular wrapper when the prohibited operation can be reached through
+another supported syntax.
+
+### Decision-freezing phases
+
+When a phase exists to freeze architecture, ownership, scope, or lifecycle
+rules, its completed artifact may not contain unresolved alternatives such as:
+
+- `A or B`;
+- `when available`;
+- `if appropriate`;
+- `to be determined`; or
+- an unspecified global fallback.
+
+Later phases may implement a frozen decision, but they must not be required to
+decide the ownership boundary retroactively. If a required decision genuinely
+cannot be made, the phase is `BLOCKED` rather than complete.
+
+### Completion report
+
+The final report must list every original requirement and its evidence.
+Anything omitted, deferred without authorization, or supported only by a
+self-authored happy-path verifier prevents completion.
+
 ## Phase plan
 
 Every phase is a review checkpoint. Luna must add or update the automated
@@ -344,8 +403,27 @@ changed in this phase.
   Pass requires exactly one target scheduler per row and no unexplained direct
   navigation or global claim entry; no in-game UI is involved.
 
-**Gate:** every current producer has a documented owner and migration
-destination, and no ambiguous global task state remains in the plan.
+**Gate:** Phase 2 passes only when all of the following are true:
+
+- every current villager producer is mapped to the correct gameplay feature;
+- a non-villager exception cannot satisfy a required villager producer role;
+- every producer has exactly one target scheduler and one target Brain
+  activity;
+- every task and claim has an explicit village and profession scope, or an
+  explicit statement that it is not village-owned and why;
+- every current transitional caller is inventoried;
+- temporary unauthorized callers of both `MovementRequestManager` and
+  `VillagerMovementRequestBinding` fail verification;
+- temporary direct navigation through chained calls and aliased
+  `PathNavigation` variables fails verification;
+- temporary unauthorized `PATH` writes and villager `GoalSelector`
+  registrations fail verification;
+- village-isolation and profession-isolation tests exercise real claim APIs;
+- the generated report has been semantically compared with the implementation;
+- no required ownership decision remains in `unresolvedDecisions`; and
+- no ambiguous global task state remains in the plan.
+
+Passing `verifyNavigationArchitecture` alone does not satisfy this gate.
 
 ### Phase 3 — Separate persistent gameplay state from transient execution
 
