@@ -241,6 +241,35 @@ the phase. Every item under **Work**, **Luna automated verification**,
 The ledger must preserve the meaning of the original requirement. A substitute
 feature with a similar name does not satisfy the requirement.
 
+The objective is an accurate ledger, not an all-`PASS` ledger. A truthful
+`BLOCKED` result is preferable to adding unrelated code, weakening the
+requirement, or manufacturing evidence so that every row appears complete. A
+phase with any required `FAIL` or `BLOCKED` row remains incomplete.
+
+### Evidence relevance and provenance
+
+Evidence must exercise the production boundary named by the requirement. A
+new class placed under a production source directory is not evidence of
+production integration unless an actual gameplay call path uses it. Luna must
+identify that caller and trace the state or behavior from the real entry point
+to the asserted outcome.
+
+Do not create an unused abstraction, mirror model, test-only substitute, or
+parallel implementation solely to make a requirement testable. If the current
+production architecture cannot support the required proof without work
+assigned to a later phase, record the exact blocker and leave the current phase
+incomplete unless the plan is explicitly changed.
+
+Every evidence statement must identify its provenance as one of:
+
+- a tracked automated test and the command that runs it;
+- a production-code trace naming the entry point and consumer;
+- a generated artifact and the command that regenerates it; or
+- an explicit observation supplied by the developer.
+
+Prose written by the implementing agent is a report about evidence, not
+evidence by itself.
+
 ### Semantic review
 
 After implementation, Luna must reread the original phase text without relying
@@ -249,13 +278,22 @@ actual code and behavior against every original requirement.
 
 Self-authored validation proves only that the implementation matches the
 validator. It does not independently prove that either one matches this plan.
+A second document written by the same agent in the same implementation pass is
+still a self-review. It may be useful, but it must not be labeled independent.
+An independent review requires a separate review pass or agent that starts
+from the original requirements and is instructed to find defects rather than
+finish the implementation.
 
 ### Negative verification
 
-Architecture and source-enforcement checks must be tested with temporary
-negative fixtures or an equivalent isolated test harness. At minimum, prove
-that each prohibited category is rejected and that each intended exception is
-accepted.
+Architecture and source-enforcement checks must have tracked, reproducible
+negative fixtures or an equivalent persistent isolated test harness that runs
+under a normal verification command. At minimum, prove that each prohibited
+category is rejected and that each intended exception is accepted.
+
+One-off temporary mutations may supplement diagnosis, but removed fixtures,
+console recollections, and prose claiming that a failure was observed do not
+satisfy automated regression coverage.
 
 A source scanner must not depend on variable names, formatting, import style,
 or one particular wrapper when the prohibited operation can be reached through
@@ -276,11 +314,30 @@ Later phases may implement a frozen decision, but they must not be required to
 decide the ownership boundary retroactively. If a required decision genuinely
 cannot be made, the phase is `BLOCKED` rather than complete.
 
+Do not implement a later phase early merely to avoid a `BLOCKED` result. Any
+intentional phase-boundary change must be made explicitly in this plan before
+the expanded implementation is treated as in scope.
+
+### Developer verification authority
+
+Only the developer may mark a **Developer manual verification** item `PASS`.
+Luna may generate the run sheet or report, perform an agent pre-review, and
+state exactly what remains to inspect, but it must leave the ledger item
+`BLOCKED` pending developer verification until the developer explicitly
+reports the result. Luna must never state or imply that the developer opened,
+observed, approved, or verified something without that evidence in the
+conversation or another trusted record.
+
 ### Completion report
 
 The final report must list every original requirement and its evidence.
 Anything omitted, deferred without authorization, or supported only by a
 self-authored happy-path verifier prevents completion.
+
+The completion report must distinguish implemented behavior, automated proof,
+agent review, and developer verification. Moving a class into `main`, writing
+another report, or recording a removed experiment must not upgrade the status
+of evidence.
 
 ## Phase plan
 
@@ -412,14 +469,16 @@ changed in this phase.
 - every task and claim has an explicit village and profession scope, or an
   explicit statement that it is not village-owned and why;
 - every current transitional caller is inventoried;
-- temporary unauthorized callers of both `MovementRequestManager` and
-  `VillagerMovementRequestBinding` fail verification;
-- temporary direct navigation through chained calls and aliased
-  `PathNavigation` variables fails verification;
-- temporary unauthorized `PATH` writes and villager `GoalSelector`
-  registrations fail verification;
-- village-isolation and profession-isolation tests exercise real claim APIs;
+- tracked automated negative tests reject unauthorized callers of both
+  `MovementRequestManager` and `VillagerMovementRequestBinding`;
+- tracked automated negative tests reject direct navigation through chained
+  calls and aliased `PathNavigation` variables;
+- tracked automated negative tests reject unauthorized `PATH` writes and
+  villager `GoalSelector` registrations;
+- village-isolation and profession-isolation tests exercise claim APIs reached
+  by actual production gameplay callers, not an unused substitute contract;
 - the generated report has been semantically compared with the implementation;
+- the developer has explicitly completed the ownership-report inspection;
 - no required ownership decision remains in `unresolvedDecisions`; and
 - no ambiguous global task state remains in the plan.
 

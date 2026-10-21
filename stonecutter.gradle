@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import com.orangevillager61.emeraldcapitalism.build.NavigationArchitectureScanner
 
 plugins {
     id 'dev.kikugie.stonecutter'
@@ -228,9 +229,18 @@ tasks.register('verifyRegressionCoverage') {
     }
 }
 
+tasks.register('verifyNavigationScannerTests', Exec) {
+    group = 'verification'
+    description = 'Runs permanent in-memory adversarial tests for the Phase 2 architecture scanner.'
+    String gradleCommand = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows') ? 'gradlew.bat' : './gradlew'
+    workingDir project.projectDir
+    commandLine gradleCommand, '-p', 'buildSrc', 'test', '--no-daemon', '--no-configuration-cache', '--console=plain'
+}
+
 tasks.register('verifyNavigationArchitecture') {
     group = 'verification'
     description = 'Validates the Phase 2 scheduler, ownership, scope, and navigation architecture inventory.'
+    dependsOn 'verifyNavigationScannerTests'
 
     doLast {
         Map manifest = readPortingJson(file('gradle/navigation-architecture.json'))
@@ -276,6 +286,48 @@ tasks.register('verifyNavigationArchitecture') {
         }
         requireText('architecture.decision', architecture.decision)
 
+        List<Map> externalVanillaExecutors = asList(manifest.externalVanillaExecutors) as List<Map>
+        Set<String> externalExecutorIds = [] as Set<String>
+        externalVanillaExecutors.each { Map entry ->
+            String id = text(entry.id)
+            if (!id || !externalExecutorIds.add(id)) errors.add("duplicate or empty external vanilla executor id: ${id}")
+            ['minecraftVersion', 'executor', 'sourceAvailability', 'evidence'].each { String key -> requireText("${id}.${key}", entry[key]) }
+        }
+        if (!(externalExecutorIds.contains('villager-wanted-item-1.21.1') && externalExecutorIds.contains('villager-wanted-item-1.21.4'))) {
+            errors.add('wanted-item-pursuit must document an external vanilla executor for Minecraft 1.21.1 and 1.21.4')
+        }
+
+        List<Map> frozenDecisions = asList(manifest.frozenDecisions) as List<Map>
+        Set<String> frozenDecisionIds = [] as Set<String>
+        frozenDecisions.each { Map entry ->
+            String id = text(entry.id)
+            if (!id || !frozenDecisionIds.add(id)) errors.add("duplicate or empty frozen decision id: ${id}")
+            ['decision', 'ownershipScope', 'reason'].each { String key -> requireText("${id}.${key}", entry[key]) }
+            if (!(entry.migrationPhase instanceof Number) || !validPhases.contains(entry.migrationPhase as Integer)) errors.add("${id}.migrationPhase must be a valid Phase 8-22 number")
+            requireList("${id}.sourcePaths", entry.sourcePaths)
+            asList(entry.sourcePaths).each { String sourcePath ->
+                if (!file(sourcePath).isFile()) errors.add("frozen decision ${id} references missing source ${sourcePath}")
+            }
+        }
+        Map<String, List<String>> requiredFrozenDecisions = [
+                'mayor-door-repair-activity': ['WORK', 'villageId + MAYOR + mayor UUID + door position + task generation'],
+                'mayor-governor-follow-activity': ['IDLE', 'villageId + MAYOR + mayor UUID + candidate UUID + session generation'],
+                'avoidance-safety-activity': ['CORE', 'villager UUID + hazard identity + safety generation'],
+                'begging-social-session': ['IDLE', 'beggar UUID + donor UUID + session generation'],
+                'lumberjack-shared-furnace-pool': ['WORK', 'villageId + LUMBERJACK + furnace identity + owner UUID + generation'],
+                'move-to-target-sink-compatibility': ['compatibility observer only', 'vanilla MoveToTargetSink observation; no task owner and no route restoration']
+        ]
+        requiredFrozenDecisions.each { String id, List<String> expected ->
+            Map actual = frozenDecisions.find { Map entry -> text(entry.id) == id }
+            if (actual == null) {
+                errors.add("missing frozen Phase 2 decision ${id}")
+            } else {
+                if (text(actual.decision) != expected[0]) errors.add("${id}.decision must be ${expected[0]}")
+                if (text(actual.ownershipScope) != expected[1]) errors.add("${id}.ownershipScope must be ${expected[1]}")
+            }
+        }
+        if (!asList(manifest.unresolvedDecisions).isEmpty()) errors.add('unresolvedDecisions must be empty after Phase 2 decisions are frozen')
+
         Set<String> allIds = [] as Set<String>
         Set<String> inventorySources = [] as Set<String>
         def registerId = { String category, Map entry ->
@@ -311,6 +363,7 @@ tasks.register('verifyNavigationArchitecture') {
             if ((producer.migrationPhase as Integer) == 8) errors.add("${id} assigns behavior migration to Phase 8; Phase 8 is infrastructure only")
             requireText("${id}.legacyPathToRemove", producer.legacyPathToRemove)
             requireText("${id}.knownGap", producer.knownGap)
+            errors.addAll(NavigationArchitectureScanner.validateFrozenText(id, target))
         }
         Set<String> requiredRoles = asList(manifest.requiredRoles).collect { it.toString() } as Set<String>
         (requiredRoles - producerRoles).each { errors.add("navigation inventory is missing required role ${it}") }
@@ -342,6 +395,30 @@ tasks.register('verifyNavigationArchitecture') {
         asList(manifest.violations).each { Map entry -> registerId('violation', entry); ['status', 'statement', 'resolutionPhase'].each { String key -> requireText("${entry.id}.${key}", entry[key]) }; phase("${entry.id}.resolutionPhase", entry.resolutionPhase); requireList("${entry.id}.affectedPaths", entry.affectedPaths) }
         asList(manifest.unresolvedDecisions).each { Map entry -> registerId('unresolved decision', entry); ['question', 'provisionalDecision', 'decisionPhase'].each { String key -> requireText("${entry.id}.${key}", entry[key]) }; phase("${entry.id}.decisionPhase", entry.decisionPhase); requireList("${entry.id}.affectedPaths", entry.affectedPaths) }
 
+        // Owner IDs are valid only when they come from a real inventory record.
+        // sourceOwnership and reference rows are consumers of this set; they do
+        // not define it, so an invented ID cannot validate itself.
+        Map<String, String> ownerCategories = [:]
+        def collectOwnerCategory = { String category, String key ->
+            asList(manifest[key]).each { Map entry ->
+                String id = text(entry.id)
+                if (id) ownerCategories[id] = category
+            }
+        }
+        [
+                ['producer', 'producers'],
+                ['brain-behavior', 'registeredBrainBehaviors'],
+                ['request-owner', 'requestOwners'],
+                ['memory', 'memoryMutations'],
+                ['navigation', 'directNavigationCalls'],
+                ['registrar', 'goalSelectorRegistrars'],
+                ['transitional-caller', 'transitionalMovementCallers'],
+                ['state', 'persistentGameplayState'],
+                ['claim', 'transientClaims'],
+                ['exception', 'nonVillagerExceptions']
+        ].each { List<String> spec -> collectOwnerCategory(spec[0], spec[1]) }
+        Set<String> canonicalOwnerIds = ownerCategories.keySet() as Set<String>
+
         Map allowlists = (manifest.allowlists ?: [:]) as Map
         ['pathMemoryWriters', 'directNavigationCallers', 'goalSelectorRegistrars', 'transitionalMovementCallers'].each { String key ->
             List<String> entries = asList(allowlists[key]).collect { it.toString().replace('\\', '/') }
@@ -358,6 +435,33 @@ tasks.register('verifyNavigationArchitecture') {
             if (!file(sourcePath).isFile()) errors.add("sourceOwnership references missing source ${sourcePath}")
             requireText("sourceOwnership ${sourcePath}.ownerId", entry.ownerId)
         }
+        errors.addAll(NavigationArchitectureScanner.validateOwnerReferences(
+                canonicalOwnerIds,
+                ownerCategories,
+                ownership,
+                asList(manifest.transitionalReferenceInventory) as List<Map>,
+                asList(manifest.directNavigationReferenceInventory) as List<Map>,
+                asList(manifest.goalSelectorReferenceInventory) as List<Map>))
+        List<Map> transitionalReferences = asList(manifest.transitionalReferenceInventory) as List<Map>
+        Set<String> transitionalReferenceKeys = [] as Set<String>
+        transitionalReferences.each { Map entry ->
+            String id = text(entry.id)
+            String sourcePath = text(entry.sourcePath).replace('\\', '/')
+            String referenceName = text(entry.referenceName)
+            String key = "${sourcePath}|${referenceName}"
+            if (!id || !allIds.add(id)) errors.add("duplicate or empty transitional reference id: ${id}")
+            if (!transitionalReferenceKeys.add(key)) errors.add("duplicate transitional reference inventory entry: ${key}")
+            if (!file(sourcePath).isFile()) errors.add("transitional reference inventory references missing source ${sourcePath}")
+            if (!(referenceName in ['MovementRequestManager', 'VillagerMovementRequestBinding'])) errors.add("${id}.referenceName must name a transitional movement type")
+            ['ownerId', 'referenceCategory', 'legacyPathToRemove', 'notes'].each { String field -> requireText("${id}.${field}", entry[field]) }
+            if (!canonicalOwnerIds.contains(text(entry.ownerId))) errors.add("${id}.ownerId is not an inventoried owner")
+            if (!(entry.expectedOccurrences instanceof Number) || (entry.expectedOccurrences as Integer) < 1) errors.add("${id}.expectedOccurrences must be a positive number")
+            if (!(entry.migrationPhase instanceof Number) || !validPhases.contains(entry.migrationPhase as Integer)) errors.add("${id}.migrationPhase must be a valid Phase 8-22 number")
+        }
+        Set<String> implementationPaths = transitionalReferences.findAll { Map entry -> text(entry.referenceCategory) == 'implementation' }
+                .collect { Map entry -> text(entry.sourcePath).replace('\\', '/') } as Set<String>
+        Set<String> callerPaths = (asList(manifest.transitionalMovementCallers) as List<Map>).collectMany { Map entry -> paths(entry) } as Set<String>
+        if (!implementationPaths.intersect(callerPaths).isEmpty()) errors.add('MovementRequestManager and VillagerMovementRequestBinding implementation files must be inventoried separately from transitional callers')
 
         Set<String> productionSources = fileTree('src/main/java').matching { include '**/*.java' }.files
                 .collect { relativePath(it).replace('\\', '/') }
@@ -365,77 +469,64 @@ tasks.register('verifyNavigationArchitecture') {
         Set<String> exceptionSources = (asList(manifest.nonVillagerExceptions) as List<Map>).collectMany { paths(it) } as Set<String>
         Set<String> allowlistedSources = ['pathMemoryWriters', 'directNavigationCallers', 'goalSelectorRegistrars', 'transitionalMovementCallers']
                 .collectMany { String key -> asList(allowlists[key]).collect { it.toString().replace('\\', '/') } } as Set<String>
-        (allowlistedSources - inventorySources - exceptionSources).each { errors.add("allowlisted source has no inventory explanation: ${it}") }
+        errors.addAll(NavigationArchitectureScanner.validateAllowlistedSources(
+                allowlistedSources, inventorySources, exceptionSources))
+        Map wantedItemProducer = (producers.find { Map producer -> text(producer.id) == 'wanted-item-pursuit' } ?: [:]) as Map
+        Set<String> wantedItemSources = paths(wantedItemProducer) as Set<String>
+        Set<String> skrimisherSources = ((asList(manifest.nonVillagerExceptions) as List<Map>).findAll { Map entry -> text(entry.id) == 'skrimisher-navigation' }
+                .collectMany { Map entry -> paths(entry) } as Set<String>)
+        if (wantedItemSources.intersect(exceptionSources)) errors.add('wanted-item-pursuit cannot use a non-villager exception source')
+        if (!skrimisherSources.intersect(wantedItemSources).isEmpty()) errors.add('EmeraldSkrimisher pickup sources cannot satisfy the villager wanted-item producer')
+        errors.addAll(NavigationArchitectureScanner.validateWantedItemProducer(wantedItemProducer, exceptionSources, [
+                'src/main/java/com/orangevillager61/emeraldcapitalism/util/VillagerPickupCompat.java',
+                'src/main/java/com/orangevillager61/emeraldcapitalism/util/VillagerInventoryPolicy.java',
+                'src/main/java/com/orangevillager61/emeraldcapitalism/mixin/VillagerPickupPolicyMixin.java',
+                'src/main/java/com/orangevillager61/emeraldcapitalism/mixin/VillagerPickupAccountingMixin.java'
+        ]))
         Set<String> memoryMutationSources = (asList(manifest.memoryMutations) as List<Map>).collectMany { paths(it) } as Set<String>
-        Set<String> allowedDirectNavigation = (asList(allowlists.directNavigationCallers).collect { it.toString().replace('\\', '/') } as Set<String>) + exceptionSources
-        def stripJavaLiterals = { String source ->
-            StringBuilder cleaned = new StringBuilder(source.length())
-            boolean lineComment = false
-            boolean blockComment = false
-            boolean stringLiteral = false
-            boolean charLiteral = false
-            boolean escaped = false
-            int index = 0
-            while (index < source.length()) {
-                char current = source.charAt(index)
-                char next = index + 1 < source.length() ? source.charAt(index + 1) : '\0'
-                if (lineComment) {
-                    if (current == '\n') {
-                        lineComment = false
-                        cleaned.append('\n')
-                    } else {
-                        cleaned.append(' ')
-                    }
-                } else if (blockComment) {
-                    if (current == '*' && next == '/') {
-                        blockComment = false
-                        cleaned.append(' ').append(' ')
-                        index++
-                    } else {
-                        cleaned.append(current == '\n' ? '\n' : ' ')
-                    }
-                } else if (stringLiteral || charLiteral) {
-                    cleaned.append(current == '\n' ? '\n' : ' ')
-                    if (escaped) {
-                        escaped = false
-                    } else if (current == '\\') {
-                        escaped = true
-                    } else if ((stringLiteral && current == '"') || (charLiteral && current == '\'')) {
-                        stringLiteral = false
-                        charLiteral = false
-                    }
-                } else if (current == '/' && next == '/') {
-                    lineComment = true
-                    cleaned.append(' ').append(' ')
-                    index++
-                } else if (current == '/' && next == '*') {
-                    blockComment = true
-                    cleaned.append(' ').append(' ')
-                    index++
-                } else if (current == '"') {
-                    stringLiteral = true
-                    cleaned.append(' ')
-                } else if (current == '\'') {
-                    charLiteral = true
-                    cleaned.append(' ')
-                } else {
-                    cleaned.append(current)
-                }
-                index++
+        // Source-level scanning is delegated to NavigationArchitectureScanner.
+        List<Map> directReferenceInventory = asList(manifest.directNavigationReferenceInventory) as List<Map>
+        Set<String> directReferenceKeys = [] as Set<String>
+        directReferenceInventory.each { Map entry ->
+            String id = text(entry.id)
+            String sourcePath = text(entry.sourcePath).replace('\\', '/')
+            String key = sourcePath
+            if (!id || !allIds.add(id)) errors.add("duplicate or empty direct navigation reference id: ${id}")
+            if (!directReferenceKeys.add(key)) errors.add("duplicate direct navigation reference inventory entry: ${key}")
+            if (!file(sourcePath).isFile()) errors.add("direct navigation reference inventory references missing source ${sourcePath}")
+            ['ownerId', 'referenceCategory', 'legacyPathToRemove'].each { String field -> requireText("${id}.${field}", entry[field]) }
+            if (!canonicalOwnerIds.contains(text(entry.ownerId))) errors.add("${id}.ownerId is not an inventoried owner")
+            Map expectedOperations = (entry.expectedOperations ?: [:]) as Map
+            NavigationArchitectureScanner.NAVIGATION_OPERATIONS.each { String operation ->
+                if (!(expectedOperations[operation] instanceof Number) || (expectedOperations[operation] as Integer) < 0) errors.add("${id}.expectedOperations.${operation} must be a non-negative number")
             }
-            cleaned.toString()
+            if (!(entry.migrationPhase instanceof Number) || !validPhases.contains(entry.migrationPhase as Integer)) errors.add("${id}.migrationPhase must be a valid Phase 8-22 number")
         }
-        def scanForUnauthorized = { String findingName, java.util.regex.Pattern pattern, Set<String> allowed ->
-            productionSources.each { String sourcePath ->
-                String source = stripJavaLiterals(file(sourcePath).getText('UTF-8'))
-                if (pattern.matcher(source).find() && !allowed.contains(sourcePath)) errors.add("${findingName} outside inventory/allowlist: ${sourcePath}")
-            }
+        List<Map> goalReferenceInventory = asList(manifest.goalSelectorReferenceInventory) as List<Map>
+        Set<String> goalReferencePaths = [] as Set<String>
+        goalReferenceInventory.each { Map entry ->
+            String id = text(entry.id)
+            String sourcePath = text(entry.sourcePath).replace('\\', '/')
+            if (!id || !allIds.add(id)) errors.add("duplicate or empty GoalSelector reference id: ${id}")
+            if (!goalReferencePaths.add(sourcePath)) errors.add("duplicate GoalSelector reference inventory entry: ${sourcePath}")
+            if (!file(sourcePath).isFile()) errors.add("GoalSelector reference inventory references missing source ${sourcePath}")
+            ['ownerId', 'referenceCategory', 'legacyPathToRemove'].each { String field -> requireText("${id}.${field}", entry[field]) }
+            if (!canonicalOwnerIds.contains(text(entry.ownerId))) errors.add("${id}.ownerId is not an inventoried owner")
+            if (!(entry.expectedOccurrences instanceof Number) || (entry.expectedOccurrences as Integer) < 1) errors.add("${id}.expectedOccurrences must be a positive number")
+            if (!(entry.migrationPhase instanceof Number) || !validPhases.contains(entry.migrationPhase as Integer)) errors.add("${id}.migrationPhase must be a valid Phase 8-22 number")
         }
-        scanForUnauthorized('Brain memory mutation', ~/(?s)(?:setMemory|eraseMemory)\s*\(\s*(?:[A-Za-z0-9_$.]+\s*,\s*)?MemoryModuleType\.[A-Z0-9_]+/, memoryMutationSources)
-        scanForUnauthorized('direct navigation/path operation', ~/(?s)(?:getNavigation\(\)|\bnavigation)\s*\.\s*(?:moveTo|createPath|stop|getPath)\s*\(/, allowedDirectNavigation)
-        scanForUnauthorized('GoalSelector registration', ~/(?s)goalSelector\s*\.\s*addGoal\s*\(/, (asList(allowlists.goalSelectorRegistrars).collect { it.toString().replace('\\', '/') } as Set<String>) + exceptionSources)
-        scanForUnauthorized('transitional MovementRequestManager caller', ~/(?s)MovementRequestManager/, asList(allowlists.transitionalMovementCallers).collect { it.toString().replace('\\', '/') } as Set<String>)
-        scanForUnauthorized('PATH memory mutation outside declared writer', ~/(?s)(?:setMemory|eraseMemory)\s*\(\s*MemoryModuleType\.PATH/, asList(allowlists.pathMemoryWriters).collect { it.toString().replace('\\', '/') } as Set<String>)
+        Set<String> allowedPathWriters = asList(allowlists.pathMemoryWriters).collect { it.toString().replace('\\', '/') } as Set<String>
+        Map scannerOptions = [
+                transitionalReferences: transitionalReferences,
+                directNavigationReferences: directReferenceInventory,
+                goalSelectorReferences: goalReferenceInventory,
+                memoryMutationSources: memoryMutationSources,
+                pathMemoryWriters: allowedPathWriters
+        ]
+        productionSources.each { String sourcePath ->
+            errors.addAll(NavigationArchitectureScanner.validateSource(
+                    sourcePath, file(sourcePath).getText('UTF-8'), scannerOptions))
+        }
         def gitOutput = { List<String> args ->
             Process process = (['git'] + args).execute(null, project.projectDir)
             String output = process.text
@@ -476,10 +567,10 @@ tasks.register('verifyNavigationArchitecture') {
         appendTable(markdownBuilder, 'Migration phase plan', ['Phase', 'Name', 'Scope'],
                 migrationPlan.sort { Map left, Map right -> (left.phase as Integer) <=> (right.phase as Integer) }
                         .collect { Map entry -> [entry.phase, entry.name, entry.scope] })
-        appendTable(markdownBuilder, 'Task and integration producers', ['ID / role', 'Sources', 'Current executor / scheduler / activity', 'Target activity / finality / priority', 'Memory reads / writes', 'Direct navigation', 'Current scope', 'Target scope', 'Durable / transient current', 'Durable / transient target', 'Cleanup current / target', 'Phase', 'Legacy path', 'Known gap'],
+        appendTable(markdownBuilder, 'Task and integration producers', ['ID / role', 'Sources', 'Current executor / scheduler / activity', 'Target scheduler', 'Target activity / finality / priority', 'Memory reads / writes', 'Direct navigation', 'Current scope', 'Target scope', 'Durable / transient current', 'Durable / transient target', 'Cleanup current / target', 'Phase', 'Legacy path', 'Known gap'],
                 producers.collect { Map producer ->
                     Map current = producer.current as Map; Map target = producer.target as Map
-                    ["${producer.id} / ${producer.role}", paths(producer), "${current.executor} / ${current.scheduler} / ${current.activity}", "${target.activity} / ${target.finality} / ${target.priority}", "R: ${current.memoryReads}; W: ${current.memoryWrites}", current.directNavigationOps, current.claimScope, target.claimScope, "D: ${current.durableState}; T: ${current.transientState}", "D: ${target.durableState}; T: ${target.transientState}", "Current: ${current.cleanupOwner}; Target: ${target.cleanupOwner}", producer.migrationPhase, producer.legacyPathToRemove, producer.knownGap]
+                    ["${producer.id} / ${producer.role}", paths(producer), "${current.executor} / ${current.scheduler} / ${current.activity}", architecture.scheduler, "${target.activity} / ${target.finality} / ${target.priority}", "R: ${current.memoryReads}; W: ${current.memoryWrites}", current.directNavigationOps, current.claimScope, target.claimScope, "D: ${current.durableState}; T: ${current.transientState}", "D: ${target.durableState}; T: ${target.transientState}", "Current: ${current.cleanupOwner}; Target: ${target.cleanupOwner}", producer.migrationPhase, producer.legacyPathToRemove, producer.knownGap]
                 })
         appendTable(markdownBuilder, 'Registered Brain behaviors', ['ID', 'Owner / sources', 'Current executor', 'Target activity / finality', 'Memory conditions / reads / writes', 'Direct navigation', 'Scope', 'Durable / transient', 'Cleanup', 'Phase / legacy path / gap'],
                 (asList(manifest.registeredBrainBehaviors) as List<Map>).collect { Map e -> [e.id, "${e.owner}; ${paths(e)}", e.currentExecutor, "${e.targetBrainActivity}; ${e.finality}", "${e.requiredMemoryConditions}; R: ${e.memoryReads}; W: ${e.memoryWrites}", e.directNavigationOps, e.claimScope, "D: ${e.durableState}; T: ${e.transientState}", e.cleanupOwner, "${e.migrationPhase}; ${e.legacyPathToRemove}; ${e.knownGap}"] })
@@ -502,9 +593,18 @@ tasks.register('verifyNavigationArchitecture') {
         appendTable(markdownBuilder, 'Violations and unresolved decisions', ['ID', 'Status / question', 'Statement / provisional decision', 'Affected paths', 'Resolution phase'],
                 (asList(manifest.violations) as List<Map>).collect { Map e -> [e.id, e.status, e.statement, e.affectedPaths, e.resolutionPhase] } +
                         (asList(manifest.unresolvedDecisions) as List<Map>).collect { Map e -> [e.id, "unresolved / ${e.question}", e.provisionalDecision, e.affectedPaths, e.decisionPhase] })
+        appendTable(markdownBuilder, 'Frozen Phase 2 decisions', ['ID', 'Decision', 'Ownership scope', 'Phase', 'Reason', 'Sources'],
+                (asList(manifest.frozenDecisions) as List<Map>).collect { Map e -> [e.id, e.decision, e.ownershipScope, e.migrationPhase, e.reason, paths(e)] })
+        appendTable(markdownBuilder, 'Transitional manager and binding reference inventory', ['ID', 'Source', 'Reference', 'Owner', 'Category', 'Phase', 'Expected references', 'Legacy path', 'Notes'],
+                (asList(manifest.transitionalReferenceInventory) as List<Map>).collect { Map e -> [e.id, e.sourcePath, e.referenceName, e.ownerId, e.referenceCategory, e.migrationPhase, e.expectedOccurrences, e.legacyPathToRemove, e.notes] })
+        appendTable(markdownBuilder, 'Alias-independent direct navigation reference inventory', ['ID', 'Source', 'Owner', 'Category', 'Phase', 'Route mutation (moveTo)', 'Route creation (createPath)', 'Route cancellation (stop)', 'Route observation (getPath)', 'Legacy path'],
+                (asList(manifest.directNavigationReferenceInventory) as List<Map>).collect { Map e -> [e.id, e.sourcePath, e.ownerId, e.referenceCategory, e.migrationPhase, e.expectedOperations?.moveTo, e.expectedOperations?.createPath, e.expectedOperations?.stop, e.expectedOperations?.getPath, e.legacyPathToRemove] })
+        appendTable(markdownBuilder, 'Alias-independent GoalSelector reference inventory', ['ID', 'Source', 'Owner', 'Category', 'Phase', 'Expected registrations', 'Legacy path'],
+                (asList(manifest.goalSelectorReferenceInventory) as List<Map>).collect { Map e -> [e.id, e.sourcePath, e.ownerId, e.referenceCategory, e.migrationPhase, e.expectedOccurrences, e.legacyPathToRemove] })
         markdownBuilder.append('\n## Validation evidence\n\n')
                 .append('- Inventory categories: architecture current/target, producers, registered Brain behaviors, request owners, memory mutations, direct navigation, GoalSelector registrars, transitional callers, persistent gameplay state, transient claims, non-villager exceptions, violations, and unresolved decisions.\n')
                 .append('- Production Java sources scanned: ').append(productionSources.size()).append('.\n')
+                .append('- Frozen transitional references: ').append(transitionalReferences.size()).append('; direct navigation references: ').append(directReferenceInventory.size()).append('; GoalSelector registrations: ').append(goalReferenceInventory.size()).append('.\n')
                 .append('- Source-backed allowlists: ').append(allowlistedSources.size()).append(' paths; explicit source ownership entries: ').append(ownership.size()).append('.\n')
                 .append('- Validation result: ').append(errors.isEmpty() ? 'PASS' : 'FAIL').append('.\n')
         report.setText(markdownBuilder.toString(), 'UTF-8')
