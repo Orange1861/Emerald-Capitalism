@@ -30,6 +30,9 @@ jobs:
       # assigned later-phase gameplay failure. Each exit status and log is
       # retained; validate_phase1_evidence.py decides whether the result is an
       # accepted infrastructure baseline or an infrastructure/review failure.
+      - name: Test Phase 1 evidence validator
+        run: python3 -m unittest discover -s tools/tests -p "test_*.py"
+
       - name: Run Phase 1 verification matrix
         id: phase1_matrix
         run: |
@@ -39,8 +42,9 @@ jobs:
           run_gradle() {
             id="$1"
             shift
+            printf 'Phase 1 evidence commit: %s\n' "$(git rev-parse HEAD)" > "build/reports/phase1/${id}.log"
             set +e
-            "$@" 2>&1 | tee "build/reports/phase1/${id}.log"
+            "$@" 2>&1 | tee -a "build/reports/phase1/${id}.log"
             status=${PIPESTATUS[0]}
             set -e
             printf '%s\n' "$status" > "build/reports/phase1/${id}.exit"

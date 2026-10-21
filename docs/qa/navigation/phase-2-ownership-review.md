@@ -1,10 +1,10 @@
 # Phase 2 agent semantic review
 
-This is an agent semantic review for Phase 2, written by the implementing
+This is an agent semantic self-review for Phase 2, written by the implementing
 agent. It is intentionally separate from `gradle/navigation-architecture.json`,
-the verifier, and the tracked requirement ledger at
-[`phase-2-ownership-ledger.md`](phase-2-ownership-ledger.md). It is not a
-self-review, not an independent review and not a developer sign-off.
+the validator, and the tracked requirement ledger at
+[`phase-2-ownership-ledger.md`](phase-2-ownership-ledger.md). It is not an
+independent review and is not developer verification or sign-off.
 
 ## Review basis
 

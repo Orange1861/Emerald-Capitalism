@@ -21,6 +21,8 @@ from typing import Any
 
 
 TARGETS = ("1.21.1", "1.21.4")
+ALLOWED_SUITES = {"runtime-gametest", "mixin-audit-baseline"}
+TEST_IDENTITY = re.compile(r"[a-z0-9_.:-]+")
 TASK_IDS = (
     "verify-port-setup",
     "unit-tests",
@@ -78,7 +80,7 @@ def parse_static_discovered(path: Path, errors: list[str]) -> int | None:
     return int(matches[-1])
 
 
-def parse_gametest(path: Path, target: str, errors: list[str]) -> dict[str, Any]:
+def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
     if not text:
         errors.append(f"missing GameTest log: {path}")
@@ -90,10 +92,18 @@ def parse_gametest(path: Path, target: str, errors: list[str]) -> dict[str, Any]
             "requiredFailed": None,
             "optionalFailed": None,
             "failedTests": [],
+            "completionMarker": False,
+            "commitMarkerValid": False,
+            "optionalEvidenceValid": False,
         }
+
+    commit_marker_valid = f"Phase 1 evidence commit: {commit}" in text
+    if not commit_marker_valid:
+        errors.append(f"GameTest log is missing the exact commit marker for {target}: {path}")
 
     complete = list(re.finditer(r"=+\s+(\d+) GAME TESTS COMPLETE IN", text))
     executed = int(complete[-1].group(1)) if complete else None
+    completion_marker = executed is not None
     if executed is None:
         errors.append(f"GameTest suite completion marker missing: {path}")
 
@@ -109,6 +119,11 @@ def parse_gametest(path: Path, target: str, errors: list[str]) -> dict[str, Any]
     else:
         required_passed = None
         errors.append(f"could not parse required GameTest result: {path}")
+
+    if not optional_matches:
+        optional_evidence_valid = False
+    else:
+        optional_evidence_valid = True
 
     failed_tests: list[str] = []
     if failed_matches:
@@ -127,6 +142,14 @@ def parse_gametest(path: Path, target: str, errors: list[str]) -> dict[str, Any]
     if executed == 0:
         errors.append(f"GameTest server executed zero tests: {path}")
 
+    if executed is not None and required_passed is not None:
+        result_total = required_passed + required_failed + optional_failed
+        if result_total != executed:
+            errors.append(
+                f"GameTest result counts do not match executed count for {target}: "
+                f"{required_passed} + {required_failed} + {optional_failed} != {executed}"
+            )
+
     return {
         "log": str(path),
         "launched": launched,
@@ -136,6 +159,9 @@ def parse_gametest(path: Path, target: str, errors: list[str]) -> dict[str, Any]
         "optionalFailed": optional_failed,
         "failedTests": failed_tests,
         "passCountDerived": not bool(passed_matches),
+        "completionMarker": completion_marker,
+        "commitMarkerValid": commit_marker_valid,
+        "optionalEvidenceValid": optional_evidence_valid,
     }
 
 
@@ -160,17 +186,26 @@ def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict
         errors.append(f"mixin audit report has no Java identity: {report_path}")
     if not report.get("generatedAt"):
         errors.append(f"mixin audit report has no generation timestamp: {report_path}")
-    if not report.get("artifacts", {}).get("mergedMinecraftJar", {}).get("sha256"):
+    artifacts = report.get("artifacts")
+    merged_jar = artifacts.get("mergedMinecraftJar") if isinstance(artifacts, dict) else None
+    if not isinstance(merged_jar, dict) or not merged_jar.get("sha256"):
         errors.append(f"mixin audit report has no merged-jar fingerprint: {report_path}")
 
-    baseline = next((item for item in report.get("results", []) if item.get("unit") == "baseline"), None)
+    results = report.get("results")
+    if not isinstance(results, list):
+        errors.append(f"mixin audit results are missing or malformed: {report_path}")
+        results = []
+    baseline = next((item for item in results if isinstance(item, dict) and item.get("unit") == "baseline"), None)
     if baseline is None:
         errors.append(f"mixin audit baseline result missing: {report_path}")
         baseline = {}
     for key in (
+        "classification",
         "completed",
         "selectorConfirmed",
         "mixinEvidenceValid",
+        "allRequiredPassed",
+        "failedTests",
         "missingMixinDecisions",
         "unappliedRequiredMixins",
         "disabledMixinsStillApplied",
@@ -178,6 +213,17 @@ def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict
     ):
         if key not in baseline:
             errors.append(f"mixin audit baseline evidence missing {key}: {report_path}")
+    if not isinstance(baseline.get("allRequiredPassed"), bool):
+        errors.append(f"mixin audit required-pass field is missing or malformed: {report_path}")
+    if not isinstance(baseline.get("failedTests"), list):
+        errors.append(f"mixin audit failedTests field is missing or malformed: {report_path}")
+    for key in ("completed", "selectorConfirmed", "mixinEvidenceValid"):
+        if not isinstance(baseline.get(key), bool):
+            errors.append(f"mixin audit {key} field is missing or malformed: {report_path}")
+    if not isinstance(baseline.get("classification"), str):
+        errors.append(f"mixin audit classification field is missing or malformed: {report_path}")
+    if not isinstance(baseline.get("logSha256"), str) or not baseline.get("logSha256"):
+        errors.append(f"mixin audit log fingerprint is missing or malformed: {report_path}")
     if not baseline.get("completed"):
         errors.append(f"mixin audit baseline did not complete for {target}")
     if not baseline.get("selectorConfirmed"):
@@ -185,7 +231,9 @@ def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict
     if not baseline.get("mixinEvidenceValid"):
         errors.append(f"mixin audit required mixin application evidence failed for {target}")
     for key in ("missingMixinDecisions", "unappliedRequiredMixins", "disabledMixinsStillApplied"):
-        if baseline.get(key):
+        if not isinstance(baseline.get(key), list):
+            errors.append(f"mixin audit {key} is missing or malformed for {target}: {report_path}")
+        elif baseline.get(key):
             errors.append(f"mixin audit {key} is non-empty for {target}: {baseline[key]}")
 
     log_value = baseline.get("log")
@@ -236,11 +284,137 @@ def java_version() -> str:
     return next((line for line in lines if "version" in line), lines[0] if lines else "unknown")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    args = parser.parse_args()
-    root = args.root.resolve()
+def parse_expected_failures(baseline: dict[str, Any], errors: list[str]) -> dict[tuple[str, str], dict[str, Any]]:
+    expected: dict[tuple[str, str], dict[str, Any]] = {}
+    entries = baseline.get("expectedGameplayFailures")
+    if not isinstance(entries, list):
+        errors.append("expectedGameplayFailures must be a list")
+        return expected
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            errors.append(f"invalid baseline failure entry: {entry!r}")
+            continue
+        target = entry.get("target")
+        suite = entry.get("suite")
+        test = entry.get("test")
+        owning_phase = entry.get("owningPhase")
+        owner = entry.get("owner")
+        valid_test = isinstance(test, str) and bool(TEST_IDENTITY.fullmatch(test))
+        valid_phase = isinstance(owning_phase, int) and not isinstance(owning_phase, bool) and owning_phase > 0
+        valid_owner = isinstance(owner, str) and bool(owner.strip())
+        if target not in TARGETS or suite not in ALLOWED_SUITES or not valid_test:
+            errors.append(f"invalid baseline failure identity: {entry}")
+            continue
+        if not valid_phase or not valid_owner:
+            errors.append(f"baseline failure lacks valid owning phase/owner: {entry}")
+            continue
+        key = (f"{target}:{suite}", test)
+        if key in expected:
+            errors.append(f"duplicate baseline failure identity: {target}/{suite}/{test}")
+            continue
+        expected[key] = entry
+    return expected
+
+
+def passing_gametest_evidence(game: dict[str, Any], status: int | None) -> bool:
+    return (
+        status == 0
+        and game.get("launched") is True
+        and game.get("completionMarker") is True
+        and game.get("commitMarkerValid") is True
+        and isinstance(game.get("executed"), int)
+        and game.get("executed", 0) > 0
+        and isinstance(game.get("requiredPassed"), int)
+        and game.get("requiredFailed") == 0
+        and game.get("optionalFailed") == 0
+        and game.get("optionalEvidenceValid") is True
+        and not game.get("failedTests")
+    )
+
+
+def passing_audit_evidence(audit: dict[str, Any], status: int | None) -> bool:
+    baseline = audit.get("baseline", {})
+    return (
+        status == 0
+        and audit.get("fresh") is True
+        and baseline.get("classification") == "BASELINE_PASSED"
+        and baseline.get("completed") is True
+        and baseline.get("selectorConfirmed") is True
+        and baseline.get("mixinEvidenceValid") is True
+        and baseline.get("requiredPassed") is True
+        and not baseline.get("requiredFailed")
+        and not baseline.get("missingMixinDecisions")
+        and not baseline.get("unappliedRequiredMixins")
+        and not baseline.get("disabledMixinsStillApplied")
+        and bool(baseline.get("log"))
+    )
+
+
+def render_markdown(evidence: dict[str, Any]) -> str:
+    targets = evidence.get("targets", {})
+    lines = [
+        "## Phase 1 verification evidence",
+        "",
+        f"- Git commit: `{evidence.get('gitCommit')}`",
+        f"- Java: `{evidence.get('javaVersion')}`",
+        f"- Baseline: `{evidence.get('baseline')}`",
+        f"- Infrastructure gate: **{evidence.get('infrastructureGate')}**",
+        f"- Developer manual verification: **{evidence.get('developerManualVerification')}**",
+        f"- Full regression gate: **{evidence.get('fullRegressionGate')}**",
+        f"- Baseline review: **{evidence.get('baselineReview')}**",
+        f"- Static GameTests discovered: `{evidence.get('staticGameTestsDiscovered')}`",
+        "",
+        "| Target | Commit | Java | Launched | Discovered | Executed | Passed | Failed | Log |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for target in TARGETS:
+        item = targets.get(target, {}).get("gameTest", {})
+        audit = targets.get(target, {}).get("mixinAudit", {})
+        lines.append(
+            f"| {target} | `{evidence.get('gitCommit')}` | `{audit.get('javaVersion')}` | "
+            f"{item.get('launched')} | {evidence.get('staticGameTestsDiscovered')} | "
+            f"{item.get('executed')} | {item.get('requiredPassed')} | {item.get('requiredFailed')} | "
+            f"`{item.get('log')}` |"
+        )
+    lines.extend([
+        "",
+        "| Target | Audit classification | Selector confirmed | Required-mixin evidence | Failed baseline tests | Audit report |",
+        "| --- | --- | --- | --- | ---: | --- |",
+    ])
+    for target in TARGETS:
+        audit = targets.get(target, {}).get("mixinAudit", {})
+        base = audit.get("baseline", {})
+        lines.append(
+            f"| {target} | {base.get('classification')} | {base.get('selectorConfirmed')} | "
+            f"{base.get('mixinEvidenceValid')} | {len(base.get('requiredFailed', []))} | "
+            f"`{audit.get('report')}` |"
+        )
+    lines.extend([
+        "",
+        "### Assigned gameplay failures",
+        "",
+        "| Target | Suite | Test identity | Owning phase | Observed |",
+        "| --- | --- | --- | ---: | --- |",
+    ])
+    for failure in sorted(evidence.get("gameplayFailures", []), key=lambda value: (value["target"], value["suite"], value["test"])):
+        lines.append(
+            f"| {failure['target']} | {failure['suite']} | `{failure['test']}` | "
+            f"Phase {failure['owningPhase']} ({failure['owner']}) | {failure['observed']} |"
+        )
+    lines.extend(["", "### Evidence errors", ""])
+    errors = evidence.get("errors", [])
+    lines.extend(f"- {error}" for error in errors) if errors else lines.append("- None.")
+    return "\n".join(lines) + "\n"
+
+
+def validate_phase1(
+    root: Path,
+    *,
+    commit: str | None = None,
+    host_java: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    root = root.resolve()
     evidence_root = root / "build" / "reports" / "phase1"
     baseline_path = root / "gradle" / "navigation-regression-baseline.json"
     errors: list[str] = []
@@ -248,35 +422,25 @@ def main() -> int:
     try:
         baseline = read_json(baseline_path)
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"Unable to read Phase 1 baseline {baseline_path}: {exc}", file=sys.stderr)
-        return 1
+        baseline = {}
+        errors.append(f"Unable to read Phase 1 baseline {baseline_path}: {exc}")
     if baseline.get("schemaVersion") != 1:
         errors.append("navigation-regression-baseline.json must use schemaVersion 1")
     target_config = baseline.get("targets", {})
+    if not isinstance(target_config, dict):
+        errors.append("baseline targets must be an object")
+        target_config = {}
     if set(target_config) != set(TARGETS):
         errors.append(f"baseline targets must be exactly {TARGETS}, found {sorted(target_config)}")
-
-    expected: dict[tuple[str, str], dict[str, Any]] = {}
-    for entry in baseline.get("expectedGameplayFailures", []):
-        target = str(entry.get("target"))
-        suite = str(entry.get("suite"))
-        test = str(entry.get("test", "")).lower()
-        key = (f"{target}:{suite}", test)
-        if target not in TARGETS or suite not in {"runtime-gametest", "mixin-audit-baseline"} or not test:
-            errors.append(f"invalid baseline failure entry: {entry}")
-        if key in expected:
-            errors.append(f"duplicate baseline failure identity: {target}/{suite}/{test}")
-        expected[key] = entry
-        if not isinstance(entry.get("owningPhase"), int) or not entry.get("owner"):
-            errors.append(f"baseline failure lacks owning phase/owner: {entry}")
+    expected = parse_expected_failures(baseline, errors)
 
     statuses = {
         task_id: read_status(evidence_root / f"{task_id}.exit", errors)
         for task_id in TASK_IDS
     }
     try:
-        commit = git_commit(root)
-        host_java = java_version()
+        commit = commit or git_commit(root)
+        host_java = host_java or java_version()
     except (OSError, subprocess.CalledProcessError) as exc:
         errors.append(f"could not identify commit or Java runtime: {exc}")
         commit = "unknown"
@@ -284,7 +448,7 @@ def main() -> int:
 
     static_discovered = parse_static_discovered(evidence_root / "verify-port-setup.log", errors)
     gametests = {
-        target: parse_gametest(evidence_root / f"gametest-{target}.log", target, errors)
+        target: parse_gametest(evidence_root / f"gametest-{target}.log", target, commit, errors)
         for target in TARGETS
     }
     audits = {target: parse_audit(root, target, commit, errors) for target in TARGETS}
@@ -292,6 +456,9 @@ def main() -> int:
     baseline_mismatches: list[dict[str, Any]] = []
     for target in TARGETS:
         config = target_config.get(target, {})
+        if not isinstance(config, dict):
+            errors.append(f"baseline target configuration is malformed for {target}")
+            config = {}
         if static_discovered != config.get("staticGameTestsDiscovered"):
             errors.append(
                 f"static GameTest discovery changed for {target}: "
@@ -386,10 +553,16 @@ def main() -> int:
         })
 
     infrastructure_gate = not errors
-    full_regression_gate = all(
-        not gametests[target].get("failedTests")
-        and not audits[target].get("baseline", {}).get("requiredFailed")
+    full_regression_checks = {
+        target: {
+            "gameTest": passing_gametest_evidence(gametests[target], statuses.get(f"gametest-{target}")),
+            "mixinAudit": passing_audit_evidence(audits[target], statuses.get(f"audit-{target}")),
+        }
         for target in TARGETS
+    }
+    full_regression_gate = infrastructure_gate and all(
+        checks["gameTest"] and checks["mixinAudit"]
+        for checks in full_regression_checks.values()
     )
     evidence = {
         "schemaVersion": 2,
@@ -402,6 +575,7 @@ def main() -> int:
         "baselineReview": "PASS" if not baseline_mismatches else "REVIEW_REQUIRED",
         "staticGameTestsDiscovered": static_discovered,
         "taskOutcomes": statuses,
+        "fullRegressionChecks": full_regression_checks,
         "targets": {
             target: {
                 "target": target,
@@ -419,55 +593,19 @@ def main() -> int:
     evidence_path = evidence_root / "phase-1-evidence.json"
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
     evidence_path.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    return evidence, render_markdown(evidence)
 
-    lines = [
-        "## Phase 1 verification evidence",
-        "",
-        f"- Git commit: `{commit}`",
-        f"- Java: `{evidence['javaVersion']}`",
-        f"- Baseline: `{evidence['baseline']}`",
-        f"- Infrastructure gate: **{evidence['infrastructureGate']}**",
-        f"- Developer manual verification: **{evidence['developerManualVerification']}**",
-        f"- Full regression gate: **{evidence['fullRegressionGate']}**",
-        f"- Baseline review: **{evidence['baselineReview']}**",
-        f"- Static GameTests discovered: `{static_discovered}`",
-        "",
-        "| Target | Commit | Java | Launched | Discovered | Executed | Passed | Failed | Log |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
-    ]
-    for target in TARGETS:
-        item = gametests[target]
-        lines.append(
-            f"| {target} | `{commit}` | `{audits[target].get('javaVersion')}` | "
-            f"{item.get('launched')} | {static_discovered} | {item.get('executed')} | "
-            f"{item.get('requiredPassed')} | {item.get('requiredFailed')} | `{item.get('log')}` |"
-        )
-    lines.extend([
-        "",
-        "| Target | Audit classification | Selector confirmed | Required-mixin evidence | Failed baseline tests | Audit report |",
-        "| --- | --- | --- | --- | ---: | --- |",
-    ])
-    for target in TARGETS:
-        audit = audits[target]
-        base = audit.get("baseline", {})
-        lines.append(
-            f"| {target} | {base.get('classification')} | {base.get('selectorConfirmed')} | "
-            f"{base.get('mixinEvidenceValid')} | {len(base.get('requiredFailed', []))} | `{audit.get('report')}` |"
-        )
-    lines.extend(["", "### Assigned gameplay failures", "", "| Target | Suite | Test identity | Owning phase | Observed |", "| --- | --- | --- | ---: | --- |"])
-    for failure in sorted(phase_failures, key=lambda value: (value["target"], value["suite"], value["test"])):
-        lines.append(
-            f"| {failure['target']} | {failure['suite']} | `{failure['test']}` | "
-            f"Phase {failure['owningPhase']} ({failure['owner']}) | {failure['observed']} |"
-        )
-    lines.extend(["", "### Evidence errors", ""])
-    lines.extend(f"- {error}" for error in errors) if errors else lines.append("- None.")
-    output = "\n".join(lines) + "\n"
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    args = parser.parse_args()
+    evidence, output = validate_phase1(args.root)
     print(output, end="")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         Path(summary).open("a", encoding="utf-8").write(output)
-    return 0 if infrastructure_gate else 1
+    return 0 if evidence["infrastructureGate"] == "PASS" else 1
 
 
 if __name__ == "__main__":

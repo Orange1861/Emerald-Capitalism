@@ -5,7 +5,8 @@ Developer manual-verification, and Gate requirement in
 [`navigation-refactor-implementation.md`](../../plans/navigation-refactor-implementation.md).
 It was created before the Phase 2 corrections and is updated only with
 repository evidence. The generated report and the agent semantic self-review
-do not replace this ledger or constitute developer sign-off.
+are separate artifacts, but neither replaces this ledger, constitutes an
+independent review, or counts as developer verification or sign-off.
 
 | ID | Original requirement | Implementation or architectural decision | Positive evidence | Negative or adversarial evidence | Developer inspection | Status |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -43,10 +44,14 @@ Successful commands and results for this correction set:
 | `.\gradlew verifyRegressionCoverage --no-daemon --no-configuration-cache --console=plain` | PASS — 7 risk boundaries, 265 GameTests discovered |
 | `.\gradlew verifyPortSetup --no-daemon --no-configuration-cache --console=plain` | PASS |
 | `.\gradlew :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain` | PASS |
+| `python -m py_compile tools/validate_phase1_evidence.py` | PASS |
+| `python -m unittest discover -s tools/tests -p "test_*.py"` | PASS — 22 validator tests |
 | `git diff --check` | PASS |
 | `git status --short` | PASS — expected dirty worktree; no commit created |
 
-The buildSrc test report records 20 passing scanner tests. The architecture
+The buildSrc test report records 20 passing scanner tests. The permanent Python
+validator suite records 22 passing tests covering malformed, stale, incomplete,
+optional, identity, baseline, and exit-status evidence. The architecture
 verifier report records 17 producers, 11 transient claim scopes, 19
 operation-specific direct-navigation entries, and 299 production sources.
 The verifier invokes the permanent scanner tests before scanning production
