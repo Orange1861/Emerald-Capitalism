@@ -164,8 +164,8 @@ set difference is not evidence of a passing infrastructure gate.
 ## Historical automated verification record
 
 The following local run is historical evidence for commit
-`ddb529c37b0192964ea0b85cb7b6a0535ea955f2`; it is not verification of the
-current worktree commit `85cd99b3a4424d8be265394551fb1371a944b361`. Both target toolchains reported
+`ddb529c37b0192964ea0b85cb7b6a0535ea955f2`; it does not verify this or any
+later commit. Both target toolchains reported
 Java `openjdk version "21.0.9" 2025-10-21 LTS`; the target logs identified
 NeoForge 21.1.219 for 1.21.1 and 21.4.157 for 1.21.4. Static source
 discovery found 265 GameTests, while each server launched and executed 263.
@@ -239,10 +239,12 @@ mayor following/civic work**; and malformed bank state is **Phase 19 banker and
 inventory-bank work**. These are genuine later-phase behavior/regression gates
 or their current nondeterministic fixtures, not Phase 1 infrastructure fixes.
 
-The current commit requires fresh exact-commit CI evidence. The historical logs
-above predate the commit-bound GameTest evidence marker and must not be reused
-as current verification. No Phase 3 work may begin while the current P1/P2
-gates remain blocked.
+Current P1 infrastructure status must come from generated exact-commit CI
+evidence after `validate_phase1_evidence.py` passes. The current commit must
+not be declared verified from this historical section or from an earlier
+commit's artifacts. The historical logs above predate the commit-bound
+GameTest evidence marker and must not be reused as current verification. No
+Phase 3 work may begin while the current P1/P2 gates remain blocked.
 
 For that historical run, the setup gate, regression manifest, unit tests, both compilations, complete
 build, and `git diff --check` passed. Both GameTest servers launched and

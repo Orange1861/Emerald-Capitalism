@@ -159,6 +159,7 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
         evidence, _ = self.validate()
         self.assertEqual(evidence["infrastructureGate"], "PASS")
         self.assertEqual(evidence["fullRegressionGate"], "PASS")
+        self.assertTrue(evidence["fullRegressionChecks"]["1.21.1"]["mixinAudit"])
 
     def test_new_failure_fails_infrastructure_gate(self):
         self.write_fixture(gametest_failures={"1.21.1": ["a"], "1.21.4": []})
@@ -289,8 +290,55 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
             lines = [line for line in path.read_text(encoding="utf-8").splitlines() if "optional tests failed" not in line]
             path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         evidence, _ = self.validate()
-        self.assertEqual(evidence["infrastructureGate"], "PASS")
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
         self.assertEqual(evidence["fullRegressionGate"], "FAIL")
+        self.assertIn("optional GameTest result missing for 1.21.1", self.errors(evidence))
+        self.assertIn("gametest-1.21.1.log", self.errors(evidence))
+
+    def test_audit_failures_cannot_claim_all_required_passed(self):
+        self.write_fixture(
+            audit_failures={"1.21.1": ["a"], "1.21.4": []},
+            audit_overrides={"1.21.1": {"allRequiredPassed": True}},
+        )
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("allRequiredPassed=False", self.errors(evidence))
+
+    def test_audit_without_failures_cannot_claim_required_failure(self):
+        self.write_fixture(audit_overrides={"1.21.1": {"allRequiredPassed": False}})
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("allRequiredPassed=True", self.errors(evidence))
+
+    def test_audit_failures_cannot_be_classified_passed(self):
+        self.write_fixture(
+            audit_failures={"1.21.1": ["a"], "1.21.4": []},
+            audit_overrides={"1.21.1": {"classification": "BASELINE_PASSED"}},
+        )
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("classification='BASELINE_FAILED'", self.errors(evidence))
+
+    def test_audit_without_failures_cannot_be_classified_failed(self):
+        self.write_fixture(audit_overrides={"1.21.1": {"classification": "BASELINE_FAILED"}})
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("classification='BASELINE_PASSED'", self.errors(evidence))
+
+    def test_passing_audit_requires_zero_task_exit(self):
+        self.write_fixture(statuses={"audit-1.21.1": 1})
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("requires audit task exit 0", self.errors(evidence))
+
+    def test_failing_audit_requires_failure_task_exit(self):
+        self.write_fixture(
+            audit_failures={"1.21.1": ["a"], "1.21.4": []},
+            statuses={"audit-1.21.1": 0},
+        )
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("requires audit task exit 1", self.errors(evidence))
 
     def test_malformed_evidence_cannot_pass_full_regression(self):
         self.write_fixture(completion=False)

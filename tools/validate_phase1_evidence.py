@@ -122,6 +122,7 @@ def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> d
 
     if not optional_matches:
         optional_evidence_valid = False
+        errors.append(f"optional GameTest result missing for {target}: {path}")
     else:
         optional_evidence_valid = True
 
@@ -351,6 +352,37 @@ def passing_audit_evidence(audit: dict[str, Any], status: int | None) -> bool:
     )
 
 
+def validate_audit_consistency(
+    audit: dict[str, Any], target: str, status: int | None, errors: list[str]
+) -> None:
+    baseline = audit.get("baseline", {})
+    failed_tests = baseline.get("requiredFailed")
+    required_passed = baseline.get("requiredPassed")
+    classification = baseline.get("classification")
+    if not isinstance(failed_tests, list):
+        return
+
+    has_failures = bool(failed_tests)
+    expected_required_passed = not has_failures
+    expected_classification = "BASELINE_FAILED" if has_failures else "BASELINE_PASSED"
+    expected_status = 1 if has_failures else 0
+    if required_passed is not expected_required_passed:
+        errors.append(
+            f"{target} mixin audit consistency: failedTests={'non-empty' if has_failures else 'empty'} "
+            f"requires allRequiredPassed={expected_required_passed!r}, found {required_passed!r}"
+        )
+    if classification != expected_classification:
+        errors.append(
+            f"{target} mixin audit consistency: failedTests={'non-empty' if has_failures else 'empty'} "
+            f"requires classification={expected_classification!r}, found {classification!r}"
+        )
+    if status != expected_status:
+        errors.append(
+            f"{target} mixin audit consistency: failedTests={'non-empty' if has_failures else 'empty'} "
+            f"requires audit task exit {expected_status}, found {status!r}"
+        )
+
+
 def render_markdown(evidence: dict[str, Any]) -> str:
     targets = evidence.get("targets", {})
     lines = [
@@ -452,6 +484,10 @@ def validate_phase1(
         for target in TARGETS
     }
     audits = {target: parse_audit(root, target, commit, errors) for target in TARGETS}
+    for target in TARGETS:
+        validate_audit_consistency(
+            audits[target], target, statuses.get(f"audit-{target}"), errors
+        )
 
     baseline_mismatches: list[dict[str, Any]] = []
     for target in TARGETS:
@@ -526,8 +562,6 @@ def validate_phase1(
         # launch/report status inconsistent with the exact observed result.
         if statuses.get(f"gametest-{target}") != (1 if gametests[target].get("failedTests") else 0):
             errors.append(f"{target} GameTest task outcome is inconsistent with its parsed failure set")
-        if statuses.get(f"audit-{target}") != (1 if audits[target].get("baseline", {}).get("requiredFailed") else 0):
-            errors.append(f"{target} mixin audit task outcome is inconsistent with its parsed baseline result")
         if gametests[target].get("optionalFailed") not in (0, None):
             errors.append(f"{target} GameTest suite has optional failures; optional failures are not accepted")
 

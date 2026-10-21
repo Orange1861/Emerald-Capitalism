@@ -45,12 +45,12 @@ Successful commands and results for this correction set:
 | `.\gradlew verifyPortSetup --no-daemon --no-configuration-cache --console=plain` | PASS |
 | `.\gradlew :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain` | PASS |
 | `python -m py_compile tools/validate_phase1_evidence.py` | PASS |
-| `python -m unittest discover -s tools/tests -p "test_*.py"` | PASS — 22 validator tests |
+| `python -m unittest discover -s tools/tests -p "test_*.py"` | PASS — 28 validator tests |
 | `git diff --check` | PASS |
 | `git status --short` | PASS — expected dirty worktree; no commit created |
 
 The buildSrc test report records 20 passing scanner tests. The permanent Python
-validator suite records 22 passing tests covering malformed, stale, incomplete,
+validator suite records 28 passing tests covering malformed, stale, incomplete,
 optional, identity, baseline, and exit-status evidence. The architecture
 verifier report records 17 producers, 11 transient claim scopes, 19
 operation-specific direct-navigation entries, and 299 production sources.
