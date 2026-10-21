@@ -120,7 +120,10 @@ public final class VillagerNavigationRegressionGameTests {
         Villager farmer = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
         farmer.setOnGround(true);
-        helper.getLevel().setDayTime(1000L);
+        // Normal villager work is schedule-gated; 1000 is before the work
+        // window and makes this fixture measure idle scheduling instead of
+        // navigation. Keep the actor in the daytime work window.
+        helper.getLevel().setDayTime(5_000L);
         farmer.refreshBrain(helper.getLevel());
         helper.assertTrue(farmer.goalSelector.getAvailableGoals().stream()
                         .anyMatch(wrapper -> wrapper.getGoal() instanceof HarvestPumpkinGoal),
@@ -229,7 +232,9 @@ public final class VillagerNavigationRegressionGameTests {
                 localPosition.getY(), localPosition.getZ());
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
         farmer.setOnGround(true);
-        helper.getLevel().setDayTime(1000L);
+        // Keep every real farmer fixture inside the vanilla daytime work
+        // window so ladder traversal is the synchronization under test.
+        helper.getLevel().setDayTime(5_000L);
         farmer.refreshBrain(helper.getLevel());
         helper.assertTrue(farmer.goalSelector.getAvailableGoals().stream()
                         .anyMatch(wrapper -> wrapper.getGoal() instanceof HarvestPumpkinGoal),

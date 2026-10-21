@@ -125,3 +125,28 @@ entries, and the exact transitional and GoalSelector inventories.
 The developer has not yet confirmed opening and inspecting that report. The
 exact manual checklist and required confirmation are therefore recorded as
 `BLOCKED` in M2.1 rather than being represented as completed inspection.
+
+## Fresh correction-set review
+
+The architecture verifier was rerun against the current correction-set
+worktree revision `48588dfef9806aba0289ef03c2c507e23e0e7d0a` and regenerated
+`build/reports/phase2/navigation-ownership.md`. It reports 17 producers, 11
+transient claim scopes, and 299 production sources. The generated report
+visibly contains `farmer-pumpkin-work-cell-pipeline`,
+`farmer-assignment-excludes-bank-employees`, the old per-farmer
+`HarvestPumpkinGoal` scanner as a Phase 15 legacy path, and the missing bank
+employee eligibility check as a Phase 11 known violation.
+
+The corresponding source review confirms that `VillageRecord.isEligibleFarmer`
+currently checks liveness, age, profession, village membership, and bounds but
+does not consult authoritative bank employment. Bank-employee exclusion is
+therefore a documented Phase 11 production gap, not an implemented Phase 1/2
+feature. The frozen pumpkin pipeline remains a Phase 15 gameplay decision and
+no Phase 15 implementation was added.
+
+This is a fresh agent semantic self-review of source and generated evidence,
+not an independent review and not developer sign-off. M2.1 remains
+`BLOCKED`: the developer must open the generated report, inspect every
+producer row and the exact columns listed in the Phase 2 ledger, confirm the
+frozen pumpkin/bank decisions and Phase 11/15 ownership, and record the
+two-target manual result explicitly.

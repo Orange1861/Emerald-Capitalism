@@ -34,6 +34,7 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
         completion=True,
         executed=None,
         optional_failures=None,
+        optional_line=True,
         audit_overrides=None,
     ):
         discovered = discovered or TESTS
@@ -88,7 +89,8 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
                     gametest.append("====================================================")
                 else:
                     gametest.append(f"All {target_executed - optional_count} required tests passed")
-                gametest.append(f"{optional_count} optional tests failed")
+                if optional_line:
+                    gametest.append(f"{optional_count} optional tests failed")
             else:
                 gametest = ["[main/INFO] GameTestServer started"]
             (phase1 / f"gametest-{target}.log").write_text("\n".join(gametest) + "\n", encoding="utf-8")
@@ -337,17 +339,60 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(evidence["infrastructureGate"], "FAIL")
         self.assertIn("optional failures", self.errors(evidence))
 
-    def test_missing_optional_result_evidence_cannot_pass_full_regression(self):
-        self.write_fixture()
+    def test_completed_suite_with_omitted_optional_line_means_zero(self):
+        self.write_fixture(optional_line=False)
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "PASS")
+        self.assertEqual(evidence["fullRegressionGate"], "PASS")
         for target in TARGETS:
-            path = self.root / "build" / "reports" / "phase1" / f"gametest-{target}.log"
-            lines = [line for line in path.read_text(encoding="utf-8").splitlines() if "optional tests failed" not in line]
-            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            game = evidence["targets"][target]["gameTest"]
+            self.assertEqual(game["optionalFailed"], 0)
+            self.assertTrue(game["optionalEvidenceValid"])
+            self.assertTrue(game["requiredEvidenceValid"])
+
+    def test_completed_suite_with_explicit_zero_optional_line_is_valid(self):
+        self.write_fixture(optional_failures={target: 0 for target in TARGETS})
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "PASS")
+        self.assertTrue(evidence["targets"]["1.21.1"]["gameTest"]["optionalEvidenceValid"])
+
+    def test_nonzero_optional_failures_fail(self):
+        self.write_fixture(
+            executed=4,
+            optional_failures={"1.21.1": 1, "1.21.4": 0},
+            statuses={"gametest-1.21.1": 1},
+        )
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("optional failures", self.errors(evidence))
+
+    def test_incomplete_suite_with_omitted_optional_line_does_not_mean_zero(self):
+        self.write_fixture(completion=False, optional_line=False)
         evidence, _ = self.validate()
         self.assertEqual(evidence["infrastructureGate"], "FAIL")
         self.assertEqual(evidence["fullRegressionGate"], "FAIL")
-        self.assertIn("optional GameTest result missing for 1.21.1", self.errors(evidence))
-        self.assertIn("gametest-1.21.1.log", self.errors(evidence))
+        self.assertIn("completion marker missing", self.errors(evidence))
+
+    def test_malformed_required_result_cannot_be_interpreted_as_zero_optional_failures(self):
+        self.write_fixture(optional_line=False)
+        path = self.root / "build" / "reports" / "phase1" / "gametest-1.21.1.log"
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines()
+                 if "required tests passed" not in line]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        evidence, _ = self.validate()
+        game = evidence["targets"]["1.21.1"]["gameTest"]
+        self.assertFalse(game["requiredEvidenceValid"])
+        self.assertFalse(game["optionalEvidenceValid"])
+        self.assertIn("could not parse required GameTest result", self.errors(evidence))
+
+    def test_inconsistent_required_optional_and_executed_totals_fail(self):
+        self.write_fixture(optional_line=False)
+        path = self.root / "build" / "reports" / "phase1" / "gametest-1.21.1.log"
+        text = path.read_text(encoding="utf-8").replace("All 3 required tests passed", "All 2 required tests passed")
+        path.write_text(text, encoding="utf-8")
+        evidence, _ = self.validate()
+        self.assertFalse(evidence["targets"]["1.21.1"]["gameTest"]["requiredEvidenceValid"])
+        self.assertIn("result counts do not match executed count", self.errors(evidence))
 
     def test_audit_failures_cannot_claim_all_required_passed(self):
         self.write_fixture(

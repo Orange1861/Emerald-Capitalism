@@ -60,3 +60,28 @@ isolation; that missing functionality is intentionally assigned to Phase 11
 and is not represented as implemented here. The ledger remains BLOCKED only
 because M2.1 requires developer report inspection; passing the verifier alone
 is not the Phase 2 gate.
+
+## Current correction-set evidence
+
+The previous command table is historical to the earlier correction revision.
+For the current correction set, the following fresh checks passed:
+
+| Command | Result |
+| --- | --- |
+| `.\gradlew -p buildSrc test --no-daemon --no-configuration-cache --console=plain` | PASS — 23 tests, including 3 MixinAuditTask lifecycle tests |
+| `.\gradlew verifyNavigationArchitecture --no-daemon --no-configuration-cache --console=plain` | PASS — 17 producers, 11 transient claim scopes, 299 production sources |
+| `.\gradlew :core:test test verifyRegressionCoverage verifyPortSetup :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain` | PASS — core/target tests, regression coverage, port setup, and both compilations |
+| `python -m unittest tools.tests.test_validate_phase1_evidence` | PASS — 35 validator tests |
+
+The generated report visibly includes the frozen
+`farmer-pumpkin-work-cell-pipeline` and
+`farmer-assignment-excludes-bank-employees` decisions, the Phase 15 legacy
+`HarvestPumpkinGoal` scanner path, and the Phase 11 missing bank-employee
+eligibility violation. It was semantically checked against the current source;
+that check is an agent review, not an independent review.
+
+M2.1 remains **BLOCKED**. The developer must perform the exact report
+inspection listed in M2.1, confirm that every listed producer row and column
+matches the source, and explicitly record the ordinary-world two-target manual
+verification result. No generated report or agent review may mark this row
+PASS.

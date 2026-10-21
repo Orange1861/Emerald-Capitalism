@@ -16,4 +16,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // ProjectBuilder injects Gradle's synthetic task interfaces on Java 21.
+    // Keep the test harness compatible with the supported toolchain module boundary.
+    jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
 }

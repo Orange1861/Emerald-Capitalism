@@ -477,6 +477,15 @@ failures still fail Phase 1 immediately.
 - Record the absence of a profession-keyed production claim API as an
   implementation gap assigned to Phase 11. Do not add a test-only claim model,
   unused helper, or compatibility API in Phase 2.
+- Freeze pumpkin work as village-discovered, work-cell-dispatched farmer work:
+  naturally grown attached pumpkins enter the same village work inventory used
+  for queued crops, while loose decorative pumpkins remain ineligible. Replace
+  the current independent per-farmer pumpkin search in Phase 15 rather than
+  preserving it as the target architecture.
+- Freeze bank employment as an exclusion from Village Manager farmer-work
+  assignment. A bank employee cannot enter the farmer work roster or receive a
+  work-cell lease even when its vanilla profession is `FARMER`; Phase 11 owns
+  enforcement and release/reacquisition at that eligibility boundary.
 - Phase 3 owns separation of durable gameplay state from transient execution
   state and cleanup-key design.
 - Phase 11 owns the production task/claim contract and the production-backed
@@ -496,6 +505,10 @@ failures still fail Phase 1 immediately.
   claim contract; assign that missing implementation and its
   production-backed tests to Phase 11 rather than manufacturing Phase 2
   evidence.
+- Verify that the inventory reports the current pumpkin per-villager scanner
+  as a violation, the village work-cell pipeline as its single target owner,
+  and bank-employee exclusion as a frozen assignment rule rather than current
+  behavior.
 
 **Developer manual verification**
 
@@ -531,8 +544,13 @@ failures still fail Phase 1 immediately.
   tests reached by real gameplay callers;
 - the generated report has been semantically compared with the implementation;
 - the developer has explicitly completed the ownership-report inspection;
-- no required ownership decision remains in `unresolvedDecisions`; and
-- no ambiguous global task state remains in the plan.
+- no required ownership decision remains in `unresolvedDecisions`;
+- no ambiguous global task state remains in the plan;
+- pumpkin discovery, dispatch, claim, harvest, and sale handoff have one
+  village-scoped target pipeline, with loose decorative pumpkins excluded; and
+- bank employees are explicitly ineligible for Village Manager farmer-work
+  assignment, with Phase 11 owning lease release and later eligibility
+  reacquisition.
 
 Passing `verifyNavigationArchitecture` alone does not satisfy this gate.
 Phase 2 may pass with the explicitly assigned Phase 11 profession-claim gap:
@@ -706,6 +724,10 @@ breaking vanilla villagers.
 
 - Build a reusable interruption matrix covering panic, raid, sleep, trade,
   profession loss, death/removal, dimension change, unload, and server stop.
+- Define a generic village work-item schema that can distinguish mature crops,
+  attached pumpkins, and farmland repair without embedding behavior execution
+  in the schema. Phase 8 supplies contracts and fixtures only; it does not
+  migrate pumpkin gameplay.
 - Define a short developer checklist for path visuals, animation, door/gate
   use, ladder entry/exit, and post-interruption recovery.
 - Save opt-in diagnostics and failure-world artifacts in CI.
@@ -825,6 +847,14 @@ the pattern is ready for other behaviors.
 - Define interruption reasons and which ones release, suspend, or reacquire
   village/profession-scoped claims.
 - Keep retry policy in the task rather than in a global movement owner.
+- Extend the production work-cell lease/claim contract to exact attached-
+  pumpkin work items with village ID, `FARMER`, work-cell identity, pumpkin
+  position, owner UUID, and task generation.
+- Make bank employment an authoritative farmer-assignment exclusion. Roster
+  refresh, nearby-worker selection, and lease assignment must all reject bank
+  employees; acquiring bank employment releases any farmer lease and exact
+  work claims, while removal from bank employment permits later eligibility if
+  every ordinary farmer condition still holds.
 
 **Luna automated verification**
 
@@ -837,6 +867,10 @@ the pattern is ready for other behaviors.
   must invoke the production task/claim APIs through real gameplay callers;
   independent containers, test-only claim models, and unused helpers do not
   satisfy this requirement.
+- Add production-backed eligibility tests with a normal farmer and a
+  farmer-profession bank employee in the same village. Only the normal farmer
+  may receive queued crop, pumpkin, or repair work; changing bank employment
+  must release and later permit reacquisition without stale claims.
 
 **Developer manual verification**
 
@@ -955,8 +989,17 @@ code and do not alter unrelated vanilla villagers.
 - Migrate farmer mod work to Brain-native work tasks.
 - Preserve vanilla local crop harvesting/replanting and do not let mod tasks
   occupy movement memories outside their active work behavior.
+- Replace `HarvestPumpkinGoal`'s independent per-farmer world search with the
+  village work pipeline: discover naturally grown attached pumpkins, dedupe and
+  revalidate them as exact work items, dispatch their work cells only to
+  eligible non-bank-employee farmers, and claim the exact pumpkin by owner and
+  generation before publishing Brain movement intent.
 - Keep pumpkin harvesting, farmland repair, and bread production as distinct
-  task stages with village/profession-scoped claims.
+  task stages with village/profession-scoped claims. Loose decorative or
+  manually placed pumpkins without a valid attached stem remain ineligible.
+- After a successful pumpkin harvest, preserve the existing inventory and
+  economy handoff so eligible surplus pumpkins can be sold; navigation/task
+  code must not duplicate market pricing or account ownership.
 - If long-range crop work is desired, implement it as an explicit mod feature,
   not as a hidden mutation of vanilla crop behavior.
 
@@ -967,6 +1010,16 @@ code and do not alter unrelated vanilla villagers.
   farmers, panic, sleep, and unload cases.
 - Add natural pumpkin, farmland-repair, and bread-production journeys and
   prove their claims do not block vanilla crop work after stop.
+- Prove pumpkin discovery does not depend on a particular farmer being nearby,
+  duplicate detector observations create one work item, invalidated stems are
+  removed before assignment or harvest, and two farmers cannot harvest the
+  same pumpkin.
+- Add a same-village normal-farmer/bank-employee scenario proving the bank
+  employee receives no Village Manager crop, pumpkin, or repair assignment;
+  test lease release on bank employment and later reacquisition after bank
+  employment ends.
+- Verify harvested pumpkins reach the existing sale/account path without the
+  farmer task implementing a second economy system.
 
 **Developer manual verification**
 
@@ -1240,6 +1293,10 @@ production, with all transitional ownership code removed.
 - Measure task selections, starts/stops, movement-intent publications, route
   plans, failed arrivals, retries, path nodes inspected, ladder scans, claim
   operations, and expensive target searches.
+- Measure attached-pumpkin discovery and reconciliation as village-level work,
+  not a per-farmer repeated world scan. Prefer growth/block events with a
+  staggered bounded reconciliation interval (normally 100 ticks, never below
+  20 ticks without a documented correctness need).
 - Compare identical multi-villager workloads and normalize results by
   successful gameplay outcomes.
 - Cache only proven repeated work, with precise invalidation for route
@@ -1253,6 +1310,9 @@ production, with all transitional ownership code removed.
   budgets rather than wall-clock thresholds alone.
 - Run before/after workloads for mixed professions, ladder contention, moving
   targets, and unreachable targets and require equivalent outcomes.
+- Compare pumpkin-heavy villages with equal layouts, farmer populations,
+  generated work items, successful harvests, and completed sales; fewer scans
+  are not an improvement if discovery or outcomes decrease.
 
 **Developer manual verification**
 

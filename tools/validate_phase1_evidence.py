@@ -107,24 +107,34 @@ def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> d
     if executed is None:
         errors.append(f"GameTest suite completion marker missing: {path}")
 
-    failed_matches = list(re.finditer(r"(\d+) required tests failed", text))
-    passed_matches = list(re.finditer(r"All (\d+) required tests passed", text))
+    required_matches = list(
+        re.finditer(
+            r"(?:All\s+(\d+)\s+required tests passed|(\d+)\s+required tests failed)",
+            text,
+        )
+    )
     optional_matches = list(re.finditer(r"(\d+) optional tests failed", text))
-    required_failed = int(failed_matches[-1].group(1)) if failed_matches else 0
+    required_match = required_matches[-1] if required_matches else None
+    failed_matches = [match for match in required_matches if match.group(2) is not None]
+    passed_matches = [match for match in required_matches if match.group(1) is not None]
+    required_failed = int(required_match.group(2)) if required_match and required_match.group(2) else 0
     optional_failed = int(optional_matches[-1].group(1)) if optional_matches else 0
-    if passed_matches:
-        required_passed = int(passed_matches[-1].group(1))
-    elif failed_matches and executed is not None:
+    required_result_valid = required_match is not None
+    if required_match and required_match.group(1) is not None:
+        required_passed = int(required_match.group(1))
+    elif required_match and executed is not None:
         required_passed = executed - required_failed - optional_failed
     else:
         required_passed = None
         errors.append(f"could not parse required GameTest result: {path}")
 
-    if not optional_matches:
-        optional_evidence_valid = False
-        errors.append(f"optional GameTest result missing for {target}: {path}")
-    else:
-        optional_evidence_valid = True
+    # NeoForge omits the optional-failure line when the suite has no optional
+    # failures. That omission is meaningful only after completion and a valid
+    # required result have been established; it must not rescue incomplete or
+    # malformed evidence.
+    optional_evidence_valid = bool(optional_matches) or (
+        completion_marker and required_result_valid
+    )
 
     failed_tests: list[str] = []
     if failed_matches:
@@ -132,10 +142,18 @@ def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> d
         block = block.split("====================================================", 1)[0]
         failed_tests = normalize_tests(re.findall(r"(?:\]|:)\s+-\s+([A-Za-z0-9_.:-]+)", block))
         if len(failed_tests) != required_failed:
+            required_result_valid = False
             errors.append(
                 f"GameTest failure-name count does not match required failure total for "
                 f"{target}: {len(failed_tests)} != {required_failed}"
             )
+
+    if executed is None:
+        required_result_valid = False
+
+    if required_passed is not None and required_passed < 0:
+        required_result_valid = False
+        errors.append(f"required GameTest pass count is negative for {target}: {required_passed}")
 
     launched = "GameTestServer" in text and executed is not None
     if not launched:
@@ -146,10 +164,14 @@ def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> d
     if executed is not None and required_passed is not None:
         result_total = required_passed + required_failed + optional_failed
         if result_total != executed:
+            required_result_valid = False
             errors.append(
                 f"GameTest result counts do not match executed count for {target}: "
                 f"{required_passed} + {required_failed} + {optional_failed} != {executed}"
             )
+
+    if not required_result_valid:
+        optional_evidence_valid = False
 
     return {
         "log": str(path),
@@ -160,6 +182,7 @@ def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> d
         "optionalFailed": optional_failed,
         "failedTests": failed_tests,
         "passCountDerived": not bool(passed_matches),
+        "requiredEvidenceValid": required_result_valid,
         "completionMarker": completion_marker,
         "commitMarkerValid": commit_marker_valid,
         "optionalEvidenceValid": optional_evidence_valid,

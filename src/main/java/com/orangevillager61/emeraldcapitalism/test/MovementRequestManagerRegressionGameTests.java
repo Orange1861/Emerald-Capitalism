@@ -1244,6 +1244,12 @@ public final class MovementRequestManagerRegressionGameTests {
         // ticks on newer game versions, making the preemption assertion depend
         // on unrelated villager scheduling rather than MoveToTargetSink.
         villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+        villager.getBrain().eraseMemory(MemoryModuleType.INTERACTION_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.BREED_TARGET);
         villager.goalSelector.removeAllGoals(ignored -> true);
         return villager;
     }

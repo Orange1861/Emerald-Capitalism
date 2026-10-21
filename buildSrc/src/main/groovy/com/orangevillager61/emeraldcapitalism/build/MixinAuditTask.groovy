@@ -437,8 +437,8 @@ abstract class MixinAuditTask extends DefaultTask {
         return classpath
     }
 
-    private Map runVariant(Path repository, Path auditRoot, String unit, List<String> disabledMixins,
-                           List<String> classpath, Set<String> serverMixins) {
+    Map runVariant(Path repository, Path auditRoot, String unit, List<String> disabledMixins,
+                   List<String> classpath, Set<String> serverMixins) {
         Path variantDirectory = auditRoot.resolve(unit)
         Files.createDirectories(variantDirectory)
         copyTree(repository.resolve('gameteststructures'), variantDirectory.resolve('gameteststructures'))

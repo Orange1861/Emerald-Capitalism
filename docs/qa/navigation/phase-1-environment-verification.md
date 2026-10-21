@@ -280,7 +280,7 @@ changed to make Phase 1 pass.
 | `normalvillagerblockedtopexitcancelsandreplanswithoutcollision` | 1.21.1, 1.21.4 | Phase 14 — route capabilities/ladders |
 | `ladderdestructionreleasesloadedentityclaim` | 1.21.1, 1.21.4 | Phase 14 — route capabilities/ladders |
 | `boatescapepreemptsandthenresumesarealpumpkinworkjourney` | 1.21.1 | Phase 12 — movement-intent publication |
-| `staleownercannotstoparealbrainjourneyafterprioritypreemption` | 1.21.1 | Phase 12 — movement-intent publication |
+| `staleownercannotstoparealbrainjourneyafterprioritypreemption` | 1.21.4 | Phase 12 — movement-intent publication |
 | `contestedgovernormaykillbankemployeewithoutvillageopinionpenalty` | 1.21.1, 1.21.4 | Phase 18 — mayor following/civic work |
 | `malformedbankstatefailsloudly` | 1.21.1, 1.21.4 | Phase 19 — banker/inventory-bank work |
 
@@ -288,3 +288,63 @@ The runtime GameTest and mixin-audit rows are separate evidence records. The
 audit suite is not counted as an independent implementation proof when it
 derives from the same gameplay failure; both remain visible because both are
 required gates.
+
+## Current correction-set evidence
+
+This section records the correction-set checks performed at the current local
+worktree revision `48588dfef9806aba0289ef03c2c507e23e0e7d0a` (dirty during
+verification). It does not replace final-commit Linux CI evidence and must not
+be read as a completed Phase 1 sign-off.
+
+Both local `auditMixins` tasks reached their baseline, fingerprinted the
+durable target artifact, and wrote a current-commit report before returning
+their expected nonzero baseline result:
+
+- 1.21.1 used `versions/1.21.1/build/moddev/artifacts/neoforge-21.1.219.jar`;
+  the report recorded the exact current commit, matching SHA-256, completed
+  `BASELINE_FAILED`, confirmed selector, and valid required-mixin evidence.
+- 1.21.4 used `versions/1.21.4/build/moddev/artifacts/neoforge-21.4.157.jar`
+  with the same report properties.
+
+The old `*-merged.jar` inputs named in the failed Linux audits were not the
+durable compiled artifacts at report-writing time. The task now depends on
+`createMinecraftArtifacts`, uses the durable `neoforge-<version>.jar` for the
+launched classpath and fingerprint, and has task-level coverage for both the
+normal report path and the original-failure-preserving diagnostic path. The
+local buildSrc audit test suite passed 23 tests.
+
+The optional-result parser now treats an omitted optional line as zero only
+after a valid completion marker and required-result line. It still rejects an
+incomplete suite, malformed required result, nonzero optional result, or
+inconsistent totals; the focused validator suite passed 35 tests.
+
+The latest local validator invocation regenerated a Phase 1 JSON at the current
+HEAD, but it correctly rejected the local evidence set: the direct GameTest
+logs were not wrapped by the workflow's exact `Phase 1 evidence commit:`
+marker, and their derived failure sets disagreed with the latest audit reports.
+That local JSON is therefore diagnostic only, not authoritative evidence. The
+current Phase 1 infrastructure gate is **BLOCKED pending final-commit Linux CI
+evidence**, developer manual verification is **BLOCKED**, and the full
+regression gate is **FAIL** while assigned runtime/audit failures remain.
+
+The latest repeated local audit baselines did complete all 263 tests, but they
+also confirm the four-test instability remains unresolved: the current 1.21.1
+run reported 10 required failures including
+`staleownercannotstoparealbrainjourneyafterprioritypreemption`, while the
+current 1.21.4 run reported 11 including
+`boatescapepreemptsandthenresumesarealpumpkinworkjourney`; the
+`bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction`
+case did not fail in these completed runs. The normal-farmer fixture clock and
+the stale-owner fixture's pre-existing Brain movement memories were corrected
+as narrow setup fixes, but the completed matrix still fails the pumpkin/ladder
+journeys and does not provide a deterministic cross-version classification.
+These runs are diagnostic current local evidence, not final Linux sign-off.
+
+The developer must commit and push this correction set, run the authoritative
+Linux workflow on that final commit, attach its artifacts, and confirm that
+both GameTest logs contain the final commit marker and valid required/optional
+evidence, that both audit reports contain the same commit, and that the
+validator result is recorded from those artifacts. The developer must also
+perform the ordinary-world two-target smoke check described in the manual gate
+above and explicitly record PASS or FAIL; generated reports cannot supply that
+confirmation.

@@ -315,6 +315,8 @@ tasks.register('verifyNavigationArchitecture') {
                 'avoidance-safety-activity': ['CORE', 'villager UUID + hazard identity + safety generation'],
                 'begging-social-session': ['IDLE', 'beggar UUID + donor UUID + session generation'],
                 'lumberjack-shared-furnace-pool': ['WORK', 'villageId + LUMBERJACK + furnace identity + owner UUID + generation'],
+                'farmer-pumpkin-work-cell-pipeline': ['WORK', 'villageId + FARMER + work-cell identity + attached pumpkin position + owner UUID + task generation'],
+                'farmer-assignment-excludes-bank-employees': ['bank employees are ineligible', 'villageId + FARMER + eligible non-bank-employee villager UUID + work-cell lease generation'],
                 'move-to-target-sink-compatibility': ['compatibility observer only', 'vanilla MoveToTargetSink observation; no task owner and no route restoration']
         ]
         requiredFrozenDecisions.each { String id, List<String> expected ->
