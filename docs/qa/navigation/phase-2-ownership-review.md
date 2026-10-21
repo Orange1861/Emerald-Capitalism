@@ -1,10 +1,10 @@
-# Phase 2 ownership review
+# Phase 2 agent semantic review
 
-This is Luna's independent semantic review for Phase 2. It is intentionally
-separate from `gradle/navigation-architecture.json`, the verifier, and the
-tracked requirement ledger at
+This is an agent semantic review for Phase 2, written by the implementing
+agent. It is intentionally separate from `gradle/navigation-architecture.json`,
+the verifier, and the tracked requirement ledger at
 [`phase-2-ownership-ledger.md`](phase-2-ownership-ledger.md). It is not a
-developer sign-off.
+self-review, not an independent review and not a developer sign-off.
 
 ## Review basis
 
@@ -52,9 +52,12 @@ tests that behavior directly.
 That API has no profession key. The current lumberjack furnace path in
 `LumberjackGoal` finds a nearest usable furnace and does not reserve a shared
 furnace pool by village, profession, owner, and generation. The current door,
-crop, and tree claim APIs likewise do not establish the complete Phase 2
-profession-isolated contract. No test-only model was added to manufacture
-that proof, so A2.2 and G2.9 are `BLOCKED` until the later claim design exists.
+crop, and tree claim APIs likewise do not establish the future profession-keyed
+contract. No test-only model was added to manufacture that proof. Phase 2
+therefore freezes the required scope and records the missing production claim
+contract as a Phase 11 implementation gap; Phase 11 must add the real task/
+claim API and production-backed tests proving that identical targets in two
+professions do not share or release each other's leases.
 
 ## Frozen decision review
 

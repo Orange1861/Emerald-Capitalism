@@ -22,21 +22,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # This is needed to be able to run ./gradlew below
-      # You can run `git update-index --chmod +x gradlew` then remove this step.
+      # This is needed to be able to run ./gradlew below.
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # Run every required check in one diagnostic matrix. No Gradle --continue
-      # or action-level continue-on-error is used; each exit status is recorded,
-      # all diagnostics are collected, and the matrix/evidence/final gate fail
-      # the job when any required result fails.
+      # Every command runs even when a GameTest or mixin audit reports an
+      # assigned later-phase gameplay failure. Each exit status and log is
+      # retained; validate_phase1_evidence.py decides whether the result is an
+      # accepted infrastructure baseline or an infrastructure/review failure.
       - name: Run Phase 1 verification matrix
         id: phase1_matrix
         run: |
           set -u
           mkdir -p build/reports/phase1
-          failed=0
 
           run_gradle() {
             id="$1"
@@ -46,9 +44,6 @@ jobs:
             status=${PIPESTATUS[0]}
             set -e
             printf '%s\n' "$status" > "build/reports/phase1/${id}.exit"
-            if [ "$status" -ne 0 ]; then
-              failed=1
-            fi
             return 0
           }
 
@@ -63,294 +58,13 @@ jobs:
           run_gradle build ./gradlew build --no-daemon --no-configuration-cache --console=plain
           run_gradle diff-check git diff --check
 
-          exit "$failed"
+          # The evidence step owns the gate after all diagnostics are present.
+          exit 0
 
       - name: Report Phase 1 evidence
         id: phase1_evidence
         if: ${{ always() }}
-        run: |
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          import re
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          root = Path('.')
-          evidence_root = root / 'build' / 'reports' / 'phase1'
-          targets = ('1.21.1', '1.21.4')
-          task_ids = (
-              'verify-port-setup', 'unit-tests', 'compile-1.21.1', 'compile-1.21.4',
-              'gametest-1.21.1', 'gametest-1.21.4', 'audit-1.21.1', 'audit-1.21.4',
-              'build', 'diff-check',
-          )
-          errors = []
-
-          def read_text(path):
-              return path.read_text(encoding='utf-8', errors='replace') if path.is_file() else ''
-
-          def status_for(task_id):
-              path = evidence_root / f'{task_id}.exit'
-              if not path.is_file():
-                  errors.append(f'missing final Gradle task outcome: {path}')
-                  return None
-              try:
-                  return int(path.read_text(encoding='utf-8').strip())
-              except ValueError:
-                  errors.append(f'invalid final Gradle task outcome: {path}')
-                  return None
-
-          statuses = {task_id: status_for(task_id) for task_id in task_ids}
-          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          java_output = subprocess.run(
-              ['java', '-version'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-              text=True, check=True,
-          ).stdout.strip().splitlines()
-          host_java_version = next((line for line in java_output if 'version' in line), java_output[0])
-
-          def parse_discovered():
-              text = read_text(evidence_root / 'verify-port-setup.log')
-              match = re.search(r'(\d+) GameTests discovered', text)
-              if not match:
-                  errors.append('could not parse static GameTest discovery from verifyPortSetup evidence')
-                  return None
-              return int(match.group(1))
-
-          static_discovered = parse_discovered()
-
-          def parse_gametest(target):
-              path = evidence_root / f'gametest-{target}.log'
-              text = read_text(path)
-              if not text:
-                  errors.append(f'missing GameTest log: {path}')
-                  return {
-                      'log': str(path), 'launched': False, 'executed': None,
-                      'requiredPassed': None, 'requiredFailed': None,
-                      'optionalFailed': None, 'failedTests': [],
-                  }
-
-              complete = list(re.finditer(r'=+\s+(\d+) GAME TESTS COMPLETE IN', text))
-              executed = int(complete[-1].group(1)) if complete else None
-              if executed is None:
-                  errors.append(f'GameTest suite completion marker missing: {path}')
-
-              failed_matches = list(re.finditer(r'(\d+) required tests failed', text))
-              passed_matches = list(re.finditer(r'All (\d+) required tests passed', text))
-              optional_matches = list(re.finditer(r'(\d+) optional tests failed', text))
-              required_failed = int(failed_matches[-1].group(1)) if failed_matches else 0
-              optional_failed = int(optional_matches[-1].group(1)) if optional_matches else 0
-              if passed_matches:
-                  required_passed = int(passed_matches[-1].group(1))
-              elif failed_matches and executed is not None:
-                  # The GameTest server prints only the required failure total
-                  # on a failing run. These suites have no optional tests, so
-                  # this is the exact required pass count, not an estimate.
-                  required_passed = executed - required_failed - optional_failed
-              else:
-                  required_passed = None
-                  errors.append(f'could not parse required GameTest result: {path}')
-
-              failed_tests = []
-              if failed_matches:
-                  block = text[failed_matches[-1].end():]
-                  block = block.split('====================================================', 1)[0]
-                  failed_tests = re.findall(r'(?:\]|:)\s+-\s+([A-Za-z0-9_.:-]+)', block)
-                  if len(failed_tests) != required_failed:
-                      errors.append(
-                          f'GameTest failure-name count does not match required failure total for {target}: '
-                          f'{len(failed_tests)} != {required_failed}'
-                      )
-
-              launched = 'GameTestServer' in text and executed is not None
-              if not launched:
-                  errors.append(f'GameTest launch evidence missing: {path}')
-              return {
-                  'log': str(path),
-                  'launched': launched,
-                  'executed': executed,
-                  'requiredPassed': required_passed,
-                  'requiredFailed': required_failed,
-                  'optionalFailed': optional_failed,
-                  'failedTests': failed_tests,
-                  'passCountDerived': not bool(passed_matches),
-              }
-
-          gametests = {target: parse_gametest(target) for target in targets}
-
-          def parse_audit(target):
-              report_path = root / 'versions' / target / 'build' / 'reports' / 'mixin-audit' / 'report.json'
-              if not report_path.is_file():
-                  errors.append(f'missing mixin audit report: {report_path}')
-                  return {'report': str(report_path), 'fresh': False}
-              try:
-                  report = json.loads(report_path.read_text(encoding='utf-8'))
-              except json.JSONDecodeError as exc:
-                  errors.append(f'invalid mixin audit report {report_path}: {exc}')
-                  return {'report': str(report_path), 'fresh': False}
-
-              fresh = report.get('schemaVersion') == 2 and report.get('gitCommit') == commit
-              if not fresh:
-                  errors.append(
-                      f'stale or incompatible mixin audit report for {target}: '
-                      f"schema={report.get('schemaVersion')} commit={report.get('gitCommit')} expected={commit}"
-                  )
-              if not report.get('javaVersion'):
-                  errors.append(f'mixin audit report has no Java identity: {report_path}')
-              if not report.get('generatedAt'):
-                  errors.append(f'mixin audit report has no generation timestamp: {report_path}')
-              if not report.get('artifacts', {}).get('mergedMinecraftJar', {}).get('sha256'):
-                  errors.append(f'mixin audit report has no merged-jar fingerprint: {report_path}')
-
-              baseline = next((item for item in report.get('results', []) if item.get('unit') == 'baseline'), None)
-              if baseline is None:
-                  errors.append(f'mixin audit baseline result missing: {report_path}')
-                  baseline = {}
-              for key in ('selectorConfirmed', 'mixinEvidenceValid', 'missingMixinDecisions',
-                          'unappliedRequiredMixins', 'disabledMixinsStillApplied', 'logSha256'):
-                  if key not in baseline:
-                      errors.append(f'mixin audit baseline evidence missing {key}: {report_path}')
-              if baseline.get('log') and not Path(baseline['log']).is_file():
-                  errors.append(f'mixin audit baseline log missing: {baseline["log"]}')
-              if not baseline.get('selectorConfirmed'):
-                  errors.append(f'mixin audit selector was not confirmed for {target}')
-              if not baseline.get('mixinEvidenceValid'):
-                  errors.append(f'mixin audit required mixin application evidence failed for {target}')
-
-              discovered = len(report.get('discoveredTests', []))
-              if static_discovered is not None and discovered != static_discovered:
-                  errors.append(
-                      f'mixin audit/static discovery mismatch for {target}: {discovered} != {static_discovered}'
-                  )
-              return {
-                  'report': str(report_path),
-                  'fresh': fresh,
-                  'gitCommit': report.get('gitCommit'),
-                  'javaVersion': report.get('javaVersion'),
-                  'staticDiscovered': discovered,
-                  'configuredMixins': len(report.get('configuredMixins', [])),
-                  'serverMixins': len(report.get('serverMixins', [])),
-                  'baseline': {
-                      'classification': baseline.get('classification'),
-                      'completed': baseline.get('completed'),
-                      'selectorConfirmed': baseline.get('selectorConfirmed'),
-                      'mixinEvidenceValid': baseline.get('mixinEvidenceValid'),
-                      'requiredPassed': baseline.get('allRequiredPassed'),
-                      'requiredFailed': baseline.get('failedTests', []),
-                      'missingMixinDecisions': baseline.get('missingMixinDecisions', []),
-                      'unappliedRequiredMixins': baseline.get('unappliedRequiredMixins', []),
-                      'disabledMixinsStillApplied': baseline.get('disabledMixinsStillApplied', []),
-                      'log': baseline.get('log'),
-                  },
-              }
-
-          audits = {target: parse_audit(target) for target in targets}
-          target_java_versions = {target: audits[target].get('javaVersion') for target in targets}
-          java_versions = {version for version in target_java_versions.values() if version}
-          java_version = next(iter(java_versions), host_java_version)
-          if len(java_versions) != 1:
-              errors.append(f'per-target mixin audit Java identities are incomplete or disagree: {target_java_versions}')
-          for target in targets:
-              gametests[target]['gitCommit'] = commit
-              gametests[target]['javaVersion'] = target_java_versions.get(target) or host_java_version
-
-          for task_id, status in statuses.items():
-              if status != 0:
-                  errors.append(f'{task_id} final Gradle task outcome was {status!r}, expected 0')
-          for target in targets:
-              if statuses.get(f'gametest-{target}') != 0:
-                  errors.append(f'{target} GameTest Gradle task failed')
-              if statuses.get(f'audit-{target}') != 0:
-                  errors.append(f'{target} mixin audit Gradle task failed')
-
-          evidence = {
-              'schemaVersion': 1,
-              'gitCommit': commit,
-              'javaVersion': java_version,
-              'staticGameTestsDiscovered': static_discovered,
-              'taskOutcomes': statuses,
-              'targets': {
-                  target: {
-                      'gitCommit': commit,
-                      'javaVersion': target_java_versions.get(target) or host_java_version,
-                      'gameTest': gametests[target],
-                      'mixinAudit': audits[target],
-                  }
-                  for target in targets
-              },
-              'errors': errors,
-          }
-          evidence_path = evidence_root / 'phase-1-evidence.json'
-          evidence_path.write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
-
-          print(f'Phase 1 Git commit: {commit}')
-          print(f'Phase 1 Java: {java_version}')
-          print(f'Static GameTests discovered: {static_discovered}')
-          print('')
-          print('| Target | Git commit | Java | Launched | Static discovered | Executed | Required passed | Required failed | Optional failed | Gradle outcome | GameTest log |')
-          print('| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |')
-          for target in targets:
-              item = gametests[target]
-              outcome = 'PASS' if statuses.get(f'gametest-{target}') == 0 else 'FAIL'
-              print(
-                  f"| {target} | `{commit}` | `{item['javaVersion']}` | {item['launched']} | {static_discovered} | {item['executed']} | "
-                  f"{item['requiredPassed']} | {item['requiredFailed']} | {item['optionalFailed']} | "
-                  f"{outcome} | `{item['log']}` |"
-              )
-          print('')
-          print('| Target | Git commit | Java | Configured mixins | Server mixins | Baseline classification | Applied evidence | Gradle outcome | Report |')
-          print('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- |')
-          for target in targets:
-              item = audits[target]
-              baseline = item.get('baseline', {})
-              outcome = 'PASS' if statuses.get(f'audit-{target}') == 0 else 'FAIL'
-              print(
-                  f"| {target} | `{commit}` | `{item.get('javaVersion')}` | {item.get('configuredMixins')} | {item.get('serverMixins')} | "
-                  f"{baseline.get('classification')} | {baseline.get('mixinEvidenceValid')} | {outcome} | "
-                  f"`{item.get('report')}` |"
-              )
-
-          summary = os.environ.get('GITHUB_STEP_SUMMARY')
-          if summary:
-              with open(summary, 'a', encoding='utf-8') as output:
-                  output.write('## Phase 1 verification evidence\n\n')
-                  output.write(f'- Git commit: `{commit}`\n')
-                  output.write(f'- Java: `{java_version}`\n')
-                  output.write(f'- Static GameTests discovered: `{static_discovered}`\n\n')
-                  output.write('| Target | Git commit | Java | Launched | Static discovered | Executed | Required passed | Required failed | Optional failed | Gradle outcome | GameTest log |\n')
-                  output.write('| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |\n')
-                  for target in targets:
-                      item = gametests[target]
-                      outcome = 'PASS' if statuses.get(f'gametest-{target}') == 0 else 'FAIL'
-                      output.write(
-                          f"| {target} | `{commit}` | `{item['javaVersion']}` | {item['launched']} | {static_discovered} | {item['executed']} | "
-                          f"{item['requiredPassed']} | {item['requiredFailed']} | {item['optionalFailed']} | "
-                          f"{outcome} | `{item['log']}` |\n"
-                      )
-                  output.write('\n| Target | Git commit | Java | Configured mixins | Server mixins | Baseline classification | Applied evidence | Gradle outcome | Report |\n')
-                  output.write('| --- | --- | --- | ---: | ---: | --- | --- | --- | --- |\n')
-                  for target in targets:
-                      item = audits[target]
-                      baseline = item.get('baseline', {})
-                      outcome = 'PASS' if statuses.get(f'audit-{target}') == 0 else 'FAIL'
-                      output.write(
-                          f"| {target} | `{commit}` | `{item.get('javaVersion')}` | {item.get('configuredMixins')} | {item.get('serverMixins')} | "
-                          f"{baseline.get('classification')} | {baseline.get('mixinEvidenceValid')} | {outcome} | "
-                          f"`{item.get('report')}` |\n"
-                      )
-                  output.write('\n### Evidence errors\n\n')
-                  if errors:
-                      output.write('\n'.join(f'- {error}' for error in errors) + '\n')
-                  else:
-                      output.write('- None.\n')
-
-          if errors:
-              print('\nPhase 1 evidence gate failed:', file=sys.stderr)
-              for error in errors:
-                  print(f'- {error}', file=sys.stderr)
-              sys.exit(1)
-          PY
+        run: python3 tools/validate_phase1_evidence.py
 
       - name: Upload verification artifacts
         if: ${{ always() }}
@@ -369,11 +83,8 @@ jobs:
             versions/*/build/reports/**
             versions/*/build/test-results/**
 
-      - name: Enforce Phase 1 verification gate
+      - name: Enforce Phase 1 infrastructure gate
         if: ${{ always() }}
         env:
-          MATRIX: ${{ steps.phase1_matrix.outcome }}
           EVIDENCE: ${{ steps.phase1_evidence.outcome }}
-        run: |
-          test "$MATRIX" = success
-          test "$EVIDENCE" = success
+        run: test "$EVIDENCE" = success

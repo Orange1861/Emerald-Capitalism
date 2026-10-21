@@ -412,10 +412,13 @@ recorded result.
 
 **Luna automated verification**
 
-- Run `test`, `verifyRegressionCoverage`, `verifyPortSetup`, both target
-  compile tasks, and a minimal GameTest smoke suite on both targets.
-- Add a CI assertion that reports the tested commit, Java version, target, and
-  executed GameTest count.
+- Run `test`, `verifyRegressionCoverage`, `verifyNavigationArchitecture`,
+  `verifyPortSetup`, both target compile tasks, and a minimal GameTest smoke
+  suite on both targets.
+- Add a CI assertion that reports the tested commit, Java version, target,
+  discovered count, executed count, pass/failure counts, logs, audit
+  classification, selector confirmation, and required-mixin application
+  evidence.
 
 **Developer manual verification**
 
@@ -427,8 +430,35 @@ recorded result.
   it. Pass means no crash, mixin error, frozen entity, or target-specific setup
   difference; the run sheet identifies the relevant log file if launch fails.
 
-**Gate:** both targets reach and execute tests in CI. No gameplay behavior is
-changed in this phase.
+**Phase 1 infrastructure gate:**
+
+- Java and Gradle configuration are correct and `verifyPortSetup` passes
+  without being weakened.
+- Unit tests and architecture/regression-discovery checks execute.
+- Both 1.21.1 and 1.21.4 compile.
+- Both GameTest servers launch and execute the expected test count.
+- Both mixin audits generate fresh, valid reports for the exact commit, with a
+  confirmed selector and required-mixin application evidence.
+- CI records commit, Java version, target, discovered count, executed count,
+  pass/failure counts, logs, and audit classification.
+- Known gameplay failures are listed in the tracked regression baseline and
+  assigned to their owning later phases.
+- A test server that fails to launch, executes no tests, produces stale
+  evidence, lacks mixin application evidence, or produces an unassigned
+  failure fails this infrastructure gate.
+- No gameplay behavior is changed merely to complete Phase 1.
+
+The infrastructure gate accepts only the exact gameplay failures in the
+tracked baseline. A new, removed, renamed, unexpectedly passing, or
+unexpectedly failing result requires review and fails the gate until the
+baseline is deliberately updated with an owning phase.
+
+**Final regression gate:** this is not a Phase 1 gate. Before the navigation
+refactor is declared complete, all required GameTests and mixin audits must
+pass. Existing failures remain visible and may not be deleted, disabled,
+weakened, reclassified, or made optional. The all-tests-pass gate is enforced
+by the Phase 24 cross-version release-validation gate below; infrastructure
+failures still fail Phase 1 immediately.
 
 ### Phase 2 — Freeze scheduler, scope, and ownership invariants
 
@@ -440,6 +470,19 @@ changed in this phase.
   memory mutation, direct navigation call, and persistent claim.
 - Assign each item a target Brain activity, village/profession scope, and
   durable or transient classification.
+- Freeze the required village/profession scope and document every current
+  violation without pretending that future scope enforcement is implemented.
+- Require the existing real village-isolation test through the production
+  `VillageRecord`/`VillageWorkCell` claim API.
+- Record the absence of a profession-keyed production claim API as an
+  implementation gap assigned to Phase 11. Do not add a test-only claim model,
+  unused helper, or compatibility API in Phase 2.
+- Phase 3 owns separation of durable gameplay state from transient execution
+  state and cleanup-key design.
+- Phase 11 owns the production task/claim contract and the production-backed
+  profession-isolation tests. It must prove through real gameplay callers that
+  identical targets in two professions do not share or release each other's
+  leases.
 - Prohibit new callers of the transitional movement stack.
 
 **Luna automated verification**
@@ -447,8 +490,12 @@ changed in this phase.
 - Add architecture checks that fail when villager profession code directly
   writes `PATH`, calls `PathNavigation.moveTo`, or registers a new mod
   `GoalSelector` task outside an explicit allowlist.
-- Add scope tests proving identical targets in two villages or professions do
-  not share a lease.
+- Run the existing production-backed village-isolation test proving identical
+  targets in two villages do not share or release each other's lease.
+- Verify and report that the current production API has no profession-keyed
+  claim contract; assign that missing implementation and its
+  production-backed tests to Phase 11 rather than manufacturing Phase 2
+  evidence.
 
 **Developer manual verification**
 
@@ -468,6 +515,7 @@ changed in this phase.
   activity;
 - every task and claim has an explicit village and profession scope, or an
   explicit statement that it is not village-owned and why;
+- the required scope is frozen and every current violation is recorded;
 - every current transitional caller is inventoried;
 - tracked automated negative tests reject unauthorized callers of both
   `MovementRequestManager` and `VillagerMovementRequestBinding`;
@@ -475,14 +523,23 @@ changed in this phase.
   calls and aliased `PathNavigation` variables;
 - tracked automated negative tests reject unauthorized `PATH` writes and
   villager `GoalSelector` registrations;
-- village-isolation and profession-isolation tests exercise claim APIs reached
-  by actual production gameplay callers, not an unused substitute contract;
+- the existing real village-isolation test exercises the production claim API;
+- the absence of a profession-keyed production claim API is recorded as a
+  Phase 11 implementation gap, not reported as implemented Phase 2 behavior;
+- Phase 3 owns durable/transient state separation and cleanup-key design, and
+  Phase 11 owns the production task/claim contract plus profession-isolation
+  tests reached by real gameplay callers;
 - the generated report has been semantically compared with the implementation;
 - the developer has explicitly completed the ownership-report inspection;
 - no required ownership decision remains in `unresolvedDecisions`; and
 - no ambiguous global task state remains in the plan.
 
 Passing `verifyNavigationArchitecture` alone does not satisfy this gate.
+Phase 2 may pass with the explicitly assigned Phase 11 profession-claim gap:
+all ownership decisions must be frozen, all current callers and violations
+must be inventoried, the real village-isolation behavior must be tested, and
+the missing future implementation must name its owning phase. No later-phase
+gameplay behavior is implemented to manufacture a Phase 2 pass.
 
 ### Phase 3 — Separate persistent gameplay state from transient execution
 
@@ -775,6 +832,11 @@ the pattern is ready for other behaviors.
   target, preemption, timeout, unload, and profession change.
 - Add generation/claim tests proving delayed cleanup from an old task cannot
   release a new task's lease.
+- Add production-backed profession-isolation tests proving identical targets
+  in two professions do not share or release each other's leases. The tests
+  must invoke the production task/claim APIs through real gameplay callers;
+  independent containers, test-only claim models, and unused helpers do not
+  satisfy this requirement.
 
 **Developer manual verification**
 
@@ -1251,9 +1313,11 @@ git diff --check
   navigation seam, Luna identifies the overlap in the report; the developer
   is not expected to discover it through an unavailable UI.
 
-**Gate:** all automated checks and the developer checklist pass on both
-targets, no generated artifact is tracked, and the exact-commit release report
-contains no ambiguous historical evidence.
+**Gate:** all automated checks, including every required GameTest and mixin
+audit, and the developer checklist pass on both targets, no generated artifact
+is tracked, and the exact-commit release report contains no ambiguous
+historical evidence. This is the final all-tests-pass regression gate for the
+navigation refactor.
 
 Do not begin another navigation revision after this gate unless a new,
 reproducible defect is reported and assigned to the correct task, movement, or

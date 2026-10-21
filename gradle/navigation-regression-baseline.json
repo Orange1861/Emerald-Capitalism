@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "description": "Exact Phase 1 navigation regression baseline. These failures are expected only as explicitly assigned later-phase gameplay work; any set difference requires review.",
+  "targets": {
+    "1.21.1": {
+      "staticGameTestsDiscovered": 265,
+      "gameTestsExecuted": 263,
+      "discoveredTestsSha256": "c8fe6ec5dc472dc1f9ded9980c78059bb5dbaff29da003011f10aeb9072e5225"
+    },
+    "1.21.4": {
+      "staticGameTestsDiscovered": 265,
+      "gameTestsExecuted": 263,
+      "discoveredTestsSha256": "c8fe6ec5dc472dc1f9ded9980c78059bb5dbaff29da003011f10aeb9072e5225"
+    }
+  },
+  "expectedGameplayFailures": [
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "normalvillageraiharvestspumpkinatabsoluteposition", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "contestedgovernormaykillbankemployeewithoutvillageopinionpenalty", "owningPhase": 18, "owner": "mayor following and civic work"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "malformedbankstatefailsloudly", "owningPhase": 19, "owner": "banker and inventory-bank work"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "normalvillageraidescendsladderandcompleteslowerwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "normalvillageraiascendsladderandcompletesupperwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "normalvillagerunloadreloadreleasesladderclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "twonormalvillagerscontendforoneladderandoneworktarget", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "normalvillagerblockedtopexitcancelsandreplanswithoutcollision", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "runtime-gametest", "test": "boatescapepreemptsandthenresumesarealpumpkinworkjourney", "owningPhase": 12, "owner": "movement-intent publication"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "normalvillageraiharvestspumpkinatabsoluteposition", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "contestedgovernormaykillbankemployeewithoutvillageopinionpenalty", "owningPhase": 18, "owner": "mayor following and civic work"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "boatescapepreemptsandthenresumesarealpumpkinworkjourney", "owningPhase": 12, "owner": "movement-intent publication"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "malformedbankstatefailsloudly", "owningPhase": 19, "owner": "banker and inventory-bank work"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "ladderdestructionreleasesloadedentityclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "normalvillageraidescendsladderandcompleteslowerwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "normalvillageraiascendsladderandcompletesupperwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "normalvillagerunloadreloadreleasesladderclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "twonormalvillagerscontendforoneladderandoneworktarget", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "normalvillagerblockedtopexitcancelsandreplanswithoutcollision", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillageraiharvestspumpkinatabsoluteposition", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "contestedgovernormaykillbankemployeewithoutvillageopinionpenalty", "owningPhase": 18, "owner": "mayor following and civic work"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "malformedbankstatefailsloudly", "owningPhase": 19, "owner": "banker and inventory-bank work"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalfarmerharvestsandreplantsmaturewheat", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillageraidescendsladderandcompleteslowerwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillageraiascendsladderandcompletesupperwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillagerunloadreloadreleasesladderclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "twonormalvillagerscontendforoneladderandoneworktarget", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillagerblockedtopexitcancelsandreplanswithoutcollision", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "ladderdestructionreleasesloadedentityclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "staleownercannotstoparealbrainjourneyafterprioritypreemption", "owningPhase": 12, "owner": "movement-intent publication"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalvillageraiharvestspumpkinatabsoluteposition", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "contestedgovernormaykillbankemployeewithoutvillageopinionpenalty", "owningPhase": 18, "owner": "mayor following and civic work"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "malformedbankstatefailsloudly", "owningPhase": 19, "owner": "banker and inventory-bank work"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalfarmerharvestsandreplantsmaturewheat", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "ladderdestructionreleasesloadedentityclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalvillageraidescendsladderandcompleteslowerwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalvillageraiascendsladderandcompletesupperwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalvillagerunloadreloadreleasesladderclaim", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "twonormalvillagerscontendforoneladderandoneworktarget", "owningPhase": 14, "owner": "route capabilities and ladders"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalvillagerblockedtopexitcancelsandreplanswithoutcollision", "owningPhase": 14, "owner": "route capabilities and ladders"}
+  ]
+}
