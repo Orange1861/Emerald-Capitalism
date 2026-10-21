@@ -1124,6 +1124,8 @@ by a test first and eliminated in ordinary gameplay.
 **Work**
 
 - Migrate candidate following to a Brain behavior using a live entity tracker.
+- Give valid governorship-contest following a high-priority social slot immediately
+  below CORE safety and above ordinary WORK/IDLE tasks.
 - Make door repair a staged civic task with a fixed work position and
   village-scoped claim.
 - Define loss of candidate, candidate dimension change, invalid door, and
@@ -1219,7 +1221,7 @@ transactional gameplay outcomes.
   their policies truly match.
 - Keep different threat predicates and stop conditions explicit; a boat must
   not accidentally inherit plague or hostile-player rules.
-- Place begging in the appropriate social/idle activity and make transfer
+- Place begging in the appropriate social WORK activity and make transfer
   conditional on real arrival and current donor validity.
 
 **Luna automated verification**

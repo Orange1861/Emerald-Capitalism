@@ -64,9 +64,9 @@ professions do not share or release each other's leases.
 | Boundary | Frozen Phase 2 decision | Current behavior / implementation status |
 | --- | --- | --- |
 | Mayor door repair | `WORK`; village + MAYOR + mayor UUID + door + generation | Current position-only exclusion is recorded as a known gap; no migration was performed. |
-| Mayor governor follow | `IDLE`; village + MAYOR + mayor UUID + candidate + session generation | Current GoalSelector path remains inventoried for its scheduled migration. |
+| Mayor governor follow | `IDLE`, immediately below `CORE` safety and above ordinary `WORK`/`IDLE`; village + MAYOR + mayor UUID + candidate + session generation | Current GoalSelector path remains inventoried for its scheduled migration. |
 | Avoidance | `CORE`; villager + hazard + safety generation | Safety remains a frozen core boundary, not a new scheduler. |
-| Begging | `IDLE`; beggar UUID + donor UUID + session generation; cross-village donors forbidden | `BegForFoodBehavior` currently lacks the same-village filter. This is a frozen Phase 21 implementation requirement, not current behavior and not an unresolved decision. |
+| Begging | `WORK`; beggar UUID + donor UUID + session generation; cross-village donors forbidden | `BegForFoodBehavior` currently lacks the same-village filter. This is a frozen Phase 21 implementation requirement, not current behavior and not an unresolved decision. |
 | Lumberjack furnace | `WORK`; one shared village-scoped LUMBERJACK pool keyed by furnace, owner UUID, and generation | Current code has no owner-bearing shared-pool reservation; this remains a Phase 17 gap. |
 | `MoveToTargetSinkMixin` | Compatibility observer only; no task movement ownership or restoration | Existing interception remains transitional and scheduled for removal; it cannot be treated as a task scheduler. |
 

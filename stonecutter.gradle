@@ -313,7 +313,7 @@ tasks.register('verifyNavigationArchitecture') {
                 'mayor-door-repair-activity': ['WORK', 'villageId + MAYOR + mayor UUID + door position + task generation'],
                 'mayor-governor-follow-activity': ['IDLE', 'villageId + MAYOR + mayor UUID + candidate UUID + session generation'],
                 'avoidance-safety-activity': ['CORE', 'villager UUID + hazard identity + safety generation'],
-                'begging-social-session': ['IDLE', 'beggar UUID + donor UUID + session generation'],
+                'begging-social-session': ['WORK', 'beggar UUID + donor UUID + session generation'],
                 'lumberjack-shared-furnace-pool': ['WORK', 'villageId + LUMBERJACK + furnace identity + owner UUID + generation'],
                 'farmer-pumpkin-work-cell-pipeline': ['WORK', 'villageId + FARMER + work-cell identity + attached pumpkin position + owner UUID + task generation'],
                 'farmer-assignment-excludes-bank-employees': ['bank employees are ineligible', 'villageId + FARMER + eligible non-bank-employee villager UUID + work-cell lease generation'],
