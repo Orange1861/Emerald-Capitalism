@@ -138,6 +138,7 @@ tasks.register('auditMixins', MixinAuditTask) {
     group = 'verification'
     description = 'Validates and subtractively audits every configured mixin in isolated GameTest JVMs.'
     dependsOn tasks.named('classes')
+    dependsOn tasks.named('createMinecraftArtifacts')
     dependsOn tasks.named('prepareGameTestServer')
     notCompatibleWithConfigurationCache('The task intentionally launches a sequential matrix of isolated JVMs.')
 
@@ -148,7 +149,8 @@ tasks.register('auditMixins', MixinAuditTask) {
     vmArgsFile.set(layout.buildDirectory.file('moddev/gameTestServerRunVmArgs.txt'))
     programArgsFile.set(layout.buildDirectory.file('moddev/gameTestServerRunProgramArgs.txt'))
     legacyClasspathFile.set(layout.buildDirectory.file('moddev/gameTestServerLegacyClasspath.txt'))
-    mergedMinecraftJar.set(layout.buildDirectory.file("moddev/artifacts/neoforge-${neo_version}-merged.jar"))
+    minecraftArtifact.set(layout.buildDirectory.file("moddev/artifacts/neoforge-${neo_version}.jar"))
+    targetVersion.set(minecraft_version)
     javaExecutable.set(javaToolchains.launcherFor {
         languageVersion = JavaLanguageVersion.of(25)
     }.map { it.executablePath.asFile.absolutePath })

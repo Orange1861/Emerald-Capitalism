@@ -181,6 +181,7 @@ tasks.register('auditMixins', MixinAuditTask) {
     group = 'verification'
     description = 'Validates and subtractively audits every configured mixin in isolated GameTest JVMs.'
     dependsOn tasks.named('classes')
+    dependsOn tasks.named('createMinecraftArtifacts')
     // The legacy 1.21.1 ModDev setup does not register this preparation task.
     // Keep the audit task configurable for that target while retaining the
     // dependency where the task is available.
@@ -194,7 +195,8 @@ tasks.register('auditMixins', MixinAuditTask) {
     vmArgsFile.set(layout.buildDirectory.file('moddev/gameTestServerRunVmArgs.txt'))
     programArgsFile.set(layout.buildDirectory.file('moddev/gameTestServerRunProgramArgs.txt'))
     legacyClasspathFile.set(layout.buildDirectory.file('moddev/gameTestServerLegacyClasspath.txt'))
-    mergedMinecraftJar.set(layout.buildDirectory.file("moddev/artifacts/neoforge-${neo_version}-merged.jar"))
+    minecraftArtifact.set(layout.buildDirectory.file("moddev/artifacts/neoforge-${neo_version}.jar"))
+    targetVersion.set(minecraft_version)
     javaExecutable.set(javaToolchains.launcherFor {
         languageVersion = JavaLanguageVersion.of(21)
     }.map { it.executablePath.asFile.absolutePath })

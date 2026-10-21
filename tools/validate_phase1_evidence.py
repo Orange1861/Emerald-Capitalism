@@ -168,16 +168,76 @@ def parse_gametest(path: Path, target: str, commit: str, errors: list[str]) -> d
 
 def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict[str, Any]:
     report_path = root / "versions" / target / "build" / "reports" / "mixin-audit" / "report.json"
+    failure_path = report_path.with_name("audit-failure.json")
     if not report_path.is_file():
+        if failure_path.is_file():
+            try:
+                failure = read_json(failure_path)
+            except (OSError, json.JSONDecodeError) as exc:
+                errors.append(f"invalid mixin audit failure diagnostic {failure_path}: {exc}")
+                return {
+                    "report": str(report_path),
+                    "fresh": False,
+                    "reportValid": False,
+                    "usableForComparison": False,
+                    "baseline": {},
+                }
+            exception = failure.get("exception") if isinstance(failure, dict) else None
+            if (
+                not isinstance(failure, dict)
+                or failure.get("schemaVersion") != 1
+                or failure.get("type") != "mixin-audit-failure"
+                or failure.get("target") != target
+                or not isinstance(failure.get("stage"), str)
+                or not isinstance(exception, dict)
+                or not isinstance(exception.get("type"), str)
+                or not isinstance(exception.get("message"), str)
+            ):
+                errors.append(f"mixin audit failure diagnostic is missing required fields: {failure_path}")
+                return {
+                    "report": str(report_path),
+                    "fresh": False,
+                    "reportValid": False,
+                    "usableForComparison": False,
+                    "baseline": {},
+                }
+            errors.append(
+                f"mixin audit failed before report for {target}: "
+                f"stage={failure['stage']}; exception={exception['type']}: {exception['message']}; "
+                f"diagnostic={failure_path}"
+            )
+            return {
+                "report": str(report_path),
+                "fresh": False,
+                "reportValid": False,
+                "usableForComparison": False,
+                "auditFailure": failure,
+                "auditFailurePath": str(failure_path),
+                "javaVersion": failure.get("javaVersion"),
+                "baseline": {},
+            }
         errors.append(f"missing mixin audit report: {report_path}")
-        return {"report": str(report_path), "fresh": False, "baseline": {}}
+        return {
+            "report": str(report_path),
+            "fresh": False,
+            "reportValid": False,
+            "usableForComparison": False,
+            "baseline": {},
+        }
     try:
         report = read_json(report_path)
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"invalid mixin audit report {report_path}: {exc}")
-        return {"report": str(report_path), "fresh": False, "baseline": {}}
+        return {
+            "report": str(report_path),
+            "fresh": False,
+            "reportValid": False,
+            "usableForComparison": False,
+            "baseline": {},
+        }
 
     fresh = report.get("schemaVersion") == 2 and report.get("gitCommit") == commit
+    report_valid = True
     if not fresh:
         errors.append(
             f"stale or incompatible mixin audit report for {target}: "
@@ -188,16 +248,19 @@ def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict
     if not report.get("generatedAt"):
         errors.append(f"mixin audit report has no generation timestamp: {report_path}")
     artifacts = report.get("artifacts")
-    merged_jar = artifacts.get("mergedMinecraftJar") if isinstance(artifacts, dict) else None
-    if not isinstance(merged_jar, dict) or not merged_jar.get("sha256"):
-        errors.append(f"mixin audit report has no merged-jar fingerprint: {report_path}")
+    minecraft_artifact = artifacts.get("minecraftArtifact") if isinstance(artifacts, dict) else None
+    if not isinstance(minecraft_artifact, dict) or not minecraft_artifact.get("sha256"):
+        report_valid = False
+        errors.append(f"mixin audit report has no Minecraft artifact fingerprint: {report_path}")
 
     results = report.get("results")
     if not isinstance(results, list):
+        report_valid = False
         errors.append(f"mixin audit results are missing or malformed: {report_path}")
         results = []
     baseline = next((item for item in results if isinstance(item, dict) and item.get("unit") == "baseline"), None)
     if baseline is None:
+        report_valid = False
         errors.append(f"mixin audit baseline result missing: {report_path}")
         baseline = {}
     for key in (
@@ -213,17 +276,23 @@ def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict
         "logSha256",
     ):
         if key not in baseline:
+            report_valid = False
             errors.append(f"mixin audit baseline evidence missing {key}: {report_path}")
     if not isinstance(baseline.get("allRequiredPassed"), bool):
+        report_valid = False
         errors.append(f"mixin audit required-pass field is missing or malformed: {report_path}")
     if not isinstance(baseline.get("failedTests"), list):
+        report_valid = False
         errors.append(f"mixin audit failedTests field is missing or malformed: {report_path}")
     for key in ("completed", "selectorConfirmed", "mixinEvidenceValid"):
         if not isinstance(baseline.get(key), bool):
+            report_valid = False
             errors.append(f"mixin audit {key} field is missing or malformed: {report_path}")
     if not isinstance(baseline.get("classification"), str):
+        report_valid = False
         errors.append(f"mixin audit classification field is missing or malformed: {report_path}")
     if not isinstance(baseline.get("logSha256"), str) or not baseline.get("logSha256"):
+        report_valid = False
         errors.append(f"mixin audit log fingerprint is missing or malformed: {report_path}")
     if not baseline.get("completed"):
         errors.append(f"mixin audit baseline did not complete for {target}")
@@ -233,24 +302,29 @@ def parse_audit(root: Path, target: str, commit: str, errors: list[str]) -> dict
         errors.append(f"mixin audit required mixin application evidence failed for {target}")
     for key in ("missingMixinDecisions", "unappliedRequiredMixins", "disabledMixinsStillApplied"):
         if not isinstance(baseline.get(key), list):
+            report_valid = False
             errors.append(f"mixin audit {key} is missing or malformed for {target}: {report_path}")
         elif baseline.get(key):
             errors.append(f"mixin audit {key} is non-empty for {target}: {baseline[key]}")
 
     log_value = baseline.get("log")
     if not log_value:
+        report_valid = False
         errors.append(f"mixin audit baseline log path missing: {report_path}")
     else:
         log_path = Path(str(log_value))
         if not log_path.is_absolute():
             log_path = root / log_path
         if not log_path.is_file():
+            report_valid = False
             errors.append(f"mixin audit baseline log missing: {log_path}")
 
     discovered = normalize_tests(report.get("discoveredTests"))
     return {
         "report": str(report_path),
         "fresh": fresh,
+        "reportValid": report_valid,
+        "usableForComparison": report_valid and fresh,
         "gitCommit": report.get("gitCommit"),
         "javaVersion": report.get("javaVersion"),
         "generatedAt": report.get("generatedAt"),
@@ -339,6 +413,7 @@ def passing_audit_evidence(audit: dict[str, Any], status: int | None) -> bool:
     return (
         status == 0
         and audit.get("fresh") is True
+        and audit.get("usableForComparison") is True
         and baseline.get("classification") == "BASELINE_PASSED"
         and baseline.get("completed") is True
         and baseline.get("selectorConfirmed") is True
@@ -355,6 +430,8 @@ def passing_audit_evidence(audit: dict[str, Any], status: int | None) -> bool:
 def validate_audit_consistency(
     audit: dict[str, Any], target: str, status: int | None, errors: list[str]
 ) -> None:
+    if not audit.get("usableForComparison"):
+        return
     baseline = audit.get("baseline", {})
     failed_tests = baseline.get("requiredFailed")
     required_passed = baseline.get("requiredPassed")
@@ -507,19 +584,23 @@ def validate_phase1(
                 f"{game.get('executed')} != {config.get('gameTestsExecuted')}"
             )
         audit = audits[target]
-        if audit.get("staticDiscovered") != config.get("staticGameTestsDiscovered"):
-            errors.append(
-                f"mixin audit discovery count changed for {target}: "
-                f"{audit.get('staticDiscovered')} != {config.get('staticGameTestsDiscovered')}"
-            )
-        if audit.get("discoveredTestsSha256") != config.get("discoveredTestsSha256"):
-            errors.append(f"GameTest identity set changed for {target}; review new/removed/renamed tests")
+        audit_usable = audit.get("usableForComparison") is True
+        if audit_usable:
+            if audit.get("staticDiscovered") != config.get("staticGameTestsDiscovered"):
+                errors.append(
+                    f"mixin audit discovery count changed for {target}: "
+                    f"{audit.get('staticDiscovered')} != {config.get('staticGameTestsDiscovered')}"
+                )
+            if audit.get("discoveredTestsSha256") != config.get("discoveredTestsSha256"):
+                errors.append(f"GameTest identity set changed for {target}; review new/removed/renamed tests")
 
         observed_by_suite = {
             "runtime-gametest": set(game.get("failedTests", [])),
             "mixin-audit-baseline": set(audit.get("baseline", {}).get("requiredFailed", [])),
         }
         for suite, observed in observed_by_suite.items():
+            if suite == "mixin-audit-baseline" and not audit_usable:
+                continue
             identity = f"{target}:{suite}"
             expected_tests = {
                 test for (key, test), entry in expected.items() if key == identity
@@ -545,14 +626,15 @@ def validate_phase1(
                         f"{target} {suite} has new or unassigned failures: {', '.join(unexpected)}"
                     )
 
-        expected_audit_classification = "BASELINE_FAILED" if any(
-            key == f"{target}:mixin-audit-baseline" for key, _ in expected
-        ) else "BASELINE_PASSED"
-        if audit.get("baseline", {}).get("classification") != expected_audit_classification:
-            errors.append(
-                f"{target} audit classification changed: "
-                f"{audit.get('baseline', {}).get('classification')} != {expected_audit_classification}"
-            )
+        if audit_usable:
+            expected_audit_classification = "BASELINE_FAILED" if any(
+                key == f"{target}:mixin-audit-baseline" for key, _ in expected
+            ) else "BASELINE_PASSED"
+            if audit.get("baseline", {}).get("classification") != expected_audit_classification:
+                errors.append(
+                    f"{target} audit classification changed: "
+                    f"{audit.get('baseline', {}).get('classification')} != {expected_audit_classification}"
+                )
 
     for task_id, status in statuses.items():
         if task_id in INFRASTRUCTURE_TASKS and status != 0:
@@ -567,7 +649,7 @@ def validate_phase1(
 
     target_java_versions = {target: audits[target].get("javaVersion") for target in TARGETS}
     java_versions = {value for value in target_java_versions.values() if value}
-    if len(java_versions) != 1:
+    if all(audits[target].get("usableForComparison") is True for target in TARGETS) and len(java_versions) != 1:
         errors.append(f"per-target mixin audit Java identities are incomplete or disagree: {target_java_versions}")
     phase_failures = []
     for (identity, test), entry in expected.items():
@@ -575,8 +657,11 @@ def validate_phase1(
         observed = (
             test in gametests[target].get("failedTests", [])
             if suite == "runtime-gametest"
-            else test in audits[target].get("baseline", {}).get("requiredFailed", [])
+            else audits[target].get("usableForComparison") is True
+            and test in audits[target].get("baseline", {}).get("requiredFailed", [])
         )
+        if suite == "mixin-audit-baseline" and audits[target].get("usableForComparison") is not True:
+            continue
         phase_failures.append({
             "target": target,
             "suite": suite,

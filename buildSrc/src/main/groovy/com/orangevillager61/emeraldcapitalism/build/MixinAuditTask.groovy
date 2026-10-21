@@ -52,127 +52,156 @@ abstract class MixinAuditTask extends DefaultTask {
     abstract RegularFileProperty getLegacyClasspathFile()
 
     @Internal
-    abstract RegularFileProperty getMergedMinecraftJar()
+    abstract RegularFileProperty getMinecraftArtifact()
+
+    @Internal
+    abstract Property<String> getTargetVersion()
 
     @Inject
     abstract ExecOperations getExecOperations()
 
     @TaskAction
     void audit() {
-        Path repository = repositoryDirectory.get().asFile.toPath().toAbsolutePath().normalize()
-        Path buildRoot = buildOutputDirectory.get().asFile.toPath().toAbsolutePath().normalize()
-        Path auditRoot = buildRoot.resolve('mixin-audit')
-        Path reportRoot = buildRoot.resolve('reports').resolve('mixin-audit')
-        assertBuildChild(buildRoot, auditRoot)
-        assertBuildChild(buildRoot, reportRoot)
-        deleteTree(auditRoot)
-        deleteTree(reportRoot)
-        Files.createDirectories(auditRoot)
-        Files.createDirectories(reportRoot)
+        Path repository = null
+        Path buildRoot = null
+        Path reportRoot = null
+        String stage = 'initialize audit'
+        boolean reportWritten = false
+        try {
+            stage = 'resolve audit paths'
+            repository = repositoryDirectory.get().asFile.toPath().toAbsolutePath().normalize()
+            buildRoot = buildOutputDirectory.get().asFile.toPath().toAbsolutePath().normalize()
+            Path auditRoot = buildRoot.resolve('mixin-audit')
+            reportRoot = buildRoot.resolve('reports').resolve('mixin-audit')
+            assertBuildChild(buildRoot, auditRoot)
+            assertBuildChild(buildRoot, reportRoot)
+            stage = 'clean audit outputs'
+            deleteTree(auditRoot)
+            deleteTree(reportRoot)
+            Files.createDirectories(auditRoot)
+            Files.createDirectories(reportRoot)
 
-        Map manifest = readJson(manifestFile.get().asFile.toPath())
-        List<Map> mixinConfigs = readMixinConfigs(repository, manifest, mixinConfigFile.get().asFile.toPath())
-        Set<String> configuredMixins = mixinConfigs.collectMany { it.names as List<String> } as Set<String>
-        Set<String> serverMixins = mixinConfigs.findAll { it.side == 'server' }
-                .collectMany { it.names as List<String> } as Set<String>
-        List<Map> units = (manifest.units ?: []) as List<Map>
-        Set<String> discoveredTests = discoverGameTests(repository.resolve('src/main/java'))
-        validateManifest(repository, manifest, mixinConfigs, configuredMixins, units, discoveredTests)
+            stage = 'load audit manifest'
+            Map manifest = readJson(manifestFile.get().asFile.toPath())
+            List<Map> mixinConfigs = readMixinConfigs(repository, manifest, mixinConfigFile.get().asFile.toPath())
+            Set<String> configuredMixins = mixinConfigs.collectMany { it.names as List<String> } as Set<String>
+            Set<String> serverMixins = mixinConfigs.findAll { it.side == 'server' }
+                    .collectMany { it.names as List<String> } as Set<String>
+            List<Map> units = (manifest.units ?: []) as List<Map>
+            Set<String> discoveredTests = discoverGameTests(repository.resolve('src/main/java'))
+            validateManifest(repository, manifest, mixinConfigs, configuredMixins, units, discoveredTests)
 
-        List<String> classpath = buildClasspath(repository, buildRoot)
-        List<Map> results = []
-        Map baseline = runVariant(repository, auditRoot, 'baseline', [], classpath, serverMixins)
-        baseline.classification = baseline.completed && baseline.allRequiredPassed && baseline.exitCode == 0 &&
-                baseline.mixinEvidenceValid
-                ? 'BASELINE_PASSED' : 'BASELINE_FAILED'
-        if (baseline.classification == 'BASELINE_FAILED') {
-            baseline.reason = baseline.mixinEvidenceValid
-                    ? 'The fresh baseline reached the GameTest completion marker but required tests failed.'
-                    : 'Required server mixin application evidence was missing or disagreed with the requested audit variant.'
-        }
-        results.add(baseline)
+            Path minecraftArtifactPath = getMinecraftArtifact().get().asFile.toPath().toAbsolutePath().normalize()
+            stage = 'validate Minecraft artifact fingerprint input'
+            MixinAuditTask.sha256(minecraftArtifactPath)
 
-        if (baseline.classification == 'BASELINE_PASSED') {
-            units.findAll { (it.auditMode ?: 'gametest') == 'gametest' }.each { Map unit ->
-                Map result = runVariant(repository, auditRoot, unit.id as String,
-                        (unit.mixins as List).collect { it as String }, classpath, serverMixins)
-                Set<String> mappedTests = (unit.tests as List).collect { (it as String).toLowerCase(Locale.ROOT) } as Set
-                Set<String> failures = (result.failedTests as List).collect {
-                    (it as String).toLowerCase(Locale.ROOT)
-                } as Set
-
-                if (!result.completed || !result.selectorConfirmed || !result.mixinEvidenceValid) {
-                    result.classification = 'AUDIT_ERROR'
-                    result.reason = !result.selectorConfirmed
-                            ? 'The audit selector did not confirm the requested unit.'
-                            : !result.mixinEvidenceValid
-                            ? 'Required server mixin application evidence was missing or disagreed with the requested audit variant.'
-                            : 'The fresh GameTest JVM did not reach suite completion.'
-                } else if (result.allRequiredPassed && result.exitCode == 0) {
-                    result.classification = 'REMOVAL_CANDIDATE'
-                    result.reason = 'All required GameTests passed with this unit disabled.'
-                } else if (!failures.isEmpty() && mappedTests.containsAll(failures)) {
-                    result.classification = 'REQUIRED'
-                    result.reason = 'Only manifest-mapped invariant tests failed.'
-                } else {
-                    result.classification = 'AUDIT_ERROR'
-                    Set<String> unexpected = new TreeSet<>(failures)
-                    unexpected.removeAll(mappedTests)
-                    result.unexpectedFailures = unexpected as List
-                    result.reason = failures.isEmpty()
-                            ? 'The process failed without reporting required GameTest failures.'
-                            : 'Disabling the unit caused failures not mapped by the manifest.'
-                }
-                results.add(result)
+            stage = 'build audit classpath'
+            List<String> classpath = buildClasspath(repository, buildRoot)
+            List<Map> results = []
+            stage = 'run baseline variant'
+            Map baseline = runVariant(repository, auditRoot, 'baseline', [], classpath, serverMixins)
+            baseline.classification = baseline.completed && baseline.allRequiredPassed && baseline.exitCode == 0 &&
+                    baseline.mixinEvidenceValid
+                    ? 'BASELINE_PASSED' : 'BASELINE_FAILED'
+            if (baseline.classification == 'BASELINE_FAILED') {
+                baseline.reason = baseline.mixinEvidenceValid
+                        ? 'The fresh baseline reached the GameTest completion marker but required tests failed.'
+                        : 'Required server mixin application evidence was missing or disagreed with the requested audit variant.'
             }
-        }
+            results.add(baseline)
 
-        units.findAll { (it.auditMode ?: 'gametest') == 'manual-client' }.each { Map unit ->
-            results.add([
-                    unit           : unit.id,
-                    disabledMixins : (unit.mixins as List).collect { it as String },
-                    classification : 'MANUAL_CLIENT',
-                    reason         : 'Run the manifest-linked client smoke checks before porting this client hook.',
-                    manualChecks   : (unit.manualChecks as List).collect { it as String }
-            ])
-        }
+            if (baseline.classification == 'BASELINE_PASSED') {
+                stage = 'run subtractive audit variants'
+                units.findAll { (it.auditMode ?: 'gametest') == 'gametest' }.each { Map unit ->
+                    Map result = runVariant(repository, auditRoot, unit.id as String,
+                            (unit.mixins as List).collect { it as String }, classpath, serverMixins)
+                    Set<String> mappedTests = (unit.tests as List).collect { (it as String).toLowerCase(Locale.ROOT) } as Set
+                    Set<String> failures = (result.failedTests as List).collect {
+                        (it as String).toLowerCase(Locale.ROOT)
+                    } as Set
 
-        String gitCommit = readGitCommit(repository)
-        String javaVersion = readJavaVersion()
-        String generatedAt = new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")
-        Map report = [
-                schemaVersion    : 2,
-                generatedAt      : generatedAt,
-                gitCommit        : gitCommit,
-                javaVersion      : javaVersion,
-                manifest         : [path: repository.relativize(manifestFile.get().asFile.toPath()).toString().replace('\\', '/'),
-                                    sha256: MixinAuditTask.sha256(manifestFile.get().asFile.toPath())],
-                mixinConfigs     : mixinConfigs.collect {
-                    [path: it.path, side: it.side, entryKey: it.entryKey,
-                     sha256: MixinAuditTask.sha256(repository.resolve(it.path as String))]
-                },
-                configuredMixins : configuredMixins.toList().sort(),
-                serverMixins     : serverMixins.toList().sort(),
-                discoveredTests  : discoveredTests.toList().sort(),
-                artifacts        : [mergedMinecraftJar: [path: mergedMinecraftJar.get().asFile.absolutePath,
-                                                         sha256: MixinAuditTask.sha256(mergedMinecraftJar.get().asFile.toPath())]],
-                results          : results
-        ]
-        Path jsonReport = reportRoot.resolve('report.json')
-        Files.writeString(jsonReport, JsonOutput.prettyPrint(JsonOutput.toJson(report)) + System.lineSeparator(),
-                StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
-        writeSummary(reportRoot.resolve('summary.txt'), results)
+                    if (!result.completed || !result.selectorConfirmed || !result.mixinEvidenceValid) {
+                        result.classification = 'AUDIT_ERROR'
+                        result.reason = !result.selectorConfirmed
+                                ? 'The audit selector did not confirm the requested unit.'
+                                : !result.mixinEvidenceValid
+                                ? 'Required server mixin application evidence was missing or disagreed with the requested audit variant.'
+                                : 'The fresh GameTest JVM did not reach suite completion.'
+                    } else if (result.allRequiredPassed && result.exitCode == 0) {
+                        result.classification = 'REMOVAL_CANDIDATE'
+                        result.reason = 'All required GameTests passed with this unit disabled.'
+                    } else if (!failures.isEmpty() && mappedTests.containsAll(failures)) {
+                        result.classification = 'REQUIRED'
+                        result.reason = 'Only manifest-mapped invariant tests failed.'
+                    } else {
+                        result.classification = 'AUDIT_ERROR'
+                        Set<String> unexpected = new TreeSet<>(failures)
+                        unexpected.removeAll(mappedTests)
+                        result.unexpectedFailures = unexpected as List
+                        result.reason = failures.isEmpty()
+                                ? 'The process failed without reporting required GameTest failures.'
+                                : 'Disabling the unit caused failures not mapped by the manifest.'
+                    }
+                    results.add(result)
+                }
+            }
 
-        logger.lifecycle("Mixin audit report: ${jsonReport}")
-        if (baseline.classification == 'BASELINE_FAILED') {
-            throw new GradleException("Mixin audit baseline failed; see ${jsonReport}")
-        }
+            units.findAll { (it.auditMode ?: 'gametest') == 'manual-client' }.each { Map unit ->
+                results.add([
+                        unit           : unit.id,
+                        disabledMixins : (unit.mixins as List).collect { it as String },
+                        classification : 'MANUAL_CLIENT',
+                        reason         : 'Run the manifest-linked client smoke checks before porting this client hook.',
+                        manualChecks   : (unit.manualChecks as List).collect { it as String }
+                ])
+            }
 
-        List<Map> review = results.findAll {
-            it.classification == 'REMOVAL_CANDIDATE' || it.classification == 'AUDIT_ERROR'
-        }
-        if (!review.isEmpty()) {
-            throw new GradleException("Mixin audit found ${review.size()} unit(s) requiring review; see ${jsonReport}")
+            stage = 'fingerprint audit inputs'
+            String minecraftArtifactSha256 = MixinAuditTask.sha256(minecraftArtifactPath)
+            String gitCommit = readGitCommit(repository)
+            String javaVersion = readJavaVersion()
+            String generatedAt = new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")
+            Map report = [
+                    schemaVersion    : 2,
+                    generatedAt      : generatedAt,
+                    gitCommit        : gitCommit,
+                    javaVersion      : javaVersion,
+                    manifest         : [path: repository.relativize(manifestFile.get().asFile.toPath()).toString().replace('\\', '/'),
+                                        sha256: MixinAuditTask.sha256(manifestFile.get().asFile.toPath())],
+                    mixinConfigs     : mixinConfigs.collect {
+                        [path: it.path, side: it.side, entryKey: it.entryKey,
+                         sha256: MixinAuditTask.sha256(repository.resolve(it.path as String))]
+                    },
+                    configuredMixins : configuredMixins.toList().sort(),
+                    serverMixins     : serverMixins.toList().sort(),
+                    discoveredTests  : discoveredTests.toList().sort(),
+                    artifacts        : [minecraftArtifact: [path: minecraftArtifactPath.toString(),
+                                                            sha256: minecraftArtifactSha256]],
+                    results          : results
+            ]
+            stage = 'write audit report'
+            Path jsonReport = reportRoot.resolve('report.json')
+            Files.writeString(jsonReport, JsonOutput.prettyPrint(JsonOutput.toJson(report)) + System.lineSeparator(),
+                    StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+            writeSummary(reportRoot.resolve('summary.txt'), results)
+            reportWritten = true
+
+            logger.lifecycle("Mixin audit report: ${jsonReport}")
+            if (baseline.classification == 'BASELINE_FAILED') {
+                throw new GradleException("Mixin audit baseline failed; see ${jsonReport}")
+            }
+
+            List<Map> review = results.findAll {
+                it.classification == 'REMOVAL_CANDIDATE' || it.classification == 'AUDIT_ERROR'
+            }
+            if (!review.isEmpty()) {
+                throw new GradleException("Mixin audit found ${review.size()} unit(s) requiring review; see ${jsonReport}")
+            }
+        } catch (Throwable failure) {
+            if (!reportWritten) {
+                writeFailureDiagnostic(reportRoot, repository, buildRoot, stage, failure)
+            }
+            throw failure
         }
     }
 
@@ -402,7 +431,7 @@ abstract class MixinAuditTask extends DefaultTask {
                 buildRoot.resolve('resources/main').toString(),
                 repository.resolve('core/build/resources/main').toString(),
                 repository.resolve('src/main/resources').toString(),
-                mergedMinecraftJar.get().asFile.toPath().toAbsolutePath().toString()
+                minecraftArtifact.get().asFile.toPath().toAbsolutePath().toString()
         ]
         classpath.addAll(Files.readAllLines(legacyClasspathFile.get().asFile.toPath()).findAll { !it.isBlank() })
         return classpath
@@ -497,12 +526,99 @@ abstract class MixinAuditTask extends DefaultTask {
         decisions
     }
 
-    private static String sha256(Path path) {
+    static String sha256(Path path) {
         if (!Files.isRegularFile(path)) {
             throw new GradleException("Cannot fingerprint missing audit input: ${path}")
         }
         byte[] digest = MessageDigest.getInstance('SHA-256').digest(Files.readAllBytes(path))
         digest.collect { String.format('%02x', it & 0xff) }.join()
+    }
+
+    static Map createFailureDiagnostic(String target, String stage, Throwable failure,
+                                       String gitCommit, String javaVersion, Path artifact) {
+        StringWriter trace = new StringWriter()
+        failure.printStackTrace(new PrintWriter(trace))
+        [
+                schemaVersion: 1,
+                type        : 'mixin-audit-failure',
+                generatedAt : new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX"),
+                target      : target,
+                stage       : stage,
+                exception   : [
+                        type      : failure.class.name,
+                        message   : failure.message ?: failure.toString(),
+                        stackTrace: trace.toString()
+                ],
+                gitCommit   : gitCommit,
+                javaVersion : javaVersion,
+                input       : [
+                        type  : 'minecraft-artifact',
+                        path  : artifact?.toString(),
+                        exists: artifact != null && Files.isRegularFile(artifact)
+                ]
+        ]
+    }
+
+    static Path writeFailureDiagnosticArtifact(Path reportRoot, Map diagnostic) {
+        Files.createDirectories(reportRoot)
+        Path diagnosticPath = reportRoot.resolve('audit-failure.json')
+        Files.writeString(diagnosticPath, JsonOutput.prettyPrint(JsonOutput.toJson(diagnostic)) + System.lineSeparator(),
+                StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+        diagnosticPath
+    }
+
+    private void writeFailureDiagnostic(Path reportRoot, Path repository, Path buildRoot,
+                                        String stage, Throwable failure) {
+        if (reportRoot == null) {
+            logger.error("Mixin audit failed during ${stage}; no report directory was available", failure)
+            return
+        }
+        try {
+            Files.createDirectories(reportRoot)
+            Path artifact = null
+            try {
+                artifact = minecraftArtifact.getOrNull()?.asFile?.toPath()?.toAbsolutePath()?.normalize()
+            } catch (Throwable ignored) {
+                // The property itself may be unavailable while reporting a configuration failure.
+            }
+            Map diagnostic = createFailureDiagnostic(targetValue(buildRoot), stage, failure,
+                    safeGitCommit(repository), safeJavaVersion(), artifact)
+            Path diagnosticPath = writeFailureDiagnosticArtifact(reportRoot, diagnostic)
+            logger.error("Mixin audit failed before writing a valid report; diagnostic: ${diagnosticPath}", failure)
+        } catch (Throwable diagnosticFailure) {
+            logger.error("Mixin audit failed during ${stage}, and its diagnostic artifact could not be written", diagnosticFailure)
+        }
+    }
+
+    private String targetValue(Path buildRoot) {
+        try {
+            String configured = targetVersion.getOrNull()
+            if (configured?.trim()) {
+                return configured.trim()
+            }
+        } catch (Throwable ignored) {
+            // Fall back to the target directory when task configuration is incomplete.
+        }
+        buildRoot?.parent?.fileName?.toString() ?: 'unknown'
+    }
+
+    private String safeGitCommit(Path repository) {
+        if (repository == null) {
+            return null
+        }
+        try {
+            return readGitCommit(repository)
+        } catch (Throwable ignored) {
+            return null
+        }
+    }
+
+    private String safeJavaVersion() {
+        try {
+            return readJavaVersion()
+        } catch (Throwable ignored) {
+            return null
+        }
     }
 
     private static String readGitCommit(Path repository) {

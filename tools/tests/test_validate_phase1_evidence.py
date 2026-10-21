@@ -118,7 +118,7 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
                 "gitCommit": COMMIT,
                 "javaVersion": JAVA,
                 "generatedAt": "2026-10-21T00:00:00Z",
-                "artifacts": {"mergedMinecraftJar": {"sha256": "fixture-jar-sha"}},
+                "artifacts": {"minecraftArtifact": {"sha256": "fixture-jar-sha"}},
                 "discoveredTests": discovered,
                 "configuredMixins": [],
                 "serverMixins": [],
@@ -241,6 +241,60 @@ class Phase1EvidenceValidatorTests(unittest.TestCase):
         evidence, _ = self.validate()
         self.assertEqual(evidence["infrastructureGate"], "FAIL")
         self.assertIn("baseline log missing", self.errors(evidence))
+
+    def test_early_audit_failure_diagnostic_is_primary_and_suppresses_derivatives(self):
+        self.write_fixture(
+            expected=[
+                {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "a", "owningPhase": 12, "owner": "movement"},
+            ],
+            statuses={"audit-1.21.1": 1},
+        )
+        report_path, _ = self.audit_report("1.21.1")
+        report_path.unlink()
+        diagnostic_path = report_path.with_name("audit-failure.json")
+        diagnostic_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "type": "mixin-audit-failure",
+                    "target": "1.21.1",
+                    "stage": "validate Minecraft artifact fingerprint input",
+                    "exception": {
+                        "type": "org.gradle.api.GradleException",
+                        "message": "Cannot fingerprint missing audit input: /ci/neoforge-21.1.219.jar",
+                    },
+                    "gitCommit": COMMIT,
+                    "javaVersion": JAVA,
+                    "input": {"path": "/ci/neoforge-21.1.219.jar", "exists": False},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        evidence, _ = self.validate()
+        errors = self.errors(evidence)
+        self.assertEqual(evidence["infrastructureGate"], "FAIL")
+        self.assertIn("mixin audit failed before report for 1.21.1", errors)
+        self.assertIn("Cannot fingerprint missing audit input", errors)
+        self.assertNotIn("missing mixin audit report", errors)
+        self.assertNotIn("mixin audit discovery count changed", errors)
+        self.assertNotIn("identity set changed", errors)
+        self.assertNotIn("mixin-audit-baseline expected failures passed/disappeared", errors)
+        self.assertNotIn("audit classification changed", errors)
+        self.assertNotIn("per-target mixin audit Java identities", errors)
+        self.assertEqual(
+            evidence["targets"]["1.21.1"]["mixinAudit"]["auditFailure"]["stage"],
+            "validate Minecraft artifact fingerprint input",
+        )
+
+    def test_normal_audit_report_uses_a_durable_artifact_fingerprint(self):
+        self.write_fixture()
+        evidence, _ = self.validate()
+        self.assertEqual(evidence["infrastructureGate"], "PASS")
+        report_path, report = self.audit_report("1.21.1")
+        self.assertIn("minecraftArtifact", report["artifacts"])
+        self.assertNotIn("mergedMinecraftJar", report["artifacts"])
+        self.assertTrue(report["artifacts"]["minecraftArtifact"]["sha256"])
 
     def test_missing_selector_confirmation_fails(self):
         self.write_fixture(audit_overrides={"1.21.1": {"selectorConfirmed": False}})
