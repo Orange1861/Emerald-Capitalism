@@ -26,6 +26,21 @@ navigation refactor is declared complete. Phase 1 does not delete, disable,
 weaken, reclassify, or make optional any existing gameplay failure to satisfy
 its infrastructure gate.
 
+## Developer-supplied manual evidence
+
+On October 22, 2026, the developer replied directly to the Phase 1 run-sheet
+request: “ordinary world test passed”. This is the developer's confirmation
+that the defined ordinary-world smoke check passed for both 1.21.1 and 1.21.4.
+
+The recorded result is **Phase 1 manual smoke check PASS for 1.21.1 and
+1.21.4**. Separate screenshot, world-name, and log locations were not supplied;
+Luna is not inventing evidence locations. This is explicit developer evidence,
+not Luna evidence and not generated-test evidence.
+
+The Phase 1 developer manual-verification item is therefore **PASS**. This
+does not change the separate Phase 24 full-regression result, which remains
+**FAIL / not complete** while assigned later-phase failures remain.
+
 ## Exact launch commands
 
 Run these from the repository root, one target at a time:

@@ -213,6 +213,61 @@ final class NavigationArchitectureScanner {
         errors
     }
 
+    /**
+     * Validates an explicit producer-to-Brain-behavior relationship. The
+     * relationship is structural so a stale prose scheduler cannot silently
+     * contradict the registered package/activity owner.
+     */
+    static List<String> validateRegisteredBehaviorConsistency(Collection<Map> producers,
+                                                              Collection<Map> registeredBehaviors) {
+        List<String> errors = []
+        Map<String, List<Map>> behaviorsById = (registeredBehaviors ?: []).groupBy { Map behavior ->
+            (behavior.id ?: '') as String
+        }
+
+        (producers ?: []).each { Map producer ->
+            String producerId = (producer.id ?: '') as String
+            String behaviorId = (producer.registeredBehaviorId ?: '') as String
+            if (!behaviorId) return
+
+            List<Map> matches = behaviorsById[behaviorId] ?: []
+            if (matches.size() != 1) {
+                errors << "${producerId}.registeredBehaviorId ${behaviorId} must resolve to exactly one registered Brain behavior (found ${matches.size()})"
+                return
+            }
+
+            Map behavior = matches[0]
+            String packageOwner = (behavior.owner ?: '') as String
+            String registeredActivity = (behavior.targetBrainActivity ?: '') as String
+            Map current = (producer.current ?: [:]) as Map
+            String schedulerOwner = (current.schedulerOwner ?: '') as String
+            String schedulerActivity = (current.schedulerActivity ?: '') as String
+            String currentActivity = (current.activity ?: '') as String
+            String movementAdapter = (current.movementAdapter ?: '') as String
+
+            if (!packageOwner || !registeredActivity) {
+                errors << "${producerId}.registeredBehaviorId ${behaviorId} must have exactly one package/activity owner"
+            }
+            if (!schedulerOwner.equalsIgnoreCase('Brain')) {
+                errors << "${producerId} schedulerOwner must be Brain; registered behavior ${behaviorId} cannot be assigned to another task scheduler"
+            }
+            if (!schedulerActivity.equalsIgnoreCase(registeredActivity)) {
+                errors << "${producerId} scheduler activity ${schedulerActivity ?: '<missing>'} does not match registered behavior ${behaviorId} activity ${registeredActivity ?: '<missing>'}"
+            }
+            if (!currentActivity.equalsIgnoreCase(registeredActivity)) {
+                errors << "${producerId} current activity ${currentActivity ?: '<missing>'} does not match registered behavior ${behaviorId} activity ${registeredActivity ?: '<missing>'}"
+            }
+            if (movementAdapter && !movementAdapter.toLowerCase(Locale.ROOT).contains('movement adapter')) {
+                errors << "${producerId} transitional MovementRequestManager must be classified as a movement adapter, not a second task scheduler"
+            }
+            if (movementAdapter.toLowerCase(Locale.ROOT).contains('movementrequestmanager') &&
+                    schedulerOwner.toLowerCase(Locale.ROOT).contains('movementrequestmanager')) {
+                errors << "${producerId} MovementRequestManager is classified as a second scheduler"
+            }
+        }
+        errors
+    }
+
     static List<String> validateFrozenText(String id, Map target, Collection<String> fields = ['activity', 'finality', 'claimScope']) {
         List<String> errors = []
         Pattern ambiguous = Pattern.compile('(?is).*\\b(?:or|when available|until decided|unresolved|provisional)\\b.*')

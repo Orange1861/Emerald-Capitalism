@@ -100,6 +100,45 @@ class NavigationArchitectureScannerTest {
     }
 
     @Test
+    void testAcceptsBeggingProducerLinkedToBrainWorkBehaviorWithMovementAdapter() {
+        Map producer = [
+                id: 'begging-social-task',
+                registeredBehaviorId: 'beg-for-food',
+                current: [
+                        schedulerOwner: 'Brain',
+                        schedulerActivity: 'WORK',
+                        activity: 'WORK',
+                        movementAdapter: 'MovementRequestManager (transitional movement adapter)'
+                ]
+        ]
+        Map registered = [id: 'beg-for-food', owner: 'work package', targetBrainActivity: 'WORK']
+
+        List<String> errors = NavigationArchitectureScanner.validateRegisteredBehaviorConsistency([producer], [registered])
+
+        assertTrue(errors.isEmpty(), errors.toString())
+    }
+
+    @Test
+    void testRejectsBeggingProducerActivityThatContradictsBrainWorkBehavior() {
+        Map producer = [
+                id: 'begging-social-task',
+                registeredBehaviorId: 'beg-for-food',
+                current: [
+                        schedulerOwner: 'Brain',
+                        schedulerActivity: 'MEET',
+                        activity: 'IDLE/MEET',
+                        movementAdapter: 'MovementRequestManager (transitional movement adapter)'
+                ]
+        ]
+        Map registered = [id: 'beg-for-food', owner: 'work package', targetBrainActivity: 'WORK']
+
+        List<String> errors = NavigationArchitectureScanner.validateRegisteredBehaviorConsistency([producer], [registered])
+
+        assertTrue(errors.any { it.contains('scheduler activity MEET') && it.contains('beg-for-food') }, errors.toString())
+        assertTrue(errors.any { it.contains('current activity IDLE/MEET') && it.contains('beg-for-food') }, errors.toString())
+    }
+
+    @Test
     void testAcceptsDocumentedExistingTransitionalCaller() {
         List<String> errors = NavigationArchitectureScanner.validateSource('caller.java',
                 'MovementRequestManager manager;',

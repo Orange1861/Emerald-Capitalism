@@ -66,7 +66,7 @@ professions do not share or release each other's leases.
 | Mayor door repair | `WORK`; village + MAYOR + mayor UUID + door + generation | Current position-only exclusion is recorded as a known gap; no migration was performed. |
 | Mayor governor follow | `IDLE`, immediately below `CORE` safety and above ordinary `WORK`/`IDLE`; village + MAYOR + mayor UUID + candidate + session generation | Current GoalSelector path remains inventoried for its scheduled migration. |
 | Avoidance | `CORE`; villager + hazard + safety generation | Safety remains a frozen core boundary, not a new scheduler. |
-| Begging | `WORK`; beggar UUID + donor UUID + session generation; cross-village donors forbidden | `BegForFoodBehavior` currently lacks the same-village filter. This is a frozen Phase 21 implementation requirement, not current behavior and not an unresolved decision. |
+| Begging | `WORK`; beggar UUID + donor UUID + session generation; cross-village donors forbidden | `VillagerGoalPackageIntegration.addIdleBehaviors` and `addMeetBehaviors` add no begging behavior; `addWorkBehaviors` adds `BegForFoodBehavior`. The behavior currently lacks the same-village filter. This is an authorized retained later-phase package-placement change; same-village donor eligibility and removal of the movement adapter remain Phase 21 implementation requirements, not unresolved decisions. |
 | Lumberjack furnace | `WORK`; one shared village-scoped LUMBERJACK pool keyed by furnace, owner UUID, and generation | Current code has no owner-bearing shared-pool reservation; this remains a Phase 17 gap. |
 | `MoveToTargetSinkMixin` | Compatibility observer only; no task movement ownership or restoration | Existing interception remains transitional and scheduled for removal; it cannot be treated as a task scheduler. |
 
@@ -122,9 +122,11 @@ at `build/reports/phase2/navigation-ownership.md`; it contains 17 producer
 rows, 11 transient claim scopes, 19 operation-specific direct-navigation
 entries, and the exact transitional and GoalSelector inventories.
 
-The developer has not yet confirmed opening and inspecting that report. The
-exact manual checklist and required confirmation are therefore recorded as
-`BLOCKED` in M2.1 rather than being represented as completed inspection.
+The developer has supplied the separate Phase 1 ordinary-world result, but has
+not yet confirmed opening and inspecting the Phase 2 ownership report. The
+exact report checklist and required approval are therefore still recorded as
+`BLOCKED` in M2.1; the Phase 1 manual item is not being conflated with Phase 2
+report inspection.
 
 ## Fresh correction-set review
 
@@ -136,6 +138,15 @@ visibly contains `farmer-pumpkin-work-cell-pipeline`,
 `farmer-assignment-excludes-bank-employees`, the old per-farmer
 `HarvestPumpkinGoal` scanner as a Phase 15 legacy path, and the missing bank
 employee eligibility check as a Phase 11 known violation.
+
+For the begging producer, the corrected manifest now links
+`begging-social-task` to the registered `beg-for-food` Brain behavior and
+records the current scheduler as Brain's WORK package plus only the
+transitional `MovementRequestManager` movement adapter. The producer sources
+explicitly include `BegForFoodBehavior.java`,
+`VillagerGoalPackageIntegration.java`, and `VillagerGoalPackagesMixin.java`.
+The permanent scanner accepts the matching Brain WORK/adapter relationship and
+rejects the stale IDLE/MEET-vs-WORK relationship with an explicit mismatch.
 
 The corresponding source review confirms that `VillageRecord.isEligibleFarmer`
 currently checks liveness, age, profession, village membership, and bounds but
