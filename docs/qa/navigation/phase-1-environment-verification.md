@@ -9,18 +9,18 @@ failure must not be hidden by a manual success.
 
 ## Current exact-commit status
 
-The first exact-commit workflow for the Phase 1/2 correction was
-[Build run 39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
-for commit `df8efc416d38d40111ac0fe43feccdd582299a94`. Its uploaded
-[`verification-artifacts`](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877/artifacts/12402398133)
-artifact is ID `12402398133`, SHA-256
-`06ad4b55fe2cb2892504393f0508f668d96623a51eda12cecf7fbf40cfd7e295`.
-The architecture verifier and report generation passed, but the Phase 1
-evidence validator correctly rejected one unassigned 1.21.4 runtime failure:
-`viruszombiealwaysdropstransferredequipment`. This is recorded as a review
-observation only; the regression baseline was not changed and the exact-commit
-workflow must be repeated before the current Phase 1 infrastructure status can
-be marked PASS.
+The current exact-commit workflow is
+[Build run 39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
+for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`. It completed
+successfully. Its uploaded `verification-artifacts` artifact is ID
+`12403281903`, SHA-256
+`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The validator and infrastructure-enforcement steps passed with
+`infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors.
+Both target GameTest and mixin-audit outputs matched only the reviewed
+assigned later-phase baseline failures. The earlier failed attempt
+[39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
+is retained as historical diagnostic evidence; it did not change the baseline.
 
 ## Phase 1 gates
 
@@ -394,7 +394,7 @@ perform the ordinary-world two-target smoke check described in the manual gate
 above and explicitly record PASS or FAIL; generated reports cannot supply that
 confirmation.
 
-## Final local correction evidence
+## Historical local correction evidence (superseded by current exact-commit CI)
 
 The current correction worktree was verified locally with the complete
 unit/static/build stack: buildSrc (23 tests), core and both target test tasks,
@@ -422,7 +422,8 @@ not call `targetSelector.tick`, weaken the assertion, or extend the 200-tick
 timeout.
 
 These are local Windows results from a worktree that still requires the final
-commit-bound Linux workflow. Therefore the current gate statuses remain:
+commit-bound Linux workflow. At that historical local-only point, the gate
+statuses were:
 
 | Item | Status | Reason |
 | --- | --- | --- |
@@ -430,7 +431,7 @@ commit-bound Linux workflow. Therefore the current gate statuses remain:
 | Developer manual verification | **BLOCKED** | Only the developer can perform and confirm the two ordinary-world client smoke checks. |
 | Full regression gate | **FAIL / not complete** | Assigned later-phase gameplay failures remain; no Phase 3-or-later production work was started. |
 
-## Final Linux CI evidence
+## Historical Linux CI evidence
 
 The pushed commit `cffd0823b1302a782719f9665da69af612a47fee` was verified by
 [GitHub Actions run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024).
@@ -443,3 +444,18 @@ target, 5 assigned required failures on 1.21.1, 6 on 1.21.4, fresh audit
 reports with confirmed selectors and complete required-mixin application
 evidence, `infrastructureGate=PASS`, and `baselineReview=PASS`. Developer
 manual verification remains **BLOCKED** and full regression remains **FAIL**.
+
+## Current exact-commit Linux CI evidence
+
+The current authoritative result is [Build run 39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
+for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`, with artifact
+`12403281903` and SHA-256
+`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The workflow completed successfully. Its Phase 1 evidence validator reported
+`infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors; the
+architecture verifier passed; and the target GameTest and mixin-audit results
+contained only the reviewed assigned later-phase failures. The developer's
+ordinary-world confirmation remains separate and is recorded above as
+**Phase 1 manual smoke check PASS for 1.21.1 and 1.21.4**. The Phase 24 full
+regression gate remains **FAIL / not complete** by design while those assigned
+later-phase failures remain.

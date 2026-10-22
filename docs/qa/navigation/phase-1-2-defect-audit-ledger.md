@@ -20,6 +20,20 @@ this attempt is not a Phase 1 infrastructure PASS and no regression-baseline
 entry was added. A fresh exact-commit run is required to determine whether the
 observation repeats.
 
+## Current exact-commit correction status
+
+The repeat workflow [39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
+completed successfully for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`.
+Its artifact is ID `12403281903`, SHA-256
+`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The Phase 1 evidence validator and infrastructure-enforcement step passed with
+`infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors.
+Both targets' GameTest and mixin-audit results contain only the reviewed
+assigned later-phase failures; the baseline was not weakened or expanded.
+The developer-supplied ordinary-world smoke result is separately recorded as
+PASS for 1.21.1 and 1.21.4. M2.1 remains BLOCKED only for the required Phase 2
+report inspection and exact developer approval.
+
 | ID | Original requirement | Initial evidence and planned correction | Negative coverage / boundary | Status before implementation |
 | --- | --- | --- | --- | --- |
 | 1 | Correct optional GameTest parsing: a completed suite with a valid required result and no optional-failure line means zero optional failures; accept explicit zero; reject explicit nonzero; reject missing completion or malformed required results; keep required, optional, and executed totals consistent. | `tools/validate_phase1_evidence.py:parse_gametest` currently marks an omitted optional line invalid. Replace that contract and update the validator tests. | Add omitted-line, explicit-zero, nonzero, incomplete, malformed-required, and inconsistent-total cases. | FAIL |

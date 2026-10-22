@@ -196,3 +196,15 @@ by [workflow run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/a
 its uploaded artifact ID is `12400252262`. The CI architecture verification
 passed and the generated report is included in that artifact. This remains an
 agent semantic review, not independent review or developer approval.
+
+## Current exact-commit CI evidence
+
+The current workflow [39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
+completed successfully for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`.
+Artifact `12403281903` has SHA-256
+`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The workflow's architecture verifier passed, the Phase 1 evidence validator
+reported `infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence
+errors, and the generated report in the artifact contains the corrected
+begging producer relationship. This is automated evidence only; M2.1 remains
+BLOCKED until the developer inspects the report and sends the exact approval.

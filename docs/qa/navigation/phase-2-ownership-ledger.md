@@ -121,6 +121,15 @@ artifact records the separate Phase 1 validator review requirement caused by
 one unassigned 1.21.4 virus-zombie GameTest; no baseline entry was added and
 M2.1 remains blocked pending the fresh CI result and developer inspection.
 
+The fresh authoritative workflow [39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
+completed successfully for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`.
+Artifact `12403281903` has SHA-256
+`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+Its architecture verifier and Phase 1 evidence validator passed with
+`infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors.
+M2.1 remains **BLOCKED** solely because generated evidence cannot substitute
+for the developer's required report inspection and approval.
+
 The current correction adds `registeredBehaviorId: "beg-for-food"` to the
 begging producer. `verifyNavigationArchitecture` checks that this relationship
 resolves to exactly one registered Brain behavior, that its `work package` /
