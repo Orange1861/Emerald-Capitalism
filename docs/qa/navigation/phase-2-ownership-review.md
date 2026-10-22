@@ -130,6 +130,17 @@ report inspection.
 
 ## Fresh correction-set review
 
+The first exact-commit CI attempt for this correction was
+[Build run 39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
+on commit `df8efc416d38d40111ac0fe43feccdd582299a94`; its uploaded artifact is
+ID `12402398133` with SHA-256
+`06ad4b55fe2cb2892504393f0508f668d96623a51eda12cecf7fbf40cfd7e295`.
+The architecture verifier passed and the corrected begging relationship was
+present in the artifact, but the separate Phase 1 evidence gate found one
+unassigned 1.21.4 runtime failure. This does not change the Phase 2 ownership
+conclusions or the regression baseline; a new exact-commit workflow is being
+obtained before recording the automated Phase 1 gate as PASS.
+
 The architecture verifier was rerun against the current correction-set
 worktree revision `48588dfef9806aba0289ef03c2c507e23e0e7d0a` and regenerated
 `build/reports/phase2/navigation-ownership.md`. It reports 17 producers, 11

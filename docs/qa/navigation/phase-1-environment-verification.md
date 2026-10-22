@@ -7,6 +7,21 @@ checks validate the player-facing client and vanilla-style villager setup.
 They are not a replacement for the isolated GameTest harness, and a GameTest
 failure must not be hidden by a manual success.
 
+## Current exact-commit status
+
+The first exact-commit workflow for the Phase 1/2 correction was
+[Build run 39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
+for commit `df8efc416d38d40111ac0fe43feccdd582299a94`. Its uploaded
+[`verification-artifacts`](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877/artifacts/12402398133)
+artifact is ID `12402398133`, SHA-256
+`06ad4b55fe2cb2892504393f0508f668d96623a51eda12cecf7fbf40cfd7e295`.
+The architecture verifier and report generation passed, but the Phase 1
+evidence validator correctly rejected one unassigned 1.21.4 runtime failure:
+`viruszombiealwaysdropstransferredequipment`. This is recorded as a review
+observation only; the regression baseline was not changed and the exact-commit
+workflow must be repeated before the current Phase 1 infrastructure status can
+be marked PASS.
+
 ## Phase 1 gates
 
 The Phase 1 infrastructure gate is separate from the final regression gate.

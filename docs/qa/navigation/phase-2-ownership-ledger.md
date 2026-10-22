@@ -112,6 +112,15 @@ developer's required M2.1 inspection.
 
 ## Current begging consistency evidence
 
+The exact-commit artifact from
+[Build run 39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
+for `df8efc416d38d40111ac0fe43feccdd582299a94` (artifact `12402398133`,
+SHA-256 `06ad4b55fe2cb2892504393f0508f668d96623a51eda12cecf7fbf40cfd7e295`)
+contains the corrected report and a passing architecture verifier. The same
+artifact records the separate Phase 1 validator review requirement caused by
+one unassigned 1.21.4 virus-zombie GameTest; no baseline entry was added and
+M2.1 remains blocked pending the fresh CI result and developer inspection.
+
 The current correction adds `registeredBehaviorId: "beg-for-food"` to the
 begging producer. `verifyNavigationArchitecture` checks that this relationship
 resolves to exactly one registered Brain behavior, that its `work package` /

@@ -5,8 +5,20 @@ the requirement level. It is created before implementation and is updated
 only with tracked tests, production call traces, generated artifacts, or
 explicit developer evidence. A passing check authored by this correction set
 is not treated as independent evidence. Final-commit Linux evidence is
-recorded below; developer inspection remains `BLOCKED` until the required
+recorded below; the latest exact-commit attempt is recorded below; developer inspection remains `BLOCKED` until the required
 manual actions occur.
+
+## Latest exact-commit attempt
+
+Commit `df8efc416d38d40111ac0fe43feccdd582299a94` was tested by
+[Build run 39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877).
+The uploaded artifact was ID `12402398133` with SHA-256
+`06ad4b55fe2cb2892504393f0508f668d96623a51eda12cecf7fbf40cfd7e295`.
+The architecture verifier passed, but the validator found the unassigned
+1.21.4 runtime failure `viruszombiealwaysdropstransferredequipment`; therefore
+this attempt is not a Phase 1 infrastructure PASS and no regression-baseline
+entry was added. A fresh exact-commit run is required to determine whether the
+observation repeats.
 
 | ID | Original requirement | Initial evidence and planned correction | Negative coverage / boundary | Status before implementation |
 | --- | --- | --- | --- | --- |
