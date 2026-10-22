@@ -46,19 +46,14 @@ public final class MovementRequestManagerRegressionGameTests {
     private MovementRequestManagerRegressionGameTests() {
     }
 
-    @GameTest(template = "empty_20x3x20", timeoutTicks = 500)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_phase1_stale_owner", timeoutTicks = 500)
     public static void staleOwnerCannotStopARealBrainJourneyAfterPriorityPreemption(
             GameTestHelper helper) {
         installFloor(helper, 20);
         Villager villager = spawnBrainJourneyVillager(helper);
         BlockPos firstDestination = helper.absolutePos(new BlockPos(14, 1, 1));
         BlockPos higherDestination = helper.absolutePos(new BlockPos(14, 1, 3));
-        MovementRequestSubmission first = MovementRequestManager.submit(villager,
-                spec("regression:low-priority", "low", firstDestination,
-                        MovementRequestManager.PRIORITY_WORK));
-        helper.assertTrue(first.accepted(), "initial brain journey was rejected");
-        waitForLivePathBeforePreemption(helper, villager, first, firstDestination,
-                higherDestination, 180);
+        awaitBrainJourneyReady(helper, villager, firstDestination, higherDestination, 80);
     }
 
     @GameTest(template = "empty_3x3x3")
@@ -156,8 +151,9 @@ public final class MovementRequestManagerRegressionGameTests {
         helper.setBlock(farmerJobSite, Blocks.COMPOSTER.defaultBlockState());
         Villager farmer = helper.spawn(EntityType.VILLAGER, 10, 1, 10);
         farmer.setOnGround(true);
-        farmer.refreshBrain(helper.getLevel());
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setVillagerXp(1);
+        farmer.refreshBrain(helper.getLevel());
         farmer.goalSelector.removeAllGoals(ignored -> true);
         farmer.getBrain().setMemory(MemoryModuleType.JOB_SITE,
                 net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(),
@@ -920,7 +916,14 @@ public final class MovementRequestManagerRegressionGameTests {
                     && !path.isDone()) {
                 progress.initialWorkGeneration = active.generation();
                 progress.initialPosition = progress.farmer.position();
-                progress.boat = spawnTestBoat(helper, new BlockPos(8, 1, 10));
+                // Place the threat from the observed live-route position. A
+                // fixed point could be behind a farmer that had already
+                // progressed, allowing collision/push to invalidate the
+                // distance assertion before boat avoidance owned the route.
+                BlockPos localOrigin = helper.absolutePos(BlockPos.ZERO);
+                BlockPos localBoatPosition = progress.farmer.blockPosition()
+                        .subtract(localOrigin).offset(3, 0, 0);
+                progress.boat = spawnTestBoat(helper, localBoatPosition);
                 Config.enableBoatAvoidance = true;
                 progress.initialBoatDistance = progress.farmer.distanceToSqr(progress.boat);
                 helper.runAfterDelay(1, () -> awaitBoatEscape(helper, progress, 100));
@@ -1119,6 +1122,11 @@ public final class MovementRequestManagerRegressionGameTests {
                                                          BlockPos firstDestination,
                                                          BlockPos higherDestination,
                                                          int remainingTicks) {
+        MovementRequestSubmission maintained = MovementRequestManager.maintain(villager,
+                first.handle(), spec("regression:low-priority", "low", firstDestination,
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(maintained.accepted(),
+                "initial brain journey could not maintain its manager-owned request");
         Path brainPath = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
         if (brainPath != null && brainPath == villager.getNavigation().getPath()
                 && !brainPath.isDone()) {
@@ -1149,6 +1157,44 @@ public final class MovementRequestManagerRegressionGameTests {
         helper.runAfterDelay(1, () -> waitForLivePathBeforePreemption(
                 helper, villager, first, firstDestination, higherDestination,
                 remainingTicks - 1));
+    }
+
+    private static void awaitBrainJourneyReady(GameTestHelper helper, Villager villager,
+                                                BlockPos firstDestination,
+                                                BlockPos higherDestination,
+                                                int remainingTicks) {
+        Path currentPath = villager.getNavigation().getPath();
+        if (villager.isAlive() && villager.isAddedToLevel() && villager.tickCount > 0
+                && villager.onGround() && (currentPath == null || currentPath.isDone())) {
+            clearManagerJourneyBrain(villager);
+            MovementRequestSubmission first = MovementRequestManager.submit(villager,
+                    spec("regression:low-priority", "low", firstDestination,
+                            MovementRequestManager.PRIORITY_WORK));
+            helper.assertTrue(first.accepted(), "initial brain journey was rejected");
+            waitForLivePathBeforePreemption(helper, villager, first, firstDestination,
+                    higherDestination, 180);
+            return;
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("brain journey fixture never reached entity/path readiness: tickCount="
+                    + villager.tickCount + ", alive=" + villager.isAlive()
+                    + ", added=" + villager.isAddedToLevel() + ", onGround="
+                    + villager.onGround() + ", path=" + currentPath);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitBrainJourneyReady(helper, villager,
+                firstDestination, higherDestination, remainingTicks - 1));
+    }
+
+    private static void clearManagerJourneyBrain(Villager villager) {
+        villager.getNavigation().stop();
+        villager.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+        villager.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+        villager.getBrain().eraseMemory(MemoryModuleType.INTERACTION_TARGET);
+        villager.getBrain().eraseMemory(MemoryModuleType.BREED_TARGET);
     }
 
     private static void awaitVanillaFailure(GameTestHelper helper, Villager villager,
@@ -1238,6 +1284,7 @@ public final class MovementRequestManagerRegressionGameTests {
         Villager villager = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
         villager.setVillagerData(villager.getVillagerData()
                 .setProfession(VillagerProfession.FARMER));
+        villager.setVillagerXp(1);
         villager.refreshBrain(helper.getLevel());
         // Keep this fixture's brain focused on the manager-owned movement
         // request. A job site can publish a competing WALK_TARGET between

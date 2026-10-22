@@ -490,15 +490,16 @@ public abstract class VillagerClimbMixin {
         int start = Math.max(0, path.getNextNodeIndex() - 1);
         int end = path.getNodeCount();
         int columnX = emeraldcapitalism$activeLadderColumn == null
-                ? position.getX() : emeraldcapitalism$activeLadderColumn.getX();
+                ? Integer.MIN_VALUE : emeraldcapitalism$activeLadderColumn.getX();
         int columnZ = emeraldcapitalism$activeLadderColumn == null
-                ? position.getZ() : emeraldcapitalism$activeLadderColumn.getZ();
+                ? Integer.MIN_VALUE : emeraldcapitalism$activeLadderColumn.getZ();
 
         for (int index = start; index + 1 < end; index++) {
             Node from = path.getNode(index);
             Node to = path.getNode(index + 1);
             if (from.x != to.x || from.z != to.z || from.y == to.y
-                    || from.x != columnX || from.z != columnZ
+                    || (emeraldcapitalism$activeLadderColumn != null
+                    && (from.x != columnX || from.z != columnZ))
                     || !emeraldcapitalism$hasClimbableSegment(villager, from, to)) {
                 continue;
             }
@@ -514,7 +515,9 @@ public abstract class VillagerClimbMixin {
         // node belongs to the active ladder column.
         for (int index = start; index < end; index++) {
             Node node = path.getNode(index);
-            if (node.x == columnX && node.z == columnZ && node.y != position.getY()
+            if ((emeraldcapitalism$activeLadderColumn == null
+                    || (node.x == columnX && node.z == columnZ))
+                    && node.y != position.getY()
                     && villager.level().getBlockState(new BlockPos(node.x, node.y, node.z))
                     .is(BlockTags.CLIMBABLE)) {
                 emeraldcapitalism$activeLadderColumn = new BlockPos(node.x, position.getY(), node.z);

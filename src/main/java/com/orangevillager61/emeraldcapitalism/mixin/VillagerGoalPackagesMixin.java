@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <p>Retained invariant: every returned core package has exactly one
  * fence-gate interaction and one boat-avoidance behavior, and every returned
- * idle/meet package has exactly one begging behavior, without removing vanilla
+ * work package has exactly one begging behavior, without removing vanilla
  * entries or changing their order.</p>
  *
  * <p>Target fragility: these static vanilla package factories change their
@@ -99,5 +99,19 @@ public class VillagerGoalPackagesMixin {
             CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir
     ) {
         cir.setReturnValue(VillagerGoalPackageIntegration.addMeetBehaviors(cir.getReturnValue()));
+    }
+
+    @Inject(
+        method = "getWorkPackage",
+        at = @At("RETURN"),
+        cancellable = true,
+        require = 1
+    )
+    private static void addWorkBehaviors(
+            VillagerProfession profession,
+            float speedModifier,
+            CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir
+    ) {
+        cir.setReturnValue(VillagerGoalPackageIntegration.addWorkBehaviors(cir.getReturnValue()));
     }
 }

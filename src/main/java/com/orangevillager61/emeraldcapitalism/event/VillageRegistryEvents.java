@@ -499,7 +499,8 @@ public class VillageRegistryEvents {
         boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
                 .anyMatch(g -> g.getGoal() instanceof MayorFollowGovernorCandidateGoal);
         if (!hasGoal) {
-            villager.goalSelector.addGoal(1, new MayorFollowGovernorCandidateGoal(villager));
+            villager.goalSelector.addGoal(MayorFollowGovernorCandidateGoal.GOAL_PRIORITY,
+                    new MayorFollowGovernorCandidateGoal(villager));
         }
     }
 

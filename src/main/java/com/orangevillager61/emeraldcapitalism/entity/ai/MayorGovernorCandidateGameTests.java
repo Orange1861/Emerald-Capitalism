@@ -31,6 +31,23 @@ public final class MayorGovernorCandidateGameTests {
     private MayorGovernorCandidateGameTests() {
     }
 
+    @GameTest(template = "empty_3x3x3")
+    public static void injectedMayorFollowGoalUsesElectionPriority(GameTestHelper helper) {
+        Villager mayor = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+        mayor.setVillagerData(mayor.getVillagerData().setProfession(ECAPVillagerProfessions.MAYOR.get()));
+        var followEntry = mayor.goalSelector.getAvailableGoals().stream()
+                .filter(entry -> entry.getGoal() instanceof MayorFollowGovernorCandidateGoal)
+                .findFirst()
+                .orElse(null);
+        helper.assertTrue(followEntry != null,
+                "Mayor follow goal was not injected for a normal spawned Mayor");
+        helper.assertValueEqual(followEntry.getPriority(), MayorFollowGovernorCandidateGoal.GOAL_PRIORITY,
+                "Mayor follow goal did not use the election priority");
+        helper.assertValueEqual(MayorFollowGovernorCandidateGoal.GOAL_PRIORITY, 1,
+                "Mayor follow goal is not among the highest-priority movement goals");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty_20x3x20")
     public static void mayorDoesNotFollowForeignVillageCandidate(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

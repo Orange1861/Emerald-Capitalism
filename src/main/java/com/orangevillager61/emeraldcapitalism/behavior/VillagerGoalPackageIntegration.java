@@ -45,15 +45,15 @@ public final class VillagerGoalPackageIntegration {
 
     public static ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> addIdleBehaviors(
             List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> original) {
-        return addBeggingBehavior(original);
+        return ImmutableList.copyOf(original);
     }
 
     public static ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> addMeetBehaviors(
             List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> original) {
-        return addBeggingBehavior(original);
+        return ImmutableList.copyOf(original);
     }
 
-    private static ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> addBeggingBehavior(
+    public static ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> addWorkBehaviors(
             List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> original) {
         List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> modified = new ArrayList<>(original);
         addIfMissing(modified, BegForFoodBehavior.class, BEGGING_PRIORITY, BegForFoodBehavior::new);

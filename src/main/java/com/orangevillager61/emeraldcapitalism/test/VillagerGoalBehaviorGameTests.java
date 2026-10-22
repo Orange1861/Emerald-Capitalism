@@ -85,6 +85,8 @@ public final class VillagerGoalBehaviorGameTests {
                         VillagerGoalPackages.getIdlePackage(profession, 0.5F);
                 ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> meet =
                         VillagerGoalPackages.getMeetPackage(profession, 0.5F);
+                ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> work =
+                        VillagerGoalPackages.getWorkPackage(profession, 0.5F);
 
                 assertBehavior(helper, core, InteractWithFenceGateBehavior.class, FENCE_GATE_PRIORITY, 1);
                 assertBehavior(helper, core, AvoidBoatBehavior.class, BOAT_AVOIDANCE_PRIORITY, 1);
@@ -94,8 +96,9 @@ public final class VillagerGoalBehaviorGameTests {
                         ZOMBIE_SMELL_PRIORITY, 1);
                 assertBehavior(helper, core, FleeHostileVillagePlayerBehavior.class,
                         HOSTILE_VILLAGE_PLAYER_FLEE_PRIORITY, 1);
-                assertBehavior(helper, idle, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
-                assertBehavior(helper, meet, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
+                assertBehavior(helper, idle, BegForFoodBehavior.class, BEGGING_PRIORITY, 0);
+                assertBehavior(helper, meet, BegForFoodBehavior.class, BEGGING_PRIORITY, 0);
+                assertBehavior(helper, work, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
 
                 ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> coreAgain =
                         VillagerGoalPackageIntegration.addCoreBehaviors(core);
@@ -103,6 +106,8 @@ public final class VillagerGoalBehaviorGameTests {
                         VillagerGoalPackageIntegration.addIdleBehaviors(idle);
                 ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> meetAgain =
                         VillagerGoalPackageIntegration.addMeetBehaviors(meet);
+                ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> workAgain =
+                        VillagerGoalPackageIntegration.addWorkBehaviors(work);
                 assertBehavior(helper, coreAgain, InteractWithFenceGateBehavior.class, FENCE_GATE_PRIORITY, 1);
                 assertBehavior(helper, coreAgain, AvoidBoatBehavior.class, BOAT_AVOIDANCE_PRIORITY, 1);
                 assertBehavior(helper, coreAgain, AvoidZombiePlagueBehavior.class,
@@ -111,21 +116,26 @@ public final class VillagerGoalBehaviorGameTests {
                         ZOMBIE_SMELL_PRIORITY, 1);
                 assertBehavior(helper, coreAgain, FleeHostileVillagePlayerBehavior.class,
                         HOSTILE_VILLAGE_PLAYER_FLEE_PRIORITY, 1);
-                assertBehavior(helper, idleAgain, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
-                assertBehavior(helper, meetAgain, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
+                assertBehavior(helper, idleAgain, BegForFoodBehavior.class, BEGGING_PRIORITY, 0);
+                assertBehavior(helper, meetAgain, BegForFoodBehavior.class, BEGGING_PRIORITY, 0);
+                assertBehavior(helper, workAgain, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
 
                 helper.assertValueEqual(core.size(), 25,
                         "core package no longer preserves the 1.21.1 vanilla entries plus five custom behaviors");
-                helper.assertValueEqual(idle.size(), 9,
-                        "idle package no longer preserves the 1.21.1 vanilla entries plus begging");
-                helper.assertValueEqual(meet.size(), 10,
-                        "meet package no longer preserves the 1.21.1 vanilla entries plus begging");
+                helper.assertValueEqual(idle.size(), 8,
+                        "idle package no longer preserves the 1.21.1 vanilla entries without begging");
+                helper.assertValueEqual(meet.size(), 9,
+                        "meet package no longer preserves the 1.21.1 vanilla entries without begging");
                 helper.assertValueEqual(coreAgain.size(), core.size(),
                         "reapplying core integration duplicated a custom behavior");
                 helper.assertValueEqual(idleAgain.size(), idle.size(),
-                        "reapplying idle integration duplicated begging");
+                        "reapplying idle integration changed the vanilla package");
                 helper.assertValueEqual(meetAgain.size(), meet.size(),
-                        "reapplying meet integration duplicated begging");
+                        "reapplying meet integration changed the vanilla package");
+                helper.assertValueEqual(work.size(), 8,
+                        "work package no longer preserves the vanilla entries plus begging");
+                helper.assertValueEqual(workAgain.size(), work.size(),
+                        "reapplying work integration duplicated begging");
             }
         }
 
@@ -475,8 +485,9 @@ public final class VillagerGoalBehaviorGameTests {
             GameTestHelper helper, VillagerProfession profession) {
         List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> work =
                 VillagerGoalPackages.getWorkPackage(profession, 0.5F);
-        helper.assertValueEqual(work.size(), 7,
-                "representative profession lost a top-level vanilla work behavior: " + profession);
+        helper.assertValueEqual(work.size(), 8,
+                "representative profession lost a top-level work behavior or begging: " + profession);
+        assertBehavior(helper, work, BegForFoodBehavior.class, BEGGING_PRIORITY, 1);
         for (String expected : List.of(
                 "RunOne", "ShowTradesToPlayer", "GiveGiftToHero")) {
             helper.assertTrue(work.stream()

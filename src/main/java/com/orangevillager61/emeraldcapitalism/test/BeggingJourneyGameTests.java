@@ -5,12 +5,15 @@ import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachmen
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities;
+import net.minecraft.world.entity.schedule.Activity;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -34,12 +37,28 @@ public final class BeggingJourneyGameTests {
     public static void starvingVillagerBegsAndReceivesFood(GameTestHelper helper) {
         JourneyProgress progress = new JourneyProgress();
         try {
+            // Begging is a WORK-package behavior. Establish the vanilla
+            // daytime work activity before the villager is spawned so the
+            // fixture validates the production package rather than IDLE.
+            helper.getLevel().setDayTime(5_000L);
             for (int x = 0; x < 20; x++) {
                 for (int z = 0; z < 20; z++) {
                     helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
                 }
             }
             Villager beggar = helper.spawn(EntityType.VILLAGER, 1, 1, 1);
+            BlockPos jobSite = new BlockPos(2, 1, 1);
+            helper.setBlock(jobSite, Blocks.COMPOSTER.defaultBlockState());
+            beggar.setVillagerData(beggar.getVillagerData().setProfession(VillagerProfession.FARMER));
+            beggar.setVillagerXp(1);
+            beggar.refreshBrain(helper.getLevel());
+            beggar.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                    GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(jobSite)));
+            // The fixture has a valid farmer job site. Select the scheduled
+            // work activity directly so readiness is observable and does not
+            // depend on an arbitrary number of schedule-update ticks.
+            beggar.getBrain().setActiveActivityIfPossible(Activity.WORK);
+            prepareBeggingWorkBrain(beggar);
             // Keep the donor at the measured hand-off position. Its ordinary
             // inventory/brain state is still used, but autonomous wandering
             // after the transfer would make the movement-leg assertion
@@ -73,7 +92,8 @@ public final class BeggingJourneyGameTests {
         setVisibleDonor(helper, beggar, donor);
         beggar.getNavigation().stop();
         beggar.setDeltaMovement(0.0D, 0.0D, 0.0D);
-        if (remainingCooldownTicks <= 0) {
+        if (remainingCooldownTicks <= 0
+                && beggar.getBrain().getActiveNonCoreActivity().filter(Activity.WORK::equals).isPresent()) {
             awaitScheduledTransfer(helper, progress, beggar, donor, beggarStats,
                     remainingJourneyTicks);
             return;
@@ -134,13 +154,23 @@ public final class BeggingJourneyGameTests {
 
     @GameTest(template = "empty_20x3x20", batch = "ecap_begging_journey", timeoutTicks = 950)
     public static void blockedDonorDoesNotTransferWithoutCompletedMovementLeg(GameTestHelper helper) {
+        helper.getLevel().setDayTime(5_000L);
         for (int z = -20; z <= 39; z++) {
             for (int y = 1; y <= 6; y++) {
                 helper.setBlock(new BlockPos(8, y, z), Blocks.BEDROCK.defaultBlockState());
             }
         }
 
+        BlockPos jobSite = new BlockPos(2, 1, 4);
+        helper.setBlock(jobSite, Blocks.COMPOSTER.defaultBlockState());
         Villager beggar = helper.spawn(EntityType.VILLAGER, 1, 1, 4);
+        beggar.setVillagerData(beggar.getVillagerData().setProfession(VillagerProfession.FARMER));
+        beggar.setVillagerXp(1);
+        beggar.refreshBrain(helper.getLevel());
+        beggar.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(jobSite)));
+        beggar.getBrain().setActiveActivityIfPossible(Activity.WORK);
+        prepareBeggingWorkBrain(beggar);
         Villager donor = helper.spawnWithNoFreeWill(EntityType.VILLAGER, 15, 1, 4);
         VillagerStatsAttachment beggarStats =
                 beggar.getData(EmeraldCapitalismAttachments.VILLAGER_STATS);
@@ -164,13 +194,22 @@ public final class BeggingJourneyGameTests {
         setVisibleDonor(helper, beggar, donor);
         beggar.getNavigation().stop();
         beggar.setDeltaMovement(0.0D, 0.0D, 0.0D);
-        if (remainingCooldownTicks <= 0) {
+        if (remainingCooldownTicks <= 0
+                && beggar.getBrain().getActiveNonCoreActivity().filter(Activity.WORK::equals).isPresent()) {
             awaitBlockedDonor(helper, beggar, donor, beggarStats,
                     savedLastBegTime, remainingObservationTicks);
             return;
         }
+        if (remainingCooldownTicks <= 0 && remainingObservationTicks <= 0) {
+            helper.fail("blocked-donor fixture never reached WORK activity: profession="
+                    + beggar.getVillagerData().getProfession()
+                    + ", jobSite=" + beggar.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                    + ", workActive=" + beggar.getBrain().isActive(Activity.WORK));
+            return;
+        }
         helper.runAfterDelay(1, () -> holdBlockedBeggar(helper, beggar, donor, beggarStats,
-                savedLastBegTime, remainingCooldownTicks - 1, remainingObservationTicks));
+                savedLastBegTime, Math.max(0, remainingCooldownTicks - 1),
+                remainingCooldownTicks <= 0 ? remainingObservationTicks - 1 : remainingObservationTicks));
     }
 
     private static void awaitBlockedDonor(GameTestHelper helper, Villager beggar, Villager donor,
@@ -213,6 +252,24 @@ public final class BeggingJourneyGameTests {
 *///?} else {
                 new NearestVisibleLivingEntities(beggar, List.<LivingEntity>of(donor)));
  //?}
+    }
+
+    /**
+     * Leave only the durable work-site association and the donor sensor
+     * available before the scheduled begging behavior is allowed to start.
+     * Vanilla work behaviors can otherwise publish a stale route during the
+     * same activity transition and occupy WALK_TARGET before BegForFood sees
+     * its VALUE_ABSENT precondition.
+     */
+    private static void prepareBeggingWorkBrain(Villager beggar) {
+        beggar.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        beggar.getBrain().eraseMemory(MemoryModuleType.PATH);
+        beggar.getBrain().eraseMemory(MemoryModuleType.LOOK_TARGET);
+        beggar.getBrain().eraseMemory(MemoryModuleType.INTERACTION_TARGET);
+        beggar.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+        beggar.getNavigation().stop();
+        beggar.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        beggar.setOnGround(true);
     }
 
     private static int countItem(Villager villager, net.minecraft.world.item.Item item) {

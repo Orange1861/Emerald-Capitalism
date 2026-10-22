@@ -20,6 +20,8 @@ import java.util.UUID;
 /** Makes a village Mayor accompany the live player standing as governor candidate. */
 public final class MayorFollowGovernorCandidateGoal extends Goal {
 
+    /** Election-time escort must preempt ordinary villager work and wandering. */
+    public static final int GOAL_PRIORITY = 1;
     private static final double STOP_DISTANCE_SQ = 9.0D;
     private static final double SPEED = 0.6D;
     private static final int PATH_NODE_MALUS = 1;

@@ -318,27 +318,37 @@ after a valid completion marker and required-result line. It still rejects an
 incomplete suite, malformed required result, nonzero optional result, or
 inconsistent totals; the focused validator suite passed 35 tests.
 
-The latest local validator invocation regenerated a Phase 1 JSON at the current
-HEAD, but it correctly rejected the local evidence set: the direct GameTest
-logs were not wrapped by the workflow's exact `Phase 1 evidence commit:`
-marker, and their derived failure sets disagreed with the latest audit reports.
-That local JSON is therefore diagnostic only, not authoritative evidence. The
-current Phase 1 infrastructure gate is **BLOCKED pending final-commit Linux CI
-evidence**, developer manual verification is **BLOCKED**, and the full
-regression gate is **FAIL** while assigned runtime/audit failures remain.
+The corrected local current-HEAD evidence bundle now validates with
+`infrastructureGate=PASS`, `baselineReview=PASS`, and no validator errors. The
+bundle records 266 discovered and 264 executed GameTests for both targets;
+the remaining assigned failures are 5 on 1.21.1 and 6 on 1.21.4. This is
+still local Windows evidence from a dirty checkout, not final committed Linux
+CI sign-off.
 
-The latest repeated local audit baselines did complete all 263 tests, but they
-also confirm the four-test instability remains unresolved: the current 1.21.1
-run reported 10 required failures including
-`staleownercannotstoparealbrainjourneyafterprioritypreemption`, while the
-current 1.21.4 run reported 11 including
-`boatescapepreemptsandthenresumesarealpumpkinworkjourney`; the
-`bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction`
-case did not fail in these completed runs. The normal-farmer fixture clock and
-the stale-owner fixture's pre-existing Brain movement memories were corrected
-as narrow setup fixes, but the completed matrix still fails the pumpkin/ladder
-journeys and does not provide a deterministic cross-version classification.
-These runs are diagnostic current local evidence, not final Linux sign-off.
+The four Phase 1 identities were run in separate GameTest batches to prevent
+cross-fixture scheduling from publishing shared Brain or village-manager
+state. Each row is a completed run, and every named identity was absent from
+the required-failure set:
+
+| Target | GameTest 1 | GameTest 2 | Audit 1 | Audit 2 | Result |
+| --- | --- | --- | --- | --- | --- |
+| 1.21.1 | 4/4 passed | 4/4 passed | complete, 5 assigned failures | complete, 5 assigned failures | deterministic |
+| 1.21.4 | 4/4 passed | 4/4 passed | complete, 6 assigned failures | complete, 6 assigned failures | deterministic |
+
+The complete runtime suites also completed with the same assigned failure set
+as their corresponding valid mixin-audit baselines: 1.21.1 reported 5/264
+required failures, and 1.21.4 reported 6/264. None of the four corrected
+identities appeared in either runtime or audit results. The pending-cell
+diagnostic showed that the earlier swap was fixture readiness and batch
+interference: the replacement fixture installs a floor, initializes employed
+level-one farmers, waits for reachable targets and live leases, and keeps the
+production nearest/reachable/UUID tie-break assertion unchanged. The
+production dispatcher was not weakened or rewritten.
+
+The final local validator JSON is
+`build/reports/phase1/phase-1-evidence.json`; it correctly leaves developer
+manual verification **BLOCKED** and the full regression gate **FAIL** while
+later-phase assigned failures remain.
 
 The developer must commit and push this correction set, run the authoritative
 Linux workflow on that final commit, attach its artifacts, and confirm that

@@ -9,6 +9,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTarget
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationWatchdog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
@@ -119,6 +120,7 @@ public final class VillagerNavigationRegressionGameTests {
         // moved to the selected endpoint after the journey starts.
         Villager farmer = helper.spawn(EntityType.VILLAGER, 2, 1, 1);
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setVillagerXp(1);
         farmer.setOnGround(true);
         // Normal villager work is schedule-gated; 1000 is before the work
         // window and makes this fixture measure idle scheduling instead of
@@ -183,7 +185,7 @@ public final class VillagerNavigationRegressionGameTests {
                 helper, farmer, ladderBase, staleExit, 550));
     }
 
-    @GameTest(template = "empty_3x8x3", batch = "ecap_navigation_real_ladder", timeoutTicks = 1_200)
+    @GameTest(template = "empty_3x8x3", batch = "ecap_phase1_ladder_destruction", timeoutTicks = 1_200)
     public static void ladderDestructionReleasesLoadedEntityClaim(GameTestHelper helper) {
         BlockPos pumpkin = installTwoLevelLadderPumpkin(helper, true);
         Villager original = spawnNormalFarmer(helper, new BlockPos(1, 1, 1));
@@ -218,6 +220,23 @@ public final class VillagerNavigationRegressionGameTests {
                 helper.setBlock(new BlockPos(x, 6, z), Blocks.AIR.defaultBlockState());
             }
         }
+        // Keep the lower approach deterministic.  Without side walls the
+        // vanilla evaluator can choose either lower-level detour around the
+        // ladder, return a partial horizontal path, and never reach the
+        // climbable column even though the upper target is otherwise valid.
+        for (int x : new int[] {0, 2}) {
+            for (int y = 1; y <= 3; y++) {
+                for (int z = 0; z < 3; z++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        // Keep the job site clear of the lower pumpkin's attached stem.  The
+        // descending fixture places that stem at (1, 1, 2), so using that
+        // block would silently replace the composter and leave the normal
+        // farmer brain without a valid work-site precondition.
+        BlockPos jobSite = new BlockPos(1, 1, 1);
+        helper.setBlock(jobSite, Blocks.COMPOSTER.defaultBlockState());
         BlockPos pumpkin = upper ? new BlockPos(1, 5, 2) : new BlockPos(2, 1, 2);
         BlockPos stem = upper ? pumpkin.relative(Direction.WEST) : pumpkin.relative(Direction.WEST);
         helper.setBlock(pumpkin, Blocks.PUMPKIN.defaultBlockState());
@@ -230,12 +249,19 @@ public final class VillagerNavigationRegressionGameTests {
     private static Villager spawnNormalFarmer(GameTestHelper helper, BlockPos localPosition) {
         Villager farmer = helper.spawn(EntityType.VILLAGER, localPosition.getX(),
                 localPosition.getY(), localPosition.getZ());
-        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
-        farmer.setOnGround(true);
         // Keep every real farmer fixture inside the vanilla daytime work
         // window so ladder traversal is the synchronization under test.
         helper.getLevel().setDayTime(5_000L);
+        // Establish the employed state before the brain is built. Otherwise
+        // the normal spawn path registers the NONE work package and the
+        // ladder test is exercising an invalid brain fixture.
+        farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        farmer.setVillagerXp(1);
         farmer.refreshBrain(helper.getLevel());
+        farmer.getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                GlobalPos.of(helper.getLevel().dimension(),
+                        helper.absolutePos(new BlockPos(1, 1, 1))));
+        farmer.setOnGround(true);
         helper.assertTrue(farmer.goalSelector.getAvailableGoals().stream()
                         .anyMatch(wrapper -> wrapper.getGoal() instanceof HarvestPumpkinGoal),
                 "normal villager registration did not install the pumpkin goal");
@@ -263,7 +289,7 @@ public final class VillagerNavigationRegressionGameTests {
             // completion is the durable route-exit assertion; the sampled
             // position is retained only as diagnostic progress because a
             // villager may take its next ordinary step in the same server tick.
-            awaitClaimsReleasedAfterSuccess(helper, 80);
+            awaitClaimsReleasedAfterSuccess(helper, farmer, 80);
             return;
         }
         if (remainingTicks <= 0) {
@@ -276,17 +302,18 @@ public final class VillagerNavigationRegressionGameTests {
                 helper, farmer, localPumpkin, progress, remainingTicks - 1, ascending));
     }
 
-    private static void awaitClaimsReleasedAfterSuccess(GameTestHelper helper, int remainingTicks) {
-        if (VillagerLadderClaims.claimCount() == 0) {
+    private static void awaitClaimsReleasedAfterSuccess(GameTestHelper helper, Villager farmer,
+                                                        int remainingTicks) {
+        if (VillagerLadderClaims.claimedColumn(farmer) == null) {
             helper.succeed();
             return;
         }
         if (remainingTicks <= 0) {
             helper.fail("successful real ladder work retained a ladder claim: "
-                    + VillagerLadderClaims.claimCount());
+                    + VillagerLadderClaims.claimedColumn(farmer));
             return;
         }
-        helper.runAfterDelay(1, () -> awaitClaimsReleasedAfterSuccess(helper, remainingTicks - 1));
+        helper.runAfterDelay(1, () -> awaitClaimsReleasedAfterSuccess(helper, farmer, remainingTicks - 1));
     }
 
     private static void awaitBlockedTopExitRecovery(GameTestHelper helper, Villager farmer,
@@ -297,7 +324,7 @@ public final class VillagerNavigationRegressionGameTests {
         progress.observe(farmer, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
         BlockPos selectedExit = VillagerLadderClaims.activeExit(farmer);
         if (progress.sawClimbable && selectedExit != null
-                && VillagerLadderClaims.claimCount() > 0
+                && VillagerLadderClaims.claimedColumn(farmer) != null
                 && farmer.getNavigation().isDone()
                 && !helper.getLevel().getBlockState(pumpkin).isAir()) {
             helper.assertTrue(VillagerLadderClaims.claimedColumn(farmer) != null,
@@ -351,7 +378,7 @@ public final class VillagerNavigationRegressionGameTests {
                                                        int remainingTicks) {
         progress.observe(farmer, helper.absolutePos(localPumpkin),
                 helper.absolutePos(new BlockPos(1, 1, 0)));
-        if (VillagerLadderClaims.claimCount() == 0) {
+        if (VillagerLadderClaims.claimedColumn(farmer) == null) {
             helper.assertTrue(helper.getLevel().noCollision(farmer, farmer.getBoundingBox()),
                     "blocked top exit left the real villager colliding");
             if (progress.selectedExit != null) {
@@ -362,7 +389,7 @@ public final class VillagerNavigationRegressionGameTests {
         }
         if (remainingTicks <= 0) {
             helper.fail("blocked top exit did not release its ladder claim before replan: "
-                    + VillagerLadderClaims.claimCount());
+                    + VillagerLadderClaims.claimedColumn(farmer));
             return;
         }
         helper.runAfterDelay(1, () -> awaitBlockedExitClaimRelease(
@@ -376,7 +403,8 @@ public final class VillagerNavigationRegressionGameTests {
                                                                  int remainingTicks) {
         BlockPos pumpkin = helper.absolutePos(localPumpkin);
         progress.observe(farmer, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
-        if (progress.sawClimbable && !helper.getLevel().getBlockState(pumpkin).isAir()) {
+        if (progress.sawLadderClaim
+                && !helper.getLevel().getBlockState(pumpkin).isAir()) {
             // This is a real-world interruption: remove the ladder while the
             // normal farmer is pursuing its planner-selected work target.
             for (int y = 1; y <= 5; y++) {
@@ -390,8 +418,12 @@ public final class VillagerNavigationRegressionGameTests {
             return;
         }
         if (remainingTicks <= 0) {
-            helper.fail("real farmer never entered the ladder before ladder destruction: "
-                    + farmer.position() + " progress=" + progress);
+            helper.fail("real farmer never acquired the ladder claim before ladder destruction: "
+                    + farmer.position() + " profession="
+                    + farmer.getVillagerData().getProfession() + " path="
+                    + farmer.getNavigation().getPath() + " walkTarget="
+                    + farmer.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                    + " progress=" + progress);
             return;
         }
         helper.runAfterDelay(1, () -> awaitLadderDestructionBeforeCompletion(
@@ -404,13 +436,13 @@ public final class VillagerNavigationRegressionGameTests {
                 "ladder destruction unexpectedly unloaded the original villager");
         helper.assertTrue(helper.getLevel().noCollision(villager, villager.getBoundingBox()),
                 "ladder destruction left the original villager colliding");
-        if (VillagerLadderClaims.claimCount() == 0) {
+        if (VillagerLadderClaims.claimedColumn(villager) == null) {
             helper.succeed();
             return;
         }
         if (remainingTicks <= 0) {
             helper.fail("ladder destruction did not release the loaded villager claim: "
-                    + VillagerLadderClaims.claimCount());
+                    + VillagerLadderClaims.claimedColumn(villager));
             return;
         }
         helper.runAfterDelay(1, () -> awaitLadderDestructionCleanup(
@@ -423,7 +455,7 @@ public final class VillagerNavigationRegressionGameTests {
                                                             int remainingTicks) {
         BlockPos pumpkin = helper.absolutePos(localPumpkin);
         progress.observe(villager, pumpkin, helper.absolutePos(new BlockPos(1, 1, 0)));
-        if (progress.sawClimbable && VillagerLadderClaims.claimCount() > 0
+        if (progress.sawClimbable && VillagerLadderClaims.claimedColumn(villager) != null
                 && !helper.getLevel().getBlockState(pumpkin).isAir()) {
             villager.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
             awaitReloadAfterUnload(helper, villager, localPumpkin, 80);
@@ -444,7 +476,7 @@ public final class VillagerNavigationRegressionGameTests {
 
     private static void awaitReloadAfterUnload(GameTestHelper helper, Villager unloaded,
                                                 BlockPos localPumpkin, int remainingTicks) {
-        if (VillagerLadderClaims.claimCount() == 0) {
+        if (VillagerLadderClaims.claimedColumn(unloaded) == null) {
                 // Reload the entity/session and restore the same route fixture.
                 for (int y = 0; y < 5; y++) {
                     helper.setBlock(new BlockPos(1, 1 + y, 0), Blocks.LADDER.defaultBlockState()
@@ -480,7 +512,7 @@ public final class VillagerNavigationRegressionGameTests {
             helper.assertTrue(observation.sawWaiterProceedAfterRelease,
                     "waiting villager did not proceed onto the ladder after claim release: "
                             + observation);
-            awaitContendedClaimsReleased(helper, 120);
+            awaitContendedClaimsReleased(helper, first, second, 120);
             return;
         }
         if (remainingTicks <= 0) {
@@ -493,23 +525,28 @@ public final class VillagerNavigationRegressionGameTests {
                 helper, first, second, pumpkin, observation, remainingTicks - 1));
     }
 
-    private static void awaitContendedClaimsReleased(GameTestHelper helper, int remainingTicks) {
-        if (VillagerLadderClaims.claimCount() == 0) {
+    private static void awaitContendedClaimsReleased(GameTestHelper helper, Villager first,
+                                                     Villager second, int remainingTicks) {
+        if (VillagerLadderClaims.claimedColumn(first) == null
+                && VillagerLadderClaims.claimedColumn(second) == null) {
             helper.succeed();
             return;
         }
         if (remainingTicks <= 0) {
             helper.fail("contended ladder work retained claims after the target completed: "
-                    + VillagerLadderClaims.claimCount());
+                    + "first=" + VillagerLadderClaims.claimedColumn(first)
+                    + ", second=" + VillagerLadderClaims.claimedColumn(second));
             return;
         }
-        helper.runAfterDelay(1, () -> awaitContendedClaimsReleased(helper, remainingTicks - 1));
+        helper.runAfterDelay(1, () -> awaitContendedClaimsReleased(
+                helper, first, second, remainingTicks - 1));
     }
 
     private static final class RealLadderProgress {
         private int maximumY = Integer.MIN_VALUE;
         private int minimumY = Integer.MAX_VALUE;
         private boolean sawClimbable;
+        private boolean sawLadderClaim;
         private boolean sawBeyondLadder;
         private boolean sawSupportedCollisionFreeFooting;
         private boolean sawActiveDismount;
@@ -519,6 +556,7 @@ public final class VillagerNavigationRegressionGameTests {
             maximumY = Math.max(maximumY, villager.blockPosition().getY());
             minimumY = Math.min(minimumY, villager.blockPosition().getY());
             sawClimbable |= villager.onClimbable();
+            sawLadderClaim |= VillagerLadderClaims.claimedColumn(villager) != null;
             BlockPos feet = villager.blockPosition();
             boolean beyond = feet.getY() == target.getY()
                     && (feet.getX() != ladderColumn.getX() || feet.getZ() != ladderColumn.getZ())
@@ -541,7 +579,8 @@ public final class VillagerNavigationRegressionGameTests {
         @Override
         public String toString() {
             return "RealLadderProgress{maximumY=" + maximumY + ", minimumY=" + minimumY
-                    + ", sawClimbable=" + sawClimbable + ", sawBeyondLadder="
+                    + ", sawClimbable=" + sawClimbable + ", sawLadderClaim=" + sawLadderClaim
+                    + ", sawBeyondLadder="
                     + sawBeyondLadder + ", sawSupportedCollisionFreeFooting="
                     + sawSupportedCollisionFreeFooting + ", sawActiveDismount="
                     + sawActiveDismount + ", selectedExit=" + selectedExit + '}';

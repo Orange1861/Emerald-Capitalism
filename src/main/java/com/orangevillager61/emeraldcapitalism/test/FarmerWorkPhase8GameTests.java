@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestQueuedCropGoal;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.event.VillageRegistryEvents;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
@@ -315,9 +316,10 @@ public final class FarmerWorkPhase8GameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20")
+    @GameTest(template = "empty_20x3x20", batch = "ecap_phase1_pending_cells")
     public static void pendingCellsPreferNearbyFarmersAndSeparateAssignments(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
+        installFloor(helper);
         VillageRecord village = createTrackedVillage(level,
                 helper.absolutePos(new BlockPos(2, 1, 2)),
                 helper.absolutePos(new BlockPos(0, 0, 0)),
@@ -329,19 +331,62 @@ public final class FarmerWorkPhase8GameTests {
         addRepairPosition(village, firstCellExtra);
         addRepairPosition(village, secondCellWork);
 
-        Villager firstFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(2, 1, 2));
+        // Both actors must be valid reachable candidates before dispatch. The
+        // previous fixture spawned one entity in the work block and had no
+        // floor, so path readiness depended on physics/entity initialization.
+        Villager firstFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(1, 1, 2));
         Villager secondFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(18, 1, 2));
-        helper.assertValueEqual(village.dispatchFarmerWork(level, level.getGameTime()), 2,
-                "two pending cells should receive two available farmers");
+        awaitPendingFarmerDispatch(helper, village, firstFarmer, secondFarmer,
+                firstCellWork, secondCellWork, 80);
+    }
+
+    private static void awaitPendingFarmerDispatch(GameTestHelper helper, VillageRecord village,
+                                                    Villager firstFarmer, Villager secondFarmer,
+                                                    BlockPos firstCellWork, BlockPos secondCellWork,
+                                                    int remainingTicks) {
+        BlockPos firstReachable = VillagerNavigationTargets.findReachableTarget(
+                firstFarmer, firstCellWork, 2);
+        BlockPos secondReachable = VillagerNavigationTargets.findReachableTarget(
+                secondFarmer, secondCellWork, 2);
         VillageWorkCell firstCell = village.getWorkCell(firstCellWork);
         VillageWorkCell secondCell = village.getWorkCell(secondCellWork);
-        helper.assertTrue(firstCell != null && firstCell.getActiveLease() != null
-                        && firstCell.getActiveLease().farmerId().equals(firstFarmer.getUUID()),
-                "the nearest farmer did not receive the higher-pending cell");
-        helper.assertTrue(secondCell != null && secondCell.getActiveLease() != null
-                        && secondCell.getActiveLease().farmerId().equals(secondFarmer.getUUID()),
-                "the second cell was not assigned to its nearest available farmer");
-        helper.succeed();
+        VillageWorkCell.WorkLease firstLease = firstCell == null ? null : firstCell.getActiveLease();
+        VillageWorkCell.WorkLease secondLease = secondCell == null ? null : secondCell.getActiveLease();
+        if (firstFarmer.isAlive() && secondFarmer.isAlive()
+                && firstFarmer.onGround() && secondFarmer.onGround()
+                && firstReachable != null && secondReachable != null
+                && firstLease != null && secondLease != null) {
+            helper.assertTrue(firstCell != null && firstCell.getActiveLease() != null
+                            && firstCell.getActiveLease().farmerId().equals(firstFarmer.getUUID()),
+                    "the nearest farmer did not receive the higher-pending cell: firstReachable="
+                            + firstReachable + ", secondReachable=" + secondReachable);
+            helper.assertTrue(secondCell != null && secondCell.getActiveLease() != null
+                            && secondCell.getActiveLease().farmerId().equals(secondFarmer.getUUID()),
+                    "the second cell was not assigned to its nearest available farmer: firstReachable="
+                            + firstReachable + ", secondReachable=" + secondReachable);
+            helper.succeed();
+            return;
+        }
+        if (firstFarmer.isAlive() && secondFarmer.isAlive()
+                && firstFarmer.onGround() && secondFarmer.onGround()
+                && firstReachable != null && secondReachable != null) {
+            // The registry manager may have dispatched this slice already.
+            // Calling the same production dispatcher is idempotent and lets
+            // this fixture make progress when the manager has not reached its
+            // interval yet; readiness is determined by the leases themselves.
+            village.dispatchFarmerWork(helper.getLevel(), helper.getLevel().getGameTime());
+        }
+        if (remainingTicks <= 0) {
+            helper.fail("pending-cell fixture never reached identical valid farmer preconditions: "
+                    + "firstPos=" + firstFarmer.position() + ", firstOnGround="
+                    + firstFarmer.onGround() + ", firstReachable=" + firstReachable
+                    + ", secondPos=" + secondFarmer.position() + ", secondOnGround="
+                    + secondFarmer.onGround() + ", secondReachable=" + secondReachable
+                    + ", firstLease=" + firstLease + ", secondLease=" + secondLease);
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitPendingFarmerDispatch(helper, village,
+                firstFarmer, secondFarmer, firstCellWork, secondCellWork, remainingTicks - 1));
     }
 
     @GameTest(template = "empty_20x3x20")
@@ -628,6 +673,10 @@ public final class FarmerWorkPhase8GameTests {
         ServerLevel level = helper.getLevel();
         Villager farmer = helper.spawnWithNoFreeWill(EntityType.VILLAGER, position);
         farmer.setVillagerData(farmer.getVillagerData().setProfession(VillagerProfession.FARMER));
+        // Keep the fixture in the employed state while the registry dispatches
+        // both cells. Vanilla ResetProfession clears a level-one, zero-XP
+        // farmer with no job-site memory on its first brain tick.
+        farmer.setVillagerXp(1);
         if (!village.hasMember(farmer.getUUID())) {
             village.addMember(new VillagerPOIRecord(
                     farmer.getUUID(), farmer.getName().getString(), "FARMER",

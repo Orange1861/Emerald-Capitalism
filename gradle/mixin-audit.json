@@ -153,7 +153,7 @@
       "side": "server",
       "auditMode": "gametest",
       "mixins": ["VillagerGoalPackagesMixin"],
-      "invariant": "Core, idle, and meet goal packages contain the mod behaviors exactly once, preserve vanilla ordering, and route banker job-site work through the bank-aware behavior.",
+      "invariant": "Core, idle, meet, and work goal packages contain the mod behaviors exactly once, preserve vanilla ordering, route begging through WORK, and route banker job-site work through the bank-aware behavior.",
       "tests": [
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
         "villagergoalbehaviorgametests.bankerjobsiteusesworksidebeforeassignment",
@@ -161,7 +161,7 @@
         "villagergoalbehaviorgametests.fencegatebehavioropensandclosesthepathgate",
         "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat"
       ],
-      "target": "net.minecraft.world.entity.ai.behavior.VillagerGoalPackages#getCorePackage, #getIdlePackage, and #getMeetPackage",
+      "target": "net.minecraft.world.entity.ai.behavior.VillagerGoalPackages#getCorePackage, #getIdlePackage, #getMeetPackage, and #getWorkPackage",
       "injectionPoint": "RETURN injections plus NEW/INVOKE redirects inside getCorePackage",
       "supportedEventAlternative": "NeoForge 21.1.219 exposes no public goal-package construction event; preserve composition in VillagerGoalPackageIntegration and keep this adapter narrow."
     },
