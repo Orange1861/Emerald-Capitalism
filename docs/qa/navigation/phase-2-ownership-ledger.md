@@ -121,10 +121,10 @@ artifact records the separate Phase 1 validator review requirement caused by
 one unassigned 1.21.4 virus-zombie GameTest; no baseline entry was added and
 M2.1 remains blocked pending the fresh CI result and developer inspection.
 
-The fresh authoritative workflow [39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
-completed successfully for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`.
-Artifact `12403281903` has SHA-256
-`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The final exact-commit workflow [39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700)
+completed successfully for commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f`.
+Artifact `12403941503` has SHA-256
+`785c9c4b36150c4be9ffd6ee08f245faef67e6ade01bdafb5cea7f8126616fe0`.
 Its architecture verifier and Phase 1 evidence validator passed with
 `infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors.
 M2.1 remains **BLOCKED** solely because generated evidence cannot substitute

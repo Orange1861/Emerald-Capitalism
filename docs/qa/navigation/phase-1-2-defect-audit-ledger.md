@@ -22,17 +22,18 @@ observation repeats.
 
 ## Current exact-commit correction status
 
-The repeat workflow [39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
-completed successfully for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`.
-Its artifact is ID `12403281903`, SHA-256
-`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The final exact-commit workflow [39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700)
+completed successfully for commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f`.
+Its artifact is ID `12403941503`, SHA-256
+`785c9c4b36150c4be9ffd6ee08f245faef67e6ade01bdafb5cea7f8126616fe0`.
 The Phase 1 evidence validator and infrastructure-enforcement step passed with
 `infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors.
 Both targets' GameTest and mixin-audit results contain only the reviewed
 assigned later-phase failures; the baseline was not weakened or expanded.
 The developer-supplied ordinary-world smoke result is separately recorded as
-PASS for 1.21.1 and 1.21.4. M2.1 remains BLOCKED only for the required Phase 2
-report inspection and exact developer approval.
+PASS for 1.21.1 and 1.21.4. The prior successful repeat run 39726266307 is
+retained as historical evidence. M2.1 remains BLOCKED only for the required
+Phase 2 report inspection and exact developer approval.
 
 | ID | Original requirement | Initial evidence and planned correction | Negative coverage / boundary | Status before implementation |
 | --- | --- | --- | --- | --- |
@@ -59,9 +60,9 @@ needed for any remaining blocked item.
 | --- | --- | --- |
 | 1 | **PASS** | `py_compile` passed and the validator suite passed 35 tests. The six required parser cases cover omitted optional zero, explicit zero, nonzero failure, incomplete suite, malformed required result, and inconsistent totals. |
 | 2 | **PASS** | Both target `auditMixins` tasks used the durable `neoforge-<version>.jar`, wrote current-commit reports after fingerprinting, and returned their expected baseline failure. BuildSrc now has 3 task-lifecycle tests covering normal report writing, missing-input diagnostic preservation, exact artifact/SHA, launched classpath, and report identity. Cross-platform sign-off remains blocked under item 3. |
-| 3 | **PASS** | Final GitHub Actions run [39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024) passed for commit `cffd0823b1302a782719f9665da69af612a47fee`. Its uploaded `verification-artifacts` artifact is ID `12400252262` (SHA-256 `c727ed8395aab6cd7d86800c32c030a65272a72b9cd92bef9ee605ca1d0d9939`); the workflow validator and infrastructure-gate steps passed. |
+| 3 | **PASS** | Final GitHub Actions run [39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700) passed for commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f`. Its uploaded `verification-artifacts` artifact is ID `12403941503` (SHA-256 `785c9c4b36150c4be9ffd6ee08f245faef67e6ade01bdafb5cea7f8126616fe0`); the workflow validator and infrastructure-gate steps passed. |
 | 4 | **PASS** | The remaining `bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction` fixture was corrected without changing production targeting or the timeout. The test now registers and validates the real candidate, validates the bank/grace transition, applies one real damage event, observes the normal Mob selector, and removes the owned synthetic player on success or at the existing timeout boundary. Fresh completed full-suite runs on both targets executed the dedicated `ecap_governor_candidate_real_goal` batch without this identity in the required-failure set. The old failure was a fixture lifecycle/order dependency: leaked registered synthetic players and arbitrary/manual selector driving made readiness depend on prior batch state. The remaining baseline failures remain assigned to later phases; no baseline rewrite was made. |
-| 5 | **PASS** | The final CI report for `cffd0823b1302a782719f9665da69af612a47fee` preserves the corrected 1.21.4 stale-owner assignment, exact baseline comparison, and separate gates. Infrastructure is PASS; developer manual verification remains BLOCKED and full regression remains FAIL while assigned later-phase failures remain. |
+| 5 | **PASS** | The final CI report for `d89a03a10e492ee5df1ba343ecf155a5fc9f993f` preserves the corrected 1.21.4 stale-owner assignment, exact baseline comparison, and separate gates. Infrastructure is PASS; developer manual verification is separately recorded as PASS from the developer's direct confirmation, and full regression remains FAIL while assigned later-phase failures remain. |
 | 6 | **PASS** | `verifyNavigationArchitecture` passed; the regenerated report includes the frozen pumpkin work-cell pipeline and the old per-farmer scanner as a Phase 15 legacy path. No Phase 15 gameplay implementation was added. |
 | 7 | **PASS** | The generated report and source review preserve `farmer-assignment-excludes-bank-employees`, and confirm `VillageRecord.isEligibleFarmer` currently lacks the authoritative bank-employee check. Enforcement remains Phase 11 and end-to-end gameplay verification remains Phase 15. |
 | 8 | **BLOCKED** | Phase 2 artifacts were regenerated and semantically reviewed against current source; the report visibly contains all required pumpkin/bank/legacy/violation entries. Developer inspection is still required and cannot be replaced by generated output or agent review. |
@@ -100,13 +101,11 @@ current success. The current fix does not add a baseline entry, weaken an
 assertion, repeatedly call `targetSelector.tick`, or extend the 200-tick
 timeout.
 
-### Final Linux CI evidence
+### Historical Linux CI evidence
 
-The final pushed commit was `cffd0823b1302a782719f9665da69af612a47fee`.
-[GitHub Actions run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024)
-completed successfully. The uploaded
-[`verification-artifacts`](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024/artifacts/12400252262)
-artifact is ID `12400252262`, SHA-256
+The earlier pushed commit `cffd0823b1302a782719f9665da69af612a47fee` was
+verified by [GitHub Actions run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024).
+Its uploaded artifact was ID `12400252262`, SHA-256
 `c727ed8395aab6cd7d86800c32c030a65272a72b9cd92bef9ee605ca1d0d9939`.
 The workflow validator reported `infrastructureGate=PASS` and
 `baselineReview=PASS`; both runtime GameTest tasks and both mixin-audit tasks
@@ -118,3 +117,15 @@ The interrupted local GameTest runs are retained only as diagnostic context in
 the completion notes, not as passing evidence: each launched, reached a test
 batch, and failed to emit a suite completion marker before termination. No
 generated world lock or debug files from those runs remain in the worktree.
+
+### Current final-commit Linux CI evidence
+
+The final correction commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f` was
+verified by [GitHub Actions run 39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700).
+Its uploaded `verification-artifacts` artifact is ID `12403941503`, SHA-256
+`785c9c4b36150c4be9ffd6ee08f245faef67e6ade01bdafb5cea7f8126616fe0`.
+The workflow validator and infrastructure-enforcement steps passed with
+`infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors. Both
+targets' GameTest and mixin-audit results contain only the reviewed assigned
+later-phase failures. The developer manual smoke result is separately PASS;
+the Phase 24 full regression gate remains FAIL / not complete.

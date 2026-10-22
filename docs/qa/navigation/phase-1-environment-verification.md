@@ -10,17 +10,18 @@ failure must not be hidden by a manual success.
 ## Current exact-commit status
 
 The current exact-commit workflow is
-[Build run 39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
-for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`. It completed
+[Build run 39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700)
+for commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f`. It completed
 successfully. Its uploaded `verification-artifacts` artifact is ID
-`12403281903`, SHA-256
-`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+`12403941503`, SHA-256
+`785c9c4b36150c4be9ffd6ee08f245faef67e6ade01bdafb5cea7f8126616fe0`.
 The validator and infrastructure-enforcement steps passed with
 `infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors.
 Both target GameTest and mixin-audit outputs matched only the reviewed
-assigned later-phase baseline failures. The earlier failed attempt
-[39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
-is retained as historical diagnostic evidence; it did not change the baseline.
+assigned later-phase baseline failures. The earlier successful repeat run
+[39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
+and failed attempt [39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
+are retained as historical diagnostic evidence; neither changed the baseline.
 
 ## Phase 1 gates
 
@@ -447,10 +448,10 @@ manual verification remains **BLOCKED** and full regression remains **FAIL**.
 
 ## Current exact-commit Linux CI evidence
 
-The current authoritative result is [Build run 39726266307](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39726266307)
-for commit `683d7dc9c9e510bf8c57e1cf736d6e6300f402d3`, with artifact
-`12403281903` and SHA-256
-`de154db213007f411535d47ad63d42759c4b5581d48099c5be514b769dff7ae1`.
+The current authoritative result is [Build run 39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700)
+for commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f`, with artifact
+`12403941503` and SHA-256
+`785c9c4b36150c4be9ffd6ee08f245faef67e6ade01bdafb5cea7f8126616fe0`.
 The workflow completed successfully. Its Phase 1 evidence validator reported
 `infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence errors; the
 architecture verifier passed; and the target GameTest and mixin-audit results
