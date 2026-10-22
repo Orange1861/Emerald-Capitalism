@@ -85,3 +85,22 @@ inspection listed in M2.1, confirm that every listed producer row and column
 matches the source, and explicitly record the ordinary-world two-target manual
 verification result. No generated report or agent review may mark this row
 PASS.
+
+## Final local correction evidence
+
+The final local verification stack for this correction worktree passed:
+
+| Command | Result |
+| --- | --- |
+| `gradle -p buildSrc test --no-daemon --no-configuration-cache --console=plain` | PASS — 23 tests |
+| `gradle :core:test test verifyRegressionCoverage verifyPortSetup :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain` | PASS — both targets, 266 discovered GameTests |
+| `python -m py_compile tools/validate_phase1_evidence.py` | PASS |
+| `python -m unittest discover -s tools/tests -p "test_*.py"` | PASS — 35 tests |
+| `gradle verifyNavigationArchitecture --no-daemon --no-configuration-cache --console=plain` | PASS — 17 producers, 11 transient claim scopes, 299 production sources |
+
+The generated report contains the frozen pumpkin work-cell pipeline, the
+bank-employee exclusion decision, the Phase 15 `HarvestPumpkinGoal` legacy
+path, and the documented Phase 11 missing eligibility check. This is fresh
+agent evidence only; M2.1 remains **BLOCKED** until the developer opens the
+report, inspects every required row and column, and records the explicit
+two-target manual result.

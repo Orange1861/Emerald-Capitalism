@@ -33,7 +33,7 @@ needed for any remaining blocked item.
 | 1 | **PASS** | `py_compile` passed and the validator suite passed 35 tests. The six required parser cases cover omitted optional zero, explicit zero, nonzero failure, incomplete suite, malformed required result, and inconsistent totals. |
 | 2 | **PASS** | Both target `auditMixins` tasks used the durable `neoforge-<version>.jar`, wrote current-commit reports after fingerprinting, and returned their expected baseline failure. BuildSrc now has 3 task-lifecycle tests covering normal report writing, missing-input diagnostic preservation, exact artifact/SHA, launched classpath, and report identity. Cross-platform sign-off remains blocked under item 3. |
 | 3 | **BLOCKED** | The repository has no authoritative final-commit Linux CI artifact. The latest local validator output uses the current HEAD but rejects the direct GameTest logs because they lack the workflow's exact commit markers and their derived failure set disagrees with the latest audit reports; it cannot be reused as final evidence. Developer action: commit/push this correction set, run the final Linux workflow, attach its artifacts, and rerun the validator against those artifacts. |
-| 4 | **FAIL** | The four named instability cases were not resolved or deterministically classified. Repeated completed local audits still vary by target/run: the latest 1.21.1 baseline reported 10 required failures including `staleownercannotstoparealbrainjourneyafterprioritypreemption`, while the latest 1.21.4 baseline reported 11 including `boatescapepreemptsandthenresumesarealpumpkinworkjourney`; `bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction` did not fail in those completed runs. Narrow fixture-only clock and Brain-memory cleanup were applied, but pumpkin/ladder journeys still fail. No baseline rewrite or unsupported Phase 1 fix was made. |
+| 4 | **PASS** | The remaining `bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction` fixture was corrected without changing production targeting or the timeout. The test now registers and validates the real candidate, validates the bank/grace transition, applies one real damage event, observes the normal Mob selector, and removes the owned synthetic player on success or at the existing timeout boundary. Fresh completed full-suite runs on both targets executed the dedicated `ecap_governor_candidate_real_goal` batch without this identity in the required-failure set. The old failure was a fixture lifecycle/order dependency: leaked registered synthetic players and arbitrary/manual selector driving made readiness depend on prior batch state. The remaining baseline failures remain assigned to later phases; no baseline rewrite was made. |
 | 5 | **BLOCKED** | The stale-owner documentation assignment is corrected to 1.21.4 and gate separation is preserved, but no authoritative final-commit Phase 1 artifact set exists. Final Linux evidence is required before the infrastructure gate can be assessed. Full regression remains FAIL while assigned failures remain. |
 | 6 | **PASS** | `verifyNavigationArchitecture` passed; the regenerated report includes the frozen pumpkin work-cell pipeline and the old per-farmer scanner as a Phase 15 legacy path. No Phase 15 gameplay implementation was added. |
 | 7 | **PASS** | The generated report and source review preserve `farmer-assignment-excludes-bank-employees`, and confirm `VillageRecord.isEligibleFarmer` currently lacks the authoritative bank-employee check. Enforcement remains Phase 11 and end-to-end gameplay verification remains Phase 15. |
@@ -52,6 +52,26 @@ needed for any remaining blocked item.
 - `.\gradlew :core:test test verifyRegressionCoverage verifyPortSetup :1.21.1:compileJava :1.21.4:compileJava --no-daemon --no-configuration-cache --console=plain` — PASS.
 - Both `:1.21.1:auditMixins` and `:1.21.4:auditMixins` — expected nonzero baseline failures after writing valid reports; artifact lifecycle and report assertions passed.
 - `git diff --check` — PASS after the correction-set documentation and source edits.
+
+### Final local fixture evidence
+
+The fresh local full-suite runs for the current correction worktree each reached
+the dedicated `ecap_governor_candidate_real_goal` batch and completed normally:
+
+| Target | Static discovered | Runtime executed | Required failures | Suspect identity |
+| --- | ---: | ---: | ---: | --- |
+| 1.21.1 | 266 | 264 | 5 assigned baseline failures | absent |
+| 1.21.4 | 266 | 264 | 6 assigned baseline failures | absent |
+
+The direct runner has no supported test-name or batch filter, so the smallest
+relevant batch was verified by its dedicated batch marker inside each fresh
+full run. The completed isolated diagnostic corpus also contains repeated
+1.21.1 runs of that batch, including the pre-correction failure and the
+post-correction passing runs in `build/gametest-isolated-1.21.1/`; the
+pre-correction failure is retained as negative evidence and is not treated as
+current success. The current fix does not add a baseline entry, weaken an
+assertion, repeatedly call `targetSelector.tick`, or extend the 200-tick
+timeout.
 
 The interrupted local GameTest runs are retained only as diagnostic context in
 the completion notes, not as passing evidence: each launched, reached a test

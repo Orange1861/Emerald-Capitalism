@@ -150,3 +150,21 @@ not an independent review and not developer sign-off. M2.1 remains
 producer row and the exact columns listed in the Phase 2 ledger, confirm the
 frozen pumpkin/bank decisions and Phase 11/15 ownership, and record the
 two-target manual result explicitly.
+
+## Final correction-set fixture review
+
+The remaining Phase 1 selector fixture is outside the ownership manifest and
+does not change any Phase 2 producer decision. Its source review confirms
+that the real-selector test now establishes server-player registration, bank
+association, and the contested-candidate grace transition synchronously before
+one real damage event. It then waits for the ordinary Mob selector and cleans
+up the owned synthetic player; it does not invoke `targetSelector.tick` or
+change the 200-tick test timeout. The fresh 1.21.1 and 1.21.4 full-suite logs
+show the dedicated batch completing without the suspect identity in the
+required-failure list.
+
+The Phase 2 report was regenerated after the local architecture verifier passed
+with 17 producers, 11 transient claim scopes, and 299 production sources. The
+report remains an agent-generated artifact, not independent review or
+developer approval; M2.1 remains `BLOCKED` pending the exact inspection and
+confirmation recorded in the ledger.

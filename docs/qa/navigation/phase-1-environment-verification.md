@@ -256,8 +256,13 @@ infrastructure gate is PASS** for this recorded baseline.
 The **developer manual-verification status is BLOCKED** pending the explicit
 two-target confirmation required above. The **full regression gate is FAIL / not
 complete** until every required GameTest and mixin audit passes; that final
-all-tests-pass gate is owned by Phase 24. No later-phase gameplay behavior was
-changed to make Phase 1 pass.
+all-tests-pass gate is owned by Phase 24. The developer has explicitly
+authorized retaining the already-landed ladder-route, begging-package, and
+mayor-priority production changes. Treat those as documented phase-boundary
+exceptions: do not roll them back, but do not implement any additional Phase
+3-or-later production work during this correction. Remaining work is restricted
+to completing Phase 1 evidence and fixture determinism plus Phase 2 artifacts
+and manual sign-off.
 
 ### Historical status summary
 
@@ -358,3 +363,39 @@ validator result is recorded from those artifacts. The developer must also
 perform the ordinary-world two-target smoke check described in the manual gate
 above and explicitly record PASS or FAIL; generated reports cannot supply that
 confirmation.
+
+## Final local correction evidence
+
+The current correction worktree was verified locally with the complete
+unit/static/build stack: buildSrc (23 tests), core and both target test tasks,
+regression coverage, port setup, both target compilations, Python validation
+(35 tests), and the Phase 2 architecture verifier all passed. The verifier
+reported 17 producers, 11 transient claim scopes, and 299 production sources.
+
+Fresh full GameTest runs completed on both supported targets. Each reached the
+dedicated `ecap_governor_candidate_real_goal` batch, and the suspect identity
+was absent from the required-failure list:
+
+| Target | Discovered | Executed | Required failures | Suspect test |
+| --- | ---: | ---: | ---: | --- |
+| 1.21.1 | 266 | 264 | 5 assigned baseline failures | passed |
+| 1.21.4 | 266 | 264 | 6 assigned baseline failures | passed |
+
+The direct runner has no supported batch-filter option, so the dedicated batch
+was observed inside each fresh full run. Repeated completed 1.21.1 isolated
+diagnostic runs are retained in `build/gametest-isolated-1.21.1/`, including
+the pre-correction failure and post-correction passes; the old failure remains
+negative evidence and is not a baseline entry. The fix validates the real
+registered-player/bank/grace preconditions, applies one real damage event,
+waits for the normal Mob selector, and cleans up the synthetic player. It does
+not call `targetSelector.tick`, weaken the assertion, or extend the 200-tick
+timeout.
+
+These are local Windows results from a worktree that still requires the final
+commit-bound Linux workflow. Therefore the current gate statuses remain:
+
+| Item | Status | Reason |
+| --- | --- | --- |
+| Infrastructure gate | **BLOCKED pending final CI** | Local results are fresh and baseline-compatible, but the authoritative artifact must be produced for the pushed final commit and pass `validate_phase1_evidence.py`. |
+| Developer manual verification | **BLOCKED** | Only the developer can perform and confirm the two ordinary-world client smoke checks. |
+| Full regression gate | **FAIL / not complete** | Assigned later-phase gameplay failures remain; no Phase 3-or-later production work was started. |

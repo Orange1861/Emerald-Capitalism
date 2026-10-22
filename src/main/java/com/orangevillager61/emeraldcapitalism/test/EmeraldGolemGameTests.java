@@ -465,6 +465,8 @@ public final class EmeraldGolemGameTests {
                 current.breadDeliveriesEnabled(), current.lumberjackDeliveriesEnabled(), false));
         helper.assertFalse(goal.canUse(),
                 "disabled bank attack setting still targeted a neutral player");
+        removeRegisteredTestPlayer(level, controller);
+        removeRegisteredTestPlayer(level, otherPlayer);
         helper.succeed();
     }
 
@@ -508,8 +510,16 @@ public final class EmeraldGolemGameTests {
 
         helper.assertTrue(findHostilePlayerGoal(golem) != null,
                 "real target-selector fixture did not receive a hostile-player goal");
-        helper.succeedWhen(() -> helper.assertTrue(golem.getTarget() == otherPlayer,
-                "real target selector did not acquire the non-controller player through the obstruction"));
+        helper.runAfterDelay(199, () -> {
+            removeRegisteredTestPlayer(level, controller);
+            removeRegisteredTestPlayer(level, otherPlayer);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(golem.getTarget() == otherPlayer,
+                    "real target selector did not acquire the non-controller player through the obstruction");
+            removeRegisteredTestPlayer(level, controller);
+            removeRegisteredTestPlayer(level, otherPlayer);
+        });
     }
 
     @GameTest(template = "empty_20x3x20")
@@ -559,6 +569,7 @@ public final class EmeraldGolemGameTests {
             helper.assertFalse(goal.canUse(),
                     "a bank-linked emerald golem targeted the player who owns its bank");
         }
+        removeRegisteredTestPlayer(level, owner);
         helper.succeed();
     }
 
@@ -636,6 +647,7 @@ public final class EmeraldGolemGameTests {
         bank.setController(candidate.getUUID());
         helper.assertFalse(goal.canUse(),
                 "vault golem remained hostile after the bank began supporting its candidate");
+        removeRegisteredTestPlayer(level, candidate);
         helper.succeed();
     }
 
@@ -684,28 +696,34 @@ public final class EmeraldGolemGameTests {
             return;
         }
 
-        helper.assertTrue(findHostilePlayerGoal(golem) != null,
+        HostileVillagePlayerTargetGoal goal = findHostilePlayerGoal(golem);
+        helper.assertTrue(goal != null,
                 "real target selector did not receive its hostile-player goal");
-        helper.runAfterDelay(1, () -> helper.assertTrue(
-                EntityDamageUtils.hurt(golem, level.damageSources().playerAttack(candidate), 1.0F),
-                "candidate could not hit the real-selector golem"));
-        // The damage event ends the election grace period. Tick the actual
-        // target selector once after that event so the test checks selector
-        // wiring, not the scheduler's ordering for the same server tick.
-        helper.runAfterDelay(2, () -> golem.targetSelector.tick());
+        helper.assertTrue(level.getServer().getPlayerList().getPlayer(candidate.getUUID()) == candidate,
+                "real-selector candidate was not registered with the server player list");
+        helper.assertTrue(VillageGovernance.isContestedGovernorCandidateForBank(
+                        level, village, bank, candidate.getUUID()),
+                "real-selector candidate was not associated with the registered bank");
+        helper.assertFalse(VillageGovernance.isContestedGovernorAttackAllowed(
+                        level, village, bank, candidate.getUUID()),
+                "real-selector candidate attack grace was not active before the damage event");
+        helper.assertTrue(EntityDamageUtils.hurt(golem, level.damageSources().playerAttack(candidate), 1.0F),
+                "candidate could not hit the real-selector golem");
+        helper.assertTrue(VillageGovernance.isContestedGovernorAttackAllowed(
+                        level, village, bank, candidate.getUUID()),
+                "candidate damage did not end the real-selector attack grace period");
+        // The fixture is now ready and the grace transition is observable. The
+        // assertion below intentionally waits for the normal Mob target-selector
+        // tick; it must not drive that selector manually.
+        helper.runAfterDelay(199,
+                () -> removeRegisteredTestPlayer(level, candidate));
         helper.succeedWhen(() -> {
-            // Keep driving the real selector while the GameTest poll waits;
-            // the damage callback and selector scheduler are separate server
-            // phases, so a single manual tick can land before the grace-state
-            // mutation is visible to the target predicate.
-            if (golem.getTarget() == null) {
-                golem.targetSelector.tick();
-            }
             helper.assertTrue(golem.getTarget() == candidate,
                     "real target selector did not acquire the contested candidate through the obstruction; "
                             + "golem=" + golem.position() + ", candidate=" + candidate.position()
                             + ", distanceSq=" + golem.distanceToSqr(candidate)
                             + ", target=" + golem.getTarget());
+            removeRegisteredTestPlayer(level, candidate);
         });
     }
 
@@ -1014,5 +1032,11 @@ public final class EmeraldGolemGameTests {
         new EmbeddedChannel(connection);
         level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
         return player;
+    }
+
+    private static void removeRegisteredTestPlayer(ServerLevel level, ServerPlayer player) {
+        if (level.getServer().getPlayerList().getPlayer(player.getUUID()) == player) {
+            level.getServer().getPlayerList().remove(player);
+        }
     }
 }
