@@ -136,8 +136,11 @@ The subsequent documentation-only follow-up commit
 [39727676272](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727676272),
 but the Phase 1 evidence validator found the single unassigned 1.21.4 runtime
 identity `pendingcellsprefernearbyfarmersandseparateassignments`. The baseline
-was not altered; the observation is retained as diagnostic evidence while the
-successful `d89a03a` exact-commit result is repeated.
+was not altered; the observation is retained as diagnostic evidence. A clean
+repeat then completed successfully on final documentation commit
+`f59e163249129d7d7d82b4caeb8c60a17dafb1c7` in
+[run 39728097576](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728097576),
+with the architecture verifier and evidence validator passing.
 
 The current correction adds `registeredBehaviorId: "beg-for-food"` to the
 begging producer. `verifyNavigationArchitecture` checks that this relationship

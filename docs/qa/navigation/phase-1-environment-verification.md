@@ -32,8 +32,11 @@ reported one unassigned 1.21.4 runtime identity,
 `12403927432` (SHA-256
 `c3cf0df03cb9804e8606aa75eeb2ab501bb54d27d4f2468b32e1d00208b5d427`). No
 baseline entry was added. This is retained as a historical nondeterministic
-diagnostic; the successful `d89a03a` exact-commit result remains the current
-correction evidence pending a clean repeat.
+diagnostic. A clean repeat then completed successfully on final documentation
+commit `f59e163249129d7d7d82b4caeb8c60a17dafb1c7` in
+[run 39728097576](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728097576),
+with artifact `12403579576` (SHA-256
+`89e5c411e46efcd9a96f543a59e8dedf68d0f039c93015a1a67ea1e4438f92ba`).
 
 ## Phase 1 gates
 

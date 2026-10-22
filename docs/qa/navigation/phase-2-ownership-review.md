@@ -215,4 +215,7 @@ verifier in run [39727676272](https://github.com/Orange1861/Emerald-Capitalism/a
 but its Phase 1 evidence validator observed one unassigned 1.21.4 runtime
 identity, `pendingcellsprefernearbyfarmersandseparateassignments`. No gameplay
 source or baseline was changed in response; this remains historical diagnostic
-evidence pending a clean repeat.
+evidence. A clean repeat then completed successfully on final documentation
+commit `f59e163249129d7d7d82b4caeb8c60a17dafb1c7` in
+[run 39728097576](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728097576),
+with the architecture verifier and evidence validator passing.
