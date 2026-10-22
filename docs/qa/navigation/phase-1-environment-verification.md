@@ -399,3 +399,17 @@ commit-bound Linux workflow. Therefore the current gate statuses remain:
 | Infrastructure gate | **BLOCKED pending final CI** | Local results are fresh and baseline-compatible, but the authoritative artifact must be produced for the pushed final commit and pass `validate_phase1_evidence.py`. |
 | Developer manual verification | **BLOCKED** | Only the developer can perform and confirm the two ordinary-world client smoke checks. |
 | Full regression gate | **FAIL / not complete** | Assigned later-phase gameplay failures remain; no Phase 3-or-later production work was started. |
+
+## Final Linux CI evidence
+
+The pushed commit `cffd0823b1302a782719f9665da69af612a47fee` was verified by
+[GitHub Actions run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024).
+The workflow validator and infrastructure-gate steps passed. Its
+[`verification-artifacts`](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024/artifacts/12400252262)
+artifact is ID `12400252262` with SHA-256
+`c727ed8395aab6cd7d86800c32c030a65272a72b9cd92bef9ee605ca1d0d9939`.
+The CI evidence records 266 discovered and 264 executed GameTests for each
+target, 5 assigned required failures on 1.21.1, 6 on 1.21.4, fresh audit
+reports with confirmed selectors and complete required-mixin application
+evidence, `infrastructureGate=PASS`, and `baselineReview=PASS`. Developer
+manual verification remains **BLOCKED** and full regression remains **FAIL**.

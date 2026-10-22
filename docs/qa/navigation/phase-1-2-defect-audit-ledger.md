@@ -4,8 +4,9 @@ This ledger preserves the completion-oriented correction request verbatim at
 the requirement level. It is created before implementation and is updated
 only with tracked tests, production call traces, generated artifacts, or
 explicit developer evidence. A passing check authored by this correction set
-is not treated as independent evidence. Final-commit Linux evidence and
-developer inspection remain `BLOCKED` until those external actions occur.
+is not treated as independent evidence. Final-commit Linux evidence is
+recorded below; developer inspection remains `BLOCKED` until the required
+manual actions occur.
 
 | ID | Original requirement | Initial evidence and planned correction | Negative coverage / boundary | Status before implementation |
 | --- | --- | --- | --- | --- |
@@ -32,9 +33,9 @@ needed for any remaining blocked item.
 | --- | --- | --- |
 | 1 | **PASS** | `py_compile` passed and the validator suite passed 35 tests. The six required parser cases cover omitted optional zero, explicit zero, nonzero failure, incomplete suite, malformed required result, and inconsistent totals. |
 | 2 | **PASS** | Both target `auditMixins` tasks used the durable `neoforge-<version>.jar`, wrote current-commit reports after fingerprinting, and returned their expected baseline failure. BuildSrc now has 3 task-lifecycle tests covering normal report writing, missing-input diagnostic preservation, exact artifact/SHA, launched classpath, and report identity. Cross-platform sign-off remains blocked under item 3. |
-| 3 | **BLOCKED** | The repository has no authoritative final-commit Linux CI artifact. The latest local validator output uses the current HEAD but rejects the direct GameTest logs because they lack the workflow's exact commit markers and their derived failure set disagrees with the latest audit reports; it cannot be reused as final evidence. Developer action: commit/push this correction set, run the final Linux workflow, attach its artifacts, and rerun the validator against those artifacts. |
+| 3 | **PASS** | Final GitHub Actions run [39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024) passed for commit `cffd0823b1302a782719f9665da69af612a47fee`. Its uploaded `verification-artifacts` artifact is ID `12400252262` (SHA-256 `c727ed8395aab6cd7d86800c32c030a65272a72b9cd92bef9ee605ca1d0d9939`); the workflow validator and infrastructure-gate steps passed. |
 | 4 | **PASS** | The remaining `bankgolemrealselectortargetscontestedgovernorcandidatethroughobstruction` fixture was corrected without changing production targeting or the timeout. The test now registers and validates the real candidate, validates the bank/grace transition, applies one real damage event, observes the normal Mob selector, and removes the owned synthetic player on success or at the existing timeout boundary. Fresh completed full-suite runs on both targets executed the dedicated `ecap_governor_candidate_real_goal` batch without this identity in the required-failure set. The old failure was a fixture lifecycle/order dependency: leaked registered synthetic players and arbitrary/manual selector driving made readiness depend on prior batch state. The remaining baseline failures remain assigned to later phases; no baseline rewrite was made. |
-| 5 | **BLOCKED** | The stale-owner documentation assignment is corrected to 1.21.4 and gate separation is preserved, but no authoritative final-commit Phase 1 artifact set exists. Final Linux evidence is required before the infrastructure gate can be assessed. Full regression remains FAIL while assigned failures remain. |
+| 5 | **PASS** | The final CI report for `cffd0823b1302a782719f9665da69af612a47fee` preserves the corrected 1.21.4 stale-owner assignment, exact baseline comparison, and separate gates. Infrastructure is PASS; developer manual verification remains BLOCKED and full regression remains FAIL while assigned later-phase failures remain. |
 | 6 | **PASS** | `verifyNavigationArchitecture` passed; the regenerated report includes the frozen pumpkin work-cell pipeline and the old per-farmer scanner as a Phase 15 legacy path. No Phase 15 gameplay implementation was added. |
 | 7 | **PASS** | The generated report and source review preserve `farmer-assignment-excludes-bank-employees`, and confirm `VillageRecord.isEligibleFarmer` currently lacks the authoritative bank-employee check. Enforcement remains Phase 11 and end-to-end gameplay verification remains Phase 15. |
 | 8 | **BLOCKED** | Phase 2 artifacts were regenerated and semantically reviewed against current source; the report visibly contains all required pumpkin/bank/legacy/violation entries. Developer inspection is still required and cannot be replaced by generated output or agent review. |
@@ -72,6 +73,20 @@ pre-correction failure is retained as negative evidence and is not treated as
 current success. The current fix does not add a baseline entry, weaken an
 assertion, repeatedly call `targetSelector.tick`, or extend the 200-tick
 timeout.
+
+### Final Linux CI evidence
+
+The final pushed commit was `cffd0823b1302a782719f9665da69af612a47fee`.
+[GitHub Actions run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024)
+completed successfully. The uploaded
+[`verification-artifacts`](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024/artifacts/12400252262)
+artifact is ID `12400252262`, SHA-256
+`c727ed8395aab6cd7d86800c32c030a65272a72b9cd92bef9ee605ca1d0d9939`.
+The workflow validator reported `infrastructureGate=PASS` and
+`baselineReview=PASS`; both runtime GameTest tasks and both mixin-audit tasks
+contained only the exact assigned baseline failures. Manual verification is
+still `BLOCKED`, and the full regression gate remains `FAIL` by design while
+later-phase failures remain.
 
 The interrupted local GameTest runs are retained only as diagnostic context in
 the completion notes, not as passing evidence: each launched, reached a test

@@ -104,3 +104,8 @@ path, and the documented Phase 11 missing eligibility check. This is fresh
 agent evidence only; M2.1 remains **BLOCKED** until the developer opens the
 report, inspects every required row and column, and records the explicit
 two-target manual result.
+
+The final Phase 1 CI run for commit `cffd0823b1302a782719f9665da69af612a47fee`
+also uploaded the Phase 2 ownership report in artifact ID `12400252262`.
+The CI architecture and scanner checks passed; this does not replace the
+developer's required M2.1 inspection.

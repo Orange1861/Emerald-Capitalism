@@ -168,3 +168,9 @@ with 17 producers, 11 transient claim scopes, and 299 production sources. The
 report remains an agent-generated artifact, not independent review or
 developer approval; M2.1 remains `BLOCKED` pending the exact inspection and
 confirmation recorded in the ledger.
+
+The final pushed commit `cffd0823b1302a782719f9665da69af612a47fee` is covered
+by [workflow run 39719238024](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39719238024);
+its uploaded artifact ID is `12400252262`. The CI architecture verification
+passed and the generated report is included in that artifact. This remains an
+agent semantic review, not independent review or developer approval.
