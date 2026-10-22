@@ -208,3 +208,11 @@ reported `infrastructureGate=PASS`, `baselineReview=PASS`, and no evidence
 errors, and the generated report in the artifact contains the corrected
 begging producer relationship. This is automated evidence only; M2.1 remains
 BLOCKED until the developer inspects the report and sends the exact approval.
+
+The later documentation-only follow-up commit
+`96c819a03f4af991850c280f41866fe56ed26a1e` also passed the architecture
+verifier in run [39727676272](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727676272),
+but its Phase 1 evidence validator observed one unassigned 1.21.4 runtime
+identity, `pendingcellsprefernearbyfarmersandseparateassignments`. No gameplay
+source or baseline was changed in response; this remains historical diagnostic
+evidence pending a clean repeat.

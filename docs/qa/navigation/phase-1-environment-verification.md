@@ -23,6 +23,18 @@ assigned later-phase baseline failures. The earlier successful repeat run
 and failed attempt [39725293877](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39725293877)
 are retained as historical diagnostic evidence; neither changed the baseline.
 
+The subsequent documentation-only follow-up commit
+`96c819a03f4af991850c280f41866fe56ed26a1e` was tested by run
+[39727676272](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727676272).
+Its matrix and architecture verifier completed, but the evidence validator
+reported one unassigned 1.21.4 runtime identity,
+`pendingcellsprefernearbyfarmersandseparateassignments`; artifact
+`12403927432` (SHA-256
+`c3cf0df03cb9804e8606aa75eeb2ab501bb54d27d4f2468b32e1d00208b5d427`). No
+baseline entry was added. This is retained as a historical nondeterministic
+diagnostic; the successful `d89a03a` exact-commit result remains the current
+correction evidence pending a clean repeat.
+
 ## Phase 1 gates
 
 The Phase 1 infrastructure gate is separate from the final regression gate.

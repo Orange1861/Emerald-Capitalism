@@ -130,6 +130,15 @@ Its architecture verifier and Phase 1 evidence validator passed with
 M2.1 remains **BLOCKED** solely because generated evidence cannot substitute
 for the developer's required report inspection and approval.
 
+The subsequent documentation-only follow-up commit
+`96c819a03f4af991850c280f41866fe56ed26a1e` passed
+`verifyNavigationArchitecture` in run
+[39727676272](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727676272),
+but the Phase 1 evidence validator found the single unassigned 1.21.4 runtime
+identity `pendingcellsprefernearbyfarmersandseparateassignments`. The baseline
+was not altered; the observation is retained as diagnostic evidence while the
+successful `d89a03a` exact-commit result is repeated.
+
 The current correction adds `registeredBehaviorId: "beg-for-food"` to the
 begging producer. `verifyNavigationArchitecture` checks that this relationship
 resolves to exactly one registered Brain behavior, that its `work package` /

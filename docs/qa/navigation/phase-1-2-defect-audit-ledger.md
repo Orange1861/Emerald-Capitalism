@@ -35,6 +35,18 @@ PASS for 1.21.1 and 1.21.4. The prior successful repeat run 39726266307 is
 retained as historical evidence. M2.1 remains BLOCKED only for the required
 Phase 2 report inspection and exact developer approval.
 
+The documentation-only follow-up commit
+`96c819a03f4af991850c280f41866fe56ed26a1e` was tested by run
+[39727676272](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727676272).
+Its architecture verifier passed, but the Phase 1 evidence validator found one
+unassigned 1.21.4 runtime identity,
+`pendingcellsprefernearbyfarmersandseparateassignments`, in artifact
+`12403927432` (SHA-256
+`c3cf0df03cb9804e8606aa75eeb2ab501bb54d27d4f2468b32e1d00208b5d427`). This
+single observation is retained for review; the regression baseline was not
+changed or weakened, and the successful `d89a03a` run remains the correction
+evidence until a clean repeat completes.
+
 | ID | Original requirement | Initial evidence and planned correction | Negative coverage / boundary | Status before implementation |
 | --- | --- | --- | --- | --- |
 | 1 | Correct optional GameTest parsing: a completed suite with a valid required result and no optional-failure line means zero optional failures; accept explicit zero; reject explicit nonzero; reject missing completion or malformed required results; keep required, optional, and executed totals consistent. | `tools/validate_phase1_evidence.py:parse_gametest` currently marks an omitted optional line invalid. Replace that contract and update the validator tests. | Add omitted-line, explicit-zero, nonzero, incomplete, malformed-required, and inconsistent-total cases. | FAIL |
