@@ -49,6 +49,12 @@ documentation commit `f59e163249129d7d7d82b4caeb8c60a17dafb1c7` in
 [run 39728097576](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728097576),
 with artifact `12403579576` (SHA-256
 `89e5c411e46efcd9a96f543a59e8dedf68d0f039c93015a1a67ea1e4438f92ba`).
+The next wording-only follow-up `1378da99bf9aa212641e32159ff8d146838be71a`
+was tested by [run 39728592224](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728592224);
+its matrix completed but the validator again observed the same existing Phase 8
+farmer fixture identity on 1.21.1. The baseline remains unchanged because clean
+exact-commit runs also pass and adding this flaky observation would weaken the
+regression gate.
 
 | ID | Original requirement | Initial evidence and planned correction | Negative coverage / boundary | Status before implementation |
 | --- | --- | --- | --- | --- |

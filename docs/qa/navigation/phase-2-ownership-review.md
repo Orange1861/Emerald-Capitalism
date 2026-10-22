@@ -219,3 +219,9 @@ evidence. A clean repeat then completed successfully on final documentation
 commit `f59e163249129d7d7d82b4caeb8c60a17dafb1c7` in
 [run 39728097576](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728097576),
 with the architecture verifier and evidence validator passing.
+
+The later wording-only follow-up `1378da99bf9aa212641e32159ff8d146838be71a`
+also passed the architecture verifier in [run 39728592224](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39728592224),
+while the Phase 1 validator recorded the same existing Phase 8 farmer fixture
+identity on 1.21.1. No production source or baseline was changed; the clean
+success remains the authoritative correction evidence.
