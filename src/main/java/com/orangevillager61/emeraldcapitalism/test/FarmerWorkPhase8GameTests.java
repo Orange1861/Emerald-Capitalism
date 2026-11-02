@@ -324,9 +324,29 @@ public final class FarmerWorkPhase8GameTests {
                 helper.absolutePos(new BlockPos(2, 1, 2)),
                 helper.absolutePos(new BlockPos(0, 0, 0)),
                 helper.absolutePos(new BlockPos(20, 3, 8)));
-        BlockPos firstCellWork = helper.absolutePos(new BlockPos(2, 1, 2));
-        BlockPos firstCellExtra = helper.absolutePos(new BlockPos(3, 1, 2));
-        BlockPos secondCellWork = helper.absolutePos(new BlockPos(19, 1, 2));
+        // Work cells are 16-block chunk columns, so fixed local offsets land in
+        // different cells depending on where the test template is placed. Derive
+        // the offsets from the absolute chunk boundary so the two nearby work
+        // blocks always share one cell and the far work block is always in the
+        // next cell, wherever the template is placed.
+        int boundary = Math.floorMod(-helper.absolutePos(BlockPos.ZERO).getX(), 16);
+        int firstLocalX;
+        int extraLocalX;
+        int secondLocalX;
+        if (boundary <= 2) {
+            // The first chunk starts inside the 20-wide template.
+            firstLocalX = boundary + 1;
+            extraLocalX = boundary + 2;
+            secondLocalX = boundary + 17;
+        } else {
+            // The template starts inside a chunk that ends at boundary - 1.
+            firstLocalX = boundary - 2;
+            extraLocalX = boundary - 1;
+            secondLocalX = boundary + 1;
+        }
+        BlockPos firstCellWork = helper.absolutePos(new BlockPos(firstLocalX, 1, 2));
+        BlockPos firstCellExtra = helper.absolutePos(new BlockPos(extraLocalX, 1, 2));
+        BlockPos secondCellWork = helper.absolutePos(new BlockPos(secondLocalX, 1, 2));
         addRepairPosition(village, firstCellWork);
         addRepairPosition(village, firstCellExtra);
         addRepairPosition(village, secondCellWork);
@@ -334,8 +354,8 @@ public final class FarmerWorkPhase8GameTests {
         // Both actors must be valid reachable candidates before dispatch. The
         // previous fixture spawned one entity in the work block and had no
         // floor, so path readiness depended on physics/entity initialization.
-        Villager firstFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(1, 1, 2));
-        Villager secondFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(18, 1, 2));
+        Villager firstFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(firstLocalX - 1, 1, 2));
+        Villager secondFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(secondLocalX - 1, 1, 2));
         awaitPendingFarmerDispatch(helper, village, firstFarmer, secondFarmer,
                 firstCellWork, secondCellWork, 80);
     }
