@@ -517,7 +517,8 @@ public final class MovementRequestManagerRegressionGameTests {
                 helper.assertTrue(villager.blockPosition().distSqr(destination) <= 2.25D
                                 || villager.getNavigation().getPath() != null,
                         "restored route neither progressed nor retained a live path");
-                assertStaleSinkReleasesItsFinishedPath(helper, villager, destination);
+                assertStaleSinkReleasesItsPath(helper, villager, destination, false);
+                assertStaleSinkReleasesItsPath(helper, villager, destination, true);
                 helper.succeed();
             });
         });
@@ -1101,10 +1102,11 @@ public final class MovementRequestManagerRegressionGameTests {
     /**
      * Mirrors a sink that outlives a manager request: its stop stays stale, so it
      * must keep the later WALK_TARGET while releasing the PATH that would otherwise
-     * block every future sink.
+     * block every future sink. A sink can also stop close enough to its target while
+     * navigation is still following that route.
      */
-    private static void assertStaleSinkReleasesItsFinishedPath(GameTestHelper helper, Villager villager,
-                                                               BlockPos destination) {
+    private static void assertStaleSinkReleasesItsPath(GameTestHelper helper, Villager villager,
+                                                       BlockPos destination, boolean liveNavigation) {
         villager.getNavigation().stop();
         villager.getBrain().eraseMemory(MemoryModuleType.PATH);
         villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
@@ -1127,13 +1129,19 @@ public final class MovementRequestManagerRegressionGameTests {
         villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, laterTarget);
         villager.getBrain().setMemory(MemoryModuleType.PATH, finishedPath);
         villager.getNavigation().stop();
+        if (liveNavigation) {
+            helper.assertTrue(villager.getNavigation().moveTo(finishedPath, 0.6D)
+                            && !villager.getNavigation().isDone(),
+                    "fixture could not keep the stale sink's route live");
+        }
 
         finishedSink.stopNow(helper.getLevel(), villager);
         helper.assertTrue(villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
                         .orElse(null) == laterTarget,
                 "stale sink stop erased the later WALK_TARGET");
         helper.assertFalse(villager.getBrain().hasMemoryValue(MemoryModuleType.PATH),
-                "stale sink stop left its finished PATH blocking every future sink");
+                "stale sink stop left its PATH blocking every future sink: liveNavigation="
+                        + liveNavigation);
     }
 
     private static final class TestableMoveToTargetSink extends MoveToTargetSink {
