@@ -9,7 +9,21 @@ failure must not be hidden by a manual success.
 
 ## Current exact-commit status
 
-The current exact-commit workflow is
+[GitHub Actions run 41580930810](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/41580930810)
+for commit `ca64c219be74145bd1207c45bbcadaebd87efe6e` completed successfully.
+Its `verification-artifacts` artifact is ID `13205338363`, SHA-256
+`fb96c81a7f055bdd8028dfdf6e9ebbd41ef1c0b53a737c43454b9095eb2ca912`.
+The validator and infrastructure-enforcement steps passed. Locally on Windows,
+five passes on that commit each produced exactly the assigned baseline failures
+with 266 tests discovered and 264 executed per target; four reported
+`infrastructureGate=PASS`. The other pass failed the validator because its
+1.21.4 audit crossed local midnight, and the log rollover removed the early
+selector and mixin lines from the `latest.log` that the audit parses. That
+rollover sensitivity remains in the audit task.
+
+The evidence below for earlier commits is retained as history.
+
+The previous exact-commit workflow was
 [Build run 39727080700](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/39727080700)
 for commit `d89a03a10e492ee5df1ba343ecf155a5fc9f993f`. It completed
 successfully. Its uploaded `verification-artifacts` artifact is ID

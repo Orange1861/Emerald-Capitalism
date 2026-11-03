@@ -8,6 +8,36 @@ is not treated as independent evidence. Final-commit Linux evidence is
 recorded below; the latest exact-commit attempt is recorded below; developer inspection remains `BLOCKED` until the required
 manual actions occur.
 
+## Stale-sink freeze correction
+
+`starvingVillagerBegsAndReceivesFood` failed intermittently because a real
+movement defect froze the villager. A `MoveToTargetSink` that outlived a movement
+request became stale, and cancelling its stop also skipped vanilla's PATH cleanup.
+MoveToTargetSink cannot start while PATH is present and begging cannot start while
+WALK_TARGET is present, so the villager held a WALK_TARGET it could never pursue.
+`MovementRequestManager.releaseStaleSinkPath` now erases the stale sink's own PATH
+and leaves newer state alone. The regression assertions in
+`changedRequestDoesNotAdoptEqualForeignWalkTargetAndCancelRestoresIt` were each
+observed failing before their fix, including the live-navigation case.
+
+`pendingCellsPreferNearbyFarmersAndSeparateAssignments`,
+`virusZombieAlwaysDropsTransferredEquipment`, and
+`resourceScanIncludesNearestEmeraldProcessorInventory` were fixture defects: a
+UUID-decided distance tie, a mock player converting at the shared world origin,
+and a bank search box reaching a neighboring test structure. The regression
+baseline is unchanged.
+
+Across 100 local suite runs with the final movement fix (80 with temporary
+tracing, 20 on the exact commit), no failure outside the assigned baseline
+occurred. [GitHub Actions run 41580930810](https://github.com/Orange1861/Emerald-Capitalism/actions/runs/41580930810)
+for commit `ca64c219be74145bd1207c45bbcadaebd87efe6e` completed successfully.
+Its `verification-artifacts` artifact is ID `13205338363`, SHA-256
+`fb96c81a7f055bdd8028dfdf6e9ebbd41ef1c0b53a737c43454b9095eb2ca912`.
+
+During begging's interaction countdown, other WORK behavior can still publish a
+WALK_TARGET and reset the countdown. This delays the transfer without preventing
+it and is left to Phase 21.
+
 ## Latest exact-commit attempt
 
 Commit `df8efc416d38d40111ac0fe43feccdd582299a94` was tested by
