@@ -481,3 +481,16 @@ ordinary-world confirmation remains separate and is recorded above as
 **Phase 1 manual smoke check PASS for 1.21.1 and 1.21.4**. The Phase 24 full
 regression gate remains **FAIL / not complete** by design while those assigned
 later-phase failures remain.
+
+## Developer manual re-verification after the movement-sink fix (2026-11-03)
+
+The `MovementRequestManager` / `MoveToTargetSinkMixin` fix (commit
+`ca64c219`) changed villager movement after the earlier ordinary-world smoke
+check. On 2026-11-03 the developer wrote in the project thread: "run client
+worked". This is recorded as developer-supplied evidence that the ordinary-world
+`runClient` check passed after that change. The message did not say which
+targets were run; the run sheet above covers 1.21.1 and 1.21.4. Automated
+evidence for the same commit: CI run 41580930810 passed, including the Phase 1
+infrastructure gate, with GameTest failures limited to the tracked baseline.
+The Phase 24 full-regression gate remains FAIL by design.
+
