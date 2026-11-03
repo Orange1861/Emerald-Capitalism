@@ -203,6 +203,35 @@ class NavigationArchitectureScannerTest {
         assertTrue(errors.any { it.contains('unrelated owner category') })
     }
 
+    @Test
+    void testRejectsSessionReleaseOutsideItsOwner() {
+        assertTrue(sessionCleanupErrors('fixture/Other.java', 'Claims.release(villager);')
+                .any { it.contains('Claims.release') })
+    }
+
+    @Test
+    void testRejectsSessionReleaseThroughWhitespaceOrMethodReference() {
+        assertFalse(sessionCleanupErrors('fixture/Other.java', 'Claims\n    .release(villager);').isEmpty())
+        assertFalse(sessionCleanupErrors('fixture/Other.java', 'list.forEach(Claims::release);').isEmpty())
+    }
+
+    @Test
+    void testAcceptsSessionReleaseInOwnerAndDefiningType() {
+        assertTrue(sessionCleanupErrors('fixture/Owner.java', 'Claims.release(villager);').isEmpty())
+        assertTrue(sessionCleanupErrors('fixture/Claims.java', 'Claims.release(villager);').isEmpty())
+    }
+
+    @Test
+    void testIgnoresSessionReleaseNamesInLiteralsAndUnrelatedMethods() {
+        assertTrue(sessionCleanupErrors('fixture/Other.java', 'log("Claims.release(x)");').isEmpty())
+        assertTrue(sessionCleanupErrors('fixture/Other.java', 'Claims.releaseLater(villager);').isEmpty())
+    }
+
+    private List<String> sessionCleanupErrors(String path, String source) {
+        NavigationArchitectureScanner.validateSessionCleanupCalls(
+                path, source, 'fixture/Owner.java', ['Claims.release'])
+    }
+
     private void assertUnauthorized(String source, Closure configure) {
         Map options = [:]
         configure.call(options)

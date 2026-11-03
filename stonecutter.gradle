@@ -532,6 +532,15 @@ tasks.register('verifyNavigationArchitecture') {
             errors.addAll(NavigationArchitectureScanner.validateSource(
                     sourcePath, file(sourcePath).getText('UTF-8'), scannerOptions))
         }
+        Map sessionCleanup = manifest.sessionCleanup as Map
+        String sessionCleanupOwner = text(sessionCleanup?.owner)
+        List<String> sessionReleaseCalls = asList(sessionCleanup?.releaseCalls).collect { it.toString() }
+        if (!file(sessionCleanupOwner).isFile()) errors.add("sessionCleanup.owner references a missing source: ${sessionCleanupOwner}")
+        if (sessionReleaseCalls.isEmpty()) errors.add('sessionCleanup.releaseCalls must not be empty')
+        productionSources.each { String sourcePath ->
+            errors.addAll(NavigationArchitectureScanner.validateSessionCleanupCalls(
+                    sourcePath, file(sourcePath).getText('UTF-8'), sessionCleanupOwner, sessionReleaseCalls))
+        }
         def gitOutput = { List<String> args ->
             Process process = (['git'] + args).execute(null, project.projectDir)
             String output = process.text

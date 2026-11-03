@@ -3,16 +3,14 @@ package com.orangevillager61.emeraldcapitalism;
 import com.orangevillager61.emeraldcapitalism.command.VillageCommand;
 import com.orangevillager61.emeraldcapitalism.command.VillageLocateCommand;
 import com.orangevillager61.emeraldcapitalism.command.AbandonedVaultLocateCommand;
+import com.orangevillager61.emeraldcapitalism.command.StateReloadScenarioCommand;
 import com.orangevillager61.emeraldcapitalism.command.SteveGraveLocateCommand;
 import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
 import com.orangevillager61.emeraldcapitalism.event.SteveGraveEvents;
 import com.orangevillager61.emeraldcapitalism.event.VillageDetectionHandler;
 import com.orangevillager61.emeraldcapitalism.event.VillageRegistryEvents;
-import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
-import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
-import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackTreeReservations;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerSessionCleanup;
 import com.orangevillager61.emeraldcapitalism.network.ECAPNetworking;
 import com.orangevillager61.emeraldcapitalism.network.ManualVillageScanBudget;
 import com.orangevillager61.emeraldcapitalism.network.POIOverlaySubscriptions;
@@ -26,7 +24,6 @@ import com.orangevillager61.emeraldcapitalism.util.VillagerNameManager;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameRefreshScheduler;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.util.SharedScanGenerationBudget;
-import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.naming.data.RootLexiconRegistry;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
@@ -124,21 +121,14 @@ public class EmeraldCapitalism {
         ManualVillageScanBudget.clearAll();
         VillagePOIDataCache.clearAll();
         POIOverlaySubscriptions.clearAll();
-        VillageRegistryEvents.clearManagers();
-        VillagerBreedingSessions.clearAll();
-        LumberjackTreeReservations.clearAll();
-        LumberjackSaplingCache.clearAll();
+        VillagerSessionCleanup.releaseAll(recordServerShutdown
+                ? MovementRequestTerminationReason.SERVER_SHUTDOWN : null);
         SharedScanGenerationBudget.clearAll();
         if (!recordServerShutdown) {
             PerformanceTimingCounters.clear();
         }
         VillageDetectionHandler.clearPendingWork();
         SteveGraveEvents.clearPendingWork();
-        MovementRequestManager.clearAll(recordServerShutdown
-                ? MovementRequestTerminationReason.SERVER_SHUTDOWN : null);
-        // Manager shutdown accounts for active requests once. Lifecycle hooks
-        // run afterward and their now-stale handles cannot add ABANDONED.
-        VillagerBehaviorRegistry.clearBindings();
     }
 
     @SubscribeEvent
@@ -147,5 +137,6 @@ public class EmeraldCapitalism {
         VillageLocateCommand.register(event.getDispatcher());
         AbandonedVaultLocateCommand.register(event.getDispatcher());
         SteveGraveLocateCommand.register(event.getDispatcher());
+        StateReloadScenarioCommand.register(event.getDispatcher());
     }
 }

@@ -6,23 +6,76 @@ manual-verification, and Gate requirement in
 It was created before Phase 3 implementation and is updated only with repository
 evidence. Agent review recorded here is a self-review, not an independent review.
 
+Tests named below are in `VillagerSessionCleanupGameTests` unless stated otherwise
+and run under `.\gradlew :1.21.1:runGameTestServer` and
+`.\gradlew :1.21.4:runGameTestServer`.
+
 ## Requirement ledger
 
 | ID | Original requirement | Implementation or decision | Automated evidence | Negative or adversarial case | Developer observation | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| W3.1 | Define task records that persist only player-meaningful progress. | Existing durable owners remain the task records; no parallel task-record model is added, because the production task contract belongs to Phase 11. Execution-only fields are removed from their schemas. | Pending. | An encoded attachment must not contain begging session fields. | None. | BLOCKED |
-| W3.2 | Make leases, movement attempts, retries, ladder claims, and path-analysis caches session-local. | Pending audit below. | Pending. | A decoded village must have no lease or claim. | None. | BLOCKED |
-| W3.3 | Centralize cleanup for death/removal, profession change, dimension change, level unload, and server stop. | `VillagerSessionCleanup` owns these boundaries. | Pending. | A bystander's state must survive each boundary. | None. | BLOCKED |
-| W3.4 | Ensure cleanup is keyed by village, profession, villager UUID, task, and world/dimension where applicable. | Pending. | Pending. | One village cannot release another's work; one level's unload cannot release another's. | None. | BLOCKED |
-| A3.1 | Add save/reload tests proving durable task progress survives where intended while transient ownership does not. | Pending. | Pending. | Pending. | None. | BLOCKED |
-| A3.2 | Add lifecycle tests for each cleanup boundary and negative tests showing one village cannot release another village's work. | Pending. | Pending. | Pending. | None. | BLOCKED |
-| M3.1 | Temporary `state_reload` scenario, mid-job marker, read-only lease inspection, Save and Quit, reload; the same villager safely resumes or reacquires once with no duplicated world effect, frozen movement, or pre-reload transient claim. | Pending. | Not applicable. | Not applicable. | Required from the developer. | BLOCKED |
-| G3.1 | All transient state has a single cleanup owner and no execution-only record is serialized as authoritative gameplay state. | Pending. | Pending. | A release call outside the cleanup owner must be rejected. | None. | BLOCKED |
+| W3.1 | Define task records that persist only player-meaningful progress. | The existing durable owners below are the task records; no parallel task-record model is added, because the production task contract belongs to Phase 11. `beg_time` and `beg_donor_uuid` are removed from the `VillagerStatsAttachment` schema. | `savedStatsKeepBegCooldownButNotTheLiveBeggingSession`; `savedVillageKeepsWorkInventoryButNoLeaseOrClaim`. | A save that still contains the old begging fields decodes with no live session. | None. | PASS |
+| W3.2 | Make leases, movement attempts, retries, ladder claims, and path-analysis caches session-local. | The transient audit below records each as in-memory only. Door claims gained an owner so they can be released per villager. | `savedVillageKeepsWorkInventoryButNoLeaseOrClaim`; `BankGameplayGameTests` asserts the construction slot is not encoded. | A decoded village has no lease, repair claim, or door claim. | None. | PASS |
+| W3.3 | Centralize cleanup for death/removal, profession change, dimension change, level unload, and server stop. | `VillagerSessionCleanup` receives `EntityLeaveLevelEvent`, `LivingDeathEvent`, `LevelEvent.Unload`, and the profession seam in `VillagerNameRefreshMixin`; `EmeraldCapitalism.clearServerSessionState` delegates server stop to it. | `removalReleases…`, `deathReleases…`, `professionChangeEnds…`, `dimensionChangeReleases…`, `levelUnloadReleases…`, and `ZzzServerStopLifecycleGameTests`. | A bystander's state survives each boundary. Disabling the owner made the five boundary tests fail (observed once, recorded in the commit trail, not a permanent fixture). | None. | PASS |
+| W3.4 | Ensure cleanup is keyed by village, profession, villager UUID, task, and world/dimension where applicable. | Village work and door claims release per `VillageRecord` and villager UUID; tree reservations per level and UUID; ladder claims per dimension and villager. Profession change releases work but keeps the route-level ladder claim and social sessions. Village and profession keys on tree, sapling, furnace, and construction claims stay with Phases 17, 18, and 20 as already frozen. | `oneVillageCannotReleaseAnotherVillagesWork`; `levelUnloadReleasesOnlyThatLevelsSessionState`; `professionChangeEndsOldWorkButNotTheLadderTraversal`. | A foreign village's release returns false and changes nothing; one level's unload leaves the other level's state; an unchanged profession releases nothing. | None. | PASS |
+| A3.1 | Add save/reload tests proving durable task progress survives where intended while transient ownership does not. | Round trips through the real codecs. | `savedStatsKeep…`; `savedVillageKeeps…`; `stateReloadScenarioReachesALeaseAndInspectionDoesNotChangeIt`; the existing bank persistence test. | Durable repair and missing-door work survive; lease and claims do not. | None. | PASS |
+| A3.2 | Add lifecycle tests for each cleanup boundary and negative tests showing one village cannot release another village's work. | Each boundary uses its real entry point; level unload calls the production handler with a real event for the Nether only, so the shared overworld fixture is not torn down. | The tests under W3.3 and W3.4. | `oneVillageCannotReleaseAnotherVillagesWork`. | None. | PASS |
+| M3.1 | Temporary `state_reload` scenario, mid-job marker, read-only lease inspection, Save and Quit, reload; the same villager safely resumes or reacquires once, with no duplicated world effect, frozen movement, or pre-reload transient claim. | `/ecapscenario state_reload start` and `inspect`. The run sheet is below. | `stateReloadScenario…` proves the scenario reaches a lease and that inspection is read-only; it does not replace the manual reload. | Not applicable. | **Required from the developer.** | BLOCKED |
+| G3.1 | All transient state has a single cleanup owner and no execution-only record is serialized as authoritative gameplay state. | `sessionCleanup` in `gradle/navigation-architecture.json` lists every release call; `validateSessionCleanupCalls` rejects any use outside the owner or defining type. | `verifyNavigationArchitecture`; `NavigationArchitectureScannerTest`. | Fixtures reject a call outside the owner, through whitespace, and through a method reference, and accept the owner and defining type. | None. | PASS for the automated gate; Phase 3 remains incomplete until M3.1. |
+
+The baseline's test counts and identity hash were updated deliberately for the new
+tests (275 discovered, 273 executed). Its expected-failure list is unchanged.
 
 ## Audit of persisted task state
 
-Pending.
+| Owner | Durable fields | Decision |
+| --- | --- | --- |
+| `VillageRecord` / `VillageWorkCell` | Farmland registry, repair and mature-crop work, door registry, missing doors, members, governance, opinions | Player-meaningful progress; kept. |
+| `VillagerStatsAttachment` | Hunger timers, `last_beg_time`, naming, family, emerald balance | Kept. The cooldown is a gameplay invariant. |
+| `VillagerStatsAttachment` | `beg_time`, `beg_donor_uuid` | **Execution-only; removed from the schema.** |
+| `LumberjackProductionAttachment` | Charcoal quota, pending furnace position | Kept, as frozen in Phase 2. |
+| `BankBlockEntity` | Identity, employees, chest and processor positions, construction site, takeover lock, control settings | Kept. The construction slot owner was already absent. |
+| `BankAccountData` | Balances and numbering | Kept; holds no task claims. |
 
 ## Audit of transient state
 
-Pending.
+| State | Location | Cleanup |
+| --- | --- | --- |
+| Work-cell leases, roster, repair and crop claims | `VillageRecord` fields | Owner, through `VillageRegistryManager.releaseVillagerWork` and `shutdown` |
+| Door claims and their owners | `VillageRecord` fields | Owner, through `releaseDoorClaims` and `shutdown` |
+| Movement requests, attempts, and retry cooldowns | `MovementRequestManager.STATES` | Owner |
+| Behavior bindings | `VillagerBehaviorRegistry` | Owner |
+| Ladder claims and active exits | `VillagerLadderClaims` | Owner; block invalidation and stale purge stay with `VillagerLadderClaimEvents` |
+| Tree reservations and sapling ownership | `LumberjackTreeReservations`, `LumberjackSaplingCache` | Owner. An unloaded lumberjack keeps its saplings. |
+| Breeding sessions | `VillagerBreedingSessions` | Owner |
+| Begging session | `VillagerStatsAttachment` in-memory fields | Owner on removal and death. A profession change keeps it. |
+| Bank construction slot | `BankBlockEntity` field | Owner |
+| Parent-assignment retries | `VillagerSpawnEvents` | Owner on leave and server stop (production trace; no dedicated test) |
+| Fence-gate use cache | `InteractWithFenceGateBehavior` | Owner, through `VillageRegistryEvents` |
+| Path and retry fields inside goals and behaviors | Goal instances | End with the entity |
+| Tree scan budget | `LumberjackTreeScanner` | Weakly keyed by level; not ownership |
+| Wandering trader ladder caches | `WanderingTraderEvents` | Non-villager exception with its own single owner |
+
+## Developer run sheet for M3.1
+
+Use a disposable Superflat Creative world with cheats enabled, on 1.21.1:
+
+1. `.\gradlew :1.21.1:runClient --no-daemon --no-configuration-cache --console=plain`
+2. Create the world, stand on open ground away from any village, and run
+   `/gamerule doDaylightCycle false`, `/time set day`, then
+   `/ecapscenario state_reload start`.
+3. Watch the game log for `[ECAP][StateReload] MID_JOB`. It appears once the farmer
+   holds a work lease, normally within a few seconds.
+4. Stand inside the scene and run `/ecapscenario state_reload inspect`. Note the
+   `leases=[...]` value and `durableRepairs`.
+5. Use Save and Quit to Title, close the game, run the same command as step 1, and
+   reopen the world.
+6. Run the inspect command straight away, and again after about 30 seconds.
+
+**Pass:** right after reload `leases=[]` or the same single farmer; after 30 seconds
+exactly one lease, held by the same farmer UUID; `durableRepairs` never rises; the
+farmer keeps moving instead of freezing; no crash or mixin error in the log.
+
+The same log query works from outside the game:
+`Select-String -Path run\logs\latest.log -Pattern "StateReload"`, using the log for
+the target you launched.

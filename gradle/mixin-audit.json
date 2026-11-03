@@ -48,11 +48,12 @@
       "side": "server",
       "auditMode": "gametest",
       "mixins": ["VillagerNameRefreshMixin"],
-      "invariant": "Profession changes and age-boundary transitions schedule exactly the derived-name refreshes that affect villager presentation and persistence.",
+      "invariant": "Profession changes release the old profession's transient work, and profession changes and age-boundary transitions schedule exactly the derived-name refreshes that affect villager presentation and persistence.",
       "tests": [
         "villagernamerefreshgametests.professionmutationrefreshesderivedname",
         "villagernamerefreshgametests.villagerenamerefreshesonlythroughoriginindex",
-        "villagernamerefreshgametests.ageboundaryrefreshesderivedname"
+        "villagernamerefreshgametests.ageboundaryrefreshesderivedname",
+        "villagersessioncleanupgametests.professionchangeendsoldworkbutnottheladdertraversal"
       ],
       "target": "net.minecraft.world.entity.npc.Villager#setVillagerData and #ageBoundaryReached",
       "injectionPoint": "HEAD of setVillagerData after a profession comparison; TAIL of ageBoundaryReached",

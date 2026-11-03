@@ -1059,6 +1059,13 @@ public final class BankGameplayGameTests {
                         && !saved.contains("active_golem_construction_villager"),
                 "derived caches or transient work state were persisted");
 
+        BankBlockEntity.releaseGolemConstructionOwner(level, UUID.randomUUID());
+        helper.assertTrue(CONSTRUCTION_VILLAGER.equals(original.getActiveGolemConstructionVillager()),
+                "another villager's cleanup released this construction slot");
+        BankBlockEntity.releaseGolemConstructionOwner(level, CONSTRUCTION_VILLAGER);
+        helper.assertTrue(original.getActiveGolemConstructionVillager() == null,
+                "owner cleanup did not release the construction slot");
+
         BlockEntity loadedEntity = BlockEntity.loadStatic(bankPos, bankState, saved, level.registryAccess());
         if (!(loadedEntity instanceof BankBlockEntity restored)) {
             helper.fail("real block-entity save/reload did not recreate the bank");

@@ -44,6 +44,18 @@ public class VillagerSpawnEvents {
     private static final Map<UUID, Integer> PENDING_PARENT_ASSIGNMENT_RETRIES = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> PARENT_ASSIGNMENT_READY_TIME = new ConcurrentHashMap<>();
 
+    /** Called by the session cleanup owner when a baby leaves before its retry completes. */
+    public static void releaseParentAssignmentRetries(UUID villagerId) {
+        PENDING_PARENT_ASSIGNMENT_RETRIES.remove(villagerId);
+        PARENT_ASSIGNMENT_READY_TIME.remove(villagerId);
+    }
+
+    /** Called by the session cleanup owner at server lifecycle boundaries. */
+    public static void clearParentAssignmentRetries() {
+        PENDING_PARENT_ASSIGNMENT_RETRIES.clear();
+        PARENT_ASSIGNMENT_READY_TIME.clear();
+    }
+
     /** Handles finalization of structure and spawn-egg villager babies. */
     @SubscribeEvent
     public static void onVillagerSpawn(FinalizeSpawnEvent event) {

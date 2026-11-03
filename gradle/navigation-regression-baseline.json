@@ -3,14 +3,14 @@
   "description": "Exact Phase 1 navigation regression baseline. These failures are expected only as explicitly assigned later-phase gameplay work; any set difference requires review.",
   "targets": {
     "1.21.1": {
-      "staticGameTestsDiscovered": 266,
-      "gameTestsExecuted": 264,
-      "discoveredTestsSha256": "8c2595ed2939ba4eb2cf2f72ffb570865cb9f95c4ed6518e15fef8155179c0c9"
+      "staticGameTestsDiscovered": 275,
+      "gameTestsExecuted": 273,
+      "discoveredTestsSha256": "7eaf82591441d18d313e7a3ec302f198bb4f692ec52c3bc3bc257a2b2de32c27"
     },
     "1.21.4": {
-      "staticGameTestsDiscovered": 266,
-      "gameTestsExecuted": 264,
-      "discoveredTestsSha256": "8c2595ed2939ba4eb2cf2f72ffb570865cb9f95c4ed6518e15fef8155179c0c9"
+      "staticGameTestsDiscovered": 275,
+      "gameTestsExecuted": 273,
+      "discoveredTestsSha256": "7eaf82591441d18d313e7a3ec302f198bb4f692ec52c3bc3bc257a2b2de32c27"
     }
   },
   "expectedGameplayFailures": [

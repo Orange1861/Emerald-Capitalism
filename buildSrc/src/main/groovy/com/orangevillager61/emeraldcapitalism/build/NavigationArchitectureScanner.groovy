@@ -214,6 +214,34 @@ final class NavigationArchitectureScanner {
     }
 
     /**
+     * Only the session cleanup owner and the type that defines a release call may
+     * use it, so a lifecycle boundary cannot grow a second owner.
+     */
+    static List<String> validateSessionCleanupCalls(String sourcePath, String source,
+                                                    String ownerPath, Collection<String> releaseCalls) {
+        String normalized = normalize(sourcePath)
+        if (normalized == normalize(ownerPath)) {
+            return []
+        }
+        String code = stripJavaLiterals(source)
+        List<String> errors = []
+        releaseCalls.each { String call ->
+            int separator = call.indexOf('.')
+            String type = call.substring(0, separator)
+            String method = call.substring(separator + 1)
+            if (normalized.endsWith("/${type}.java") || normalized == "${type}.java") {
+                return
+            }
+            Pattern usage = Pattern.compile(
+                    "\\b${Pattern.quote(type)}\\s*(?:\\.|::)\\s*${Pattern.quote(method)}\\b")
+            if (usage.matcher(code).find()) {
+                errors << "session cleanup call ${call} outside its owner: ${normalized}"
+            }
+        }
+        errors
+    }
+
+    /**
      * Validates an explicit producer-to-Brain-behavior relationship. The
      * relationship is structural so a stale prose scheduler cannot silently
      * contradict the registered package/activity owner.

@@ -654,13 +654,13 @@ public class VillageRegistryManager {
     }
 
     /** Removes a villager from transient farmer rosters when its entity unloads. */
-    public void handleVillagerLeave(Villager villager) {
+    public void releaseVillagerWork(UUID villagerUUID) {
         if (registryData == null) {
             registryData = VillageRegistryData.get(level);
         }
-        UUID villagerUUID = villager.getUUID();
         for (VillageRecord village : registryData.getVillages().values()) {
             village.removeFarmerFromRoster(villagerUUID);
+            village.releaseDoorClaims(villagerUUID);
         }
     }
 
