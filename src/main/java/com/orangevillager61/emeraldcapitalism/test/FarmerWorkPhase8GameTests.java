@@ -333,16 +333,22 @@ public final class FarmerWorkPhase8GameTests {
         int firstLocalX;
         int extraLocalX;
         int secondLocalX;
+        int secondFarmerLocalX;
         if (boundary <= 2) {
             // The first chunk starts inside the 20-wide template.
             firstLocalX = boundary + 1;
             extraLocalX = boundary + 2;
             secondLocalX = boundary + 17;
+            secondFarmerLocalX = secondLocalX - 1;
         } else {
             // The template starts inside a chunk that ends at boundary - 1.
             firstLocalX = boundary - 2;
             extraLocalX = boundary - 1;
             secondLocalX = boundary + 1;
+            // Stay on the far side of the second work block. Standing next to
+            // the chunk boundary would tie both farmers at distance 1 from the
+            // first cell, and the dispatcher breaks that tie by random UUID.
+            secondFarmerLocalX = secondLocalX + 1;
         }
         BlockPos firstCellWork = helper.absolutePos(new BlockPos(firstLocalX, 1, 2));
         BlockPos firstCellExtra = helper.absolutePos(new BlockPos(extraLocalX, 1, 2));
@@ -355,7 +361,7 @@ public final class FarmerWorkPhase8GameTests {
         // previous fixture spawned one entity in the work block and had no
         // floor, so path readiness depended on physics/entity initialization.
         Villager firstFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(firstLocalX - 1, 1, 2));
-        Villager secondFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(secondLocalX - 1, 1, 2));
+        Villager secondFarmer = spawnRegisteredFarmer(helper, village, new BlockPos(secondFarmerLocalX, 1, 2));
         awaitPendingFarmerDispatch(helper, village, firstFarmer, secondFarmer,
                 firstCellWork, secondCellWork, 80);
     }

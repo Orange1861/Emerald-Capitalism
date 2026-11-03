@@ -232,7 +232,8 @@ tasks.register('verifyRegressionCoverage') {
 tasks.register('verifyNavigationScannerTests', Exec) {
     group = 'verification'
     description = 'Runs permanent in-memory adversarial tests for the Phase 2 architecture scanner.'
-    String gradleCommand = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows') ? 'gradlew.bat' : './gradlew'
+    // Windows process creation does not resolve a relative command against workingDir.
+    String gradleCommand = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows') ? file('gradlew.bat').absolutePath : './gradlew'
     workingDir project.projectDir
     commandLine gradleCommand, '-p', 'buildSrc', 'test', '--no-daemon', '--no-configuration-cache', '--console=plain'
 }

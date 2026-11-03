@@ -8,6 +8,7 @@ import com.orangevillager61.emeraldcapitalism.registry.ECAPItems;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPPotions;
 import com.orangevillager61.emeraldcapitalism.util.EntityDamageUtils;
 import com.orangevillager61.emeraldcapitalism.util.ItemDescriptionCompat;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
@@ -208,6 +209,10 @@ public final class ZombieVirusGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void virusZombieAlwaysDropsTransferredEquipment(GameTestHelper helper) {
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        // A mock player starts at the world origin, where the converted zombie
+        // would share space with entities from concurrent tests.
+        BlockPos fixturePos = helper.absolutePos(new BlockPos(1, 1, 1));
+        player.moveTo(fixturePos.getX() + 0.5D, fixturePos.getY(), fixturePos.getZ() + 0.5D);
         player.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_SWORD));
         player.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
         player.addEffect(new MobEffectInstance(

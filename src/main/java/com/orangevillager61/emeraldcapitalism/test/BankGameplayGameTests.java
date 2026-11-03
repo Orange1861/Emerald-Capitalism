@@ -1304,10 +1304,14 @@ public final class BankGameplayGameTests {
     @GameTest(template = "empty_20x3x20")
     public static void resourceScanIncludesNearestEmeraldProcessorInventory(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos bankPos = helper.absolutePos(new BlockPos(1, 1, 1));
-        BlockPos processorPos = helper.absolutePos(new BlockPos(1, 1, 2));
-        helper.setBlock(new BlockPos(1, 1, 1), ECAPBlocks.BANK.get().defaultBlockState());
-        helper.setBlock(new BlockPos(1, 1, 2), ECAPBlocks.EMERALD_ORE_PROCESSOR.get().defaultBlockState());
+        // Centered so the bank's search box stays inside this template. Exact
+        // totals would otherwise include chests from neighboring test structures.
+        BlockPos bankLocalPos = new BlockPos(9, 1, 9);
+        BlockPos processorLocalPos = new BlockPos(9, 1, 10);
+        BlockPos bankPos = helper.absolutePos(bankLocalPos);
+        BlockPos processorPos = helper.absolutePos(processorLocalPos);
+        helper.setBlock(bankLocalPos, ECAPBlocks.BANK.get().defaultBlockState());
+        helper.setBlock(processorLocalPos, ECAPBlocks.EMERALD_ORE_PROCESSOR.get().defaultBlockState());
 
         BankBlockEntity bank = bankAt(helper, bankPos);
         BlockEntity blockEntity = level.getBlockEntity(processorPos);
