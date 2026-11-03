@@ -517,6 +517,7 @@ public final class MovementRequestManagerRegressionGameTests {
                 helper.assertTrue(villager.blockPosition().distSqr(destination) <= 2.25D
                                 || villager.getNavigation().getPath() != null,
                         "restored route neither progressed nor retained a live path");
+                assertStaleSinkReleasesItsFinishedPath(helper, villager, destination);
                 helper.succeed();
             });
         });
@@ -1095,6 +1096,44 @@ public final class MovementRequestManagerRegressionGameTests {
         }
         helper.runAfterDelay(1, () -> awaitUnmanagedEscapeRoute(helper, villager, escape,
                 destination, staleSink, remainingTicks - 1));
+    }
+
+    /**
+     * Mirrors a sink that outlives a manager request: its stop stays stale, so it
+     * must keep the later WALK_TARGET while releasing the PATH that would otherwise
+     * block every future sink.
+     */
+    private static void assertStaleSinkReleasesItsFinishedPath(GameTestHelper helper, Villager villager,
+                                                               BlockPos destination) {
+        villager.getNavigation().stop();
+        villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+        villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                new WalkTarget(new BlockPosTracker(destination), 0.6F, 0));
+        TestableMoveToTargetSink finishedSink = new TestableMoveToTargetSink();
+        helper.assertTrue(finishedSink.checkAndStart(helper.getLevel(), villager),
+                "fixture sink did not start a route to strand");
+        Path finishedPath = villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null);
+        helper.assertTrue(finishedPath != null, "fixture sink did not publish PATH");
+
+        MovementRequestSubmission request = MovementRequestManager.submit(villager,
+                spec("regression:stale-finished-path", "stale-finished", destination,
+                        MovementRequestManager.PRIORITY_WORK));
+        helper.assertTrue(request.accepted(), "epoch-changing request was rejected");
+        helper.assertTrue(MovementRequestManager.cancel(villager, request.handle(),
+                        MovementRequestTerminationReason.ABANDONED),
+                "epoch-changing request could not be canceled");
+        WalkTarget laterTarget = new WalkTarget(new BlockPosTracker(destination), 0.6F, 0);
+        villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET, laterTarget);
+        villager.getBrain().setMemory(MemoryModuleType.PATH, finishedPath);
+        villager.getNavigation().stop();
+
+        finishedSink.stopNow(helper.getLevel(), villager);
+        helper.assertTrue(villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
+                        .orElse(null) == laterTarget,
+                "stale sink stop erased the later WALK_TARGET");
+        helper.assertFalse(villager.getBrain().hasMemoryValue(MemoryModuleType.PATH),
+                "stale sink stop left its finished PATH blocking every future sink");
     }
 
     private static final class TestableMoveToTargetSink extends MoveToTargetSink {

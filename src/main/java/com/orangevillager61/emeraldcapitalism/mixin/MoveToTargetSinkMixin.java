@@ -122,6 +122,7 @@ public abstract class MoveToTargetSinkMixin {
         if (MovementRequestManager.isStaleVanillaSink(
                 owner, emeraldCapitalism$capturedSinkEpoch,
                 emeraldCapitalism$capturedWalkTarget)) {
+            MovementRequestManager.releaseStaleSinkPath(owner, path);
             callback.cancel();
         }
     }

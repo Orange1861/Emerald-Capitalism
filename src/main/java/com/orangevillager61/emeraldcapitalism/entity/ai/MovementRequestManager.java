@@ -512,6 +512,30 @@ public final class MovementRequestManager {
         return state.foreignSnapshotInitialized && currentWalkTarget != null;
     }
 
+    /**
+     * Cancelling a stale sink's stop also skips vanilla's PATH cleanup. MoveToTargetSink
+     * cannot start while PATH is present, so a finished route left behind by that sink
+     * would freeze the villager while any WALK_TARGET remains.
+     */
+    public static void releaseStaleSinkPath(Mob owner, @Nullable Path sinkPath) {
+        Objects.requireNonNull(owner, "owner");
+        if (!(owner instanceof Villager villager) || sinkPath == null
+                || villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null) != sinkPath) {
+            return;
+        }
+        if (villager.getNavigation().getPath() == sinkPath && !sinkPath.isDone()) {
+            return;
+        }
+        State state = STATES.get(villager);
+        if (state != null && state.activeHandle != null && state.ownedPath == sinkPath) {
+            return;
+        }
+        villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+        if (state != null) {
+            snapshotMemoryState(villager, state);
+        }
+    }
+
     /** Records the exact route object installed by MoveToTargetSink.start. */
     public static void observeVanillaSinkStarted(Mob owner, WalkTarget target,
                                                  @Nullable Path path) {
