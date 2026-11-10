@@ -35,8 +35,11 @@ import java.util.UUID;
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class StateReloadScenarioCommand {
 
-    /** Wide enough that walking between work items keeps the farmer mid-job for about a minute. */
-    private static final int MANUAL_HALF_WIDTH = 22;
+    /**
+     * Wide enough that walking between work items keeps the farmer mid-job for about a
+     * minute, yet the work ring stays narrower than the farmer's 32-block dispatch range.
+     */
+    private static final int MANUAL_HALF_WIDTH = 17;
     private static final int WORK_ITEMS = 16;
     private static final int WATCH_INTERVAL_TICKS = 20;
 
