@@ -22,6 +22,10 @@ public enum LibraryBookType {
         return id;
     }
 
+    public boolean isDynamic() {
+        return this != STATIC;
+    }
+
     public static Optional<LibraryBookType> fromId(String raw) {
         if (raw == null) {
             return Optional.empty();

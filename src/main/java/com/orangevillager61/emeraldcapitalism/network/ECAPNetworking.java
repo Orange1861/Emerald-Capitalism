@@ -12,7 +12,14 @@ public final class ECAPNetworking {
     private ECAPNetworking() {}
 
     public static void onRegisterPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(EmeraldCapitalism.MODID).versioned("5");
+        PayloadRegistrar registrar = event.registrar(EmeraldCapitalism.MODID).versioned("6");
+
+        // Client → Server: resolve and open authored written books atomically.
+        registrar.playToServer(
+                OpenAuthoredBookPacket.TYPE,
+                OpenAuthoredBookPacket.STREAM_CODEC,
+                OpenAuthoredBookPacket::handle
+        );
 
         // Client → Server: request POI data for a village
         registrar.playToServer(

@@ -28,6 +28,27 @@ public final class LibraryBookStackFactory {
         return createItemStack(definition, Optional.empty());
     }
 
+    /** Returns whether a written book carries the mod's authored-book identity. */
+    public static boolean isAuthoredBook(ItemStack stack) {
+        Objects.requireNonNull(stack, "stack");
+        if (!stack.is(Items.WRITTEN_BOOK)) {
+            return false;
+        }
+        CustomData metadata = stack.get(DataComponents.CUSTOM_DATA);
+        return metadata != null && !metadata.copyTag().getString("book_id").isEmpty();
+    }
+
+    /** Resolves the server-side authored definition associated with a materialized book. */
+    public static Optional<LibraryBookDefinition> definitionFor(ItemStack stack) {
+        Objects.requireNonNull(stack, "stack");
+        if (!isAuthoredBook(stack)) {
+            return Optional.empty();
+        }
+        CustomData metadata = stack.get(DataComponents.CUSTOM_DATA);
+        String bookId = metadata.copyTag().getString("book_id");
+        return LibraryBookRegistry.get(bookId);
+    }
+
     public static ItemStack createItemStack(LibraryBookDefinition definition, ServerLevel level) {
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(level, "level");
