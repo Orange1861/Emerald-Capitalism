@@ -84,8 +84,9 @@ class VillagerStatsAttachmentCodecTest {
         assertEquals(13, decoded.getTicksSinceLastHeal());
         assertEquals(14, decoded.getTicksSinceLastStarvationDamage());
         assertEquals(5678L, decoded.getLastBegTime());
-        assertEquals(9, decoded.getBegTime());
-        assertEquals(donor, decoded.getBegDonorUUID());
+        // The live begging session is execution state and must not survive a reload.
+        assertEquals(0, decoded.getBegTime());
+        assertEquals(null, decoded.getBegDonorUUID());
         // The assembled display string is derived and is intentionally not
         // persisted. Only the substrate pair and village identity survive.
         assertEquals(null, decoded.getVillagerName());
@@ -204,7 +205,7 @@ class VillagerStatsAttachmentCodecTest {
         assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, malformedList).error().isPresent());
 
         CompoundTag invalidNumericForm = new CompoundTag();
-        invalidNumericForm.putString("beg_time", "not-an-int");
+        invalidNumericForm.putString("ticks_since_last_heal", "not-an-int");
         assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, invalidNumericForm).error().isPresent());
     }
 
@@ -215,7 +216,7 @@ class VillagerStatsAttachmentCodecTest {
         assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, negativeTimer).error().isPresent());
 
         CompoundTag oversizedTimer = new CompoundTag();
-        oversizedTimer.putInt("beg_time", 1_000_001);
+        oversizedTimer.putInt("ticks_since_last_heal", 1_000_001);
         assertTrue(VillagerStatsAttachment.CODEC.parse(NbtOps.INSTANCE, oversizedTimer).error().isPresent());
 
         CompoundTag negativeTime = new CompoundTag();

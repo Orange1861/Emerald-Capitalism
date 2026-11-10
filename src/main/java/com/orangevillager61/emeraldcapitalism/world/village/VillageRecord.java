@@ -575,6 +575,7 @@ public class VillageRecord {
     private final Set<BlockPos> claimedMatureCropPositions = new HashSet<>();
     /** Missing-door positions currently claimed by a mayor for repair. Cleared on server load. */
     private final Set<BlockPos> claimedDoorPositions = new HashSet<>();
+    private final Map<BlockPos, UUID> doorClaimOwners = new HashMap<>();
     /** Whether farmer repair work is enabled for this village. */
     private boolean farmlandRepairEnabled = Config.enableFarmlandRepair;
     /** Whether door cache repair/tracking is enabled for this village. */
@@ -2804,9 +2805,13 @@ public class VillageRecord {
     }
 
     /** Claims a missing door for one mayor until the repair goal finishes or stops. */
-    public boolean claimDoorPosition(BlockPos pos) {
+    public boolean claimDoorPosition(BlockPos pos, UUID mayorId) {
+        Objects.requireNonNull(mayorId, "mayorId");
         if (missingDoorRegistry.contains(pos) && !claimedDoorPositions.contains(pos)) {
-            claimedDoorPositions.add(pos.immutable());
+            BlockPos immutablePos = pos.immutable();
+            claimedDoorPositions.add(immutablePos);
+            doorClaimOwners.keySet().retainAll(claimedDoorPositions);
+            doorClaimOwners.put(immutablePos, mayorId);
             return true;
         }
         return false;
@@ -2815,6 +2820,12 @@ public class VillageRecord {
     /** Releases a missing door claim so another mayor can repair it. */
     public void unclaimDoorPosition(BlockPos pos) {
         claimedDoorPositions.remove(pos);
+    }
+
+    /** Releases only this village's door claims held by {@code mayorId}. */
+    public boolean releaseDoorClaims(UUID mayorId) {
+        Objects.requireNonNull(mayorId, "mayorId");
+        return claimedDoorPositions.removeIf(pos -> mayorId.equals(doorClaimOwners.get(pos)));
     }
 
     // Data retrieval (from cache)

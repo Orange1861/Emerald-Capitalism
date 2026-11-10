@@ -16,8 +16,6 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithProcessorGoa
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithGolemConstructionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
-import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackSaplingCache;
-import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackTreeReservations;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorDoorRepairGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorFollowGovernorCandidateGoal;
 import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBehavior;
@@ -56,8 +54,8 @@ import net.minecraft.world.level.levelgen.feature.configurations.TreeConfigurati
 import net.minecraft.world.phys.AABB;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import org.jetbrains.annotations.Nullable;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -114,21 +112,23 @@ public class VillageRegistryEvents {
         ManualVillageScanBudget.clearAll();
     }
 
-    @SubscribeEvent
-    public static void onLevelUnload(LevelEvent.Unload event) {
-        if (event.getLevel() instanceof ServerLevel serverLevel) {
-            VillageRegistryManager manager = MANAGERS.remove(serverLevel);
-            if (manager != null) {
-                manager.shutdown();
-            }
-            BankBlockEntity.clearLoadedBanks(serverLevel);
-            LumberjackSaplingCache.clear(serverLevel);
-            LumberjackTreeReservations.clear(serverLevel);
-            VillagePOIDataCache.invalidateDimension(serverLevel.dimension());
-            InteractWithFenceGateBehavior.clearGateUseCache();
-            VillageHostility.clearLookupCache();
-            VillageOpinionCache.clearAll();
+    /** Called by the session cleanup owner when {@code serverLevel} unloads. */
+    public static void releaseLevelState(ServerLevel serverLevel) {
+        VillageRegistryManager manager = MANAGERS.remove(serverLevel);
+        if (manager != null) {
+            manager.shutdown();
         }
+        BankBlockEntity.clearLoadedBanks(serverLevel);
+        VillagePOIDataCache.invalidateDimension(serverLevel.dimension());
+        InteractWithFenceGateBehavior.clearGateUseCache();
+        VillageHostility.clearLookupCache();
+        VillageOpinionCache.clearAll();
+    }
+
+    /** Returns the level's manager without creating one during cleanup. */
+    @Nullable
+    public static VillageRegistryManager findManager(ServerLevel level) {
+        return MANAGERS.get(level);
     }
 
     @SubscribeEvent
@@ -399,11 +399,6 @@ public class VillageRegistryEvents {
             return;
         }
 
-        if (villager.getVillagerData().getProfession()
-                == ECAPVillagerProfessions.LUMBERJACK.get()) {
-            LumberjackSaplingCache.clearOwner(serverLevel, villager.getUUID());
-        }
-
         VillageRegistryManager manager = MANAGERS.get(serverLevel);
         if (manager != null) {
             manager.handleVillagerDeath(villager,
@@ -445,19 +440,6 @@ public class VillageRegistryEvents {
         injectLumberjackGoal(villager);
         injectEmeraldSmithGolemConstructionGoal(villager);
         injectEmeraldSmithGoal(villager);
-    }
-
-    /** Removes unloaded villagers from transient farmer rosters and cell leases. */
-    @SubscribeEvent
-    public static void onVillagerLeaveLevel(EntityLeaveLevelEvent event) {
-        if (!(event.getEntity() instanceof Villager villager)
-                || !(event.getLevel() instanceof ServerLevel serverLevel)) {
-            return;
-        }
-        VillageRegistryManager manager = MANAGERS.get(serverLevel);
-        if (manager != null) {
-            manager.handleVillagerLeave(villager);
-        }
     }
 
     /** Reconciles farmer roster membership after a profession or cell-boundary change. */

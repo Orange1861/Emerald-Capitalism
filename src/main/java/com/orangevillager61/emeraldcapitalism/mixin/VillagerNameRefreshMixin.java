@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.mixin;
 
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerSessionCleanup;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameRefreshScheduler;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerData;
@@ -16,6 +17,7 @@ public class VillagerNameRefreshMixin {
         Villager villager = (Villager) (Object) this;
         if (villager.getVillagerData().getProfession() != newData.getProfession()) {
             VillagerNameRefreshScheduler.requestRefresh(villager);
+            VillagerSessionCleanup.onProfessionChanged(villager);
         }
     }
 

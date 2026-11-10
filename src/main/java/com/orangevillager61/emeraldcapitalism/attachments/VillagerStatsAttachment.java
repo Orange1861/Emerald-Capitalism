@@ -93,9 +93,6 @@ public class VillagerStatsAttachment {
                     .forGetter(VillagerStatsAttachment::getTicksSinceLastStarvationDamage),
             PERSISTED_GAME_TIME_CODEC.optionalFieldOf("last_beg_time", 0L)
                     .forGetter(VillagerStatsAttachment::getLastBegTime),
-            PERSISTED_TIMER_CODEC.optionalFieldOf("beg_time", 0).forGetter(VillagerStatsAttachment::getBegTime),
-            UUIDUtil.CODEC.optionalFieldOf("beg_donor_uuid")
-                    .forGetter(attachment -> Optional.ofNullable(attachment.getBegDonorUUID())),
             NamingState.CODEC.optionalFieldOf("villager_naming")
                     .forGetter(attachment -> attachment.hasAssignedFirstName()
                             ? Optional.of(new NamingState(
@@ -192,8 +189,6 @@ public class VillagerStatsAttachment {
             int ticksSinceLastHeal,
             int ticksSinceLastStarvationDamage,
             long lastBegTime,
-            int begTime,
-            Optional<UUID> begDonorUUID,
             Optional<NamingState> namingState,
             Optional<UUID> parent1UUID,
             Optional<UUID> parent2UUID,
@@ -208,8 +203,6 @@ public class VillagerStatsAttachment {
         setTicksSinceLastHeal(ticksSinceLastHeal);
         setTicksSinceLastStarvationDamage(ticksSinceLastStarvationDamage);
         setLastBegTime(lastBegTime);
-        setBegTime(begTime);
-        this.begDonorUUID = begDonorUUID.orElse(null);
         namingState.ifPresent(state -> {
             this.personalFirstElement = state.personalFirstElement().orElse(null);
             this.personalSecondElement = state.personalSecondElement().orElse(null);

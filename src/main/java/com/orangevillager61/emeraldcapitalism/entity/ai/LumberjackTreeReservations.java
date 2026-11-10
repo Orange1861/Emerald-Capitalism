@@ -104,6 +104,19 @@ public final class LumberjackTreeReservations {
         }
     }
 
+    /** Releases everything {@code owner} holds in this level only. */
+    static void releaseOwner(ServerLevel level, UUID owner) {
+        ReservationState state = RESERVATIONS.get(level);
+        if (state == null) {
+            return;
+        }
+        state.logs.values().removeIf(owner::equals);
+        state.workPositions.values().removeIf(owner::equals);
+        if (state.isEmpty()) {
+            RESERVATIONS.remove(level);
+        }
+    }
+
     /** Prunes stale owners once before a wide scan rather than once per candidate. */
     static void prune(ServerLevel level) {
         ReservationState state = RESERVATIONS.get(level);

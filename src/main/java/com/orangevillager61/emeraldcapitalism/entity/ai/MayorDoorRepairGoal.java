@@ -204,7 +204,7 @@ public final class MayorDoorRepairGoal extends Goal {
                     village, bank, targetPos);
             return;
         }
-        if (!village.claimDoorPosition(targetPos)) {
+        if (!village.claimDoorPosition(targetPos, villager.getUUID())) {
             failed = true;
             terminationReason = MovementRequestTerminationReason.FAILED;
             EmeraldCapitalism.LOGGER.warn(

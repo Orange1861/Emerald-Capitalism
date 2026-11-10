@@ -2517,6 +2517,14 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
+    /** Releases a departed Emeraldsmith's slot on this level's loaded banks. */
+    public static void releaseGolemConstructionOwner(ServerLevel level, UUID villagerId) {
+        Set<BankBlockEntity> banks = LOADED_BANKS.get(level);
+        if (banks != null) {
+            banks.forEach(bank -> bank.endGolemConstruction(villagerId));
+        }
+    }
+
     /** Receives an inventory mutation from a linked Emerald Chest. */
     void onLinkedChestChanged(BlockPos chestPos, EmeraldChestBlockEntity.StoredCounts counts) {
         BlockPos immutablePos = chestPos.immutable();

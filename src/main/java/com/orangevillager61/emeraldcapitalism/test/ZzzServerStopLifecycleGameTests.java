@@ -5,6 +5,7 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
+import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerLadderClaims;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -47,6 +48,11 @@ public final class ZzzServerStopLifecycleGameTests {
             helper.assertValueEqual(MovementRequestManager.activeRequestCount(), 2L,
                     "server-stop fixture did not publish two active requests");
 
+            VillagerLadderClaims.LadderColumn column = new VillagerLadderClaims.LadderColumn(
+                    first.level().dimension(), 1, 1, 70, 72);
+            helper.assertTrue(VillagerLadderClaims.tryClaim(first, column),
+                    "server-stop fixture could not claim a ladder");
+
             // Invoke the real production shutdown boundary, not a direct
             // manager clear, so lifecycle ordering is covered end to end.
             EmeraldCapitalism.clearServerSessionStateForShutdown();
@@ -54,6 +60,8 @@ public final class ZzzServerStopLifecycleGameTests {
                     PerformanceTimingCounters.snapshot();
             helper.assertValueEqual(MovementRequestManager.activeRequestCount(), 0L,
                     "server-stop cleanup left active requests behind");
+            helper.assertFalse(VillagerLadderClaims.isOwnedBy(first, column),
+                    "server-stop cleanup left a ladder claim behind");
             helper.assertValueEqual(delta(after, before,
                             PerformanceTimingCounters.Operation.MOVEMENT_SHUTDOWN), 2L,
                     "server-stop cleanup did not terminally account each request once");

@@ -1,17 +1,11 @@
 package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
-import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerLadderClaims;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
-import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.tags.BlockTags;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
-import net.neoforged.neoforge.event.level.LevelEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.server.level.ServerLevel;
 
@@ -20,18 +14,6 @@ public final class VillagerLadderClaimEvents {
     private static long purgeTick;
 
     private VillagerLadderClaimEvents() {
-    }
-
-    @SubscribeEvent
-    public static void onLeaveLevel(EntityLeaveLevelEvent event) {
-        if (event.getLevel().isClientSide()) {
-            return;
-        }
-        if (event.getEntity() instanceof Villager villager) {
-            VillagerLadderClaims.releaseAll(villager);
-            VillagerBehaviorRegistry.release(villager);
-            MovementRequestManager.release(villager);
-        }
     }
 
     @SubscribeEvent
@@ -51,21 +33,9 @@ public final class VillagerLadderClaimEvents {
     }
 
     @SubscribeEvent
-    public static void onServerStopping(ServerStoppingEvent event) {
-        VillagerLadderClaims.clear();
-    }
-
-    @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         if (++purgeTick % 20L == 0L) {
             VillagerLadderClaims.purgeStale(64);
-        }
-    }
-
-    @SubscribeEvent
-    public static void onLevelUnload(LevelEvent.Unload event) {
-        if (event.getLevel() instanceof ServerLevel serverLevel) {
-            VillagerLadderClaims.releaseDimension(serverLevel.dimension());
         }
     }
 }
