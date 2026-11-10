@@ -20,8 +20,8 @@ and run under `.\gradlew :1.21.1:runGameTestServer` and
 | W3.4 | Ensure cleanup is keyed by village, profession, villager UUID, task, and world/dimension where applicable. | Village work and door claims release per `VillageRecord` and villager UUID; tree reservations per level and UUID; ladder claims per dimension and villager. Profession change releases work but keeps the route-level ladder claim and social sessions. Village and profession keys on tree, sapling, furnace, and construction claims stay with Phases 17, 18, and 20 as already frozen. | `oneVillageCannotReleaseAnotherVillagesWork`; `levelUnloadReleasesOnlyThatLevelsSessionState`; `professionChangeEndsOldWorkButNotTheLadderTraversal`. | A foreign village's release returns false and changes nothing; one level's unload leaves the other level's state; an unchanged profession releases nothing. | None. | PASS |
 | A3.1 | Add save/reload tests proving durable task progress survives where intended while transient ownership does not. | Round trips through the real codecs. | `savedStatsKeep…`; `savedVillageKeeps…`; `stateReloadScenarioReachesALeaseAndInspectionDoesNotChangeIt`; the existing bank persistence test. | Durable repair and missing-door work survive; lease and claims do not. | None. | PASS |
 | A3.2 | Add lifecycle tests for each cleanup boundary and negative tests showing one village cannot release another village's work. | Each boundary uses its real entry point; level unload calls the production handler with a real event for the Nether only, so the shared overworld fixture is not torn down. | The tests under W3.3 and W3.4. | `oneVillageCannotReleaseAnotherVillagesWork`. | None. | PASS |
-| M3.1 | Temporary `state_reload` scenario, mid-job marker, read-only lease inspection, Save and Quit, reload; the same villager safely resumes or reacquires once, with no duplicated world effect, frozen movement, or pre-reload transient claim. | `/ecapscenario state_reload start` and `inspect`. The run sheet is below. | `stateReloadScenario…` proves the scenario reaches a lease and that inspection is read-only; it does not replace the manual reload. | Not applicable. | **Required from the developer.** | BLOCKED |
-| G3.1 | All transient state has a single cleanup owner and no execution-only record is serialized as authoritative gameplay state. | `sessionCleanup` in `gradle/navigation-architecture.json` lists every release call; `validateSessionCleanupCalls` rejects any use outside the owner or defining type. | `verifyNavigationArchitecture`; `NavigationArchitectureScannerTest`. | Fixtures reject a call outside the owner, through whitespace, and through a method reference, and accept the owner and defining type. | None. | PASS for the automated gate; Phase 3 remains incomplete until M3.1. |
+| M3.1 | Temporary `state_reload` scenario, mid-job marker, read-only lease inspection, Save and Quit, reload; the same villager safely resumes or reacquires once, with no duplicated world effect, frozen movement, or pre-reload transient claim. | `/ecapscenario state_reload start` and `inspect`. The run sheet is below. | `stateReloadScenario…` proves the scenario reaches a lease and that inspection is read-only; it does not replace the manual reload. | Not applicable. | Developer confirmed PASS on November 10, 2026; see Developer Phase 3 approval below. | PASS |
+| G3.1 | All transient state has a single cleanup owner and no execution-only record is serialized as authoritative gameplay state. | `sessionCleanup` in `gradle/navigation-architecture.json` lists every release call; `validateSessionCleanupCalls` rejects any use outside the owner or defining type. | `verifyNavigationArchitecture`; `NavigationArchitectureScannerTest`. | Fixtures reject a call outside the owner, through whitespace, and through a method reference, and accept the owner and defining type. | None. | PASS |
 
 The baseline's test counts and identity hash were updated deliberately for the new
 tests (275 discovered, 273 executed). Its expected-failure list is unchanged.
@@ -98,6 +98,21 @@ dispatch range. That range rule predates Phase 3 and caused the same pauses befo
 the reload. The 30-second criterion was therefore not met, so M3.1 stays `BLOCKED`,
 and the ring was narrowed to 30 blocks. The dispatch-range behavior is recorded for
 Phase 15.
+
+**Third attempt, November 10, 2026:** with the 30-block ring, the client logs show
+farmer `5f3e598b` holding one lease with 15 repairs left when the developer saved
+and quit. After reload the same farmer received a newly logged lease before the first
+inspect, which still showed 15 repairs and that one lease. At the later inspect four
+repairs remained and the same farmer held exactly one lease. Repairs never rose, the
+farmer kept working, and neither log contains an error.
+
+## Developer Phase 3 approval
+
+After the third attempt was summarized against the pass criteria, the developer was
+asked to confirm M3.1 as PASS and replied on November 10, 2026: "Yes and merger".
+M3.1 is marked **PASS** on that explicit confirmation, which completes Phase 3. The
+Phase 24 full-regression gate remains FAIL by design while assigned later-phase
+failures remain.
 
 The same log query works from outside the game:
 `Select-String -Path versions\1.21.1\run\logs\latest.log -Pattern "StateReload"`.
