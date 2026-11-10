@@ -68,7 +68,7 @@ Use a disposable Superflat Creative world with cheats enabled, on 1.21.1:
    `[ECAP][StateReload] MID_JOB`). It appears once the farmer holds a work lease,
    normally within a few seconds. A red chat message means the job already finished
    and the attempt must restart in a new world. The farmer then walks a ring of
-   16 repairs around a 45-block platform, which takes about a minute.
+   16 repairs 30 blocks across, which takes about a minute.
 4. Straight away, stand inside the scene and run `/ecapscenario state_reload inspect`.
    Note the `leases=[...]` value and `durableRepairs`. The check only counts while
    `durableRepairs` is above 0 and `leases` shows the farmer.
@@ -87,6 +87,17 @@ all six repairs in about five seconds of game time, so the first inspect and the
 reload came after the job ended. No stale lease, repeated repair, frozen farmer, or
 error appeared, but the run did not exercise a mid-job reload, so M3.1 stays
 `BLOCKED`. The scenario was widened in response.
+
+**Second attempt, November 10, 2026:** the developer saved and quit mid-job and
+reported the before and 30-second inspect lines. The logs show durable repairs
+falling from 6 to 5 across the reload and on to 1, and the same farmer taking one new
+lease a second after rejoining rather than keeping a pre-reload lease. At the
+30-second inspect, one repair remained with no lease: the ring was 40 blocks across,
+and the farmer finished at the edge opposite that repair, beyond the 32-block farmer
+dispatch range. That range rule predates Phase 3 and caused the same pauses before
+the reload. The 30-second criterion was therefore not met, so M3.1 stays `BLOCKED`,
+and the ring was narrowed to 30 blocks. The dispatch-range behavior is recorded for
+Phase 15.
 
 The same log query works from outside the game:
 `Select-String -Path versions\1.21.1\run\logs\latest.log -Pattern "StateReload"`.
