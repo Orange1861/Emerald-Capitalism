@@ -7,11 +7,13 @@ import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRegistryData;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageWorkCell;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagerPOIRecord;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -45,7 +47,9 @@ public final class StateReloadScenarioCommand {
     private StateReloadScenarioCommand() {
     }
 
-    private record Watch(ServerLevel level, UUID villageId, UUID farmerId) {
+    /** {@code announced} flips once the farmer is mid-job, so a finished job is reported once. */
+    private record Watch(ServerLevel level, UUID villageId, UUID farmerId,
+                         @Nullable UUID playerId, boolean announced) {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -60,9 +64,12 @@ public final class StateReloadScenarioCommand {
                                         "state_reload needs a location outside any village"));
                                 return 0;
                             }
-                            start(source.getLevel(), origin, MANUAL_HALF_WIDTH);
+                            ServerPlayer player = source.getPlayer();
+                            start(source.getLevel(), origin, MANUAL_HALF_WIDTH,
+                                    player == null ? null : player.getUUID());
                             source.sendSuccess(() -> Component.literal(
-                                    "state_reload started; wait for [ECAP][StateReload] MID_JOB"), true);
+                                    "state_reload started; a chat message will say when the farmer is mid-job"),
+                                    true);
                             return 1;
                         }))
                         .then(Commands.literal("inspect").executes(context -> {
@@ -84,7 +91,8 @@ public final class StateReloadScenarioCommand {
      * Builds the disposable scene around {@code origin} and registers one real farmer.
      * Work items sit on a ring just inside {@code halfWidth}, so a wider scene is a longer job.
      */
-    public static Villager start(ServerLevel level, BlockPos origin, int halfWidth) {
+    public static Villager start(ServerLevel level, BlockPos origin, int halfWidth,
+                                 @Nullable UUID announceTo) {
         for (BlockPos pos : BlockPos.betweenClosed(
                 origin.offset(-halfWidth, -1, -halfWidth), origin.offset(halfWidth, 1, halfWidth))) {
             level.setBlock(pos, pos.getY() < origin.getY()
@@ -116,7 +124,7 @@ public final class StateReloadScenarioCommand {
                     0, level.getGameTime()));
         }
         village.refreshFarmerRoster(farmer);
-        watch = new Watch(level, village.getVillageId(), farmer.getUUID());
+        watch = new Watch(level, village.getVillageId(), farmer.getUUID(), announceTo, false);
         return farmer;
     }
 
@@ -149,11 +157,37 @@ public final class StateReloadScenarioCommand {
             return;
         }
         VillageRecord village = VillageRegistryData.get(active.level()).getVillages().get(active.villageId());
-        if (village == null || village.getWorkCellLeasedTo(active.farmerId()) == null) {
+        if (village == null) {
+            watch = null;
             return;
         }
-        EmeraldCapitalism.LOGGER.info("[ECAP][StateReload] MID_JOB farmer={} {}",
-                active.farmerId(), describe(village));
-        watch = null;
+        if (!active.announced()) {
+            if (village.getWorkCellLeasedTo(active.farmerId()) == null) {
+                return;
+            }
+            EmeraldCapitalism.LOGGER.info("[ECAP][StateReload] MID_JOB farmer={} {}",
+                    active.farmerId(), describe(village));
+            tell(active, Component.literal("[state_reload] MID_JOB: the farmer is working ("
+                    + village.getRepairQueue().size() + " repairs left). Run inspect, then Save and Quit now.")
+                    .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            watch = new Watch(active.level(), active.villageId(), active.farmerId(), active.playerId(), true);
+            return;
+        }
+        if (village.getRepairQueue().isEmpty()) {
+            EmeraldCapitalism.LOGGER.info("[ECAP][StateReload] JOB_FINISHED farmer={} {}",
+                    active.farmerId(), describe(village));
+            tell(active, Component.literal("[state_reload] The job finished before a reload, so this attempt"
+                    + " no longer tests a mid-job reload. Start again in a new world.")
+                    .withStyle(ChatFormatting.RED));
+            watch = null;
+        }
+    }
+
+    private static void tell(Watch active, Component message) {
+        ServerPlayer player = active.playerId() == null ? null
+                : active.level().getServer().getPlayerList().getPlayer(active.playerId());
+        if (player != null) {
+            player.sendSystemMessage(message);
+        }
     }
 }

@@ -259,7 +259,7 @@ public final class VillagerSessionCleanupGameTests {
     public static void stateReloadScenarioReachesALeaseAndInspectionDoesNotChangeIt(
             GameTestHelper helper) {
         BlockPos origin = helper.absolutePos(new BlockPos(9, 1, 9));
-        Villager farmer = StateReloadScenarioCommand.start(helper.getLevel(), origin, 8);
+        Villager farmer = StateReloadScenarioCommand.start(helper.getLevel(), origin, 8, null);
         VillageRecord village = VillageRegistryData.get(helper.getLevel()).getVillageFor(origin);
         helper.assertTrue(village != null && village.hasMember(farmer.getUUID()),
                 "scenario did not register its farmer in a village");

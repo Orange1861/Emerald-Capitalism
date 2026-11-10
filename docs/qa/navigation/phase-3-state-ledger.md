@@ -64,8 +64,10 @@ Use a disposable Superflat Creative world with cheats enabled, on 1.21.1:
 2. Create the world, stand on open ground away from any village, and run
    `/gamerule doDaylightCycle false`, `/time set day`, then
    `/ecapscenario state_reload start`.
-3. Watch the game log for `[ECAP][StateReload] MID_JOB`. It appears once the farmer
-   holds a work lease, normally within a few seconds. The farmer then walks a ring of
+3. Wait for the gold chat message `[state_reload] MID_JOB` (also logged as
+   `[ECAP][StateReload] MID_JOB`). It appears once the farmer holds a work lease,
+   normally within a few seconds. A red chat message means the job already finished
+   and the attempt must restart in a new world. The farmer then walks a ring of
    16 repairs around a 45-block platform, which takes about a minute.
 4. Straight away, stand inside the scene and run `/ecapscenario state_reload inspect`.
    Note the `leases=[...]` value and `durableRepairs`. The check only counts while
