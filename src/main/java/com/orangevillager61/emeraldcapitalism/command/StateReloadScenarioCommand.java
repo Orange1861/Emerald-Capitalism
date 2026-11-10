@@ -33,8 +33,9 @@ import java.util.UUID;
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class StateReloadScenarioCommand {
 
-    private static final int HALF_WIDTH = 8;
-    private static final int WORK_ITEMS = 6;
+    /** Wide enough that walking between work items keeps the farmer mid-job for about a minute. */
+    private static final int MANUAL_HALF_WIDTH = 22;
+    private static final int WORK_ITEMS = 16;
     private static final int WATCH_INTERVAL_TICKS = 20;
 
     /** Session-local marker state; a reload intentionally forgets it. */
@@ -59,7 +60,7 @@ public final class StateReloadScenarioCommand {
                                         "state_reload needs a location outside any village"));
                                 return 0;
                             }
-                            start(source.getLevel(), origin);
+                            start(source.getLevel(), origin, MANUAL_HALF_WIDTH);
                             source.sendSuccess(() -> Component.literal(
                                     "state_reload started; wait for [ECAP][StateReload] MID_JOB"), true);
                             return 1;
@@ -79,18 +80,24 @@ public final class StateReloadScenarioCommand {
                         }))));
     }
 
-    /** Builds the disposable scene around {@code origin} and registers one real farmer. */
-    public static Villager start(ServerLevel level, BlockPos origin) {
+    /**
+     * Builds the disposable scene around {@code origin} and registers one real farmer.
+     * Work items sit on a ring just inside {@code halfWidth}, so a wider scene is a longer job.
+     */
+    public static Villager start(ServerLevel level, BlockPos origin, int halfWidth) {
         for (BlockPos pos : BlockPos.betweenClosed(
-                origin.offset(-HALF_WIDTH, -1, -HALF_WIDTH), origin.offset(HALF_WIDTH, 1, HALF_WIDTH))) {
+                origin.offset(-halfWidth, -1, -halfWidth), origin.offset(halfWidth, 1, halfWidth))) {
             level.setBlock(pos, pos.getY() < origin.getY()
                     ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState(), 2);
         }
         VillageRecord village = VillageRegistryData.get(level).getOrCreateVillage(
-                UUID.randomUUID(), origin, new AABB(origin).inflate(HALF_WIDTH));
+                UUID.randomUUID(), origin, new AABB(origin).inflate(halfWidth));
         level.setBlock(origin.offset(-2, 0, -2), Blocks.COMPOSTER.defaultBlockState(), 2);
+        int ring = halfWidth - 2;
         for (int item = 0; item < WORK_ITEMS; item++) {
-            BlockPos work = origin.offset(item - HALF_WIDTH + 2, 0, HALF_WIDTH - 2);
+            double angle = 2.0D * Math.PI * item / WORK_ITEMS;
+            BlockPos work = origin.offset((int) Math.round(ring * Math.cos(angle)), 0,
+                    (int) Math.round(ring * Math.sin(angle)));
             level.setBlock(work.below(), Blocks.DIRT.defaultBlockState(), 2);
             village.addFarmland(work);
             village.addToRepairQueue(work);

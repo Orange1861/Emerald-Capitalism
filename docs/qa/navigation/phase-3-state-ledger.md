@@ -65,16 +65,26 @@ Use a disposable Superflat Creative world with cheats enabled, on 1.21.1:
    `/gamerule doDaylightCycle false`, `/time set day`, then
    `/ecapscenario state_reload start`.
 3. Watch the game log for `[ECAP][StateReload] MID_JOB`. It appears once the farmer
-   holds a work lease, normally within a few seconds.
-4. Stand inside the scene and run `/ecapscenario state_reload inspect`. Note the
-   `leases=[...]` value and `durableRepairs`.
-5. Use Save and Quit to Title, close the game, run the same command as step 1, and
-   reopen the world.
+   holds a work lease, normally within a few seconds. The farmer then walks a ring of
+   16 repairs around a 45-block platform, which takes about a minute.
+4. Straight away, stand inside the scene and run `/ecapscenario state_reload inspect`.
+   Note the `leases=[...]` value and `durableRepairs`. The check only counts while
+   `durableRepairs` is above 0 and `leases` shows the farmer.
+5. While that is still true, use Save and Quit to Title, close the game, run the same
+   command as step 1, and reopen the world.
 6. Run the inspect command straight away, and again after about 30 seconds.
 
 **Pass:** right after reload `leases=[]` or the same single farmer; after 30 seconds
-exactly one lease, held by the same farmer UUID; `durableRepairs` never rises; the
-farmer keeps moving instead of freezing; no crash or mixin error in the log.
+exactly one lease, held by the same farmer UUID, while repairs remain; `durableRepairs`
+never rises and keeps falling to 0; the farmer keeps moving instead of freezing; no
+crash or mixin error in the log.
+
+**First attempt, November 3–10, 2026:** the developer reported "all values stay at 0
+before and after reload". The client log shows the farmer took the lease and finished
+all six repairs in about five seconds of game time, so the first inspect and the
+reload came after the job ended. No stale lease, repeated repair, frozen farmer, or
+error appeared, but the run did not exercise a mid-job reload, so M3.1 stays
+`BLOCKED`. The scenario was widened in response.
 
 The same log query works from outside the game:
 `Select-String -Path versions\1.21.1\run\logs\latest.log -Pattern "StateReload"`.
