@@ -1,5 +1,10 @@
 # Navigation refactor Phase 3 requirement-to-evidence ledger
 
+> **Superseded.** This is the pre-implementation review from `97250b7b`. The
+> authoritative Phase 3 record, with implementation evidence and the developer's
+> approval, is [`phase-3-state-ledger.md`](phase-3-state-ledger.md). This file is kept
+> as history; its `FAIL (not started)` rows describe the starting position only.
+
 Phase 3 plan text: `docs/plans/navigation-refactor-implementation.md`, "Phase 3 —
 Separate persistent gameplay state from transient execution". Status values
 are `PASS`, `FAIL`, or `BLOCKED`. Nothing in Phase 3 is implemented yet; this
