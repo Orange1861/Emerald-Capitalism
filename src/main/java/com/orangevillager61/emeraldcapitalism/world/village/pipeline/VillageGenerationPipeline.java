@@ -30,6 +30,7 @@ import java.util.function.Consumer;
 public final class VillageGenerationPipeline {
     /** New asynchronous chunk requests started per active tick during the cache phase. */
     private static final int CACHE_CHUNKS_PER_TICK = 4;
+    private static final long SLOW_STEP_LOG_NANOS = 50_000_000L;
     private static final ConcurrentLinkedQueue<PipelineTask> PENDING = new ConcurrentLinkedQueue<>();
     private static final Set<PipelineKey> QUEUED_OR_ACTIVE = ConcurrentHashMap.newKeySet();
     private static PipelineTask activeTask;
@@ -106,15 +107,21 @@ public final class VillageGenerationPipeline {
     }
 
     private enum Phase {
-        BUILD_CACHES,
-        PLAN_BUILDINGS,
-        PLACE_MANAGER,
-        PLACE_BUILDINGS,
-        GENERATE_PATHS,
-        PREPARE_POST_PROCESS,
-        POST_PROCESS,
-        SPAWN_AND_FINISH,
-        FINALIZE
+        BUILD_CACHES(PerformanceTimingCounters.Operation.VILLAGE_GEN_BUILD_CACHES),
+        PLAN_BUILDINGS(PerformanceTimingCounters.Operation.VILLAGE_GEN_PLAN_BUILDINGS),
+        PLACE_MANAGER(PerformanceTimingCounters.Operation.VILLAGE_GEN_PLACE_MANAGER),
+        PLACE_BUILDINGS(PerformanceTimingCounters.Operation.VILLAGE_GEN_PLACE_BUILDINGS),
+        GENERATE_PATHS(PerformanceTimingCounters.Operation.VILLAGE_GEN_GENERATE_PATHS),
+        PREPARE_POST_PROCESS(PerformanceTimingCounters.Operation.VILLAGE_GEN_PREPARE_POST_PROCESS),
+        POST_PROCESS(PerformanceTimingCounters.Operation.VILLAGE_GEN_POST_PROCESS),
+        SPAWN_AND_FINISH(PerformanceTimingCounters.Operation.VILLAGE_GEN_SPAWN_AND_FINISH),
+        FINALIZE(PerformanceTimingCounters.Operation.VILLAGE_GEN_FINALIZE);
+
+        private final PerformanceTimingCounters.Operation timing;
+
+        Phase(PerformanceTimingCounters.Operation timing) {
+            this.timing = timing;
+        }
     }
 
     private static final class PipelineTask {
@@ -151,8 +158,11 @@ public final class VillageGenerationPipeline {
 
         private boolean processStep() {
             ticksUsed++;
+            Phase stepPhase = phase;
+            int stepIndex = index;
+            long started = PerformanceTimingCounters.startTiming(stepPhase.timing);
             try {
-                return switch (phase) {
+                return switch (stepPhase) {
                     case BUILD_CACHES -> buildCaches();
                     case PLAN_BUILDINGS -> planBuildings();
                     case PLACE_MANAGER -> placeManager();
@@ -170,6 +180,20 @@ public final class VillageGenerationPipeline {
                 context.releaseChunks();
                 completion.accept(context);
                 return true;
+            } finally {
+                PerformanceTimingCounters.finishTiming(stepPhase.timing, started);
+                logSlowStep(stepPhase, stepIndex, started);
+            }
+        }
+
+        private void logSlowStep(Phase stepPhase, int stepIndex, long started) {
+            if (started == Long.MIN_VALUE || !PerformanceTimingCounters.isDetailedTimingEnabled()) {
+                return;
+            }
+            long elapsed = System.nanoTime() - started;
+            if (elapsed > SLOW_STEP_LOG_NANOS) {
+                EmeraldCapitalism.LOGGER.info("[ECAP][SlowTick] village={} phase={} ms={} index={}",
+                        context.villageId(), stepPhase, elapsed / 1_000_000L, stepIndex);
             }
         }
 

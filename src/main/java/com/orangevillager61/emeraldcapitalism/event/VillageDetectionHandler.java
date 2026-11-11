@@ -2,6 +2,7 @@ package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRecord;
@@ -272,6 +273,17 @@ public class VillageDetectionHandler {
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
+        long started = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.VILLAGE_DETECTION_CHUNK_LOAD);
+        try {
+            detectVillagesInLoadedChunk(event);
+        } finally {
+            PerformanceTimingCounters.finishTiming(
+                    PerformanceTimingCounters.Operation.VILLAGE_DETECTION_CHUNK_LOAD, started);
+        }
+    }
+
+    private static void detectVillagesInLoadedChunk(ChunkEvent.Load event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
             return;
         }
@@ -362,6 +374,18 @@ public class VillageDetectionHandler {
      */
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
+        long started = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.VILLAGE_DETECTION_TICK);
+        try {
+            processDetectionTick(event);
+        } finally {
+            PerformanceTimingCounters.finishTiming(
+                    PerformanceTimingCounters.Operation.VILLAGE_DETECTION_TICK, started);
+        }
+        VillageGenerationPipeline.processTick(event.getServer());
+    }
+
+    private static void processDetectionTick(ServerTickEvent.Post event) {
         tickCounter++;
 
         for (int i = 0; i < MAX_NEW_REGISTRATIONS_PER_TICK; i++) {
@@ -392,7 +416,6 @@ public class VillageDetectionHandler {
                 retryPendingPlacements(level);
             }
         }
-        VillageGenerationPipeline.processTick(event.getServer());
     }
 
     /**

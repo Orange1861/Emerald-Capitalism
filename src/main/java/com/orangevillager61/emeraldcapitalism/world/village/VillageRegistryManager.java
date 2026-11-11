@@ -112,6 +112,17 @@ public class VillageRegistryManager {
      * Called once per server tick for this level.
      */
     public void tick(ServerLevel level) {
+        long started = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.VILLAGE_REGISTRY_MANAGER_TICK);
+        try {
+            tickRegistry(level);
+        } finally {
+            PerformanceTimingCounters.finishTiming(
+                    PerformanceTimingCounters.Operation.VILLAGE_REGISTRY_MANAGER_TICK, started);
+        }
+    }
+
+    private void tickRegistry(ServerLevel level) {
         if (registryData == null) {
             registryData = VillageRegistryData.get(level);
         }

@@ -16,6 +16,7 @@ import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSite
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
@@ -94,8 +95,18 @@ public final class VillageGenerationContext {
             return false;
         }
 
+        boolean timed = PerformanceTimingCounters.isDetailedTimingEnabled();
+        long roadStarted = timed ? System.nanoTime() : 0L;
         preparedRoads = roadGenerator.prepare(level, pieces);
+        long farmStarted = timed ? System.nanoTime() : 0L;
         spatialCache = farmSiteSelector.buildSpatialCache(level, structureCenter, villageBox, pieces);
+        if (timed) {
+            long farmFinished = System.nanoTime();
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP] Village {} cache build: roadPrepareMs={} farmSpatialCacheMs={}",
+                    villageId, (farmStarted - roadStarted) / 1_000_000L,
+                    (farmFinished - farmStarted) / 1_000_000L);
+        }
 
         // Abandoned villages retain their vanilla zombie-village presentation. They
         // receive the dedicated vault-ruins building, but not the normal village
