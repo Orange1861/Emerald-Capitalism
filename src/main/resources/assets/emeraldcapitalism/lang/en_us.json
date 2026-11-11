@@ -134,6 +134,10 @@
 
   "emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadCapPerVillage": "Initial Scan Chunk-Load Batch Size",
   "emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadCapPerVillage.tooltip": "Maximum unloaded chunks requested per progressive initial-scan batch. Progress is preserved between batches.",
+  "emeraldcapitalism.configuration.advanced.debug": "Debug",
+  "emeraldcapitalism.configuration.advanced.debug.tooltip": "Diagnostic settings for investigating lag.",
+  "emeraldcapitalism.configuration.advanced.debug.performanceTiming": "Performance Timing",
+  "emeraldcapitalism.configuration.advanced.debug.performanceTiming.tooltip": "Records operation timings and logs a summary when the server stops. For diagnosing lag only.",
 
   "emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold": "Departure Grace Threshold",
   "emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold.tooltip": "Number of consecutive scans a villager must be absent before removal.",

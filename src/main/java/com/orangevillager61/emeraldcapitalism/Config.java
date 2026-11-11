@@ -262,6 +262,13 @@ public class Config {
             .translation("emeraldcapitalism.configuration.advanced.villageRegistry.initialScanChunkLoadCapPerVillage")
             .defineInRange("advanced.villageRegistry.initialScanChunkLoadCapPerVillage", 3, 0, 16);
 
+    private static final ModConfigSpec.BooleanValue PERFORMANCE_TIMING = BUILDER
+            .comment("If true, records per-operation timings (village generation, scans, pathing) and logs a summary when the server stops.",
+                     "Use for diagnosing lag; leave off in normal play.",
+                     "The JVM properties -Demeraldcapitalism.performanceTiming=true and -Demeraldcapitalism.performanceEvents=true still work.")
+            .translation("emeraldcapitalism.configuration.advanced.debug.performanceTiming")
+            .define("advanced.debug.performanceTiming", false);
+
     private static final ModConfigSpec.IntValue VILLAGE_SCAN_DEPARTURE_THRESHOLD = BUILDER
             .comment("Number of consecutive scans a villager must be absent before removal.")
             .translation("emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold")
@@ -544,6 +551,7 @@ public class Config {
     public static double emeraldGolemReserveOffset = 6.0D;
     public static double emeraldGolemBaseGolems = 1.0D;
     public static boolean enableBooksInCreativeTab = false;
+    public static boolean performanceTiming = false;
 
     public static void onLoad(final ModConfigEvent event) {
         villagersCanStarveToDeath = VILLAGERS_CAN_STARVE_TO_DEATH.get();
@@ -590,6 +598,11 @@ public class Config {
         emeraldGolemReserveOffset = EMERALD_GOLEM_RESERVE_OFFSET.get();
         emeraldGolemBaseGolems = EMERALD_GOLEM_BASE_GOLEMS.get();
         enableBooksInCreativeTab = ENABLE_BOOKS_IN_CREATIVE_TAB.get();
+        performanceTiming = PERFORMANCE_TIMING.get();
+        com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters.setDetailedTimingEnabled(
+                performanceTiming || Boolean.getBoolean("emeraldcapitalism.performanceTiming"));
+        com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters.setEventCountingEnabled(
+                performanceTiming || Boolean.getBoolean("emeraldcapitalism.performanceEvents"));
     }
 
     private static boolean validateItemName(final Object obj) {
