@@ -789,9 +789,13 @@ what the claim recorded when it arrives and on every collection check.
   later check finds it empty.
 - A furnace that holds anyone else's input, output, or fuel is not offered to
   any claim.
-- Proposal, pending developer confirmation: the pool counts removals made by
-  others. Three in one day marks the furnace contested, and it is not offered
-  for a day, so a player emptying it by hand does not keep consuming logs.
+- There is no "contested furnace" counter (decided 2026-11-11). The claim
+  already bounds the loss: a stage check finds the removal, refunds the quota
+  or counts the batch as done, and the next batch starts from what the furnace
+  really holds. A removal count would take a furnace out of the pool for a
+  day even while a holder's items are in it, which cuts against the claim
+  rules above, and it would need its own saved state. If playtests show
+  lumberjacks losing logs to a player repeatedly, revisit it then.
 
 **Orphaned batches.** When the holder dies, changes profession, unloads, or
 stays away roughly 5 minutes (6,000 ticks, to be tuned in play) after its
