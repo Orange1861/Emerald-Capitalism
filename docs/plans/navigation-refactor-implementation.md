@@ -19,6 +19,12 @@ capability, not a second task scheduler or a replacement villager AI.
   same feature to 1.21.4 through a small version adapter.
 - Completion status: open until every phase gate below passes for the exact
   release commit.
+- Amended 2026-11-10, after Phases 1–3 closed at `83c51742`: the execution
+  order, the pilot jobs, and several claim, dispatch, and activity decisions
+  changed. See "Execution order (amended 2026-11-10)" and "Decisions agreed
+  on 2026-11-10". Phase numbers remain stable identifiers used by the ledgers,
+  `gradle/navigation-architecture.json`, and the regression baseline; they no
+  longer state the order in which work is done.
 
 This is not permission to rewrite all vanilla villager AI. Replacing the
 entire Brain would duplicate a large, version-sensitive Minecraft subsystem
@@ -139,6 +145,14 @@ The following are migration mechanisms, not target architecture:
   memories;
 - villager `GoalSelector` injections for Emerald Capitalism profession work;
 - independent ticking by `VillagerBehaviorRegistry`.
+
+Correction recorded 2026-11-10: `VillagerBehaviorRegistry` has no production
+registrations. Only `VillagerBehaviorExtensionGameTests` registers definitions;
+production code only calls `refresh` and `tick` from `VillagerSpawnEvents` and
+`VillageRegistryEvents`. The competing scheduler in production is the set of
+profession goals injected into every villager together with
+`MovementRequestManager`. Retiring the registry's execution role is therefore
+mostly deletion.
 
 No new behavior should be added to those mechanisms. Each migrated feature
 must run through exactly one path: legacy or Brain-native, never both.
@@ -338,6 +352,230 @@ The completion report must distinguish implemented behavior, automated proof,
 agent review, and developer verification. Moving a class into `main`, writing
 another report, or recording a removed experiment must not upgrade the status
 of evidence.
+
+## Execution order (amended 2026-11-10)
+
+The developer chose a foundation-first order on 2026-11-10: settle the single
+scheduler and the competition between mod work and vanilla work on small real
+jobs, then move the lumberjack once onto that base, then migrate everything
+else. The phase sections below keep their numbers and their requirements
+except where a dated amendment says otherwise. Work proceeds in this order.
+
+### Stage 1 — Foundation, then the lumberjack
+
+| Step | Work | Phases it draws on |
+| ---: | --- | --- |
+| 0 | Amend this plan. | This amendment. |
+| 1 | Scenario runner and one mixed-village safety scene. | Core of 6 and 7. |
+| 2 | Movement intent through the Brain, proven on boat avoidance. | 12, plus the 1.21.4 confirmation of 9. |
+| 3 | One scheduler, proven on banker positioning. | 10, the banker-positioning half of 19, and the banker's share of 4. |
+| 4 | Competing work behaviors and activity placement. | 13. |
+| 5 | Task stages and the claim contract. | 11. Closes together with step 6. |
+| 6 | Lumberjack on the Brain. | 17. |
+| 7 | Lock in. | See below. |
+
+Step 5 builds the furnace pool, which has no production caller until step 6.
+Under the evidence rules a class without a gameplay caller proves nothing, so
+steps 5 and 6 are implemented separately but their gates close together.
+
+Step 7 adds the lumberjack and banker scenes to the standing check described
+under "Working rules", writes a one-page "how to add a villager job" recipe
+from what steps 3–6 needed, and re-estimates Stage 2.
+
+### Stage 2 — Everything else
+
+| Step | Work | Phase |
+| ---: | --- | ---: |
+| 8 | Plague avoidance, hostile-player flee, and begging. | 21 |
+| 9 | Farmer crops, pumpkins, farmland repair, and bread. | 15 |
+| 10 | Wanted-item pursuit. | 16 |
+| 11 | Doors, fence gates, obstacles, and ladders as route capabilities. | 14 |
+| 12 | Mayor candidate following and door repair. | 18 |
+| 13 | Inventory-bank visits. | Remainder of 19 |
+| 14 | Emerald processing and golem construction. | 20 |
+| 15 | Retire the legacy movement stack. | 22 |
+| 16 | Measure and reduce navigation overhead. | 23 |
+| 17 | Cross-version release validation. | 24 |
+
+- Step 8 comes first because these are already Brain behaviors and need only
+  the step 2 movement helper.
+- Move the farm work queue and farmer dispatch out of `VillageRecord` as a
+  behavior-preserving change immediately before step 9.
+- Step 11 clears the three ladder tests in the regression baseline. If farms
+  in ordinary villages depend on ladders, run step 11 before step 9.
+- Structural and non-pathing work (class splits, session-state holders, farm
+  placement restart safety, a 1.21.11 port) is outside this file and is slotted
+  between steps as separate work packages.
+
+### Phases that are no longer standalone steps
+
+- **Phase 4** is not a bulk move. Its port rule and compile-time dependency
+  check apply from step 3 onward, and each profession's decisions move into
+  common code in the step that migrates that profession. The Phase 4 gate is
+  judged at step 15, when every profession has moved.
+- **Phase 5** is not a separate audit pass. Each step labels the tests it adds
+  or touches as unit, component, or natural-AI, and the manifest rule that an
+  acceptance item needs a natural-AI test is enforced before step 15.
+- **Phase 6** is delivered by step 1.
+- **Phase 7** is replaced by one mixed-village scene, recorded in step 1 before
+  any behavior moves and re-run after every later step. Separate per-behavior
+  vanilla baselines are added only where that scene shows a regression.
+- **Phase 8** is split. Each migration step writes its own interruption tests
+  (panic, sleep, trade, profession loss, unload). The generic work-item schema
+  is built immediately before step 9. The benchmark runner is deferred to
+  immediately before step 16 and is built only if profiler captures of a busy
+  village, taken now and again after steps 9 and 15, show a need for repeated
+  measurement.
+- **Phase 9** needs no new seam; see the correction in that phase.
+
+### Working rules
+
+These replace the heavier parts of the evidence protocol for implementation
+steps. Where they conflict with "Phase completion protocol", these rules win;
+everything else in that protocol still applies.
+
+1. Every new class names the production caller that uses it.
+2. Every behavior has at least one test in which ordinary AI does the whole
+   job with no help from the test.
+3. Only the developer can pass an in-game check.
+4. One short ledger file per step. Do not record artifact hashes, and do not
+   make commits whose only purpose is to record a CI re-run.
+5. Build and prove on 1.21.1 first, then run on 1.21.4. CI shows only the
+   known baseline failures.
+6. A feature runs through the legacy path or the Brain path, never both. A
+   tracked test fails when any feature is registered on both.
+7. The standing check runs after every step: the mixed-village scene from
+   step 1, plus the banker and lumberjack scenes once step 7 adds them. A
+   later change that re-breaks the lumberjack fails the step that caused it.
+
+## Decisions agreed on 2026-11-10
+
+These decisions were made by the developer on 2026-11-10. Where one differs
+from a decision frozen in Phase 2, this section wins, and the step that
+implements it updates `gradle/navigation-architecture.json` and its verifier
+in the same change. Until then the manifest still shows the Phase 2 value.
+
+### Pilot jobs
+
+- Step 2 converts `AvoidBoatBehavior` to the movement-intent helper and removes
+  its `MovementRequestManager` calls.
+- Step 3 moves `BankerWorkGoal` into a Brain behavior in the banker's WORK
+  package and deletes the goal and its injection. It is the smallest real job
+  and exists to stop vanilla job-site pathing from pulling the banker into the
+  bank, so it tests the competition between mod work and vanilla work
+  directly.
+- The lumberjack is the first large job to move, and it moves only after
+  steps 1–5.
+
+### Lumberjack furnaces
+
+**Which furnaces.** A village's furnace pool contains only furnaces inside
+the village bounds that are part of a lumbermill. A lumberjack never uses a
+furnace holding input, output, or fuel that it did not put there, so a
+player's furnace and a player's fuel are never consumed.
+
+**How the pool finds them.** The village keeps an index of its pool furnaces.
+The 33 × 33 × 13 box scan around each lumberjack in `LumberjackGoal` is
+removed. The index is filled from three sources: the lumbermill placer when
+it generates a lumbermill, block place and break events inside village
+bounds, and a staggered village-level reconciliation no more often than every
+100 ticks that reads the block entities of the village's lumbermill chunks.
+The lumberjack's tree scan may also report a furnace it passes over to the
+village as a sighting, which costs almost nothing because the scan already
+walks those blocks, but the scan is not the index. It runs only while a
+lumberjack is looking for a tree, is centred on that lumberjack, reaches up
+to 72 blocks, and skips chunk sections without logs. A pool that depended on
+it would vary with where each lumberjack last searched and would include
+furnaces outside the village. The village validates every sighting against
+the membership rule above before adding it.
+
+**Fewer furnaces than lumberjacks.** Each furnace has at most one claim.
+
+- A lumberjack asks the village for a furnace only when it holds a full batch
+  of eight quota logs. It never walks to a furnace it has not been given.
+- A claim covers one batch. It lasts from loading the first log until that
+  lumberjack collects the last charcoal of the batch, because its logs are
+  inside. Collection releases the claim. A lumberjack that still owes charcoal
+  rejoins the queue behind anyone already waiting.
+- A refused lumberjack joins a queue kept by the village, longest wait first,
+  and keeps cutting and replanting.
+- While a lumberjack is waiting, its charcoal quota stops growing once it
+  reaches two batches (16 logs). Logs harvested beyond that are ordinary logs
+  and are delivered to the bank as usual. Without this cap the quota grows
+  without limit, logs reserved for charcoal are withheld from bank delivery,
+  and the inventory fills with logs that can be neither smelted nor delivered.
+- A lumberjack whose inventory is full and who has no furnace waits at its job
+  site and asks again every 100 ticks. It does not path to a busy furnace.
+- When a furnace frees up, the lumberjack at the front of the queue gets it. A
+  furnace that is removed or broken drops its claim, and its owner rejoins the
+  queue.
+- A village with no pool furnace accrues no charcoal quota. Lumberjacks cut,
+  replant, and deliver every log, and any quota already owed is cleared.
+
+**After a reload.** The saved `charcoal_furnace` position becomes a claim
+again before the pool offers that furnace to anyone else.
+
+### Trees and saplings
+
+- Saplings belong to the village, not to the lumberjack that planted them.
+  Planted positions are stored on the village record and are saved, because a
+  planted tree is real progress. Death, profession change, and unload of the
+  planter do not remove them, and any lumberjack of that village may harvest
+  the grown tree. `LumberjackSaplingCache`'s per-villager ownership is removed.
+- A lumberjack searches from its job site and may fell and replant trees
+  outside the village bounds, within the tree scanner's existing range. A
+  sapling planted outside the bounds is still recorded by the planting
+  village; ownership follows who planted it, not where it stands.
+- A lumberjack never fells or replants inside another village's bounds.
+- A sapling record is a lookup hint, not an exclusive claim. The tree scanner
+  and the exact tree validator stay authoritative, and only the tree
+  reservation prevents two lumberjacks working one tree. If two villages'
+  ranges overlap in the wild, either may harvest a grown tree there; the
+  record is dropped when the tree is harvested or the position no longer holds
+  that sapling or its log.
+- Records for positions in unloaded chunks are kept and are checked only when
+  the chunk is loaded.
+
+### Holding several claims
+
+A task takes its claims in a fixed order, tree first and furnace second, and
+releases them in reverse. Every claim carries village, profession, owner, and
+a generation number, so a late cleanup cannot release a newer claim.
+
+### Farmer dispatch range
+
+Queued farm work is offered by distance from the farmer's job site or the
+work cell, not from where the farmer happens to be standing. The current rule
+leases a cell only when its pending work is within 32 blocks of the farmer's
+current position, so work far from every farmer is never handed out until one
+wanders close. This is a correctness defect and not the optional long-range
+crop feature. Dispatch must also stop calling
+`VillagerNavigationTargets.findReachableTarget`, which is a path preflight.
+Phase 11 owns the rule; Phase 15 implements it.
+
+### Activity placement
+
+The Brain runs CORE plus exactly one other activity chosen by schedule or by
+an override such as panic or raid. Activities do not stack by priority.
+
+- Lumberjack work runs in the WORK activity for the lumberjack profession
+  only, ahead of vanilla work-site strolling.
+- Governor-candidate following cannot live in IDLE and also outrank work; it
+  would run only in idle hours. The Phase 2 placement in IDLE is withdrawn.
+- Begging placed only in WORK runs only in work hours. Hungry villagers must
+  be able to beg outside work hours, and other work behavior must not be able
+  to reset the begging countdown.
+- Step 4 (Phase 13) chooses the exact placement for governor following and
+  begging and freezes it before steps 8 and 12 begin.
+
+### Regression baseline entries that are not pathing
+
+`malformedbankstatefailsloudly` and
+`contestedgovernormaykillbankemployeewithoutvillageopinionpenalty` are bank
+persistence and reputation failures. They are owned by a separate non-pathing
+work package, not by Phases 19 and 18, and must be fixed before Phase 24. The
+change that schedules that package updates their owner in
+`gradle/navigation-regression-baseline.json`.
 
 ## Phase plan
 
@@ -622,6 +860,10 @@ record is serialized as authoritative gameplay state.
 **Gate:** future Minecraft ports have a narrow list of adapter touchpoints
 instead of copies of every profession behavior.
 
+**Amendment (2026-11-10).** Phase 4 is not executed as a bulk move. The port
+rule and the dependency check start with step 3, each profession moves into
+common code in its own migration step, and this gate is judged at step 15.
+
 ## Group II — Make the tests prove real gameplay
 
 ### Phase 5 — Audit and classify all AI/navigation tests
@@ -651,6 +893,10 @@ instead of copies of every profession behavior.
 
 **Gate:** the suite can no longer turn an artificial component setup into a
 claim that player-visible behavior works.
+
+**Amendment (2026-11-10).** There is no separate audit pass. Each step labels
+the tests it adds or touches, and the manifest rule is enforced before
+step 15.
 
 ### Phase 6 — Build deterministic natural-AI fixtures
 
@@ -718,6 +964,11 @@ fragile world setup or controlling the result from the test.
 **Gate:** later phases can identify whether a change fixed a mod feature while
 breaking vanilla villagers.
 
+**Amendment (2026-11-10).** Step 1 records one mixed-village scene covering
+work, meet, rest, sleep, panic, and trade before any behavior moves, and that
+scene is re-run after every later step. Per-behavior baselines are added only
+where the scene shows a regression.
+
 ### Phase 8 — Establish interruption, benchmark, and manual acceptance suites
 
 **Work**
@@ -776,6 +1027,11 @@ most common regression pattern—interruption followed by stale state—and Luna
 has a reproducible, outcome-normalized benchmark path available when
 performance evidence is needed.
 
+**Amendment (2026-11-10).** Interruption tests are written by each migration
+step for its own job. The work-item schema is built immediately before step 9.
+The benchmark runner is deferred to immediately before step 16 and is built
+only if profiler captures show a need for repeated measurement.
+
 ## Group III — Redesign villager pathing around the Brain
 
 ### Phase 9 — Install a no-op Brain composition seam
@@ -805,6 +1061,13 @@ performance evidence is needed.
 
 **Gate:** the integration point exists on both targets without changing
 gameplay.
+
+**Correction (2026-11-10).** The composition seam already exists:
+`VillagerGoalPackagesMixin` and `VillagerGoalPackageIntegration` add mod
+behaviors to the CORE, IDLE, MEET, and WORK packages, and begging and the
+avoidance behaviors already run through it. No no-op behavior is added. What
+remains of this phase is confirming in step 2 that the seam composes the same
+way on 1.21.4.
 
 ### Phase 10 — Replace the parallel behavior scheduler with Brain-owned tasks
 
@@ -836,6 +1099,14 @@ gameplay.
 
 **Gate:** the Brain is demonstrably the only scheduler for one pilot task and
 the pattern is ready for other behaviors.
+
+**Amendment (2026-11-10).** The pilot task is banker positioning
+(`BankerWorkGoal`). `VillagerBehaviorRegistry` has no production
+registrations, so removing its execution role means deleting its `refresh`
+and `tick` calls. The per-villager guard is a tracked test that fails when
+any feature is registered on both the legacy and the Brain path. Proof also
+includes a natural test in which a banker reaches and holds the work side of
+its bank through a work day, and two bankers at two banks.
 
 ### Phase 11 — Introduce an explicit task lifecycle and claim contract
 
@@ -884,6 +1155,15 @@ the pattern is ready for other behaviors.
 **Gate:** all later profession migrations use one lifecycle vocabulary and
 cannot mistake route completion for job completion.
 
+**Amendment (2026-11-10).** The claim contract also covers, as recorded under
+"Decisions agreed on 2026-11-10": a task holding several claims in a fixed
+order; the village furnace pool, its index, its queue, and the reload rule
+for `charcoal_furnace`; and farmer dispatch measured from the job site or
+work cell without a path preflight. These are decided here so that Phases 15
+and 17 implement the contract instead of reopening it. The furnace pool has no
+production caller until Phase 17, so this gate closes together with the
+Phase 17 gate.
+
 ### Phase 12 — Publish vanilla movement intent instead of owning paths
 
 **Work**
@@ -918,6 +1198,10 @@ cannot mistake route completion for job completion.
 **Gate:** the pilot task completes real journeys without
 `MovementRequestManager` or direct navigation ownership.
 
+**Amendment (2026-11-10).** The pilot for the movement-intent helper is
+`AvoidBoatBehavior`, which is already a Brain behavior. This phase runs as
+step 2, before the scheduler work.
+
 ### Phase 13 — Place mod behaviors into correct activity priorities
 
 **Work**
@@ -946,6 +1230,12 @@ cannot mistake route completion for job completion.
 
 **Gate:** vanilla safety and schedule behavior wins deterministically without
 custom preemption arbitration.
+
+**Amendment (2026-11-10).** This phase also writes the rule for how a mod job
+holds the WORK slot against vanilla work-site behaviors so that two behaviors
+never alternate the walk target, and it chooses and freezes the placement of
+governor-candidate following and begging; see "Activity placement". Its
+tests and its developer scene run on the banker.
 
 ### Phase 14 — Isolate doors, fence gates, obstacles, and ladders as route capabilities
 
@@ -1034,6 +1324,12 @@ code and do not alter unrelated vanilla villagers.
 **Gate:** ordinary farmer gameplay works before and after mod work, with no
 stale walk target or claim.
 
+**Amendment (2026-11-10).** This phase implements the dispatch rule under
+"Farmer dispatch range" and removes the 32-block current-position limit from
+`VillageRecord`, `HarvestQueuedCropGoal`, and `ReplenishFarmlandGoal`. Add a
+natural test in which queued work lies more than 32 blocks from every farmer's
+current position but inside the village, and is still leased and completed.
+
 ### Phase 16 — Wanted-item pursuit
 
 **Work**
@@ -1119,13 +1415,28 @@ pickup is no longer suppressed by mod movement state.
 **Gate:** the player-observed one-log-then-walk-away regression is reproduced
 by a test first and eliminated in ordinary gameplay.
 
+**Amendment (2026-11-10).** Furnace membership, discovery, the queue, the
+quota cap, and sapling ownership follow "Lumberjack furnaces" and "Trees and
+saplings". Split `LumberjackGoal` into a task state machine, the existing
+tree scanner, and the village furnace pool, and replace its single `failed`
+flag with named outcomes. Additional automated cases: a player's furnace
+inside the village is never loaded or emptied; a waiting lumberjack's quota
+stops at two batches and its extra logs reach the bank; a village with no
+pool furnace delivers every log; a sapling planted outside the bounds is
+recorded by the planting village and harvested by a different lumberjack of
+that village after the planter is removed; no tree is felled inside another
+village's bounds; and sapling records survive save and reload. After its
+gate, the lumberjack scenes join the standing check.
+
 ### Phase 18 — Mayor candidate following and door repair
 
 **Work**
 
 - Migrate candidate following to a Brain behavior using a live entity tracker.
-- Give valid governorship-contest following a high-priority social slot immediately
-  below CORE safety and above ordinary WORK/IDLE tasks.
+- Give valid governorship-contest following the placement frozen by Phase 13
+  under "Activity placement". It must be able to run during work hours; the
+  earlier wording, an IDLE slot ranked above WORK, is not something the Brain
+  can express.
 - Make door repair a staged civic task with a fixed work position and
   village-scoped claim.
 - Define loss of candidate, candidate dimension change, invalid door, and
@@ -1181,6 +1492,11 @@ work never leaves stale movement or claims.
 
 **Gate:** bank-related movement uses the common lifecycle without expanding
 into unrelated persistence or performance work.
+
+**Amendment (2026-11-10).** Banker positioning moves in step 3 as the
+scheduler pilot. This phase keeps inventory-bank visits
+(`VillagerInventoryBankGoal`). It does not own
+`malformedbankstatefailsloudly`.
 
 ### Phase 20 — Emerald processing and golem construction
 
@@ -1249,6 +1565,11 @@ transactional gameplay outcomes.
 
 **Gate:** fear behaviors preempt safely without fighting Brain movement, and
 begging cannot pay at a distance or leak state.
+
+**Amendment (2026-11-10).** Begging uses the placement frozen by Phase 13
+instead of "the appropriate social WORK activity", must be available outside
+work hours, and must not have its countdown reset by other work behavior.
+Boat avoidance has already moved in step 2.
 
 ## Group V — Remaining navigation work and release proof
 
@@ -1380,6 +1701,10 @@ audit, and the developer checklist pass on both targets, no generated artifact
 is tracked, and the exact-commit release report contains no ambiguous
 historical evidence. This is the final all-tests-pass regression gate for the
 navigation refactor.
+
+**Amendment (2026-11-10).** The two non-pathing baseline failures named under
+"Regression baseline entries that are not pathing" are fixed by their own
+work package before this gate is attempted.
 
 Do not begin another navigation revision after this gate unless a new,
 reproducible defect is reported and assigned to the correct task, movement, or
