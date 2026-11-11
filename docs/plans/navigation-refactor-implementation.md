@@ -374,7 +374,8 @@ except where a dated amendment says otherwise. Work proceeds in this order.
 | 6 | Lumberjack on the Brain. | 17. |
 | 7 | Lock in. | See below. |
 
-Step 5 builds the furnace pool, which has no production caller until step 6.
+Step 5 builds the furnace pool and the claim stages, which have no production
+caller until step 6.
 Under the evidence rules a class without a gameplay caller proves nothing, so
 steps 5 and 6 are implemented separately but their gates close together.
 
@@ -514,6 +515,77 @@ the membership rule above before adding it.
 
 **After a reload.** The saved `charcoal_furnace` position becomes a claim
 again before the pool offers that furnace to anyone else.
+
+### Furnace items and claim stages
+
+Agreed on 2026-11-11 unless marked as a proposal.
+
+**Who moves items.** A claim reserves a furnace and holds no items. The
+claim holder physically puts logs and fuel into the furnace from its own
+inventory and physically takes the charcoal out into its own inventory. The
+village moves nothing.
+
+**Stages.** A claim moves through loading, smelting, and collecting, and
+records what the holder put in: logs loaded, fuel placed, and charcoal
+expected. A claim is released only when the furnace's input and output slots
+are verified empty, or the furnace no longer exists, or only items the claim
+did not place remain (see "Items removed or added by someone else"). Every
+other exit hands the claim to the village or keeps it: full inventory, no
+fuel, panic, sleep, unload, profession change, and death. None of them
+releases it. Leftover fuel from the pool's own batch may stay in the fuel
+slot and be reused by the next claim. Fuel the pool did not place is never
+used.
+
+**Starting without charcoal.** A lumberjack that holds no charcoal runs a
+seed batch first. It turns one log into four planks and places them as fuel,
+loads one log as input, and smelts it. The charcoal from that first log stays
+in the lumberjack's inventory as fuel and is not sold. The rest of the batch
+uses it; one charcoal smelts eight items. The seed batch is part of the same
+claim. The existing start rule stays: the lumberjack needs one log beyond a
+full batch to pay for the plank fuel, and otherwise keeps its quota and does
+not start.
+
+**Items removed or added by someone else.** A player, a hopper, or another
+mod can change a claimed furnace. The holder compares the three slots with
+what the claim recorded when it arrives and on every collection check.
+
+- A log removed from the input slot before it smelted is lost to someone
+  else. One conversion is returned to the quota, because the charcoal is still
+  owed.
+- Charcoal removed from the output slot counts as a finished conversion. No
+  quota is refunded, and the batch continues with the next log.
+- The holder takes only charcoal, and only up to the recorded count. Items
+  the claim did not place are never taken or replaced. If only such items
+  remain, the claim is released and the furnace is marked occupied until a
+  later check finds it empty.
+- A furnace that holds anyone else's input, output, or fuel is not offered to
+  any claim.
+- Proposal, pending developer confirmation: the pool counts removals made by
+  others. Three in one day marks the furnace contested, and it is not offered
+  for a day, so a player emptying it by hand does not keep consuming logs.
+
+**Orphaned batches.** When the holder dies, changes profession, unloads, or
+stays away roughly 5 minutes (6,000 ticks, to be tuned in play) after its
+charcoal is ready, the claim passes to the village. The furnace stays reserved
+and the next lumberjack in the queue collects the charcoal, which is sold
+under the collector's account. Nothing is lost and no furnace stays blocked. A
+returning holder finds its claim gone and clears its saved `charcoal_furnace`.
+
+**Inventory and the bank.**
+
+- A full inventory while collecting keeps the claim. The holder makes a bank
+  trip with the claim held, returns, and collects. If it does not return in
+  time, it is an orphaned batch.
+- A bank trip may start only at a stage boundary: after a tree is finished or
+  after a batch is collected. During loading and smelting it waits. During
+  collecting it may start only when the inventory is full.
+- A full inventory stops tree work. The lumberjack breaks no further log when
+  there is no room, so nothing spills on the ground, and goes to the bank at
+  the next stage boundary. If it cannot sell, it waits at its job site and
+  checks again every 100 ticks.
+- A bank that will not buy needs no special rule. The lumberjack fills up and
+  the rule above applies; a change in the bank's stock or prices unblocks it.
+- Payment stays an account credit, not items.
 
 ### Trees and saplings
 
@@ -1235,7 +1307,10 @@ custom preemption arbitration.
 holds the WORK slot against vanilla work-site behaviors so that two behaviors
 never alternate the walk target, and it chooses and freezes the placement of
 governor-candidate following and begging; see "Activity placement". Its
-tests and its developer scene run on the banker.
+tests and its developer scene run on the banker. It also names the inventory
+bank trip, still the legacy `VillagerInventoryBankGoal` until Phase 19, as a
+competitor of lumberjack work, and applies the bank-trip rule under "Furnace
+items and claim stages": a trip starts only at a stage boundary.
 
 ### Phase 14 — Isolate doors, fence gates, obstacles, and ladders as route capabilities
 
@@ -1427,6 +1502,20 @@ recorded by the planting village and harvested by a different lumberjack of
 that village after the planter is removed; no tree is felled inside another
 village's bounds; and sapling records survive save and reload. After its
 gate, the lumberjack scenes join the standing check.
+
+Amended 2026-11-11: the claim stages, seed batch, external-removal rules,
+orphaned-batch handoff, and full-inventory rules under "Furnace items and
+claim stages" are part of this phase. Additional automated cases: a claim is
+released from no path while the furnace's input or output holds the claim's
+items (a negative test for every exit path, including full inventory, no fuel,
+panic, sleep, unload, profession change, and death); a lumberjack with no
+charcoal runs the seed batch and keeps the first charcoal as fuel; a log
+removed from the input, charcoal removed from the output, and foreign items
+placed in the furnace, each at the loading, smelting, and collecting stages; a
+holder that dies mid-batch and a second lumberjack that collects and sells the
+charcoal; a full inventory at collection followed by a bank trip with the
+claim held; a full inventory that breaks no further log and spills nothing;
+and a bank that refuses to buy.
 
 ### Phase 18 — Mayor candidate following and door repair
 
