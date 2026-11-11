@@ -52,11 +52,7 @@ public final class VillageGenerationContext {
     private BlockPos plannedManagerPos;
     private VillageManagerBlockEntity manager;
     private boolean managerResidentNeeded;
-    private int preloadChunkX;
-    private int preloadChunkZ;
-    private int preloadMaxChunkX;
-    private int preloadMaxChunkZ;
-    private boolean preloadInitialized;
+    private PipelineChunkPreloader preloader;
     private boolean cachesBuilt;
     private boolean pipelineCompletedSuccessfully;
 
@@ -80,36 +76,21 @@ public final class VillageGenerationContext {
     /**
      * One cache pass for every provider. The two-chunk border covers farm candidates
      * and prevents the old per-farm structure-start rescans.
+     *
+     * <p>Chunks are requested asynchronously and kept loaded by tickets until
+     * {@link #releaseChunks()}, so this phase never generates a chunk on the
+     * server thread and later phases find their chunks already loaded.</p>
      */
-    public boolean buildSharedCachesStep(int chunkLoadsPerTick) {
+    public boolean buildSharedCachesStep(int newChunkRequestsPerTick) {
         if (cachesBuilt) {
             return true;
         }
-        if (!preloadInitialized) {
-            preloadChunkX = (villageBox.minX() >> 4) - 2;
-            preloadMaxChunkX = (villageBox.maxX() >> 4) + 2;
-            preloadChunkZ = (villageBox.minZ() >> 4) - 2;
-            preloadMaxChunkZ = (villageBox.maxZ() >> 4) + 2;
-            preloadInitialized = true;
+        if (preloader == null) {
+            preloader = new PipelineChunkPreloader(level, villageId,
+                    (villageBox.minX() >> 4) - 2, (villageBox.maxX() >> 4) + 2,
+                    (villageBox.minZ() >> 4) - 2, (villageBox.maxZ() >> 4) + 2);
         }
-
-        int examined = 0;
-        int loadedAtStart = chunkLoadBudget.chunksLoaded();
-        while (preloadChunkX <= preloadMaxChunkX && examined < 64
-                && chunkLoadBudget.chunksLoaded() - loadedAtStart < chunkLoadsPerTick) {
-            if (!chunkLoadBudget.ensureLoaded(level, preloadChunkX, preloadChunkZ)) {
-                // The shared failsafe was reached. Build a partial snapshot instead
-                // of spending later ticks repeatedly attempting the remaining chunks.
-                preloadChunkX = preloadMaxChunkX + 1;
-                break;
-            }
-            examined++;
-            if (++preloadChunkZ > preloadMaxChunkZ) {
-                preloadChunkZ = (villageBox.minZ() >> 4) - 2;
-                preloadChunkX++;
-            }
-        }
-        if (preloadChunkX <= preloadMaxChunkX) {
+        if (!preloader.step(newChunkRequestsPerTick)) {
             return false;
         }
 
@@ -198,6 +179,13 @@ public final class VillageGenerationContext {
         registryData().registerBankPosition(villageId, bankPos);
         if (manager != null) {
             manager.registerBank(bankPos);
+        }
+    }
+
+    /** Releases the preload tickets. Called once the pipeline finishes or fails. */
+    public void releaseChunks() {
+        if (preloader != null) {
+            preloader.releaseAll();
         }
     }
 

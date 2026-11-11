@@ -39,6 +39,11 @@ public class ChunkLoadBudget {
             }
             return false;
         }
+        // Blocking load on the server thread. The village pipeline preloads its
+        // area asynchronously, so this should be rare; log it so any remaining
+        // blocking loads show up when diagnosing lag.
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP] Blocking chunk load at ({}, {}) during village generation", cx, cz);
         level.getChunk(cx, cz);
         loaded++;
         return true;

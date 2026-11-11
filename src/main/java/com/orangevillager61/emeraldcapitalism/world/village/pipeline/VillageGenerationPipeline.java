@@ -28,7 +28,8 @@ import java.util.function.Consumer;
  * plug into {@link VillageBuildingRegistry}; it must not create another event listener.</p>
  */
 public final class VillageGenerationPipeline {
-    private static final int CACHE_CHUNKS_PER_TICK = 16;
+    /** New asynchronous chunk requests started per active tick during the cache phase. */
+    private static final int CACHE_CHUNKS_PER_TICK = 4;
     private static final ConcurrentLinkedQueue<PipelineTask> PENDING = new ConcurrentLinkedQueue<>();
     private static final Set<PipelineKey> QUEUED_OR_ACTIVE = ConcurrentHashMap.newKeySet();
     private static PipelineTask activeTask;
@@ -84,6 +85,9 @@ public final class VillageGenerationPipeline {
     }
 
     public static void clearPendingWork() {
+        if (activeTask != null) {
+            activeTask.context.releaseChunks();
+        }
         PENDING.clear();
         QUEUED_OR_ACTIVE.clear();
         activeTask = null;
@@ -163,6 +167,7 @@ public final class VillageGenerationPipeline {
                 EmeraldCapitalism.LOGGER.error(
                         "[ECAP] Village generation pipeline failed for {} in phase {}",
                         context.villageId(), phase, exception);
+                context.releaseChunks();
                 completion.accept(context);
                 return true;
             }
@@ -324,6 +329,7 @@ public final class VillageGenerationPipeline {
         }
 
         private boolean finalizeTask() {
+            context.releaseChunks();
             context.farmSavedData().markFarmsPlaced(context.structureCenter());
             context.registryData().setDirty();
             context.markPipelineCompletedSuccessfully();
