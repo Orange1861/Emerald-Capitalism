@@ -43,6 +43,12 @@ public final class VillageRoadPathGenerator {
     private static final int MAX_VISITED_NODES = 20_000;
     private static final int SEARCH_MARGIN = 12;
     private static final int MAX_TARGET_ATTEMPTS = 24;
+    /**
+     * Server-thread time one path may spend trying street targets. Most late
+     * attempts fail, so stop after this instead of running all 24 searches
+     * in a single tick. The first target is always tried.
+     */
+    private static final long MAX_PLANNING_NANOS_PER_PATH = 8_000_000L;
     private static final int MIN_TARGET_SPACING_SQ = 9;
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
@@ -234,8 +240,16 @@ public final class VillageRoadPathGenerator {
         ChunkLoadBudget loadBudget = sharedLoadBudget != null
                 ? sharedLoadBudget : new ChunkLoadBudget();
         int targetAttempts = Math.min(MAX_TARGET_ATTEMPTS, streetTargets.size());
+        long planningStarted = System.nanoTime();
 
         for (int targetIndex = 0; targetIndex < targetAttempts; targetIndex++) {
+            if (targetIndex > 0 && System.nanoTime() - planningStarted > MAX_PLANNING_NANOS_PER_PATH) {
+                EmeraldCapitalism.LOGGER.debug(
+                        "[ECAP] Stopped {} path planning from {} after {} of {} targets (time limit)",
+                        profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
+                        targetIndex, targetAttempts);
+                break;
+            }
             StreetTarget streetTarget = streetTargets.get(targetIndex);
             if (!ensureSearchChunksLoaded(level, searchStart, streetTarget.pos(),
                     loadBudget, profile.pathWidth())) {
