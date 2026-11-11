@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import net.minecraft.server.level.ChunkResult;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
@@ -62,27 +63,47 @@ final class PipelineChunkPreloader {
      *
      * @return true when every chunk is loaded or has failed
      */
-    boolean step(int maxNewRequestsPerTick) {
+    boolean step(int maxNewRequestsPerTick, PreloadStepStats stats) {
         if (released) {
             return true;
         }
+        long pollStarted = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_POLL);
         pollOutstanding();
+        stats.pollNanos += PreloadStepStats.finish(
+                PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_POLL, pollStarted);
 
         int started = 0;
         while (nextPending < pendingChunks.size()
                 && started < maxNewRequestsPerTick
                 && outstanding.size() < MAX_OUTSTANDING_LOADS) {
             ChunkPos pos = pendingChunks.get(nextPending++);
+            long ticketStarted = PerformanceTimingCounters.startTiming(
+                    PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ADD_TICKET);
             addTicket(pos);
+            stats.ticketNanos += PreloadStepStats.finish(
+                    PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ADD_TICKET, ticketStarted);
+            stats.ticketsAdded++;
             if (level.hasChunk(pos.x, pos.z)) {
                 // Already loaded: the ticket only keeps it loaded for later phases.
+                stats.alreadyLoaded++;
                 continue;
             }
             try {
-                CompletableFuture<ChunkResult<ChunkAccess>> future = level.getChunkSource()
-                        .getChunkFuture(pos.x, pos.z, ChunkStatus.FULL, true);
+                long futureStarted = PerformanceTimingCounters.startTiming(
+                        PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_CHUNK_FUTURE);
+                CompletableFuture<ChunkResult<ChunkAccess>> future;
+                try {
+                    future = level.getChunkSource()
+                            .getChunkFuture(pos.x, pos.z, ChunkStatus.FULL, true);
+                } finally {
+                    stats.futureNanos += PreloadStepStats.finish(
+                            PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_CHUNK_FUTURE,
+                            futureStarted);
+                }
                 outstanding.put(pos, new PendingLoad(future, level.getGameTime()));
                 started++;
+                stats.futuresStarted++;
             } catch (RuntimeException exception) {
                 failedChunks++;
                 EmeraldCapitalism.LOGGER.warn(

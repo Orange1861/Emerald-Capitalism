@@ -54,6 +54,7 @@ public final class VillageGenerationContext {
     private VillageManagerBlockEntity manager;
     private boolean managerResidentNeeded;
     private PipelineChunkPreloader preloader;
+    private final PreloadStepStats preloadStepStats = new PreloadStepStats();
     private boolean cachesBuilt;
     private boolean pipelineCompletedSuccessfully;
 
@@ -91,22 +92,21 @@ public final class VillageGenerationContext {
                     (villageBox.minX() >> 4) - 2, (villageBox.maxX() >> 4) + 2,
                     (villageBox.minZ() >> 4) - 2, (villageBox.maxZ() >> 4) + 2);
         }
-        if (!preloader.step(newChunkRequestsPerTick)) {
+        preloadStepStats.reset();
+        if (!preloader.step(newChunkRequestsPerTick, preloadStepStats)) {
             return false;
         }
 
-        boolean timed = PerformanceTimingCounters.isDetailedTimingEnabled();
-        long roadStarted = timed ? System.nanoTime() : 0L;
+        long roadStarted = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ROAD_PREPARE);
         preparedRoads = roadGenerator.prepare(level, pieces);
-        long farmStarted = timed ? System.nanoTime() : 0L;
+        preloadStepStats.roadPrepareNanos = PreloadStepStats.finish(
+                PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ROAD_PREPARE, roadStarted);
+        long spatialStarted = PerformanceTimingCounters.startTiming(
+                PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_SPATIAL_CACHE);
         spatialCache = farmSiteSelector.buildSpatialCache(level, structureCenter, villageBox, pieces);
-        if (timed) {
-            long farmFinished = System.nanoTime();
-            EmeraldCapitalism.LOGGER.debug(
-                    "[ECAP] Village {} cache build: roadPrepareMs={} farmSpatialCacheMs={}",
-                    villageId, (farmStarted - roadStarted) / 1_000_000L,
-                    (farmFinished - farmStarted) / 1_000_000L);
-        }
+        preloadStepStats.spatialCacheNanos = PreloadStepStats.finish(
+                PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_SPATIAL_CACHE, spatialStarted);
 
         // Abandoned villages retain their vanilla zombie-village presentation. They
         // receive the dedicated vault-ruins building, but not the normal village
@@ -123,6 +123,11 @@ public final class VillageGenerationContext {
         }
         cachesBuilt = true;
         return true;
+    }
+
+    /** Breakdown of the most recent {@link #buildSharedCachesStep} call, for slow-tick logging. */
+    String describeLastCacheStep() {
+        return preloadStepStats.describe();
     }
 
     /** Places or reconnects the manager only after every provider has planned around it. */

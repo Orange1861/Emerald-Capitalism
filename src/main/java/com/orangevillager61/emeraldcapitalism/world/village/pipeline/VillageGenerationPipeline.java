@@ -191,7 +191,14 @@ public final class VillageGenerationPipeline {
                 return;
             }
             long elapsed = System.nanoTime() - started;
-            if (elapsed > SLOW_STEP_LOG_NANOS) {
+            if (elapsed <= SLOW_STEP_LOG_NANOS) {
+                return;
+            }
+            if (stepPhase == Phase.BUILD_CACHES) {
+                EmeraldCapitalism.LOGGER.info("[ECAP][SlowTick] village={} phase={} ms={} index={} {}",
+                        context.villageId(), stepPhase, elapsed / 1_000_000L, stepIndex,
+                        context.describeLastCacheStep());
+            } else {
                 EmeraldCapitalism.LOGGER.info("[ECAP][SlowTick] village={} phase={} ms={} index={}",
                         context.villageId(), stepPhase, elapsed / 1_000_000L, stepIndex);
             }
