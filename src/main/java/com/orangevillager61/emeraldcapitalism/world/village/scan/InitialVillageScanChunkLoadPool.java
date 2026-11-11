@@ -2,12 +2,9 @@ package com.orangevillager61.emeraldcapitalism.world.village.scan;
 
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
-import net.minecraft.server.level.ChunkResult;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -15,11 +12,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Level-wide asynchronous chunk-load pool used only by adaptive initial village scans.
  * Requests retain a temporary ticket until their chunk has been scanned or the scan is cancelled.
+ *
+ * <p>The radius-0 region ticket (level 33: FULL, not block- or entity-ticking) alone drives
+ * loading on the chunk map's worker threads; requests are polled with {@code getChunkNow}.
+ * {@code getChunkFuture} would block the server thread until the chunk is complete, and
+ * {@code hasChunk} only checks the ticket level, not that the chunk is present.</p>
  */
 public final class InitialVillageScanChunkLoadPool implements AutoCloseable {
     private static final int LOAD_TIMEOUT_TICKS = 200;
@@ -50,7 +51,7 @@ public final class InitialVillageScanChunkLoadPool implements AutoCloseable {
      */
     public Availability ensureAvailable(UUID villageId, int chunkX, int chunkZ) {
         RequestKey key = new RequestKey(villageId, chunkX, chunkZ);
-        if (level.hasChunk(chunkX, chunkZ)) {
+        if (isFullyLoaded(chunkX, chunkZ)) {
             return Availability.AVAILABLE;
         }
 
@@ -86,7 +87,7 @@ public final class InitialVillageScanChunkLoadPool implements AutoCloseable {
         }
         for (AdaptiveChunkScanPlan.ChunkCoordinate chunk : chunks) {
             RequestKey key = new RequestKey(villageId, chunk.x(), chunk.z());
-            if (level.hasChunk(chunk.x(), chunk.z()) || activeLoads.containsKey(key)) {
+            if (isFullyLoaded(chunk.x(), chunk.z()) || activeLoads.containsKey(key)) {
                 continue;
             }
             PermitResult permitResult = permits.tryAcquire(
@@ -154,39 +155,22 @@ public final class InitialVillageScanChunkLoadPool implements AutoCloseable {
             );
             return Availability.REFUSED;
         }
-        if (!load.future().isDone()) {
-            return Availability.WAITING;
-        }
+        return isFullyLoaded(key.chunkX(), key.chunkZ())
+                ? Availability.AVAILABLE
+                : Availability.WAITING;
+    }
 
-        try {
-            ChunkResult<ChunkAccess> result = load.future().getNow(null);
-            if (result != null && result.isSuccess() && level.hasChunk(key.chunkX(), key.chunkZ())) {
-                return Availability.AVAILABLE;
-            }
-        } catch (RuntimeException exception) {
-            EmeraldCapitalism.LOGGER.warn(
-                    "[ECAP] Temporary chunk load failed for ({}, {}) in initial village scan {}",
-                    key.chunkX(),
-                    key.chunkZ(),
-                    key.villageId(),
-                    exception
-            );
-        }
-
-        release(key.villageId(), key.chunkX(), key.chunkZ());
-        return Availability.REFUSED;
+    private boolean isFullyLoaded(int chunkX, int chunkZ) {
+        return level.getChunkSource().getChunkNow(chunkX, chunkZ) != null;
     }
 
     private boolean startLoad(RequestKey key) {
         ChunkPos chunkPos = new ChunkPos(key.chunkX(), key.chunkZ());
-        level.getChunkSource().addRegionTicket(TICKET_TYPE, chunkPos, TICKET_RADIUS, key.villageId());
         try {
-            CompletableFuture<ChunkResult<ChunkAccess>> future = level.getChunkSource()
-                    .getChunkFuture(key.chunkX(), key.chunkZ(), ChunkStatus.FULL, true);
-            activeLoads.put(key, new ActiveLoad(chunkPos, future, level.getGameTime()));
+            level.getChunkSource().addRegionTicket(TICKET_TYPE, chunkPos, TICKET_RADIUS, key.villageId());
+            activeLoads.put(key, new ActiveLoad(chunkPos, level.getGameTime()));
             return true;
         } catch (RuntimeException exception) {
-            level.getChunkSource().removeRegionTicket(TICKET_TYPE, chunkPos, TICKET_RADIUS, key.villageId());
             permits.rollbackAcquire(key.villageId());
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Failed to request temporary chunk ({}, {}) for initial village scan {}",
@@ -211,11 +195,7 @@ public final class InitialVillageScanChunkLoadPool implements AutoCloseable {
     private record RequestKey(UUID villageId, int chunkX, int chunkZ) {
     }
 
-    private record ActiveLoad(
-            ChunkPos chunkPos,
-            CompletableFuture<ChunkResult<ChunkAccess>> future,
-            long startedTick
-    ) {
+    private record ActiveLoad(ChunkPos chunkPos, long startedTick) {
     }
 
     enum PermitResult {

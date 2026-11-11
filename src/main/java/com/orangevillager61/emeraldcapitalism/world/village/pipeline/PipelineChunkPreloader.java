@@ -2,12 +2,9 @@ package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
-import net.minecraft.server.level.ChunkResult;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,16 +13,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Loads a village pipeline's chunk rectangle without blocking the server thread.
  *
- * <p>Each chunk receives a non-ticking region ticket (same form as
- * {@code InitialVillageScanChunkLoadPool}) and an asynchronous FULL-status
- * request. Later ticks poll the futures. Tickets are held until
- * {@link #releaseAll()} so later pipeline phases find every chunk already
- * loaded and never fall back to a blocking {@code level.getChunk}.</p>
+ * <p>Each chunk receives a radius-0 region ticket (level 33: FULL, not block-
+ * or entity-ticking), which makes the chunk map load or generate it on worker
+ * threads. Later ticks poll {@code getChunkNow}. {@code getChunkFuture} is not
+ * used because on the server thread it blocks until the chunk is complete, and
+ * {@code hasChunk} is not used because it only checks the ticket level. Tickets
+ * are held until {@link #releaseAll()} so later pipeline phases find every
+ * chunk already loaded and never fall back to a blocking {@code level.getChunk}.</p>
  */
 final class PipelineChunkPreloader {
     private static final TicketType<UUID> TICKET_TYPE = TicketType.create(
@@ -40,7 +38,8 @@ final class PipelineChunkPreloader {
     private final ServerLevel level;
     private final UUID villageId;
     private final List<ChunkPos> pendingChunks = new ArrayList<>();
-    private final Map<ChunkPos, PendingLoad> outstanding = new HashMap<>();
+    /** Chunks still waiting to reach FULL, mapped to the game time their ticket was added. */
+    private final Map<ChunkPos, Long> outstanding = new HashMap<>();
     private final List<ChunkPos> ticketed = new ArrayList<>();
     private int nextPending;
     private int failedChunks;
@@ -59,7 +58,7 @@ final class PipelineChunkPreloader {
 
     /**
      * Advances the preload by at most {@code maxNewRequestsPerTick} new
-     * asynchronous requests.
+     * ticketed loads.
      *
      * @return true when every chunk is loaded or has failed
      */
@@ -84,32 +83,14 @@ final class PipelineChunkPreloader {
             stats.ticketNanos += PreloadStepStats.finish(
                     PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ADD_TICKET, ticketStarted);
             stats.ticketsAdded++;
-            if (level.hasChunk(pos.x, pos.z)) {
+            if (isFullyLoaded(pos)) {
                 // Already loaded: the ticket only keeps it loaded for later phases.
                 stats.alreadyLoaded++;
                 continue;
             }
-            try {
-                long futureStarted = PerformanceTimingCounters.startTiming(
-                        PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_CHUNK_FUTURE);
-                CompletableFuture<ChunkResult<ChunkAccess>> future;
-                try {
-                    future = level.getChunkSource()
-                            .getChunkFuture(pos.x, pos.z, ChunkStatus.FULL, true);
-                } finally {
-                    stats.futureNanos += PreloadStepStats.finish(
-                            PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_CHUNK_FUTURE,
-                            futureStarted);
-                }
-                outstanding.put(pos, new PendingLoad(future, level.getGameTime()));
-                started++;
-                stats.futuresStarted++;
-            } catch (RuntimeException exception) {
-                failedChunks++;
-                EmeraldCapitalism.LOGGER.warn(
-                        "[ECAP] Failed to request chunk ({}, {}) for village pipeline {}",
-                        pos.x, pos.z, villageId, exception);
-            }
+            outstanding.put(pos, level.getGameTime());
+            started++;
+            stats.futuresStarted++;
         }
 
         boolean done = nextPending >= pendingChunks.size() && outstanding.isEmpty();
@@ -122,36 +103,27 @@ final class PipelineChunkPreloader {
     }
 
     private void pollOutstanding() {
-        Iterator<Map.Entry<ChunkPos, PendingLoad>> iterator = outstanding.entrySet().iterator();
+        Iterator<Map.Entry<ChunkPos, Long>> iterator = outstanding.entrySet().iterator();
         long now = level.getGameTime();
         while (iterator.hasNext()) {
-            Map.Entry<ChunkPos, PendingLoad> entry = iterator.next();
+            Map.Entry<ChunkPos, Long> entry = iterator.next();
             ChunkPos pos = entry.getKey();
-            PendingLoad load = entry.getValue();
-            if (!load.future().isDone()) {
-                if (now - load.startedTick() >= LOAD_TIMEOUT_TICKS) {
-                    failedChunks++;
-                    EmeraldCapitalism.LOGGER.warn(
-                            "[ECAP] Timed out loading chunk ({}, {}) for village pipeline {}",
-                            pos.x, pos.z, villageId);
-                    iterator.remove();
-                }
-                continue;
-            }
-            boolean loaded = false;
-            try {
-                ChunkResult<ChunkAccess> result = load.future().getNow(null);
-                loaded = result != null && result.isSuccess() && level.hasChunk(pos.x, pos.z);
-            } catch (RuntimeException exception) {
-                EmeraldCapitalism.LOGGER.warn(
-                        "[ECAP] Chunk load failed for ({}, {}) in village pipeline {}",
-                        pos.x, pos.z, villageId, exception);
-            }
-            if (!loaded) {
+            if (isFullyLoaded(pos)) {
+                iterator.remove();
+            } else if (now - entry.getValue() >= LOAD_TIMEOUT_TICKS) {
+                // The ticket stays in `ticketed` and is removed by releaseAll().
                 failedChunks++;
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Timed out loading chunk ({}, {}) for village pipeline {}",
+                        pos.x, pos.z, villageId);
+                iterator.remove();
             }
-            iterator.remove();
         }
+    }
+
+    /** Non-blocking FULL check; unlike hasChunk it requires the chunk itself to be present. */
+    private boolean isFullyLoaded(ChunkPos pos) {
+        return level.getChunkSource().getChunkNow(pos.x, pos.z) != null;
     }
 
     private void addTicket(ChunkPos pos) {
@@ -170,8 +142,5 @@ final class PipelineChunkPreloader {
         }
         ticketed.clear();
         outstanding.clear();
-    }
-
-    private record PendingLoad(CompletableFuture<ChunkResult<ChunkAccess>> future, long startedTick) {
     }
 }
