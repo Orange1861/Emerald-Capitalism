@@ -25,6 +25,11 @@ capability, not a second task scheduler or a replacement villager AI.
   on 2026-11-10". Phase numbers remain stable identifiers used by the ledgers,
   `gradle/navigation-architecture.json`, and the regression baseline; they no
   longer state the order in which work is done.
+- Merged 2026-11-11 with the separate Plan 1 and Plan 2 documents and the
+  whole-mod architecture assessment drafted on 2026-11-10. This file is the
+  single plan. It now also holds the Stage 2 detail, the parallel work packages
+  (structural work and the non-pathing backlog), the suggested interleaving,
+  and the findings that shaped the order.
 
 This is not permission to rewrite all vanilla villager AI. Replacing the
 entire Brain would duplicate a large, version-sensitive Minecraft subsystem
@@ -385,28 +390,53 @@ from what steps 3–6 needed, and re-estimates Stage 2.
 
 ### Stage 2 — Everything else
 
-| Step | Work | Phase |
-| ---: | --- | ---: |
-| 8 | Plague avoidance, hostile-player flee, and begging. | 21 |
-| 9 | Farmer crops, pumpkins, farmland repair, and bread. | 15 |
-| 10 | Wanted-item pursuit. | 16 |
-| 11 | Doors, fence gates, obstacles, and ladders as route capabilities. | 14 |
-| 12 | Mayor candidate following and door repair. | 18 |
-| 13 | Inventory-bank visits. | Remainder of 19 |
-| 14 | Emerald processing and golem construction. | 20 |
-| 15 | Retire the legacy movement stack. | 22 |
-| 16 | Measure and reduce navigation overhead. | 23 |
-| 17 | Cross-version release validation. | 24 |
+Every step follows the "how to add a villager job" recipe written in step 7
+and the working rules below. Each step ends with its old goal or
+movement-request code deleted, a natural-AI test, its own interruption tests
+(panic, sleep, trade, profession loss, unload), and the developer's in-game
+check. Sizes are relative, based on how much code a step touches, and are
+re-estimated at step 7.
 
-- Step 8 comes first because these are already Brain behaviors and need only
-  the step 2 movement helper.
-- Move the farm work queue and farmer dispatch out of `VillageRecord` as a
-  behavior-preserving change immediately before step 9.
-- Step 11 clears the three ladder tests in the regression baseline. If farms
-  in ordinary villages depend on ladders, run step 11 before step 9.
-- Structural and non-pathing work (class splits, session-state holders, farm
-  placement restart safety, a 1.21.11 port) is outside this file and is slotted
-  between steps as separate work packages.
+| Step | Work | Phase | Size | What gets deleted |
+| ---: | --- | ---: | --- | --- |
+| 8 | Plague avoidance, hostile-player flee, and begging. | 21 | Small | Their `MovementRequestManager` calls. |
+| 9 | Farmer: crops, pumpkins, farmland repair, and bread. | 15 | Large | `HarvestQueuedCropGoal`, `ReplenishFarmlandGoal`, `HarvestPumpkinGoal`, `FarmerBreadConversionGoal`. |
+| 10 | Wanted-item pursuit. | 16 | Small | Mod state that blocks vanilla pickup. |
+| 11 | Doors, fence gates, obstacles, and ladders as route capabilities. | 14 | Large | Per-job gate and ladder handling. |
+| 12 | Mayor: candidate following and door repair. | 18 | Medium | `MayorFollowGovernorCandidateGoal`, `MayorDoorRepairGoal`. |
+| 13 | Inventory-bank visits. | Remainder of 19 | Medium | `VillagerInventoryBankGoal`. |
+| 14 | Emerald smith: processor and golem construction. | 20 | Medium | `EmeraldSmithProcessorGoal`, `EmeraldSmithGolemConstructionGoal`. |
+| 15 | Retire the legacy movement stack. | 22 | Medium | `MovementRequestManager`, `VillagerMovementRequestBinding`, the snapshot logic in `MoveToTargetSinkMixin`, `VillagerBehaviorRegistry`, and all villager goal injection. |
+| 16 | Measure and trim. | 23 | Small | Scans and replans the measurements show are wasted. |
+| 17 | Cross-version release validation. | 24 | Small | The expected-failure baseline. |
+
+Notes on individual steps:
+
+- **Step 8 comes first** because these are already Brain behaviors and need only
+  the step 2 helper. Begging also needs two fixes: it must not be limited to
+  work hours, and other work behavior must not be able to reset its countdown.
+- **Step 9 includes the farmer dispatch bug** under "Farmer dispatch range".
+  Do work package B2 (splitting the farm work queue out of `VillageRecord`)
+  immediately before it, and build the generic work-item schema from Phase 8
+  immediately before it as well.
+- **Step 11 clears three baseline failures**, the natural ladder tests. If
+  farmers in the developer's villages depend on ladders, run step 11 before
+  step 9.
+- **Step 12 needs the activity decision from step 4.** Governor following
+  cannot live in IDLE and also outrank work; it is a gated CORE behavior or its
+  own activity.
+- **Step 13 is preceded by the bank half of B2.** Banker positioning already
+  moved in step 3, so this step covers inventory-bank visits only.
+- **Step 15 is mostly deletion** by the time it arrives. Its real work is the
+  mixed-village check that nothing still uses the old path, and the Phase 22
+  source checks.
+- **Step 17 needs every test green.** Two baseline failures are not pathing
+  (`malformedbankstatefailsloudly` and
+  `contestedgovernormaykillbankemployeewithoutvillageopinionpenalty`); work
+  package C2 fixes them so they do not block the release.
+- **The vanilla safety net replaces Phase 7.** Instead of per-behavior
+  baselines taken before anything moves, the mixed-village scene from step 1 is
+  run at the end of every step.
 
 ### Phases that are no longer standalone steps
 
@@ -429,6 +459,73 @@ from what steps 3–6 needed, and re-estimates Stage 2.
   measurement.
 - **Phase 9** needs no new seam; see the correction in that phase.
 
+### Parallel work packages
+
+These are separate small branches. They are independent of the navigation
+phases except where a step names one. Package numbers keep the names used in
+the earlier drafts.
+
+**Structural packages (make new features cheap to add)**
+
+- **B1: Keep the job recipe current (small, ongoing).** The one-page "how to
+  add a villager job" from step 7 is updated after each Stage 2 step. By step 15
+  it describes the only supported way to add villager behavior, and the
+  architecture scanner enforces it.
+- **B2: Split the largest classes (medium).** These are moves, not rewrites:
+  behavior stays the same and existing tests pass unchanged.
+  - Move the farm work queue and farmer dispatch out of `VillageRecord` before
+    step 9.
+  - Move full-scan state out of `VillageRecord` as a second pass.
+  - Split bank storage totals from bank ownership and UI data in
+    `BankBlockEntity` before step 13.
+- **B3: One home for session state (medium, any time).** Replace the static
+  collections with one per-level holder that is dropped when the level
+  unloads, one feature at a time, starting with `VillagerBreedingSessions` and
+  `VillageDetectionHandler`. Each move adds a test that leaving and
+  re-entering a world leaves nothing behind. Phase 3's
+  `VillagerSessionCleanup` already covers villager session data.
+- **B4: A performance baseline (small, do early).** Take one profiler capture
+  of a busy village before step 1, and repeat it after steps 9 and 15. Without
+  it there is no way to tell whether a later change helped, or whether the cost
+  is in villager AI at all rather than in bank and village scans. It does not
+  need the Phase 8 benchmark runner; build that only if the captures show
+  something that needs repeated measurement.
+- **B5: Move tests out of the shipped mod (small, after step 15).** The 36
+  GameTest classes sit in the main source set. First check whether they are in
+  the release jar, then move them to their own source set so they are not. Wait
+  until step 15 so the move does not collide with active test work.
+
+**Backlog that is not pathing**
+
+| Package | What | Why it matters | Size |
+| --- | --- | --- | --- |
+| C1 | Make farm placement safe across a stop or crash (deferred finding 1). | Placement changes terrain over several ticks with progress held only in memory, so a stop or crash can leave half-built terrain and a farm that is never retried. A failed placement can still be marked as placed. Highest player impact on this list. | Medium |
+| C2 | The two non-pathing baseline failures. | Needed for step 17. | Small |
+| C3 | Bank cache cost with many banks (deferred findings 2 and 3). | Only if B4 shows it. | Medium |
+| C4 | 1.21.11 port. | Shows whether the version boundary is as narrow as intended. Do it after step 15, when there is one movement system to port. A compile-only attempt earlier would give an early signal if it is cheap. | Large |
+| C5 | The developer's own list in `Issues to fix.txt`. | Golems that do not wander, banks placed onto houses, textures, lore books, achievements, and similar items. | Varies |
+
+### Suggested interleaving
+
+1. B4 baseline capture, then Stage 1 (steps 0 to 7).
+2. Step 8, then C1 (farm placement), which is independent and protects worlds.
+3. B2 farm queue split, then steps 9 and 10.
+4. Steps 11 and 12, then the B2 bank split, then steps 13 and 14.
+5. Steps 15 and 16, then C2, then step 17.
+6. B3, B5, and C4 after the release check, unless a step needs one sooner. C3
+   only if B4 shows it.
+
+### How this plan meets the goal
+
+- **Fewer pathing issues:** after step 15 there is one scheduler and one route
+  executor, so the class of bug where two systems fight over a villager cannot
+  occur.
+- **New features are cheap:** a new job is one Brain behavior that follows the
+  recipe, with claims and movement provided. It does not add a goal to every
+  villager or a new static map.
+- **Agent work that finishes:** every step ends with old code deleted and an
+  in-game check by the developer, so nothing can be reported done while unused.
+
 ### Working rules
 
 These replace the heavier parts of the evidence protocol for implementation
@@ -448,6 +545,131 @@ everything else in that protocol still applies.
 7. The standing check runs after every step: the mixed-village scene from
    step 1, plus the banker and lumberjack scenes once step 7 adds them. A
    later change that re-breaks the lumberjack fails the step that caused it.
+
+## Findings that shape the order (2026-11-11)
+
+Two reviews read this plan against the code on 2026-11-10 and 2026-11-11. Both
+found the diagnosis and the target design right, and both changed the order
+and several details. This section records what they found so later steps do
+not rediscover it. A figure is marked "second review" where it comes from the
+second review and was not re-measured; every other figure was counted against
+the code or the git history of this branch.
+
+### What the plan had wrong about the code
+
+- `VillagerBehaviorRegistry` is not a production scheduler; see the correction
+  under "Transitional code to retire". The competing scheduler is the set of
+  profession goals added in `VillageRegistryEvents` plus
+  `MovementRequestManager`, so Phase 10 is mostly deletion.
+- The Phase 9 seam already exists. `VillagerGoalPackageIntegration` composes
+  mod behaviors into the CORE, IDLE, MEET, and WORK packages. Begging, boat
+  avoidance, plague avoidance, and hostile-player flee are already Brain
+  behaviors; they only route their movement through `MovementRequestManager`.
+  The 1.21.4 side of the seam has not been checked and is confirmed in step 2.
+- That makes the avoidance behaviors the cheapest pilot for Phase 12: they
+  need no scheduler move, only the change from movement requests to a
+  published `WALK_TARGET`.
+- Group II was too far ahead of its first user. Phases 5 to 8 would build a
+  test audit, fixtures, vanilla baselines, an interruption matrix, and a
+  benchmark runner before any behavior migrates. The earlier R-series showed
+  what happens when infrastructure is designed before its consumer, so step 1
+  builds only a minimal scenario runner and the rest grows with each
+  profession.
+
+### The "incomplete agent work" pattern
+
+The recurring complaint that villagers do not finish jobs has the same shape as
+the history behind it: scaffolding that was built, tested in isolation, and
+reported done without a production caller.
+
+- **The R-series.** From the commit before "Rewrite pathing 1" (13 October) to
+  the end of 16 October, 51 production files gained 4,717 lines and lost 433,
+  and test code gained 3,923 lines. That work produced
+  `MovementRequestManager` (1,109 lines), which this plan exists to remove.
+- **A framework with no user.** `VillagerBehaviorRegistry`,
+  `VillagerBehaviorDefinition`, and `VillagerBehaviorLifecycle` ship in the mod
+  and only tests exercise them.
+- **Tests that proved fixtures.** The baseline accepts five failures on 1.21.1
+  and six on 1.21.4. Three are the natural ladder tests, so the ladder feature
+  (`VillagerClimbMixin`, 620 lines) does not yet pass an unassisted run.
+- **Ports that are folders only.** `versions/1.21.11`, `versions/26.1`, and
+  `versions/26.2` hold only `gradle.properties` and a source folder, and
+  `settings.gradle` builds only 1.21.1 and 1.21.4.
+- **The same features fixed repeatedly.** The 31 August history has "Mayor door
+  repair fix?", "Another attempt to fix the mayor door repair", "Fixed
+  lumberjack AI", "Lumberjack and Mayor AI fixes", and "Final fixes?".
+- **The developer's own list agrees.** `Issues to fix.txt` still names
+  "Lumberjack AI review needed", "Complete Villagerspeak language support and
+  re-enable it", and "Fix issues in imcomplete mod issues".
+- **Process weight.** From the first 19 October commit to `83c51742`,
+  production Java gained 856 lines and lost 108, test code gained 420 and lost
+  85, and docs, tooling, build checks, and CI gained 4,133 and lost 625.
+  Eighteen of the 70 commits that were ahead of `main` when counted on
+  2026-11-10 have subjects that record evidence or ledgers.
+  The completion protocol worked for honesty and is expensive; the three
+  working rules that catch this failure are rules 1 to 3 under "Working rules".
+
+### Architecture outside pathing
+
+Sound:
+
+- A separate `core` module holds pure logic with unit tests.
+- Village lookup is chunk indexed, and tree scans are budgeted across ticks
+  (second review for the lookup; the scan budget was read in
+  `LumberjackTreeScanner`).
+- Bank totals use dirty flags, hunger updates are staggered, and mixins are
+  audited with a stated reason each (second review).
+
+Weak:
+
+- **Very large classes.** `VillageRecord` is 3,125 lines, `BankBlockEntity`
+  2,673, `LumberjackGoal` 1,463, and `MovementRequestManager` 1,109.
+  `LumberjackGoal` assigns its single `failed` flag in 20 places, which is why a
+  route ending and a job ending look the same to it. The second review's
+  reading is that classes this size are where partial agent work comes from: a
+  session changes the part it read and misses the rest.
+- **Static state.** There are 104 static collection fields in 58 production
+  classes by a declaration count (the second review counted 99 in about 40).
+  Phase 3 gave villager session data one cleanup owner, but the pattern remains
+  elsewhere, and in single player these outlive the world just left.
+- **Cost per villager grows with every feature.** `VillageRegistryEvents`
+  adds eleven goals to every villager at join, whatever its profession (each
+  goal then checks its own eligibility), and four `EntityTickEvent`
+  handlers (`ZombieVirusEvents`, `WanderingTraderEvents`,
+  `VillagerHungerEvents`, `VillagerSpawnEvents`) run for every entity before
+  filtering. Moving work into profession Brain packages removes much of this as
+  a side effect.
+- **Performance work without measurement.** The deferred findings admit there
+  is no comparable baseline.
+- **A parked world-integrity bug.** Farm placement changes terrain over several
+  ticks with its progress held only in memory (deferred finding 1).
+- **Tests ship with the mod.** The 36 GameTest classes live under
+  `src/main/java`, and no exclusion from the release jar was found in the root
+  Gradle files.
+
+### The design risk to watch
+
+Vanilla work behaviors also write `WALK_TARGET` inside the WORK activity.
+"Erase only your own value" handles the exit but not competition while a mod
+job is running. The Phase 1/2 ledger already records this for begging, where
+other WORK behavior resets the countdown. Step 4 (Phase 13) settles it and
+deserves more weight than its length in the original plan suggests.
+
+### Risks and how this plan answers them
+
+- **Pace.** The working rules drop artifact hashes, CI re-run commits, and one
+  ledger per attempt for implementation steps.
+- **Two systems at once.** Between steps 3 and 15 some features run on the Brain
+  and some on the legacy stack. Working rule 6 and its tracked test fail when a
+  feature is on both paths.
+- **The source scanner is lexical.** It says so itself. A helper that returns
+  `getNavigation()` would slip past it. It stays until step 15, and any new
+  syntax gets a parser-backed rule and a permanent fixture before it is
+  allowlisted.
+- **CI evidence needs pushes.** Commits made locally are not seen by CI. Each
+  step is pushed before its CI result is cited.
+- **Re-breaking the lumberjack.** Step 7 adds the lumberjack scenes to the
+  standing check.
 
 ## Decisions agreed on 2026-11-10
 
