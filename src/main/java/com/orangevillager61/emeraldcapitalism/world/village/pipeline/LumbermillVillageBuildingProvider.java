@@ -22,17 +22,56 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
 
     @Override
     public List<? extends PlannedVillageBuilding> plan(VillageGenerationContext context) {
+        VillageBuildingPlanningTask task = startPlanning(context);
+        while (!task.processStep()) {
+            // Run every step now; the pipeline calls startPlanning to spread them over ticks.
+        }
+        return task.result();
+    }
+
+    /**
+     * Site search runs in time-bounded batches, then the connector is planned in
+     * its own step. Neither split changes the chosen site or connector.
+     */
+    @Override
+    public VillageBuildingPlanningTask startPlanning(VillageGenerationContext context) {
         if (context.abandonedVillage()
                 || context.registryData().hasGeneratedLumbermill(context.villageId())) {
-            return List.of();
+            return VillageBuildingPlanningTask.completed(List.of());
         }
-        VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill = placer.plan(
+        VillageLumbermillStructurePlacer.SitePlanning sitePlanning = placer.startPlanning(
                 context.level(), context.bellPos(), context.biomeType(), context.pieces(),
                 context.preparedRoads(),
                 context.chunkLoadBudget(), context.reservations()::intersects);
-        if (lumbermill == null) {
-            return List.of();
+        if (sitePlanning == null) {
+            return VillageBuildingPlanningTask.completed(List.of());
         }
+        return new VillageBuildingPlanningTask() {
+            private List<? extends PlannedVillageBuilding> result;
+
+            @Override
+            public boolean processStep() {
+                if (result != null) {
+                    return true;
+                }
+                if (!sitePlanning.isFinished()) {
+                    sitePlanning.step();
+                    return false;
+                }
+                VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill = sitePlanning.result();
+                result = lumbermill == null ? List.of() : planConnector(context, lumbermill);
+                return true;
+            }
+
+            @Override
+            public List<? extends PlannedVillageBuilding> result() {
+                return result == null ? List.of() : result;
+            }
+        };
+    }
+
+    private List<? extends PlannedVillageBuilding> planConnector(
+            VillageGenerationContext context, VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill) {
         // The building reservation is committed after this provider returns,
         // so include this footprint while planning its own connector. A first
         // turn must not widen the path back over the entrance stairs.

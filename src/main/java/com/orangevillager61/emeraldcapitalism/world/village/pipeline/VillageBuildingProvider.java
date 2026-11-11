@@ -32,6 +32,14 @@ public interface VillageBuildingProvider {
 
     List<? extends PlannedVillageBuilding> plan(VillageGenerationContext context);
 
+    /**
+     * Starts planning. Providers whose planning can exceed a few milliseconds
+     * return a task that spreads the work over ticks; the default plans in one step.
+     */
+    default VillageBuildingPlanningTask startPlanning(VillageGenerationContext context) {
+        return VillageBuildingPlanningTask.completed(plan(context));
+    }
+
     /** Optional provider-wide work after all buildings and paths are complete. */
     default VillagePostProcessTask createPostProcessTask(
             VillageGenerationContext context, List<PlannedVillageBuilding> placedBuildings) {

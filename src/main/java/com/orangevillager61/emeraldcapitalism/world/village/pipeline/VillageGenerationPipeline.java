@@ -140,6 +140,7 @@ public final class VillageGenerationPipeline {
         private Phase phase = Phase.BUILD_CACHES;
         private int index;
         private int ticksUsed;
+        private VillageBuildingPlanningTask activePlanningTask;
         private PlannedVillageBuilding activePlacementPlan;
         private VillageBuildingPlacementTask activePlacementTask;
 
@@ -211,11 +212,23 @@ public final class VillageGenerationPipeline {
             return false;
         }
 
-        /** One provider per tick; importance then maximum size determines reservation order. */
+        /**
+         * One provider at a time; importance then maximum size determines reservation
+         * order. A provider's planning task may span several ticks, and {@code index}
+         * stays on that provider until its task completes.
+         */
         private boolean planBuildings() {
             if (index < providers.size()) {
-                VillageBuildingProvider provider = providers.get(index++);
-                List<? extends PlannedVillageBuilding> candidates = provider.plan(context);
+                VillageBuildingProvider provider = providers.get(index);
+                if (activePlanningTask == null) {
+                    activePlanningTask = provider.startPlanning(context);
+                }
+                if (!activePlanningTask.processStep()) {
+                    return false;
+                }
+                List<? extends PlannedVillageBuilding> candidates = activePlanningTask.result();
+                activePlanningTask = null;
+                index++;
                 candidates.stream().sorted(BUILDING_ORDER).forEach(plan -> {
                     if (!plan.providerId().equals(provider.id())) {
                         EmeraldCapitalism.LOGGER.warn(

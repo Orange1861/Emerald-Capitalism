@@ -95,6 +95,30 @@ public final class VillageLumbermillStructurePlacer {
                                   VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
                                   ChunkLoadBudget loadBudget,
                                   Predicate<BoundingBox> reservedCollision) {
+        SitePlanning planning = startPlanning(level, bellPos, biomeType, villagePieces,
+                preparedRoads, loadBudget, reservedCollision);
+        if (planning == null) {
+            return null;
+        }
+        while (!planning.step()) {
+            // Run every batch now; the pipeline uses startPlanning to spread them over ticks.
+        }
+        return planning.result();
+    }
+
+    /**
+     * Starts a resumable site search. Candidates are evaluated in the same order
+     * as a single-pass search and selection runs only after all of them, so the
+     * chosen site does not depend on how the work is split across ticks.
+     *
+     * @return null when no template is available for the biome
+     */
+    @Nullable
+    public SitePlanning startPlanning(ServerLevel level, BlockPos bellPos, String biomeType,
+                                      List<StructurePiece> villagePieces,
+                                      VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
+                                      ChunkLoadBudget loadBudget,
+                                      Predicate<BoundingBox> reservedCollision) {
         List<ResourceLocation> templateLocations = templateLocationsFor(level, bellPos, biomeType);
         if (templateLocations == null) {
             EmeraldCapitalism.LOGGER.warn(
@@ -117,66 +141,148 @@ public final class VillageLumbermillStructurePlacer {
             return null;
         }
 
-        List<LumbermillSite> sites = new ArrayList<>();
+        List<SiteCandidate> candidates = new ArrayList<>();
         for (LoadedTemplate loaded : templates) {
             for (int distance : DISTANCES_FROM_BELL) {
                 for (int[] direction : DIRECTIONS) {
                     for (Rotation rotation : ROTATIONS) {
-                        int rotatedX = rotatedSizeX(loaded.template(), rotation);
-                        int rotatedZ = rotatedSizeZ(loaded.template(), rotation);
-                        StructurePlaceSettings settings = placementSettings(rotation);
                         for (int lateralOffset : LATERAL_OFFSETS) {
-                            int lateralX = -direction[1] * lateralOffset;
-                            int lateralZ = direction[0] * lateralOffset;
-                            int desiredMinX = bellPos.getX() + direction[0] * distance + lateralX
-                                    - rotatedX / 2;
-                            int desiredMinZ = bellPos.getZ() + direction[1] * distance + lateralZ
-                                    - rotatedZ / 2;
-                            BlockPos anchor = alignAnchorToFootprint(loaded.template(), settings,
-                                    desiredMinX, desiredMinZ);
-                            BoundingBox footprint = loaded.template().getBoundingBox(settings, anchor);
-                            if (reservedCollision.test(footprint)
-                                    || overlapsVillagePiece(footprint, villagePieces)
-                                    || preparedRoads.intersectsStreet(footprint)
-                                    || !ensureFootprintLoaded(level, footprint, loadBudget)) {
-                                continue;
-                            }
-
-                            TerrainProfile terrain = terrainProfile(level, footprint.minX(), footprint.minZ(),
-                                    footprint.getXSpan(), footprint.getZSpan());
-                            if (terrain == null) {
-                                continue;
-                            }
-                            BlockPos origin = anchor.atY(terrain.placementY());
-                            footprint = loaded.template().getBoundingBox(settings, origin);
-                            sites.add(new LumbermillSite(loaded, anchor, footprint,
-                                    terrain.placementY(), terrain.roughness(), rotation, 0));
+                            candidates.add(new SiteCandidate(loaded, distance, direction,
+                                    rotation, lateralOffset));
                         }
                     }
                 }
             }
         }
+        return new SitePlanning(level, bellPos, biomeType, villagePieces, preparedRoads,
+                loadBudget, reservedCollision, candidates);
+    }
 
-        if (sites.isEmpty()) {
-            EmeraldCapitalism.LOGGER.warn(
-                    "[ECAP] Could not find a non-overlapping lumbermill site near village bell {}",
-                    bellPos);
-            return null;
+    /** Resumable lumbermill site search; see {@link #startPlanning}. */
+    public static final class SitePlanning {
+        /**
+         * Server-thread time one batch may spend evaluating candidates. It only
+         * decides where a batch ends; every candidate is still evaluated.
+         */
+        private static final long BATCH_NANOS = 10_000_000L;
+
+        private final ServerLevel level;
+        private final BlockPos bellPos;
+        private final String biomeType;
+        private final List<StructurePiece> villagePieces;
+        private final VillageRoadPathGenerator.PreparedVillageRoads preparedRoads;
+        private final ChunkLoadBudget loadBudget;
+        private final Predicate<BoundingBox> reservedCollision;
+        private final List<SiteCandidate> candidates;
+        private final List<LumbermillSite> sites = new ArrayList<>();
+        private int nextCandidate;
+        private boolean finished;
+        private PlannedLumbermill result;
+
+        private SitePlanning(ServerLevel level, BlockPos bellPos, String biomeType,
+                             List<StructurePiece> villagePieces,
+                             VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
+                             ChunkLoadBudget loadBudget, Predicate<BoundingBox> reservedCollision,
+                             List<SiteCandidate> candidates) {
+            this.level = level;
+            this.bellPos = bellPos;
+            this.biomeType = biomeType;
+            this.villagePieces = villagePieces;
+            this.preparedRoads = preparedRoads;
+            this.loadBudget = loadBudget;
+            this.reservedCollision = reservedCollision;
+            this.candidates = candidates;
         }
 
-        applyTreePreference(level, biomeType, sites);
-        sites.sort(Comparator.comparingInt(LumbermillSite::treeDensityScore).reversed()
-                .thenComparingInt(LumbermillSite::roughness)
-                .thenComparingInt(site -> site.anchor().getX())
-                .thenComparingInt(site -> site.anchor().getZ())
-                .thenComparing(site -> site.loaded().location().toString())
-                .thenComparing(site -> site.rotation().name()));
-        LumbermillSite site = sites.getFirst();
-        BlockPos origin = site.anchor().atY(site.placementY());
-        LumbermillEntrance entrance = findTemplateEntrance(level, site.loaded().template(), origin,
-                site.rotation(), site.footprint(), bellPos);
-        return new PlannedLumbermill(site.loaded().template(), origin, site.rotation(),
-                site.footprint(), site.loaded().location(), entrance.pathStart(), entrance.direction());
+        /**
+         * Evaluates one batch of candidates, or selects the site once every
+         * candidate has been evaluated.
+         *
+         * @return true when planning has finished and {@link #result()} is final
+         */
+        public boolean step() {
+            if (finished) {
+                return true;
+            }
+            if (nextCandidate < candidates.size()) {
+                long started = System.nanoTime();
+                do {
+                    evaluate(candidates.get(nextCandidate++));
+                } while (nextCandidate < candidates.size()
+                        && System.nanoTime() - started < BATCH_NANOS);
+                return false;
+            }
+            result = select();
+            finished = true;
+            return true;
+        }
+
+        public boolean isFinished() {
+            return finished;
+        }
+
+        /** The chosen lumbermill, or null when no valid site exists. */
+        @Nullable
+        public PlannedLumbermill result() {
+            return result;
+        }
+
+        private void evaluate(SiteCandidate candidate) {
+            LoadedTemplate loaded = candidate.loaded();
+            int[] direction = candidate.direction();
+            int rotatedX = rotatedSizeX(loaded.template(), candidate.rotation());
+            int rotatedZ = rotatedSizeZ(loaded.template(), candidate.rotation());
+            StructurePlaceSettings settings = placementSettings(candidate.rotation());
+            int lateralX = -direction[1] * candidate.lateralOffset();
+            int lateralZ = direction[0] * candidate.lateralOffset();
+            int desiredMinX = bellPos.getX() + direction[0] * candidate.distance() + lateralX
+                    - rotatedX / 2;
+            int desiredMinZ = bellPos.getZ() + direction[1] * candidate.distance() + lateralZ
+                    - rotatedZ / 2;
+            BlockPos anchor = alignAnchorToFootprint(loaded.template(), settings,
+                    desiredMinX, desiredMinZ);
+            BoundingBox footprint = loaded.template().getBoundingBox(settings, anchor);
+            if (reservedCollision.test(footprint)
+                    || overlapsVillagePiece(footprint, villagePieces)
+                    || preparedRoads.intersectsStreet(footprint)
+                    || !ensureFootprintLoaded(level, footprint, loadBudget)) {
+                return;
+            }
+
+            TerrainProfile terrain = terrainProfile(level, footprint.minX(), footprint.minZ(),
+                    footprint.getXSpan(), footprint.getZSpan());
+            if (terrain == null) {
+                return;
+            }
+            BlockPos origin = anchor.atY(terrain.placementY());
+            footprint = loaded.template().getBoundingBox(settings, origin);
+            sites.add(new LumbermillSite(loaded, anchor, footprint,
+                    terrain.placementY(), terrain.roughness(), candidate.rotation(), 0));
+        }
+
+        @Nullable
+        private PlannedLumbermill select() {
+            if (sites.isEmpty()) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Could not find a non-overlapping lumbermill site near village bell {}",
+                        bellPos);
+                return null;
+            }
+
+            applyTreePreference(level, biomeType, sites);
+            sites.sort(Comparator.comparingInt(LumbermillSite::treeDensityScore).reversed()
+                    .thenComparingInt(LumbermillSite::roughness)
+                    .thenComparingInt(site -> site.anchor().getX())
+                    .thenComparingInt(site -> site.anchor().getZ())
+                    .thenComparing(site -> site.loaded().location().toString())
+                    .thenComparing(site -> site.rotation().name()));
+            LumbermillSite site = sites.getFirst();
+            BlockPos origin = site.anchor().atY(site.placementY());
+            LumbermillEntrance entrance = findTemplateEntrance(level, site.loaded().template(), origin,
+                    site.rotation(), site.footprint(), bellPos);
+            return new PlannedLumbermill(site.loaded().template(), origin, site.rotation(),
+                    site.footprint(), site.loaded().location(), entrance.pathStart(), entrance.direction());
+        }
     }
 
     /**
@@ -736,6 +842,10 @@ public final class VillageLumbermillStructurePlacer {
                     placementBox.minZ() - 2, placementBox.maxX() + 2,
                     Integer.MAX_VALUE / 2, placementBox.maxZ() + 2);
         }
+    }
+
+    private record SiteCandidate(LoadedTemplate loaded, int distance, int[] direction,
+                                 Rotation rotation, int lateralOffset) {
     }
 
     private record LoadedTemplate(ResourceLocation location,
