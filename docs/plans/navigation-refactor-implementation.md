@@ -384,6 +384,11 @@ caller until step 6.
 Under the evidence rules a class without a gameplay caller proves nothing, so
 steps 5 and 6 are implemented separately but their gates close together.
 
+If step 6 stalls, split it at the furnace: tree felling, drops, and
+replanting on the Brain first (step 6a), then furnace production and the pool
+(step 6b). The claim stages for trees then close with 6a, and the furnace pool
+and claim stages for furnaces close with 6b.
+
 Step 7 adds the lumberjack and banker scenes to the standing check described
 under "Working rules", writes a one-page "how to add a villager job" recipe
 from what steps 3–6 needed, and re-estimates Stage 2.
@@ -421,7 +426,9 @@ Notes on individual steps:
   immediately before it as well.
 - **Step 11 clears three baseline failures**, the natural ladder tests. If
   farmers in the developer's villages depend on ladders, run step 11 before
-  step 9.
+  step 9. If a lumberjack scene in step 6 (for example a tall tree with
+  unreachable upper logs) cannot pass without ladders, pull the ladder work
+  forward to before step 6; otherwise ladders stay out of Stage 1.
 - **Step 12 needs the activity decision from step 4.** Governor following
   cannot live in IDLE and also outrank work; it is a gated CORE behavior or its
   own activity.
