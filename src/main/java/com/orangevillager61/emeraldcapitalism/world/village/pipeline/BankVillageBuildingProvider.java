@@ -57,7 +57,7 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
                 context.level(), bank.pathStart(), bank.pathTarget(), context.pieces(),
                 context.biomeType(), bank.entranceDirection(),
                 roads,
-                context.chunkLoadBudget());
+                context.chunkLoadBudget(), false);
         return List.of(new PlannedBank(bank, connector));
     }
 
@@ -99,9 +99,14 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
                     context.roadGenerator().planBankConnection(
                             context.level(), plan.pathStart(), plan.pathTarget(), context.pieces(),
                             context.biomeType(), plan.entranceDirection(),
-                            roads, context.chunkLoadBudget());
+                            roads, context.chunkLoadBudget(), false);
             if (postPlacementConnector != null) {
                 return List.of(postPlacementConnector);
+            }
+            if (connector == null) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Could not plan a complete bank path from {} to a reachable village street",
+                        plan.pathStart());
             }
             return reservedPaths();
         }

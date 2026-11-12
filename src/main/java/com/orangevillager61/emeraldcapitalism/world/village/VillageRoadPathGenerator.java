@@ -109,8 +109,26 @@ public final class VillageRoadPathGenerator {
                                           Direction entranceDirection,
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget) {
+        return planBankConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+                entranceDirection, preparedRoads, sharedLoadBudget, true);
+    }
+
+    /**
+     * Plans a bank connector; a caller with a fallback connector passes
+     * {@code warnOnFailure = false} and reports only when no connector remains.
+     */
+    @Nullable
+    public PlannedPath planBankConnection(ServerLevel level, BlockPos pathStart,
+                                          BlockPos pathTargetHint,
+                                          List<StructurePiece> villagePieces,
+                                          String biomeType,
+                                          Direction entranceDirection,
+                                          PreparedVillageRoads preparedRoads,
+                                          ChunkLoadBudget sharedLoadBudget,
+                                          boolean warnOnFailure) {
         return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, BANK_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
+                entranceDirection, BANK_PROFILE, preparedRoads, sharedLoadBudget, warnOnFailure,
+                NO_DEADLINE);
     }
 
     /** Plans, but does not place, a compact farm connector. */
@@ -226,6 +244,15 @@ public final class VillageRoadPathGenerator {
         return new PreparedVillageRoads(streetByColumn, buildingsByChunk);
     }
 
+    /** A non-final attempt logs at debug; its caller reports only if no connector remains. */
+    private static void logPlanningFailure(boolean warnOnFailure, String message, Object... args) {
+        if (warnOnFailure) {
+            EmeraldCapitalism.LOGGER.warn(message, args);
+        } else {
+            EmeraldCapitalism.LOGGER.debug(message, args);
+        }
+    }
+
     @Nullable
     private PlannedPath planConnection(ServerLevel level, BlockPos pathStart,
                                        BlockPos pathTargetHint,
@@ -250,7 +277,7 @@ public final class VillageRoadPathGenerator {
                 profile.maxTargetDistance(), profile.maxRouteSteps() + profile.fixedEntranceRows());
         List<StreetTarget> streetTargets = targetSearch.targets();
         if (streetTargets.isEmpty()) {
-            EmeraldCapitalism.LOGGER.warn(
+            logPlanningFailure(warnOnFailure,
                     "[ECAP] {} path at {} found no actual street surface near target hint {}",
                     profile.connectionType(), pathStart, pathTargetHint);
             return null;
@@ -260,7 +287,7 @@ public final class VillageRoadPathGenerator {
                 ? buildEntrancePrefix(level, pathStart, entranceDirection, profile.fixedEntranceRows())
                 : buildSurfaceEntrance(level, pathStart);
         if (entrancePrefix.isEmpty()) {
-            EmeraldCapitalism.LOGGER.warn(
+            logPlanningFailure(warnOnFailure,
                     "[ECAP] {} path entrance chunk is unavailable at {}",
                     profile.connectionType(), pathStart);
             return null;
@@ -341,6 +368,10 @@ public final class VillageRoadPathGenerator {
         if (warnOnFailure) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] Could not plan a complete {} path from {} to a reachable village street",
+                    profile.connectionType().toLowerCase(Locale.ROOT), pathStart);
+        } else {
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP] {} path attempt from {} found no street; the caller will retry or fall back",
                     profile.connectionType().toLowerCase(Locale.ROOT), pathStart);
         }
         if (diagnostics != null) {
