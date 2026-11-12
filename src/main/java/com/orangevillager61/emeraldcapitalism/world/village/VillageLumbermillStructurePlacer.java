@@ -94,6 +94,12 @@ public final class VillageLumbermillStructurePlacer {
                 "SNOWY", List.of(taiga));
     }
 
+    static java.util.Set<ResourceLocation> templateLocations() {
+        java.util.Set<ResourceLocation> locations = new java.util.LinkedHashSet<>();
+        LUMBERMILL_TEMPLATES.values().forEach(locations::addAll);
+        return locations;
+    }
+
     private static ResourceLocation template(String path) {
         return ModIds.id(path);
     }

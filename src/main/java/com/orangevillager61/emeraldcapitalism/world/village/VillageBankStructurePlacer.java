@@ -80,6 +80,10 @@ public final class VillageBankStructurePlacer {
     private static final ResourceLocation BANK_VAULT = ModIds.id("bank_vault");
     private static final ResourceLocation BANK_VAULT_RUINS = ModIds.id("bank_vault_ruins");
 
+    static List<ResourceLocation> templateLocations() {
+        return List.of(BANK_TOP, BANK_VAULT, BANK_VAULT_RUINS);
+    }
+
     // bank_top.nbt is a 15x14x15 template. Keep the footprint in sync with the
     // authored asset because site selection, terrain grading, and validation all
     // depend on these dimensions.

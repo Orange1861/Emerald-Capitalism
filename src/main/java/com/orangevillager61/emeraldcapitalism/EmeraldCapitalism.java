@@ -27,6 +27,7 @@ import com.orangevillager61.emeraldcapitalism.util.SharedScanGenerationBudget;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.naming.data.RootLexiconRegistry;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTemplateWarmup;
 import com.orangevillager61.emeraldcapitalism.world.village.pipeline.VillageGenerationPipeline;
 import org.slf4j.Logger;
 
@@ -77,6 +78,7 @@ public class EmeraldCapitalism {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         clearServerSessionState(false);
+        VillageTemplateWarmup.loadGeneratedBuildingTemplates(event.getServer());
     }
 
     @SubscribeEvent

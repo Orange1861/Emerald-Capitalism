@@ -72,6 +72,10 @@ public final class VillageLibraryStructurePlacer {
                 "minecraft:village/snowy/houses/snowy_library_1"));
     }
 
+    static java.util.Collection<ResourceLocation> templateLocations() {
+        return List.copyOf(LIBRARY_TEMPLATES.values());
+    }
+
     /** Chooses a non-overlapping site without mutating the world. */
     @Nullable
     public PlannedLibrary plan(ServerLevel level, BlockPos bellPos, String biomeType,
