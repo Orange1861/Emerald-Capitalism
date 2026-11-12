@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -216,9 +217,10 @@ public final class VillageRoadPathGenerator {
                 ? preparedRoads
                 : prepare(level, villagePieces);
         SurfaceCache surfaceCache = new SurfaceCache(level);
-        List<StreetTarget> streetTargets = findStreetTargets(
+        StreetTargetSearch targetSearch = findStreetTargets(
                 level, pathStart, pathTargetHint, roads.streetByColumn(),
                 profile.maxTargetDistance());
+        List<StreetTarget> streetTargets = targetSearch.targets();
         if (streetTargets.isEmpty()) {
             EmeraldCapitalism.LOGGER.warn(
                     "[ECAP] {} path at {} found no actual street surface near target hint {}",
@@ -241,25 +243,39 @@ public final class VillageRoadPathGenerator {
                 ? sharedLoadBudget : new ChunkLoadBudget();
         int targetAttempts = Math.min(MAX_TARGET_ATTEMPTS, streetTargets.size());
         long planningStarted = System.nanoTime();
+        // Per-target failure reasons are collected only when performance timing
+        // is enabled, so the normal generation path does no extra allocation.
+        StringBuilder diagnostics = PerformanceTimingCounters.isDetailedTimingEnabled()
+                ? new StringBuilder() : null;
+        PlacementRejection placementRejection = new PlacementRejection();
 
         for (int targetIndex = 0; targetIndex < targetAttempts; targetIndex++) {
             if (targetIndex > 0 && System.nanoTime() - planningStarted > MAX_PLANNING_NANOS_PER_PATH) {
-                EmeraldCapitalism.LOGGER.debug(
-                        "[ECAP] Stopped {} path planning from {} after {} of {} targets (time limit)",
-                        profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
-                        targetIndex, targetAttempts);
+                appendDiagnostic(diagnostics, targetIndex, null, "TIME_LIMIT after "
+                        + (System.nanoTime() - planningStarted) / 1_000_000L + "ms, "
+                        + (targetAttempts - targetIndex) + " untried");
                 break;
             }
             StreetTarget streetTarget = streetTargets.get(targetIndex);
+            long targetStarted = diagnostics != null ? System.nanoTime() : 0L;
             if (!ensureSearchChunksLoaded(level, searchStart, streetTarget.pos(),
                     loadBudget, profile.pathWidth())) {
+                appendDiagnostic(diagnostics, targetIndex, streetTarget, "CHUNK_UNAVAILABLE");
                 continue;
             }
 
             surfaceCache.clear();
-            List<BlockPos> route = findRoute(level, searchStart, streetTarget.pos(), entranceDirection,
+            RouteSearch search = findRoute(level, searchStart, streetTarget.pos(), entranceDirection,
                     roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps());
+            List<BlockPos> route = search.route();
             if (route.isEmpty()) {
+                if (diagnostics != null) {
+                    appendDiagnostic(diagnostics, targetIndex, streetTarget, "ROUTE_" + search.outcome()
+                            + " visited=" + search.visited()
+                            + " manhattan=" + manhattan(searchStart, streetTarget.pos())
+                            + " ms=" + (System.nanoTime() - targetStarted) / 1_000_000L
+                            + (search.visited() == 1 ? " firstStep{" + search.firstStepRejections() + "}" : ""));
+                }
                 continue;
             }
 
@@ -269,11 +285,19 @@ public final class VillageRoadPathGenerator {
                     streetTarget.surfaceBlock(), biomeType);
             List<PlannedPathCell> placementPlan = createPlacementPlan(
                     level, completeRoute, profile.fixedEntranceRows(), entranceDirection,
-                    roads, surfaceCache, profile.pathWidth());
+                    roads, surfaceCache, profile.pathWidth(), placementRejection);
             if (placementPlan.isEmpty()) {
+                appendDiagnostic(diagnostics, targetIndex, streetTarget,
+                        "PLACEMENT_" + placementRejection.reason + " at " + placementRejection.column);
                 continue;
             }
 
+            if (diagnostics != null) {
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][RoadDiag] {} path from {} planned in {} ms after {} target(s)",
+                        profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
+                        (System.nanoTime() - planningStarted) / 1_000_000L, targetIndex + 1);
+            }
             return new PlannedPath(List.copyOf(placementPlan), pathBlocks,
                     profile.connectionType(), profile.pathWidth(), pathStart, streetTarget.pos());
         }
@@ -281,10 +305,37 @@ public final class VillageRoadPathGenerator {
         EmeraldCapitalism.LOGGER.warn(
                 "[ECAP] Could not plan a complete {} path from {} to a reachable village street",
                 profile.connectionType().toLowerCase(Locale.ROOT), pathStart);
+        if (diagnostics != null) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP][RoadDiag] {} path from {} failed in {} ms (search start {}, facing {}, hint {}): "
+                            + "streetColumns={} inRange={} largestNetwork={} targets={} attempts:{}",
+                    profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
+                    (System.nanoTime() - planningStarted) / 1_000_000L, searchStart,
+                    entranceDirection, pathTargetHint, roads.streetByColumn().size(),
+                    targetSearch.inRangeCount(), targetSearch.largestNetworkSize(),
+                    streetTargets.size(), diagnostics);
+        }
         return null;
     }
 
-    private List<StreetTarget> findStreetTargets(ServerLevel level, BlockPos from,
+    private static void appendDiagnostic(@Nullable StringBuilder diagnostics, int targetIndex,
+                                         @Nullable StreetTarget target, String reason) {
+        if (diagnostics == null) {
+            return;
+        }
+        diagnostics.append(" [#").append(targetIndex);
+        if (target != null) {
+            diagnostics.append(' ').append(target.pos().getX()).append(',')
+                    .append(target.pos().getY()).append(',').append(target.pos().getZ());
+        }
+        diagnostics.append(' ').append(reason).append(']');
+    }
+
+    private static int manhattan(BlockPos from, BlockPos to) {
+        return Math.abs(from.getX() - to.getX()) + Math.abs(from.getZ() - to.getZ());
+    }
+
+    private StreetTargetSearch findStreetTargets(ServerLevel level, BlockPos from,
                                                   BlockPos targetHint,
                                                   Map<Long, StreetCell> streetByColumn,
                                                   int maxTargetDistance) {
@@ -326,7 +377,7 @@ public final class VillageRoadPathGenerator {
                 break;
             }
         }
-        return targets;
+        return new StreetTargetSearch(targets, candidatesByColumn.size(), mainNetwork.size());
     }
 
     private Set<Long> largestConnectedStreetNetwork(Map<Long, StreetTarget> streetByColumn) {
@@ -400,10 +451,10 @@ public final class VillageRoadPathGenerator {
                 : List.of();
     }
 
-    private List<BlockPos> findRoute(ServerLevel level, BlockPos start, BlockPos target,
-                                     Direction startDirection, PreparedVillageRoads roads,
-                                     SurfaceCache surfaceCache, int pathWidth,
-                                     int maxRouteSteps) {
+    private RouteSearch findRoute(ServerLevel level, BlockPos start, BlockPos target,
+                                  Direction startDirection, PreparedVillageRoads roads,
+                                  SurfaceCache surfaceCache, int pathWidth,
+                                  int maxRouteSteps) {
         int minX = Math.min(start.getX(), target.getX()) - SEARCH_MARGIN;
         int maxX = Math.max(start.getX(), target.getX()) + SEARCH_MARGIN;
         int minZ = Math.min(start.getZ(), target.getZ()) - SEARCH_MARGIN;
@@ -425,6 +476,10 @@ public final class VillageRoadPathGenerator {
         open.add(new OpenRouteNode(startKey, heuristic(startKey.x(), startKey.z(), target)));
 
         int visited = 0;
+        boolean stepLimited = false;
+        boolean startSampled = false;
+        StringBuilder firstStepRejections = PerformanceTimingCounters.isDetailedTimingEnabled()
+                ? new StringBuilder() : null;
         while (!open.isEmpty() && visited < MAX_VISITED_NODES) {
             OpenRouteNode queued = open.poll();
             RouteKey current = queued.key();
@@ -434,11 +489,14 @@ public final class VillageRoadPathGenerator {
             visited++;
 
             if (current.x() == target.getX() && current.z() == target.getZ()) {
-                return reconstructRoute(current, cameFrom, surfaceCache);
+                List<BlockPos> route = reconstructRoute(current, cameFrom, surfaceCache);
+                return new RouteSearch(route, route.isEmpty() ? RouteOutcome.RECONSTRUCT_FAILED
+                        : RouteOutcome.FOUND, visited, "");
             }
 
             int currentSteps = steps.getOrDefault(current, maxRouteSteps);
             if (currentSteps >= maxRouteSteps) {
+                stepLimited = true;
                 continue;
             }
 
@@ -446,6 +504,7 @@ public final class VillageRoadPathGenerator {
             if (currentSurface == null) {
                 continue;
             }
+            startSampled = true;
 
             for (Direction direction : HORIZONTAL_DIRECTIONS) {
                 if (direction == current.incomingDirection().getOpposite()) {
@@ -461,6 +520,12 @@ public final class VillageRoadPathGenerator {
                 SurfaceSample nextSurface = surfaceCache.get(nextX, nextZ);
                 if (nextSurface == null || !isCorridorRowTraversable(level, nextSurface,
                         currentSurface, direction, roads, surfaceCache, pathWidth)) {
+                    if (visited == 1 && firstStepRejections != null) {
+                        firstStepRejections.append(direction.getSerializedName().charAt(0)).append('=')
+                                .append(describeRowRejection(level, nextSurface, currentSurface,
+                                        direction, roads, surfaceCache, pathWidth))
+                                .append(' ');
+                    }
                     continue;
                 }
 
@@ -484,7 +549,58 @@ public final class VillageRoadPathGenerator {
             }
         }
 
-        return List.of();
+        RouteOutcome outcome;
+        if (!startSampled) {
+            outcome = RouteOutcome.START_UNAVAILABLE;
+        } else if (visited >= MAX_VISITED_NODES) {
+            outcome = RouteOutcome.VISITED_CAP;
+        } else if (stepLimited) {
+            outcome = RouteOutcome.STEP_LIMIT;
+        } else {
+            outcome = RouteOutcome.BLOCKED;
+        }
+        return new RouteSearch(List.of(), outcome, visited,
+                firstStepRejections == null ? "" : firstStepRejections.toString().trim());
+    }
+
+    /** Diagnostic-only description of why one corridor row cannot be entered. */
+    private String describeRowRejection(ServerLevel level, @Nullable SurfaceSample center,
+                                        SurfaceSample previousCenter, Direction travelDirection,
+                                        PreparedVillageRoads roads, SurfaceCache surfaceCache,
+                                        int pathWidth) {
+        if (center == null) {
+            return "no_surface";
+        }
+        if (Math.abs(center.pos().getY() - previousCenter.pos().getY()) > 1) {
+            return "step(" + previousCenter.pos().getY() + "->" + center.pos().getY() + ")";
+        }
+        int firstWidthOffset = -(pathWidth / 2);
+        for (int width = firstWidthOffset; width < firstWidthOffset + pathWidth; width++) {
+            int x = center.pos().getX();
+            int z = center.pos().getZ();
+            if (travelDirection.getAxis() == Direction.Axis.X) {
+                z += width;
+            } else {
+                x += width;
+            }
+            if (!level.hasChunk(x >> 4, z >> 4)) {
+                return "unloaded@" + x + "," + z;
+            }
+            if (roads.isInsideBuilding(x, z)) {
+                return "building" + roads.buildingAt(x, z) + "@" + x + "," + z;
+            }
+            SurfaceSample sample = surfaceCache.get(x, z);
+            if (sample == null) {
+                return "no_side_surface@" + x + "," + z;
+            }
+            if (Math.abs(sample.pos().getY() - center.pos().getY()) > 1) {
+                return "side_step(" + center.pos().getY() + "->" + sample.pos().getY() + ")@" + x + "," + z;
+            }
+            if (!isUsablePathSurface(sample.state())) {
+                return "surface(" + sample.state().getBlock().getDescriptionId() + ")@" + x + "," + z;
+            }
+        }
+        return "unknown";
     }
 
     private boolean isCorridorRowTraversable(ServerLevel level, SurfaceSample center,
@@ -545,8 +661,10 @@ public final class VillageRoadPathGenerator {
                                                        Direction entranceDirection,
                                                        PreparedVillageRoads roads,
                                                        SurfaceCache surfaceCache,
-                                                       int pathWidth) {
+                                                       int pathWidth,
+                                                       PlacementRejection rejection) {
         if (route.size() < 2) {
+            rejection.set("ROUTE_TOO_SHORT", null);
             return List.of();
         }
 
@@ -571,6 +689,8 @@ public final class VillageRoadPathGenerator {
                 // every cell inside a reserved building box so a stale or malformed
                 // route cannot overwrite doors, walls, or other structure blocks.
                 if (roads.isInsideBuilding(x, z)) {
+                    rejection.set(routeIndex < fixedEntranceRows
+                            ? "ENTRANCE_ROW_INSIDE_BUILDING" : "INSIDE_BUILDING", x, z);
                     return List.of();
                 }
 
@@ -578,8 +698,12 @@ public final class VillageRoadPathGenerator {
                 SurfaceSample sample = fixedEntranceRow
                         ? fixedEntranceSurface(level, x, center.getY(), z)
                         : surfaceCache.get(x, z);
-                if (sample == null
-                        || (!fixedEntranceRow && !isUsablePathSurface(sample.state()))) {
+                if (sample == null) {
+                    rejection.set(fixedEntranceRow ? "ENTRANCE_ROW_FLUID" : "NO_SURFACE", x, z);
+                    return List.of();
+                }
+                if (!fixedEntranceRow && !isUsablePathSurface(sample.state())) {
+                    rejection.set("UNUSABLE_SURFACE", x, z);
                     return List.of();
                 }
 
@@ -818,6 +942,35 @@ public final class VillageRoadPathGenerator {
     private record StreetTarget(BlockPos pos, Block surfaceBlock, long score) {
     }
 
+    private record StreetTargetSearch(List<StreetTarget> targets, int inRangeCount,
+                                      int largestNetworkSize) {
+    }
+
+    private enum RouteOutcome {
+        FOUND, START_UNAVAILABLE, VISITED_CAP, STEP_LIMIT,
+        BLOCKED, RECONSTRUCT_FAILED
+    }
+
+    private record RouteSearch(List<BlockPos> route, RouteOutcome outcome, int visited,
+                               String firstStepRejections) {
+    }
+
+    /** Last placement-plan rejection, reused across targets of one connection. */
+    private static final class PlacementRejection {
+        private String reason = "NONE";
+        private String column = "-";
+
+        private void set(String reason, int x, int z) {
+            this.reason = reason;
+            this.column = x + "," + z;
+        }
+
+        private void set(String reason, @Nullable String column) {
+            this.reason = reason;
+            this.column = column == null ? "-" : column;
+        }
+    }
+
     private record RouteKey(int x, int z, Direction incomingDirection) {
     }
 
@@ -855,6 +1008,19 @@ public final class VillageRoadPathGenerator {
                 }
             }
             return false;
+        }
+
+        /** Diagnostic-only: the first building box containing the column. */
+        private String buildingAt(int x, int z) {
+            List<BoundingBox> boxes = buildingsByChunk.get(columnKey(x >> 4, z >> 4));
+            if (boxes != null) {
+                for (BoundingBox box : boxes) {
+                    if (x >= box.minX() && x <= box.maxX() && z >= box.minZ() && z <= box.maxZ()) {
+                        return "[" + box.minX() + "," + box.minZ() + ".." + box.maxX() + "," + box.maxZ() + "]";
+                    }
+                }
+            }
+            return "[]";
         }
 
         /** Returns true when any cached village street surface lies in the footprint. */
