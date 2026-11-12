@@ -200,8 +200,10 @@ public final class VillageGenerationPipeline {
                         context.villageId(), stepPhase, elapsed / 1_000_000L, stepIndex,
                         context.describeLastCacheStep());
             } else {
-                EmeraldCapitalism.LOGGER.info("[ECAP][SlowTick] village={} phase={} ms={} index={}",
-                        context.villageId(), stepPhase, elapsed / 1_000_000L, stepIndex);
+                EmeraldCapitalism.LOGGER.info(
+                        "[ECAP][SlowTick] village={} phase={} ms={} index={} blockingChunkLoadsSoFar={}",
+                        context.villageId(), stepPhase, elapsed / 1_000_000L, stepIndex,
+                        context.chunkLoadBudget().chunksLoaded());
             }
         }
 

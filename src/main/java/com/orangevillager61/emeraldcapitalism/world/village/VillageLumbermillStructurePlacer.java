@@ -56,6 +56,16 @@ public final class VillageLumbermillStructurePlacer {
     };
     /** Small perpendicular alternatives keep a road from eliminating an entire tree-facing side. */
     private static final int[] LATERAL_OFFSETS = {0, -18, 18};
+    /** Longest side of any lumbermill template. */
+    private static final int LARGEST_TEMPLATE_SIDE = 26;
+    /**
+     * Farthest horizontal distance from the bell that any candidate footprint
+     * can reach. The village pipeline preloads this area so the site search
+     * never loads a chunk on the server thread.
+     */
+    public static final int MAX_SITE_REACH = DISTANCES_FROM_BELL[DISTANCES_FROM_BELL.length - 1]
+            + java.util.Arrays.stream(LATERAL_OFFSETS).map(Math::abs).max().orElse(0)
+            + LARGEST_TEMPLATE_SIDE;
     private static final Rotation[] ROTATIONS = {
             Rotation.NONE, Rotation.CLOCKWISE_90, Rotation.CLOCKWISE_180,
             Rotation.COUNTERCLOCKWISE_90

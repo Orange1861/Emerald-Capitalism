@@ -5,6 +5,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBridgeBlocks;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageLumbermillStructurePlacer;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageManagerPlacement;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagePathBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
@@ -89,9 +90,15 @@ public final class VillageGenerationContext {
             return true;
         }
         if (preloader == null) {
+            // Cover the important-building site searches as well as the village:
+            // the lumbermill reaches farthest from the bell, and any chunk left
+            // out here would be loaded, or even generated, on the server thread.
+            int reach = VillageLumbermillStructurePlacer.MAX_SITE_REACH;
             preloader = new PipelineChunkPreloader(level, villageId,
-                    (villageBox.minX() >> 4) - 2, (villageBox.maxX() >> 4) + 2,
-                    (villageBox.minZ() >> 4) - 2, (villageBox.maxZ() >> 4) + 2);
+                    Math.min((villageBox.minX() >> 4) - 2, (bellPos.getX() - reach) >> 4),
+                    Math.max((villageBox.maxX() >> 4) + 2, (bellPos.getX() + reach) >> 4),
+                    Math.min((villageBox.minZ() >> 4) - 2, (bellPos.getZ() - reach) >> 4),
+                    Math.max((villageBox.maxZ() >> 4) + 2, (bellPos.getZ() + reach) >> 4));
         }
         preloadStepStats.reset();
         if (!preloader.step(newChunkRequestsPerTick, preloadStepStats)) {
