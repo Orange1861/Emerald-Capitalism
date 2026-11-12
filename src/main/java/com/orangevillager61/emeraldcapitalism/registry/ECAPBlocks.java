@@ -132,13 +132,13 @@ public final class ECAPBlocks {
     public static final DeferredBlock<StairBlock> DIRT_PATH_STAIRS = BLOCKS.registerBlock(
             "dirt_path_stairs",
             properties -> new StairBlock(Blocks.DIRT_PATH.defaultBlockState(), properties),
-            BlockBehaviour.Properties.ofFullCopy(Blocks.DIRT_PATH)
+            dirtPathShapeProperties()
     );
 
     public static final DeferredBlock<SlabBlock> DIRT_PATH_SLAB = BLOCKS.registerBlock(
             "dirt_path_slab",
             SlabBlock::new,
-            BlockBehaviour.Properties.ofFullCopy(Blocks.DIRT_PATH)
+            dirtPathShapeProperties()
     );
 
     public static final DeferredBlock<EmeraldGreenBedBlock> EMERALD_GREEN_BED = BLOCKS.registerBlock(
@@ -151,4 +151,15 @@ public final class ECAPBlocks {
             "golem_construction_location",
             BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK)
     );
+
+    /**
+     * Keeps dirt-path mining and sound properties without treating partial shapes as opaque full blocks.
+     * Dirt Path itself can always block views because it only has a 15/16-height collision shape; slabs
+     * and stairs need the normal shape-aware predicate so their exposed edges do not render as black seams.
+     */
+    private static BlockBehaviour.Properties dirtPathShapeProperties() {
+        return BlockBehaviour.Properties.ofFullCopy(Blocks.DIRT)
+                .strength(0.65F)
+                .sound(SoundType.GRASS);
+    }
 }

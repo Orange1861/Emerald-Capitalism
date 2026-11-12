@@ -167,6 +167,7 @@ public final class RegistrationGameTests {
         assertBlockItem(helper, ECAPItems.EMERALD_GREEN_WOOL.get(), ECAPBlocks.EMERALD_GREEN_WOOL.get());
         assertBlockItem(helper, ECAPItems.DIRT_PATH_STAIRS.get(), ECAPBlocks.DIRT_PATH_STAIRS.get());
         assertBlockItem(helper, ECAPItems.DIRT_PATH_SLAB.get(), ECAPBlocks.DIRT_PATH_SLAB.get());
+        assertPartialDirtPathBlocksUseShapeAwareViewBlocking(helper);
         assertBlockItem(helper, ECAPItems.EMERALD_GREEN_BED.get(), ECAPBlocks.EMERALD_GREEN_BED.get());
         assertBlockItem(helper, ECAPItems.BANK.get(), ECAPBlocks.BANK.get());
         assertBlockItem(helper, ECAPItems.SAWMILL.get(), ECAPBlocks.SAWMILL.get());
@@ -362,6 +363,21 @@ public final class RegistrationGameTests {
             helper.fail("Door item is not a DoubleHighBlockItem: " + item);
         }
         assertBlockItem(helper, item, expectedBlock);
+    }
+
+    private static void assertPartialDirtPathBlocksUseShapeAwareViewBlocking(GameTestHelper helper) {
+        BlockState stair = ECAPBlocks.DIRT_PATH_STAIRS.get().defaultBlockState();
+        BlockState slab = ECAPBlocks.DIRT_PATH_SLAB.get().defaultBlockState();
+        BlockState doubleSlab = slab.setValue(net.minecraft.world.level.block.SlabBlock.TYPE,
+                net.minecraft.world.level.block.state.properties.SlabType.DOUBLE);
+        BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+        if (stair.isViewBlocking(helper.getLevel(), pos) || slab.isViewBlocking(helper.getLevel(), pos)) {
+            helper.fail("Dirt path stairs or slabs are incorrectly treated as opaque full blocks");
+            return;
+        }
+        if (!doubleSlab.isViewBlocking(helper.getLevel(), pos)) {
+            helper.fail("A double dirt path slab is not treated as an opaque full block");
+        }
     }
 
     private static <T extends BlockEntity> void assertBlockEntityType(
