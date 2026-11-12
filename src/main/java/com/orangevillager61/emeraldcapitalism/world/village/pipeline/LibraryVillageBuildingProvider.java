@@ -53,6 +53,13 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
         }
 
         @Override
+        public VillageBuildingPlacementTask startPlacement(VillageGenerationContext context) {
+            return VillageBuildingPlacementTask.of(placer.startPlacement(context.level(), plan,
+                    context.biomeType(),
+                    () -> context.registryData().markLibraryGenerated(context.villageId())));
+        }
+
+        @Override
         public List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
                 VillageGenerationContext context) {
             // The library reservation includes a deliberate two-block approach

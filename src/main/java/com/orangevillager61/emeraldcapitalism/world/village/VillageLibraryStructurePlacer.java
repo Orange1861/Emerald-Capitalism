@@ -157,55 +157,52 @@ public final class VillageLibraryStructurePlacer {
 
     /** Places the selected template after the pipeline has reserved its footprint. */
     public boolean place(ServerLevel level, PlannedLibrary plan, String biomeType) {
-        try {
-            BlockPos origin = plan.origin();
-            int footprintX = plan.placementBox().getXSpan();
-            int footprintZ = plan.placementBox().getZSpan();
-            VillageEntityRelocation.relocateFromBuilding(level, List.of(plan.placementBox()));
-            levelTerrain(level, plan.placementBox().minX(), plan.placementBox().minZ(),
-                    footprintX, footprintZ,
+        return startPlacement(level, plan, biomeType, () -> { }).finishNow();
+    }
+
+    /**
+     * Stages the placement: terrain, clearing, one template chunk slice per step,
+     * then the jigsaw and authored-book finishing work. {@code onTemplateWritten}
+     * runs once, right after the first template slice.
+     */
+    public StagedPlacement startPlacement(ServerLevel level, PlannedLibrary plan, String biomeType,
+                                          Runnable onTemplateWritten) {
+        BlockPos origin = plan.origin();
+        BoundingBox box = plan.placementBox();
+        StagedPlacement.Builder builder = StagedPlacement.builder("Library placement at " + origin);
+        builder.step(() -> {
+            VillageEntityRelocation.relocateFromBuilding(level, List.of(box));
+            levelTerrain(level, box.minX(), box.minZ(), box.getXSpan(), box.getZSpan(),
                     origin.getY(), biomeType);
-            clearAbove(level, plan.placementBox().minX(), plan.placementBox().minZ(),
-                    footprintX, footprintZ,
-                    origin.getY(), plan.template().getSize().getY());
-
-            StructurePlaceSettings settings = placementSettings(plan.rotation())
-                    .setIgnoreEntities(false);
-            StructureProcessorList processors =
-                    com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getValue(
-                            com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
-                                    level.registryAccess(), Registries.PROCESSOR_LIST),
-                            LIBRARY_PROCESSORS);
-            if (processors != null) {
-                for (var processor : processors.list()) {
-                    settings.addProcessor(processor);
-                }
+        });
+        builder.step(() -> clearAbove(level, box.minX(), box.minZ(), box.getXSpan(), box.getZSpan(),
+                origin.getY(), plan.template().getSize().getY()));
+        StructurePlaceSettings settings = placementSettings(plan.rotation())
+                .setIgnoreEntities(false);
+        StructureProcessorList processors =
+                com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.getValue(
+                        com.orangevillager61.emeraldcapitalism.util.RegistryAccessCompat.get(
+                                level.registryAccess(), Registries.PROCESSOR_LIST),
+                        LIBRARY_PROCESSORS);
+        if (processors != null) {
+            for (var processor : processors.list()) {
+                settings.addProcessor(processor);
             }
-            settings.addProcessor(JigsawReplacementProcessor.INSTANCE);
-
-            boolean placed = plan.template().placeInWorld(level, origin, origin, settings,
-                    RandomSource.create(level.getSeed() ^ origin.asLong()), 2);
-            if (placed) {
-                replaceJigsawBlocks(level, plan.placementBox(), origin.getY(),
-                        plan.template().getSize().getY());
-                installAuthoredBooks(level, plan);
-            }
-            if (!placed) {
-                EmeraldCapitalism.LOGGER.warn(
-                        "[ECAP] Vanilla library template {} refused placement at {}",
-                        plan.templateLocation(), origin);
-            } else {
-                EmeraldCapitalism.LOGGER.info(
-                        "[ECAP] Placed mandatory village library {} at {}",
-                        plan.templateLocation(), origin);
-            }
-            return placed;
-        } catch (Exception exception) {
-            EmeraldCapitalism.LOGGER.error(
-                    "[ECAP] Failed to place village library at {}",
-                    plan.origin(), exception);
-            return false;
         }
+        settings.addProcessor(JigsawReplacementProcessor.INSTANCE);
+        StagedPlacement.addTemplateSlices(builder, level, plan.template(), origin, settings,
+                level.getSeed() ^ origin.asLong(), box, onTemplateWritten);
+        builder.step(() -> {
+            replaceJigsawBlocks(level, box, origin.getY(), plan.template().getSize().getY());
+            installAuthoredBooks(level, plan);
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP] Placed mandatory village library {} at {}",
+                    plan.templateLocation(), origin);
+        });
+        builder.onFailure(() -> EmeraldCapitalism.LOGGER.warn(
+                "[ECAP] Vanilla library template {} could not be placed at {}",
+                plan.templateLocation(), origin));
+        return builder.build();
     }
 
     /** Replaces one vanilla shelf with a persistent chiseled shelf of real books. */

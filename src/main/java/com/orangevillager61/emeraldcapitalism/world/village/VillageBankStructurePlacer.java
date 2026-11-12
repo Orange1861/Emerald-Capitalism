@@ -579,6 +579,18 @@ public final class VillageBankStructurePlacer {
 
     @Nullable
     public PlacedBank placePlanned(ServerLevel level, PlannedBank plan) {
+        PlacedBank[] placed = new PlacedBank[1];
+        return startPlacement(level, plan, result -> placed[0] = result).finishNow() ? placed[0] : null;
+    }
+
+    /**
+     * Stages a planned bank as one transaction over several steps: the stale-site
+     * check and rollback snapshot, terrain, clearing, the vault template, the top
+     * template, and the block-entity finishing work. A failed or throwing step
+     * restores the snapshot. {@code onCommitted} runs once, after the last step.
+     */
+    public StagedPlacement startPlacement(ServerLevel level, PlannedBank plan,
+                                          java.util.function.Consumer<PlacedBank> onCommitted) {
         StructureTemplate topTemplate = plan.topTemplate();
         StructureTemplate vaultTemplate = plan.vaultTemplate();
         BlockPos topOrigin = plan.origin();
@@ -589,45 +601,50 @@ public final class VillageBankStructurePlacer {
         BlockPos vaultClearOrigin = transformedMinCorner(vaultOrigin, rotation, VAULT_SIZE_X, VAULT_SIZE_Z);
         int vaultClearSizeX = isQuarterTurn(rotation) ? VAULT_SIZE_Z : VAULT_SIZE_X;
         int vaultClearSizeZ = isQuarterTurn(rotation) ? VAULT_SIZE_X : VAULT_SIZE_Z;
-        // Planning and placement are separated across server ticks. Recheck the
-        // world immediately before mutating it so a house or protected block added
-        // after planning cannot be replaced by a stale plan.
-        VillagePieceBounds currentPieceBounds = preparePieceBounds(level,
-                topOrigin.getX(), topOrigin.getZ(), List.of());
-        if (currentPieceBounds.overlapsBuilding(placementProtectionBox(topOrigin.getX(), topOrigin.getZ()))
-                || containsProtectedBlock(level, topOrigin, null)) {
-            EmeraldCapitalism.LOGGER.warn(
-                    "[ECAP] Refusing stale bank placement at {} because its write area is occupied",
-                    topOrigin);
-            return null;
-        }
-        PlacementSnapshot snapshot = PlacementSnapshot.capture(level,
-                placementRollbackBox(level, topOrigin, vaultOrigin, vaultClearOrigin,
-                        vaultClearSizeX, vaultClearSizeZ));
-        boolean committed = false;
-        try {
+        StructurePlaceSettings settings = new StructurePlaceSettings()
+                .setRotation(rotation)
+                .setMirror(Mirror.NONE)
+                .setIgnoreEntities(false);
+        PlacementSnapshot[] snapshot = new PlacementSnapshot[1];
+        boolean[] committed = new boolean[1];
+
+        StagedPlacement.Builder builder = StagedPlacement.builder("Bank placement at " + topOrigin);
+        builder.step(() -> {
+            // Planning and placement are separated across server ticks. Recheck the
+            // world immediately before mutating it so a house or protected block added
+            // after planning cannot be replaced by a stale plan.
+            VillagePieceBounds currentPieceBounds = preparePieceBounds(level,
+                    topOrigin.getX(), topOrigin.getZ(), List.of());
+            if (currentPieceBounds.overlapsBuilding(placementProtectionBox(topOrigin.getX(), topOrigin.getZ()))
+                    || containsProtectedBlock(level, topOrigin, null)) {
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] Refusing stale bank placement at {} because its write area is occupied",
+                        topOrigin);
+                return false;
+            }
+            snapshot[0] = PlacementSnapshot.capture(level,
+                    placementRollbackBox(level, topOrigin, vaultOrigin, vaultClearOrigin,
+                            vaultClearSizeX, vaultClearSizeZ));
+            return true;
+        });
+        builder.step(() -> {
             // Template NBT stores only non-air blocks. Clear both volumes first so the
             // top is not obstructed by trees and the vault is genuinely excavated.
             levelTerrain(level, topOrigin);
             blendTerrainIntoSurroundings(level, topOrigin);
-            // Do not clear the ground plane (Y=0). Its explicit air entries are restored
-            // to dirt after placement so the structure cannot leave one-block-deep holes.
-            clearVolume(level, topOrigin.above(), TOP_SIZE, TOP_HEIGHT - 1, TOP_SIZE);
+        });
+        // Do not clear the ground plane (Y=0). Its explicit air entries are restored
+        // to dirt after placement so the structure cannot leave one-block-deep holes.
+        builder.step(() -> clearVolume(level, topOrigin.above(), TOP_SIZE, TOP_HEIGHT - 1, TOP_SIZE));
+        builder.step(() -> {
             gradeAndClearEntrance(level, topPlacePos, rotation);
             clearVolume(level, vaultClearOrigin, vaultClearSizeX, VAULT_HEIGHT, vaultClearSizeZ);
-
-            StructurePlaceSettings settings = new StructurePlaceSettings()
-                    .setRotation(rotation)
-                    .setMirror(Mirror.NONE)
-                    .setIgnoreEntities(false);
-            RandomSource random = level.getRandom();
-            if (!vaultTemplate.placeInWorld(level, vaultOrigin, vaultOrigin, settings, random, 2)
-                    || !topTemplate.placeInWorld(level, topPlacePos, topPlacePos, settings, random, 2)) {
-                EmeraldCapitalism.LOGGER.error(
-                        "[ECAP] Failed to place one or both bank templates at top={} vault={}",
-                        topOrigin, vaultOrigin);
-                return null;
-            }
+        });
+        builder.step(() -> vaultTemplate.placeInWorld(level, vaultOrigin, vaultOrigin, settings,
+                level.getRandom(), 2));
+        builder.step(() -> topTemplate.placeInWorld(level, topPlacePos, topPlacePos, settings,
+                level.getRandom(), 2));
+        builder.step(() -> {
             restoreGroundPlane(level, topOrigin);
             grassifyFoundationDirtAdjacentToGrass(level, topOrigin);
 
@@ -637,7 +654,7 @@ public final class VillageBankStructurePlacer {
                 EmeraldCapitalism.LOGGER.error(
                         "[ECAP] Generated bank template at {} does not contain a bank block entity at {}",
                         topOrigin, bankPos);
-                return null;
+                return false;
             }
 
             // Structure block-entity NBT can retain the controller that saved the
@@ -654,8 +671,8 @@ public final class VillageBankStructurePlacer {
             replaceGeneratedBankCoalWithCharcoal(level, topPlacePos, rotation);
             seedInitialBread(level, vaultOrigin, rotation);
             seedInitialPumpkins(level, vaultOrigin, rotation);
-        seedInitialLogs(level, vaultOrigin, rotation, plan.biomeType());
-        seedInitialNearestVaultMap(level, vaultOrigin, rotation);
+            seedInitialLogs(level, vaultOrigin, rotation, plan.biomeType());
+            seedInitialNearestVaultMap(level, vaultOrigin, rotation);
             seedInitialBankRuleBook(level, vaultOrigin, rotation);
 
             // Entity relocation is deferred until all fallible placement work succeeds,
@@ -670,18 +687,21 @@ public final class VillageBankStructurePlacer {
                             vaultOrigin.getY() + VAULT_HEIGHT - 1,
                             vaultClearOrigin.getZ() + vaultClearSizeZ - 1)));
 
-            committed = true;
-            return new PlacedBank(bankPos, vaultOrigin, rotation);
-        } catch (Exception exception) {
-            EmeraldCapitalism.LOGGER.error(
-                    "[ECAP] Bank placement failed at top={} vault={}; restoring prior blocks",
-                    topOrigin, vaultOrigin, exception);
-            return null;
-        } finally {
-            if (!committed) {
-                snapshot.restore(level);
+            committed[0] = true;
+            snapshot[0] = null;
+            onCommitted.accept(new PlacedBank(bankPos, vaultOrigin, rotation));
+            return true;
+        });
+        builder.onFailure(() -> {
+            if (!committed[0] && snapshot[0] != null) {
+                EmeraldCapitalism.LOGGER.error(
+                        "[ECAP] Bank placement failed at top={} vault={}; restoring prior blocks",
+                        topOrigin, vaultOrigin);
+                snapshot[0].restore(level);
+                snapshot[0] = null;
             }
-        }
+        });
+        return builder.build();
     }
 
     private BoundingBox placementRollbackBox(ServerLevel level, BlockPos topOrigin,

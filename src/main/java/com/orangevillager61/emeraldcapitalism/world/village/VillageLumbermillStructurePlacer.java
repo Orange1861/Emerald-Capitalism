@@ -391,41 +391,46 @@ public final class VillageLumbermillStructurePlacer {
 
     /** Places the selected template after the pipeline has reserved its footprint. */
     public boolean place(ServerLevel level, PlannedLumbermill plan, String biomeType) {
-        try {
-            BlockPos origin = plan.origin();
-            int footprintX = plan.placementBox().getXSpan();
-            int footprintZ = plan.placementBox().getZSpan();
-            VillageEntityRelocation.relocateFromBuilding(level, List.of(plan.placementBox()));
-            levelTerrain(level, plan.placementBox().minX(), plan.placementBox().minZ(),
-                    footprintX, footprintZ, origin.getY(), biomeType);
-            clearAbove(level, plan.placementBox().minX(), plan.placementBox().minZ(),
-                    footprintX, footprintZ, origin.getY(), plan.template().getSize().getY());
+        return startPlacement(level, plan, biomeType, () -> { }).finishNow();
+    }
 
-            StructurePlaceSettings settings = placementSettings(plan.rotation())
-                    .setIgnoreEntities(false)
-                    .addProcessor(JigsawReplacementProcessor.INSTANCE);
-            boolean placed = plan.template().placeInWorld(level, origin, origin, settings,
-                    RandomSource.create(level.getSeed() ^ origin.asLong()), 2);
-            if (placed) {
-                replaceJigsawBlocks(level, plan.placementBox(), origin.getY(),
-                        plan.template().getSize().getY(), plan.rotation());
-                correctEntranceStairFacing(level, plan);
-                LumberjackSaplingCache.trackLumbermillSaplings(level, plan.placementBox());
-                EmeraldCapitalism.LOGGER.info(
-                        "[ECAP] Placed mandatory village lumbermill {} at {}",
-                        plan.templateLocation(), origin);
-            } else {
-                EmeraldCapitalism.LOGGER.warn(
-                        "[ECAP] Lumbermill template {} refused placement at {}",
-                        plan.templateLocation(), origin);
-            }
-            return placed;
-        } catch (Exception exception) {
-            EmeraldCapitalism.LOGGER.error(
-                    "[ECAP] Failed to place village lumbermill at {}",
-                    plan.origin(), exception);
-            return false;
-        }
+    /**
+     * Stages the placement: terrain, clearing, one template chunk slice per step,
+     * then the jigsaw, stair and sapling finishing work. {@code onTemplateWritten}
+     * runs once, right after the first template slice, so a one-per-village
+     * marker is committed with the first irreversible template write.
+     */
+    public StagedPlacement startPlacement(ServerLevel level, PlannedLumbermill plan, String biomeType,
+                                          Runnable onTemplateWritten) {
+        BlockPos origin = plan.origin();
+        BoundingBox box = plan.placementBox();
+        StagedPlacement.Builder builder = StagedPlacement.builder(
+                "Lumbermill placement at " + origin);
+        builder.step(() -> {
+            VillageEntityRelocation.relocateFromBuilding(level, List.of(box));
+            levelTerrain(level, box.minX(), box.minZ(), box.getXSpan(), box.getZSpan(),
+                    origin.getY(), biomeType);
+        });
+        builder.step(() -> clearAbove(level, box.minX(), box.minZ(), box.getXSpan(), box.getZSpan(),
+                origin.getY(), plan.template().getSize().getY()));
+        StructurePlaceSettings settings = placementSettings(plan.rotation())
+                .setIgnoreEntities(false)
+                .addProcessor(JigsawReplacementProcessor.INSTANCE);
+        StagedPlacement.addTemplateSlices(builder, level, plan.template(), origin, settings,
+                level.getSeed() ^ origin.asLong(), box, onTemplateWritten);
+        builder.step(() -> {
+            replaceJigsawBlocks(level, box, origin.getY(), plan.template().getSize().getY(),
+                    plan.rotation());
+            correctEntranceStairFacing(level, plan);
+            LumberjackSaplingCache.trackLumbermillSaplings(level, box);
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP] Placed mandatory village lumbermill {} at {}",
+                    plan.templateLocation(), origin);
+        });
+        builder.onFailure(() -> EmeraldCapitalism.LOGGER.warn(
+                "[ECAP] Lumbermill template {} could not be placed at {}",
+                plan.templateLocation(), origin));
+        return builder.build();
     }
 
     /**

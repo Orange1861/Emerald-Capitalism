@@ -85,6 +85,17 @@ public final class VillageGenerationPipeline {
         }
     }
 
+    /**
+     * Completes a building placement that is part-way through its steps. Called at
+     * server shutdown while the level is still loaded, before pending work is
+     * cleared, so a stop cannot leave a half-placed building.
+     */
+    public static void finishActivePlacementForShutdown() {
+        if (activeTask != null) {
+            activeTask.finishActivePlacement();
+        }
+    }
+
     public static void clearPendingWork() {
         if (activeTask != null) {
             activeTask.context.releaseChunks();
@@ -143,6 +154,21 @@ public final class VillageGenerationPipeline {
         private VillageBuildingPlanningTask activePlanningTask;
         private PlannedVillageBuilding activePlacementPlan;
         private VillageBuildingPlacementTask activePlacementTask;
+
+        private void finishActivePlacement() {
+            if (activePlacementTask == null) {
+                return;
+            }
+            try {
+                activePlacementTask.finishNow();
+            } catch (RuntimeException exception) {
+                EmeraldCapitalism.LOGGER.error(
+                        "[ECAP] Could not finish {} placement for village {} at shutdown",
+                        activePlacementPlan.providerId(), context.villageId(), exception);
+            }
+            activePlacementTask = null;
+            activePlacementPlan = null;
+        }
 
         private static VillageBuildingOrder.PlanKey buildingOrderKey(PlannedVillageBuilding plan) {
             BoundingBox box = plan.reservationBox();

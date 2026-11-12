@@ -119,6 +119,15 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
         }
 
         @Override
+        public VillageBuildingPlacementTask startPlacement(VillageGenerationContext context) {
+            // The marker is committed with the first template slice, the first
+            // irreversible template write, so a restart cannot place a duplicate.
+            return VillageBuildingPlacementTask.of(placer.startPlacement(context.level(), plan,
+                    context.biomeType(),
+                    () -> context.registryData().markLumbermillGenerated(context.villageId())));
+        }
+
+        @Override
         public void finish(VillageGenerationContext context) {
             placer.spawnVillagers(context.level(), plan.placementBox());
         }

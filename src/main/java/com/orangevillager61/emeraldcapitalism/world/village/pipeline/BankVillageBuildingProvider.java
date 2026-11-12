@@ -125,6 +125,17 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         }
 
         @Override
+        public VillageBuildingPlacementTask startPlacement(VillageGenerationContext context) {
+            // The staged bank is one transaction: the link and marker are written
+            // only when its last step commits, and a failure restores the site.
+            return VillageBuildingPlacementTask.of(placer.startPlacement(context.level(), plan, result -> {
+                placed = result;
+                context.linkBank(result.bankPos());
+                context.registryData().markBankGenerated(context.villageId());
+            }));
+        }
+
+        @Override
         public void finish(VillageGenerationContext context) {
             if (placed != null) {
                 placer.finishPlannedPlacement(context.level(), placed);

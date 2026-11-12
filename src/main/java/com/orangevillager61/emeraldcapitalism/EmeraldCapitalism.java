@@ -27,6 +27,7 @@ import com.orangevillager61.emeraldcapitalism.util.SharedScanGenerationBudget;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.naming.data.RootLexiconRegistry;
 import com.orangevillager61.emeraldcapitalism.world.village.books.LibraryBookRegistry;
+import com.orangevillager61.emeraldcapitalism.world.village.pipeline.VillageGenerationPipeline;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -127,6 +128,8 @@ public class EmeraldCapitalism {
         SharedScanGenerationBudget.clearAll();
         if (!recordServerShutdown) {
             PerformanceTimingCounters.clear();
+        } else {
+            VillageGenerationPipeline.finishActivePlacementForShutdown();
         }
         VillageDetectionHandler.clearPendingWork();
         SteveGraveEvents.clearPendingWork();
