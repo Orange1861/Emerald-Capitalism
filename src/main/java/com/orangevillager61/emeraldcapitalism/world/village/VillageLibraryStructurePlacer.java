@@ -54,6 +54,10 @@ public final class VillageLibraryStructurePlacer {
             Rotation.NONE, Rotation.CLOCKWISE_90, Rotation.CLOCKWISE_180,
             Rotation.COUNTERCLOCKWISE_90
     };
+    /** Rows outside the door that the library connector paves at door height. */
+    private static final int LEVEL_APPROACH_ROWS = 3;
+    /** Width of the library connector, centred on the entrance. */
+    private static final int APPROACH_WIDTH = 3;
 
     static {
         LIBRARY_TEMPLATES.put("PLAINS", ResourceLocation.parse(
@@ -118,7 +122,8 @@ public final class VillageLibraryStructurePlacer {
                             rotation, footprint, bellPos,
                             pathBoxes);
                     sites.add(new LibrarySite(anchor, footprint, terrain.placementY(),
-                            terrain.roughness(), rotation, entrance));
+                            terrain.roughness(), rotation, entrance,
+                            hasOpenApproach(level, entrance)));
                 }
             }
         }
@@ -130,6 +135,15 @@ public final class VillageLibraryStructurePlacer {
             return null;
         }
 
+        // A door facing a cliff or water leaves the connector no way out, so
+        // the library would get no road. Such sites remain a last resort.
+        if (sites.stream().anyMatch(LibrarySite::openApproach)) {
+            sites.removeIf(site -> !site.openApproach());
+        } else {
+            EmeraldCapitalism.LOGGER.debug(
+                    "[ECAP] No library site near bell {} has an open approach; using any valid site",
+                    bellPos);
+        }
         sites.sort(Comparator.comparingInt(LibrarySite::roughness)
                 .thenComparingInt((LibrarySite site) -> site.entrance().connectionCost())
                 .thenComparingInt(site -> site.anchor().getX())
@@ -355,6 +369,35 @@ public final class VillageLibraryStructurePlacer {
                 Direction.NORTH, villageCenter, pathBoxes);
     }
 
+    /**
+     * Whether the connector can leave the door. The rows it paves at door
+     * height must be dry and within one block of the door, and the next row
+     * within two, so the route can continue by plain steps or a stair ramp.
+     * Unloaded columns count as blocked; this check never loads chunks.
+     */
+    private static boolean hasOpenApproach(ServerLevel level, LibraryEntrance entrance) {
+        BlockPos start = entrance.start();
+        Direction direction = entrance.direction();
+        Direction side = direction.getClockWise();
+        int firstOffset = -(APPROACH_WIDTH / 2);
+        for (int row = 0; row <= LEVEL_APPROACH_ROWS; row++) {
+            int tolerance = row < LEVEL_APPROACH_ROWS ? 1 : 2;
+            for (int offset = firstOffset; offset < firstOffset + APPROACH_WIDTH; offset++) {
+                BlockPos column = start.relative(direction, row).relative(side, offset);
+                if (!level.hasChunk(column.getX() >> 4, column.getZ() >> 4)) {
+                    return false;
+                }
+                int surfaceY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        column.getX(), column.getZ()) - 1;
+                if (Math.abs(surfaceY - start.getY()) > tolerance
+                        || !level.getBlockState(column.atY(surfaceY)).getFluidState().isEmpty()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private static LibraryEntrance libraryEntrance(BlockPos start, Direction direction,
                                                     BlockPos villageCenter,
                                                     List<BoundingBox> pathBoxes) {
@@ -517,7 +560,7 @@ public final class VillageLibraryStructurePlacer {
 
     private record LibrarySite(BlockPos anchor, BoundingBox footprint, int placementY,
                                int roughness, Rotation rotation,
-                               LibraryEntrance entrance) {
+                               LibraryEntrance entrance, boolean openApproach) {
     }
 
     private record LibraryEntrance(BlockPos start, Direction direction, int connectionCost) {
