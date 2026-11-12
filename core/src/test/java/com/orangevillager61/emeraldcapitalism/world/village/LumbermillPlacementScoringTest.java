@@ -22,4 +22,18 @@ class LumbermillPlacementScoringTest {
         assertFalse(LumbermillPlacementScoring.withinTreePreferenceTolerance(7, 0));
         assertTrue(LumbermillPlacementScoring.withinTreePreferenceTolerance(10, 4));
     }
+
+    @Test
+    void entranceFacesTargetWithinSixtyDegrees() {
+        assertTrue(LumbermillPlacementScoring.entranceFacesTarget(1, 0, 20, 0));
+        assertTrue(LumbermillPlacementScoring.entranceFacesTarget(1, 0, 20, 20));
+        assertTrue(LumbermillPlacementScoring.entranceFacesTarget(0, -1, 10, -10));
+        assertTrue(LumbermillPlacementScoring.entranceFacesTarget(1, 0, 10, 17));
+        assertFalse(LumbermillPlacementScoring.entranceFacesTarget(1, 0, 10, 18));
+        assertFalse(LumbermillPlacementScoring.entranceFacesTarget(1, 0, 0, 20));
+        assertFalse(LumbermillPlacementScoring.entranceFacesTarget(1, 0, -20, 0));
+        assertTrue(LumbermillPlacementScoring.entranceFacesTarget(0, 1, 0, 0));
+        assertTrue(LumbermillPlacementScoring.entranceFacesTarget(
+                1, 0, Integer.MAX_VALUE, Integer.MAX_VALUE));
+    }
 }

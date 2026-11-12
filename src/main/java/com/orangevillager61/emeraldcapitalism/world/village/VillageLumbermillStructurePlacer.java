@@ -130,7 +130,8 @@ public final class VillageLumbermillStructurePlacer {
         for (ResourceLocation location : templateLocations) {
             Optional<StructureTemplate> template = level.getStructureManager().get(location);
             if (template.isPresent()) {
-                templates.add(new LoadedTemplate(location, template.get()));
+                templates.add(new LoadedTemplate(location, template.get(),
+                        authoredEntrance(level, template.get())));
             } else {
                 EmeraldCapitalism.LOGGER.error(
                         "[ECAP] Cannot generate village lumbermill: missing template {}",
@@ -256,8 +257,16 @@ public final class VillageLumbermillStructurePlacer {
             }
             BlockPos origin = anchor.atY(terrain.placementY());
             footprint = loaded.template().getBoundingBox(settings, origin);
+            LumbermillEntrance entrance = findTemplateEntrance(loaded, origin,
+                    candidate.rotation(), footprint, bellPos);
+            Direction facing = entrance.direction();
+            boolean facesVillage = LumbermillPlacementScoring.entranceFacesTarget(
+                    facing.getStepX(), facing.getStepZ(),
+                    bellPos.getX() - entrance.pathStart().getX(),
+                    bellPos.getZ() - entrance.pathStart().getZ());
             sites.add(new LumbermillSite(loaded, anchor, footprint,
-                    terrain.placementY(), terrain.roughness(), candidate.rotation(), 0));
+                    terrain.placementY(), terrain.roughness(), candidate.rotation(), 0,
+                    entrance, facesVillage));
         }
 
         @Nullable
@@ -269,6 +278,15 @@ public final class VillageLumbermillStructurePlacer {
                 return null;
             }
 
+            // An entrance facing the bell keeps the connector short and the
+            // door on the village side. Sites facing away remain a fallback.
+            if (sites.stream().anyMatch(LumbermillSite::facesVillage)) {
+                sites.removeIf(site -> !site.facesVillage());
+            } else {
+                EmeraldCapitalism.LOGGER.debug(
+                        "[ECAP] No lumbermill site near bell {} faces the village; using any valid site",
+                        bellPos);
+            }
             applyTreePreference(level, biomeType, sites);
             sites.sort(Comparator.comparingInt(LumbermillSite::treeDensityScore).reversed()
                     .thenComparingInt(LumbermillSite::roughness)
@@ -278,8 +296,7 @@ public final class VillageLumbermillStructurePlacer {
                     .thenComparing(site -> site.rotation().name()));
             LumbermillSite site = sites.getFirst();
             BlockPos origin = site.anchor().atY(site.placementY());
-            LumbermillEntrance entrance = findTemplateEntrance(level, site.loaded().template(), origin,
-                    site.rotation(), site.footprint(), bellPos);
+            LumbermillEntrance entrance = site.entrance();
             return new PlannedLumbermill(site.loaded().template(), origin, site.rotation(),
                     site.footprint(), site.loaded().location(), entrance.pathStart(), entrance.direction());
         }
@@ -605,21 +622,36 @@ public final class VillageLumbermillStructurePlacer {
         return false;
     }
 
-    /** Finds the authored road jigsaw, falling back to the edge facing the village. */
-    private static LumbermillEntrance findTemplateEntrance(ServerLevel level, StructureTemplate template,
-                                                            BlockPos placePos, Rotation rotation,
-                                                            BoundingBox footprint, BlockPos villageCenter) {
-        StructurePlaceSettings settings = placementSettings(rotation);
+    /**
+     * Reads the authored road jigsaw once per template, in unrotated template
+     * coordinates, so the site search can place it for every candidate.
+     */
+    @Nullable
+    private static AuthoredEntrance authoredEntrance(ServerLevel level, StructureTemplate template) {
         for (StructureTemplate.StructureBlockInfo jigsaw
-                : template.filterBlocks(placePos, settings, Blocks.JIGSAW)) {
+                : template.filterBlocks(BlockPos.ZERO, placementSettings(Rotation.NONE), Blocks.JIGSAW)) {
             if (jigsaw.nbt() == null
                     || !"minecraft:building_entrance".equals(jigsaw.nbt().getString("name"))) {
                 continue;
             }
-            Direction direction = authoredFacing(level, jigsaw.nbt().getString("final_state"))
-                    .map(rotation::rotate)
-                    .orElseGet(() -> facingOutward(jigsaw.pos(), footprint));
-            return new LumbermillEntrance(jigsaw.pos().relative(direction), direction);
+            return new AuthoredEntrance(jigsaw.pos(),
+                    authoredFacing(level, jigsaw.nbt().getString("final_state")).orElse(null));
+        }
+        return null;
+    }
+
+    /** Places the authored road jigsaw, falling back to the edge facing the village. */
+    private static LumbermillEntrance findTemplateEntrance(LoadedTemplate loaded,
+                                                            BlockPos placePos, Rotation rotation,
+                                                            BoundingBox footprint, BlockPos villageCenter) {
+        AuthoredEntrance authored = loaded.entrance();
+        if (authored != null) {
+            BlockPos jigsawPos = StructureTemplate.calculateRelativePosition(
+                    placementSettings(rotation), authored.localPos()).offset(placePos);
+            Direction direction = authored.facing() != null
+                    ? rotation.rotate(authored.facing())
+                    : facingOutward(jigsawPos, footprint);
+            return new LumbermillEntrance(jigsawPos.relative(direction), direction);
         }
 
         int centerX = (footprint.minX() + footprint.maxX()) / 2;
@@ -849,15 +881,21 @@ public final class VillageLumbermillStructurePlacer {
     }
 
     private record LoadedTemplate(ResourceLocation location,
-                                  StructureTemplate template) {
+                                  StructureTemplate template,
+                                  @Nullable AuthoredEntrance entrance) {
+    }
+
+    /** A building_entrance jigsaw; {@code facing} is null when its final state has none. */
+    private record AuthoredEntrance(BlockPos localPos, @Nullable Direction facing) {
     }
 
     private record LumbermillSite(LoadedTemplate loaded, BlockPos anchor, BoundingBox footprint,
                                   int placementY, int roughness, Rotation rotation,
-                                  int treeDensityScore) {
+                                  int treeDensityScore, LumbermillEntrance entrance,
+                                  boolean facesVillage) {
         private LumbermillSite withTreeDensityScore(int score) {
             return new LumbermillSite(loaded, anchor, footprint, placementY, roughness,
-                    rotation, score);
+                    rotation, score, entrance, facesVillage);
         }
     }
 
