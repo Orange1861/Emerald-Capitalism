@@ -402,6 +402,9 @@ public final class VillagerBehaviorExtensionGameTests {
 
     private static void awaitArrival(GameTestHelper helper, Villager villager,
                                      BlockPos target, int remainingTicks) {
+        // Component test: production no longer ticks the registry (step 3 removed that
+        // call), so the fixture drives the extension framework itself.
+        VillagerBehaviorRegistry.tick(villager);
         if (villager.blockPosition().distSqr(target) <= 2.25D) {
             MovementRequestHandle handle = HANDLES.get(villager);
             helper.assertTrue(handle != null && MovementRequestManager.isActive(villager, handle),

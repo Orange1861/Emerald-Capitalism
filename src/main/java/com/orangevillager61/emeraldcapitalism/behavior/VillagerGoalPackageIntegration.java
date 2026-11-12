@@ -2,8 +2,12 @@ package com.orangevillager61.emeraldcapitalism.behavior;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
+import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
+import net.minecraft.world.entity.ai.behavior.RunOne;
+import net.minecraft.world.entity.ai.behavior.WorkAtPoi;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +28,8 @@ public final class VillagerGoalPackageIntegration {
     public static final int ZOMBIE_SMELL_PRIORITY = 1;
     public static final int HOSTILE_VILLAGE_PLAYER_FLEE_PRIORITY = 2;
     public static final int FENCE_GATE_PRIORITY = 6;
+    /** Vanilla's WORK package runs its work-at-poi gate at this priority. */
+    private static final int VANILLA_WORK_PRIORITY = 5;
 
     private VillagerGoalPackageIntegration() {
     }
@@ -58,6 +64,45 @@ public final class VillagerGoalPackageIntegration {
         List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> modified = new ArrayList<>(original);
         addIfMissing(modified, BegForFoodBehavior.class, BEGGING_PRIORITY, BegForFoodBehavior::new);
         return ImmutableList.copyOf(modified);
+    }
+
+    /**
+     * Work package for {@code profession}. A banker's work side is held by
+     * {@link BankerWorkSideBehavior}; vanilla's job-site {@code RunOne} (strolling, which
+     * overwrites {@code WALK_TARGET} at any priority) is replaced by plain {@code WorkAtPoi},
+     * so the work-side behavior and vanilla never alternate the walk target.
+     */
+    public static ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> addWorkBehaviors(
+            VillagerProfession profession,
+            List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> original) {
+        ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> common =
+                addWorkBehaviors(original);
+        if (profession != ECAPVillagerProfessions.BANKER.get()) {
+            return common;
+        }
+        List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> modified = new ArrayList<>(common);
+        removeJobSiteGate(modified);
+        addIfMissing(modified, WorkAtPoi.class, VANILLA_WORK_PRIORITY, WorkAtPoi::new);
+        addIfMissing(modified, BankerWorkSideBehavior.class,
+                BankerWorkSideBehavior.PRIORITY, BankerWorkSideBehavior::new);
+        return ImmutableList.copyOf(modified);
+    }
+
+    /**
+     * Vanilla's work package holds two {@code RunOne} gates: the minimal look-around gate first,
+     * then the job-site gate (work, strolling, farming). Only the second is removed. Any other
+     * shape, including a package already stripped, is left alone and caught by the tracked
+     * package-contents test.
+     */
+    private static void removeJobSiteGate(
+            List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> behaviors) {
+        int gates = 0;
+        for (int index = 0; index < behaviors.size(); index++) {
+            if (behaviors.get(index).getSecond() instanceof RunOne && ++gates == 2) {
+                behaviors.remove(index);
+                return;
+            }
+        }
     }
 
     private static void addIfMissing(

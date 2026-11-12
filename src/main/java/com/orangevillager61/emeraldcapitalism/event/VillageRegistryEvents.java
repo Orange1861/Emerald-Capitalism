@@ -8,8 +8,6 @@ import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEn
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.FarmerBreadConversionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
-import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
-import com.orangevillager61.emeraldcapitalism.entity.ai.BankerWorkGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestQueuedCropGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithProcessorGoal;
@@ -426,16 +424,12 @@ public class VillageRegistryEvents {
         VillageRegistryManager manager = MANAGERS.computeIfAbsent(
                 serverLevel, VillageRegistryManager::new);
         manager.handleVillagerSpawnOrLoad(villager);
-        if (VillagerBehaviorRegistry.hasDefinitions()) {
-            VillagerBehaviorRegistry.refresh(villager);
-        }
 
         // Profession-specific goals are present before profession assignment so
         // villagers that change profession after spawning/loading are covered as well.
         injectVillagerInventoryBankGoal(villager);
         injectMayorDoorRepairGoal(villager);
         injectMayorFollowGovernorCandidateGoal(villager);
-        injectBankerWorkGoal(villager);
         injectFarmerGoals(villager);
         injectLumberjackGoal(villager);
         injectEmeraldSmithGolemConstructionGoal(villager);
@@ -483,17 +477,6 @@ public class VillageRegistryEvents {
         if (!hasGoal) {
             villager.goalSelector.addGoal(MayorFollowGovernorCandidateGoal.GOAL_PRIORITY,
                     new MayorFollowGovernorCandidateGoal(villager));
-        }
-    }
-
-    /** Adds the facing-side work task to banker villagers when needed. */
-    private static void injectBankerWorkGoal(Villager villager) {
-        boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
-                .anyMatch(g -> g.getGoal() instanceof BankerWorkGoal);
-        if (!hasGoal) {
-            // The side opposite the bank's FACING side is reserved for the
-            // banker; depositors use the FACING side documented by BankBlock.
-            villager.goalSelector.addGoal(4, new BankerWorkGoal(villager));
         }
     }
 

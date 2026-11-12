@@ -22,8 +22,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <p>Retained invariant: every returned core package has exactly one
  * fence-gate interaction and one boat-avoidance behavior, and every returned
- * work package has exactly one begging behavior, without removing vanilla
- * entries or changing their order.</p>
+ * work package has exactly one begging behavior, and a banker's work package has one
+ * work-side behavior and no vanilla job-site {@code RunOne}; no other vanilla entry is
+ * removed or reordered.</p>
  *
  * <p>Target fragility: these static vanilla package factories change their
  * profession signature in later Minecraft versions. NeoForge 21.1.219 exposes
@@ -112,6 +113,6 @@ public class VillagerGoalPackagesMixin {
             float speedModifier,
             CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir
     ) {
-        cir.setReturnValue(VillagerGoalPackageIntegration.addWorkBehaviors(cir.getReturnValue()));
+        cir.setReturnValue(VillagerGoalPackageIntegration.addWorkBehaviors(profession, cir.getReturnValue()));
     }
 }
