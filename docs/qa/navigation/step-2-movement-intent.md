@@ -42,7 +42,7 @@ Not in Step 2: plague and hostile-player avoidance and begging (step 8), activit
 | P12.7 | Vanilla `MoveToTargetSink` owns route creation. | The behavior never touches navigation. | The natural test asserts `MovementRequestManager.activeHandle` is null while escaping. | Fails if the manager takes the request. | PASS |
 | P12.8 | Pilot completes real journeys without `MovementRequestManager`. | As above. | Natural test; mixed-village scene still passes (below). | Not applicable. | PASS (automated) |
 | P9 | Seam composes the same way on 1.21.4. | Shared `VillagerGoalPackageIntegration`. | New tests and `VillagerGoalBehaviorGameTests` pass on 1.21.4. | Not applicable. | PASS |
-| M2.1 | Developer runs the boat scenes and the mixed village, and records the result. | Run sheet below. | None; only the developer can pass this. | Not applicable. | BLOCKED (waiting for the developer) |
+| M2.1 | Developer runs the boat scenes and the mixed village, and records the result. | Run sheet below. | None; only the developer can pass this. | Not applicable. | PASS (developer, 2026-11-12: all steps passed on 1.21.1 and 1.21.4) |
 
 ## Recorded results (this tree, uncommitted base 566ca3c6 plus Step 2)
 
