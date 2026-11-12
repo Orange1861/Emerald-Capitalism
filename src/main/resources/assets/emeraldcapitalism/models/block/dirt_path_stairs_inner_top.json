@@ -1,3 +1,4 @@
 {
-  "parent": "emeraldcapitalism:block/dirt_path_stairs_inner"
+  "parent": "emeraldcapitalism:block/dirt_path_stairs_inner",
+  "ambientocclusion": false
 }
