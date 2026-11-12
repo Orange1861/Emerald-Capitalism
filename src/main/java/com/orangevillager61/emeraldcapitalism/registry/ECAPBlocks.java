@@ -12,7 +12,9 @@ import com.orangevillager61.emeraldcapitalism.block.SawmillBlock;
 import com.orangevillager61.emeraldcapitalism.block.VillageManagerBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.level.block.StainedGlassPaneBlock;
 import net.minecraft.world.item.DyeColor;
@@ -125,6 +127,18 @@ public final class ECAPBlocks {
     public static final DeferredBlock<Block> EMERALD_GREEN_WOOL = BLOCKS.registerSimpleBlock(
             "emerald_green_wool",
             BlockBehaviour.Properties.ofFullCopy(Blocks.GREEN_WOOL)
+    );
+
+    public static final DeferredBlock<StairBlock> DIRT_PATH_STAIRS = BLOCKS.registerBlock(
+            "dirt_path_stairs",
+            properties -> new StairBlock(Blocks.DIRT_PATH.defaultBlockState(), properties),
+            BlockBehaviour.Properties.ofFullCopy(Blocks.DIRT_PATH)
+    );
+
+    public static final DeferredBlock<SlabBlock> DIRT_PATH_SLAB = BLOCKS.registerBlock(
+            "dirt_path_slab",
+            SlabBlock::new,
+            BlockBehaviour.Properties.ofFullCopy(Blocks.DIRT_PATH)
     );
 
     public static final DeferredBlock<EmeraldGreenBedBlock> EMERALD_GREEN_BED = BLOCKS.registerBlock(

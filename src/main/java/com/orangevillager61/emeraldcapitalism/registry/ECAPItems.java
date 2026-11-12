@@ -98,6 +98,16 @@ public final class ECAPItems {
             ECAPBlocks.EMERALD_GREEN_WOOL
     );
 
+    public static final DeferredItem<BlockItem> DIRT_PATH_STAIRS = ITEMS.registerSimpleBlockItem(
+            "dirt_path_stairs",
+            ECAPBlocks.DIRT_PATH_STAIRS
+    );
+
+    public static final DeferredItem<BlockItem> DIRT_PATH_SLAB = ITEMS.registerSimpleBlockItem(
+            "dirt_path_slab",
+            ECAPBlocks.DIRT_PATH_SLAB
+    );
+
     public static final DeferredItem<BlockItem> EMERALD_GREEN_BED = ITEMS.registerSimpleBlockItem(
             "emerald_green_bed",
             ECAPBlocks.EMERALD_GREEN_BED

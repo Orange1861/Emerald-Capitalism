@@ -39,6 +39,8 @@ public final class ECAPCreativeModTabs {
                         output.accept(ECAPItems.EMERALD_GREEN_STAINED_GLASS.get());
                         output.accept(ECAPItems.EMERALD_GREEN_STAINED_GLASS_PANE.get());
                         output.accept(ECAPItems.EMERALD_GREEN_WOOL.get());
+                        output.accept(ECAPItems.DIRT_PATH_STAIRS.get());
+                        output.accept(ECAPItems.DIRT_PATH_SLAB.get());
                         output.accept(ECAPItems.EMERALD_GREEN_BED.get());
                         output.accept(ECAPItems.BANK.get());
                         output.accept(ECAPItems.SAWMILL.get());

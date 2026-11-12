@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "emeraldcapitalism:block/dirt_path_slab"
+    },
+    "type=top": {
+      "model": "emeraldcapitalism:block/dirt_path_slab_top"
+    },
+    "type=double": {
+      "model": "emeraldcapitalism:block/dirt_path_slab_double"
+    }
+  }
+}
