@@ -74,12 +74,14 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
             VillageGenerationContext context, VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill) {
         // The building reservation is committed after this provider returns,
         // so include this footprint while planning its own connector. A first
-        // turn must not widen the path back over the entrance stairs.
+        // turn must not widen the path back over the entrance stairs. The
+        // lumbermill can stand far outside the village core, so aim for the
+        // street nearest its door rather than the village center.
         VillageRoadPathGenerator.PreparedVillageRoads roads =
                 context.preparedRoadsWithReservations()
                         .withAdditionalBuildings(List.of(lumbermill.placementBox()));
         VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planLumbermillConnection(
-                context.level(), lumbermill.pathStart(), context.structureCenter(), context.pieces(),
+                context.level(), lumbermill.pathStart(), lumbermill.pathStart(), context.pieces(),
                 context.biomeType(), lumbermill.entranceDirection(),
                 roads, context.chunkLoadBudget());
         return List.of(new PlannedLumbermill(lumbermill, connector));

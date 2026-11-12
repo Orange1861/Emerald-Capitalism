@@ -354,9 +354,10 @@ public final class VillageRoadPathGenerator {
             }
             long targetStarted = diagnostics != null ? System.nanoTime() : 0L;
             // Never load chunks here: a blocking load during route search stalls
-            // the server tick. The pipeline preloads the village area; a target
-            // whose search area lies outside it is skipped.
-            if (!searchChunksLoaded(level, searchStart, streetTarget.pos(), profile.pathWidth())) {
+            // the server tick. Every world read in the search and placement plan
+            // checks hasChunk first, so unloaded columns are simply impassable;
+            // only the two endpoints must be loaded.
+            if (!endpointChunksLoaded(level, searchStart, streetTarget.pos())) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "CHUNK_UNAVAILABLE");
                 continue;
             }
@@ -456,6 +457,9 @@ public final class VillageRoadPathGenerator {
 
         for (Map.Entry<Long, StreetCell> entry : streetByColumn.entrySet()) {
             StreetCell cell = entry.getValue();
+            if (!level.hasChunk(cell.pos().getX() >> 4, cell.pos().getZ() >> 4)) {
+                continue;
+            }
             Block currentSurface = level.getBlockState(cell.pos()).getBlock();
             if (!isStreetSurface(currentSurface)) {
                 continue;
@@ -1177,6 +1181,10 @@ public final class VillageRoadPathGenerator {
                             ? "ENTRANCE_ROW_INSIDE_BUILDING" : "INSIDE_BUILDING", x, z);
                     return null;
                 }
+                if (!level.hasChunk(x >> 4, z >> 4)) {
+                    rejection.set("CHUNK_UNAVAILABLE", x, z);
+                    return null;
+                }
 
                 boolean fixedEntranceRow = routeIndex < fixedEntranceRows;
                 SurfaceSample sample = fixedEntranceRow
@@ -1427,21 +1435,9 @@ public final class VillageRoadPathGenerator {
         level.setBlock(pos, Block.updateFromNeighbourShapes(state, level, pos), 2);
     }
 
-    private boolean searchChunksLoaded(ServerLevel level, BlockPos start, BlockPos target,
-                                       int pathWidth) {
-        int minX = Math.min(start.getX(), target.getX()) - SEARCH_MARGIN - pathWidth;
-        int maxX = Math.max(start.getX(), target.getX()) + SEARCH_MARGIN + pathWidth;
-        int minZ = Math.min(start.getZ(), target.getZ()) - SEARCH_MARGIN - pathWidth;
-        int maxZ = Math.max(start.getZ(), target.getZ()) + SEARCH_MARGIN + pathWidth;
-
-        for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
-            for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
-                if (!level.hasChunk(chunkX, chunkZ)) {
-                    return false;
-                }
-            }
-        }
-        return true;
+    private static boolean endpointChunksLoaded(ServerLevel level, BlockPos start, BlockPos target) {
+        return level.hasChunk(start.getX() >> 4, start.getZ() >> 4)
+                && level.hasChunk(target.getX() >> 4, target.getZ() >> 4);
     }
 
     private Direction routeDirection(List<BlockPos> route, int index, Direction fallback) {
