@@ -57,12 +57,14 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
                 VillageGenerationContext context) {
             // The library reservation includes a deliberate two-block approach
             // apron. Allow this connector to pave that apron while retaining the
-            // actual library footprint as a path obstacle.
+            // actual library footprint as a path obstacle. Aim for the street
+            // nearest the door: a target near the village center can exhaust the
+            // planning time before any closer street is tried.
             VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
                     .withoutBuilding(plan.reservationBox())
                     .withAdditionalBuildings(List.of(plan.placementBox()));
             VillageRoadPathGenerator.PlannedPath path = context.roadGenerator().planLibraryConnection(
-                    context.level(), plan.pathStart(), context.structureCenter(), context.pieces(),
+                    context.level(), plan.pathStart(), plan.pathStart(), context.pieces(),
                     context.biomeType(), plan.entranceDirection(),
                     roads, context.chunkLoadBudget());
             return path == null ? List.of() : List.of(path);
