@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.village;
 
+import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
@@ -7,21 +8,26 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
  * The surface and support blocks used by paths attached to a vanilla village.
  * Keeping this mapping in one place prevents generated paths from using a
  * material that does not belong to the village's palette.
+ *
+ * <p>{@code stairBlock} and {@code slabBlock} soften one-block height steps;
+ * a palette without them leaves those steps as plain path blocks.
+ * {@code fillBlock} goes under stairs and slabs and into graded ramps.</p>
  */
-public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean preserveSand) {
+public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean preserveSand,
+                                Block fillBlock, @Nullable Block stairBlock,
+                                @Nullable Block slabBlock) {
 
     public static VillagePathBlocks forBiome(String biomeType) {
         return switch (biomeType == null ? "" : biomeType) {
-            case "DESERT" -> new VillagePathBlocks(Blocks.SAND, Blocks.SANDSTONE, true);
-            case "PLAINS", "SAVANNA", "TAIGA", "SNOWY" ->
-                    new VillagePathBlocks(Blocks.DIRT_PATH, Blocks.COBBLESTONE, false);
-            default -> new VillagePathBlocks(Blocks.DIRT_PATH, Blocks.COBBLESTONE, false);
+            case "DESERT" -> sand();
+            default -> dirtPath();
         };
     }
 
@@ -31,21 +37,38 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
      */
     public static VillagePathBlocks matchingStreet(Block streetSurface, String fallbackBiomeType) {
         if (streetSurface == Blocks.SAND) {
-            return new VillagePathBlocks(Blocks.SAND, Blocks.SANDSTONE, true);
+            return sand();
         }
         if (streetSurface == Blocks.RED_SAND) {
-            return new VillagePathBlocks(Blocks.RED_SAND, Blocks.RED_SANDSTONE, true);
+            return new VillagePathBlocks(Blocks.RED_SAND, Blocks.RED_SANDSTONE, true,
+                    Blocks.RED_SANDSTONE, Blocks.RED_SANDSTONE_STAIRS, Blocks.RED_SANDSTONE_SLAB);
         }
         if (streetSurface == Blocks.GRAVEL) {
-            return new VillagePathBlocks(Blocks.GRAVEL, Blocks.COBBLESTONE, false);
+            return new VillagePathBlocks(Blocks.GRAVEL, Blocks.COBBLESTONE, false,
+                    Blocks.COBBLESTONE, null, null);
         }
-        if (streetSurface == Blocks.COBBLESTONE || streetSurface == Blocks.MOSSY_COBBLESTONE) {
-            return new VillagePathBlocks(streetSurface, Blocks.COBBLESTONE, false);
+        if (streetSurface == Blocks.MOSSY_COBBLESTONE) {
+            return new VillagePathBlocks(streetSurface, Blocks.COBBLESTONE, false,
+                    Blocks.COBBLESTONE, Blocks.MOSSY_COBBLESTONE_STAIRS, Blocks.MOSSY_COBBLESTONE_SLAB);
+        }
+        if (streetSurface == Blocks.COBBLESTONE) {
+            return new VillagePathBlocks(streetSurface, Blocks.COBBLESTONE, false,
+                    Blocks.COBBLESTONE, Blocks.COBBLESTONE_STAIRS, Blocks.COBBLESTONE_SLAB);
         }
         if (streetSurface == Blocks.DIRT_PATH) {
-            return new VillagePathBlocks(Blocks.DIRT_PATH, Blocks.COBBLESTONE, false);
+            return dirtPath();
         }
         return forBiome(fallbackBiomeType);
+    }
+
+    private static VillagePathBlocks dirtPath() {
+        return new VillagePathBlocks(Blocks.DIRT_PATH, Blocks.COBBLESTONE, false, Blocks.DIRT,
+                ECAPBlocks.DIRT_PATH_STAIRS.get(), ECAPBlocks.DIRT_PATH_SLAB.get());
+    }
+
+    private static VillagePathBlocks sand() {
+        return new VillagePathBlocks(Blocks.SAND, Blocks.SANDSTONE, true,
+                Blocks.SANDSTONE, Blocks.SANDSTONE_STAIRS, Blocks.SANDSTONE_SLAB);
     }
 
     /**

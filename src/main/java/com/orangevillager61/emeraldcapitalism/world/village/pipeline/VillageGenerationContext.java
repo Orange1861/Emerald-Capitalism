@@ -4,6 +4,7 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageBridgeBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageManagerPlacement;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagePathBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
@@ -99,7 +100,8 @@ public final class VillageGenerationContext {
 
         long roadStarted = PerformanceTimingCounters.startTiming(
                 PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ROAD_PREPARE);
-        preparedRoads = roadGenerator.prepare(level, pieces);
+        preparedRoads = roadGenerator.prepare(level, pieces)
+                .withBridgeBlocks(VillageBridgeBlocks.forVillage(level, bellPos, biomeType));
         preloadStepStats.roadPrepareNanos = PreloadStepStats.finish(
                 PerformanceTimingCounters.Operation.VILLAGE_PRELOAD_ROAD_PREPARE, roadStarted);
         long spatialStarted = PerformanceTimingCounters.startTiming(

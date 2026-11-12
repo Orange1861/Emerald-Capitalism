@@ -6,9 +6,12 @@ import com.orangevillager61.emeraldcapitalism.world.villagefarms.ChunkLoadBudget
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
@@ -52,6 +55,20 @@ public final class VillageRoadPathGenerator {
     private static final long MAX_PLANNING_NANOS_PER_PATH = 8_000_000L;
     private static final long NO_DEADLINE = Long.MIN_VALUE;
     private static final int MIN_TARGET_SPACING_SQ = 9;
+    /** Highest climb one graded ramp makes; it rises one block per column. */
+    private static final int MAX_RAMP_RISE = 4;
+    /** Most blocks one ramp column may be cut or filled away from its terrain. */
+    private static final int MAX_RAMP_EARTHWORK = 2;
+    private static final int MAX_WATER_BRIDGE_SPAN = 5;
+    private static final int MAX_GAP_BRIDGE_SPAN = 3;
+    /** A dry column at least this far below the path is a gap to bridge, not a step. */
+    private static final int MIN_GAP_DROP = 2;
+    private static final int MAX_POST_DEPTH = 8;
+    /** Spans at least this long need a middle post that reaches the ground. */
+    private static final int MIDDLE_POST_SPAN = 4;
+    private static final int RAMP_COLUMN_COST = 6;
+    private static final int EARTHWORK_BLOCK_COST = 4;
+    private static final int BRIDGE_COST = 40;
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
     };
@@ -200,12 +217,31 @@ public final class VillageRoadPathGenerator {
         if (path == null) {
             return;
         }
-        applyPlacementPlan(level, path.cells, path.pathBlocks);
+        applyPlacementPlan(level, path);
         EmeraldCapitalism.LOGGER.debug(
                 "[ECAP] Generated {}-wide {} path with {} surface blocks from {} "
                         + "to village street at {} using {}",
                 path.pathWidth, path.connectionType.toLowerCase(Locale.ROOT),
                 path.cells.size(), path.pathStart, path.target, path.pathBlocks.surfaceBlock());
+    }
+
+    /**
+     * Captures the street surface columns of one explicit area, with no
+     * building obstacles. GameTest fixtures use this because they have no
+     * village structure pieces.
+     */
+    public PreparedVillageRoads prepareStreetArea(ServerLevel level, BoundingBox streetArea) {
+        SurfaceCache surfaceCache = new SurfaceCache(level);
+        Map<Long, StreetCell> streetByColumn = new HashMap<>();
+        for (int x = streetArea.minX(); x <= streetArea.maxX(); x++) {
+            for (int z = streetArea.minZ(); z <= streetArea.maxZ(); z++) {
+                SurfaceSample sample = surfaceCache.get(x, z);
+                if (sample != null && isStreetSurface(sample.state().getBlock())) {
+                    streetByColumn.put(columnKey(x, z), new StreetCell(sample.pos()));
+                }
+            }
+        }
+        return new PreparedVillageRoads(streetByColumn, Map.of(), null);
     }
 
     /**
@@ -241,7 +277,7 @@ public final class VillageRoadPathGenerator {
         }
 
         buildingsByChunk.replaceAll((ignored, boxes) -> List.copyOf(boxes));
-        return new PreparedVillageRoads(streetByColumn, buildingsByChunk);
+        return new PreparedVillageRoads(streetByColumn, buildingsByChunk, null);
     }
 
     /** A non-final attempt logs at debug; its caller reports only if no connector remains. */
@@ -330,7 +366,7 @@ public final class VillageRoadPathGenerator {
             surfaceCache.forgetUnavailableColumns();
             RouteSearch search = findRoute(level, searchStart, streetTarget.pos(), entranceDirection,
                     roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps());
-            List<BlockPos> route = search.route();
+            List<RouteCell> route = search.route();
             if (route.isEmpty()) {
                 if (diagnostics != null) {
                     appendDiagnostic(diagnostics, targetIndex, streetTarget, "ROUTE_" + search.outcome()
@@ -342,14 +378,18 @@ public final class VillageRoadPathGenerator {
                 continue;
             }
 
-            List<BlockPos> completeRoute = new ArrayList<>(entrancePrefix);
+            List<RouteCell> completeRoute = new ArrayList<>(entrancePrefix.size() + route.size());
+            for (BlockPos prefixCell : entrancePrefix) {
+                completeRoute.add(new RouteCell(prefixCell, CellKind.PATH));
+            }
             completeRoute.addAll(route.subList(1, route.size()));
             VillagePathBlocks pathBlocks = VillagePathBlocks.matchingStreet(
                     streetTarget.surfaceBlock(), biomeType);
-            List<PlannedPathCell> placementPlan = createPlacementPlan(
-                    level, completeRoute, profile.fixedEntranceRows(), entranceDirection,
-                    roads, surfaceCache, profile.pathWidth(), placementRejection);
-            if (placementPlan.isEmpty()) {
+            PlacementPlan placementPlan = createPlacementPlan(
+                    level, completeRoute, search.features(), profile.fixedEntranceRows(),
+                    entranceDirection, roads, surfaceCache, profile.pathWidth(), pathBlocks,
+                    placementRejection);
+            if (placementPlan == null) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget,
                         "PLACEMENT_" + placementRejection.reason + " at " + placementRejection.column);
                 continue;
@@ -361,8 +401,10 @@ public final class VillageRoadPathGenerator {
                         profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
                         (System.nanoTime() - planningStarted) / 1_000_000L, targetIndex + 1);
             }
-            return new PlannedPath(List.copyOf(placementPlan), pathBlocks,
-                    profile.connectionType(), profile.pathWidth(), pathStart, streetTarget.pos());
+            return new PlannedPath(List.copyOf(placementPlan.cells()),
+                    List.copyOf(placementPlan.decorations()), pathBlocks,
+                    roads.bridgeBlocks(biomeType), profile.connectionType(), profile.pathWidth(),
+                    pathStart, streetTarget.pos());
         }
 
         if (warnOnFailure) {
@@ -545,6 +587,10 @@ public final class VillageRoadPathGenerator {
         Map<RouteKey, Integer> costs = new HashMap<>();
         Map<RouteKey, Integer> steps = new HashMap<>();
         Map<RouteKey, RouteKey> cameFrom = new HashMap<>();
+        Map<RouteKey, RouteFeature> features = new HashMap<>();
+        // A ramp or bridge depends only on the column it leaves and its direction.
+        Map<RouteKey, List<FeatureMove>> featureMoveCache = new HashMap<>();
+        SearchBounds bounds = new SearchBounds(minX, maxX, minZ, maxZ);
         Set<RouteKey> closed = new HashSet<>();
 
         costs.put(startKey, 0);
@@ -565,9 +611,7 @@ public final class VillageRoadPathGenerator {
             visited++;
 
             if (current.x() == target.getX() && current.z() == target.getZ()) {
-                List<BlockPos> route = reconstructRoute(current, cameFrom, surfaceCache);
-                return new RouteSearch(route, route.isEmpty() ? RouteOutcome.RECONSTRUCT_FAILED
-                        : RouteOutcome.FOUND, visited, "");
+                return reconstructRoute(current, cameFrom, features, surfaceCache, visited);
             }
 
             int currentSteps = steps.getOrDefault(current, maxRouteSteps);
@@ -615,6 +659,37 @@ public final class VillageRoadPathGenerator {
                                         direction, roads, surfaceCache, pathWidth))
                                 .append(' ');
                     }
+                    if (nextSurface == null) {
+                        continue;
+                    }
+                    List<FeatureMove> moves = featureMoveCache.computeIfAbsent(
+                            new RouteKey(current.x(), current.z(), direction),
+                            ignored -> featureMoves(level, currentSurface, nextSurface, direction,
+                                    roads, surfaceCache, pathWidth, bounds));
+                    for (FeatureMove move : moves) {
+                        RouteKey landing = new RouteKey(move.landing().pos().getX(),
+                                move.landing().pos().getZ(), direction);
+                        int landingSteps = currentSteps + move.columns();
+                        if (closed.contains(landing)) {
+                            continue;
+                        }
+                        if (landingSteps + Math.abs(target.getX() - landing.x())
+                                + Math.abs(target.getZ() - landing.z()) > maxRouteSteps) {
+                            stepLimited = true;
+                            continue;
+                        }
+                        int turnCost = direction == current.incomingDirection() ? 0 : 3;
+                        int landingCost = costs.get(current) + move.cost() + turnCost;
+                        if (landingCost >= costs.getOrDefault(landing, Integer.MAX_VALUE)) {
+                            continue;
+                        }
+                        costs.put(landing, landingCost);
+                        steps.put(landing, landingSteps);
+                        cameFrom.put(landing, current);
+                        features.put(landing, move.feature());
+                        open.add(new OpenRouteNode(landing,
+                                landingCost + heuristic(landing.x(), landing.z(), target)));
+                    }
                     continue;
                 }
 
@@ -633,6 +708,7 @@ public final class VillageRoadPathGenerator {
                 costs.put(next, nextCost);
                 steps.put(next, currentSteps + 1);
                 cameFrom.put(next, current);
+                features.remove(next);
                 open.add(new OpenRouteNode(next,
                         nextCost + heuristic(nextX, nextZ, target)));
             }
@@ -648,7 +724,7 @@ public final class VillageRoadPathGenerator {
         } else {
             outcome = RouteOutcome.BLOCKED;
         }
-        return new RouteSearch(List.of(), outcome, visited,
+        return new RouteSearch(List.of(), List.of(), outcome, visited,
                 firstStepRejections == null ? "" : firstStepRejections.toString().trim());
     }
 
@@ -742,39 +818,345 @@ public final class VillageRoadPathGenerator {
         return true;
     }
 
-    private List<BlockPos> reconstructRoute(RouteKey end, Map<RouteKey, RouteKey> cameFrom,
-                                            SurfaceCache surfaceCache) {
-        List<BlockPos> reversed = new ArrayList<>();
+    /** Rebuilds the route, expanding each ramp or bridge into its own columns. */
+    private RouteSearch reconstructRoute(RouteKey end, Map<RouteKey, RouteKey> cameFrom,
+                                         Map<RouteKey, RouteFeature> features,
+                                         SurfaceCache surfaceCache, int visited) {
+        List<RouteCell> reversed = new ArrayList<>();
+        List<RouteFeature> usedFeatures = new ArrayList<>();
         RouteKey current = end;
         while (current != null) {
             SurfaceSample sample = surfaceCache.get(current.x(), current.z());
             if (sample == null) {
-                return List.of();
+                return new RouteSearch(List.of(), List.of(), RouteOutcome.RECONSTRUCT_FAILED, visited, "");
             }
-            reversed.add(sample.pos());
+            reversed.add(new RouteCell(sample.pos(), CellKind.PATH));
+            RouteFeature feature = features.get(current);
+            if (feature != null) {
+                usedFeatures.add(feature);
+                for (int index = feature.centers().size() - 1; index >= 0; index--) {
+                    reversed.add(new RouteCell(feature.centers().get(index), feature.kind()));
+                }
+            }
             current = cameFrom.get(current);
         }
         Collections.reverse(reversed);
-        return reversed;
+        Collections.reverse(usedFeatures);
+        return new RouteSearch(reversed, usedFeatures, RouteOutcome.FOUND, visited, "");
     }
 
-    private List<PlannedPathCell> createPlacementPlan(ServerLevel level, List<BlockPos> route,
-                                                       int fixedEntranceRows,
-                                                       Direction entranceDirection,
-                                                       PreparedVillageRoads roads,
-                                                       SurfaceCache surfaceCache,
-                                                       int pathWidth,
-                                                       PlacementRejection rejection) {
-        if (route.size() < 2) {
-            rejection.set("ROUTE_TOO_SHORT", null);
+    /**
+     * Ramp and bridge moves leaving {@code from} in {@code direction}. They are
+     * only considered where the plain one-column step is not traversable.
+     */
+    private List<FeatureMove> featureMoves(ServerLevel level, SurfaceSample from, SurfaceSample first,
+                                           Direction direction, PreparedVillageRoads roads,
+                                           SurfaceCache surfaceCache, int pathWidth,
+                                           SearchBounds bounds) {
+        if (!from.state().getFluidState().isEmpty()) {
             return List.of();
         }
+        FeatureMove ramp = planRamp(level, from, first, direction, roads, surfaceCache, pathWidth, bounds);
+        FeatureMove bridge = planBridge(level, from, first, direction, roads, surfaceCache, pathWidth, bounds);
+        if (ramp == null) {
+            return bridge == null ? List.of() : List.of(bridge);
+        }
+        return bridge == null ? List.of(ramp) : List.of(ramp, bridge);
+    }
 
+    /**
+     * Grades a 2-to-4 block terrain step into a ramp rising one block per
+     * column. Each ramp column is cut or filled by at most
+     * {@link #MAX_RAMP_EARTHWORK}; placement then puts stairs on the ramp.
+     */
+    @Nullable
+    private FeatureMove planRamp(ServerLevel level, SurfaceSample from, SurfaceSample first,
+                                 Direction direction, PreparedVillageRoads roads,
+                                 SurfaceCache surfaceCache, int pathWidth, SearchBounds bounds) {
+        int startY = from.pos().getY();
+        int rise = first.pos().getY() - startY;
+        if (Math.abs(rise) < 2 || !first.state().getFluidState().isEmpty()) {
+            return null;
+        }
+        int sign = Integer.signum(rise);
+        int firstWidthOffset = -(pathWidth / 2);
+        List<BlockPos> centers = new ArrayList<>();
+        List<PlannedPathCell> cells = new ArrayList<>();
+        int earthwork = 0;
+        for (int step = 1; step <= MAX_RAMP_RISE + 1; step++) {
+            int x = from.pos().getX() + direction.getStepX() * step;
+            int z = from.pos().getZ() + direction.getStepZ() * step;
+            if (!bounds.contains(x, z)) {
+                return null;
+            }
+            SurfaceSample sample = surfaceCache.get(x, z);
+            if (sample == null) {
+                return null;
+            }
+            int previousY = startY + sign * (step - 1);
+            if (step >= 2 && Math.abs(sample.pos().getY() - previousY) <= 1
+                    && isCorridorRowTraversable(level, sample, null, direction, roads,
+                    surfaceCache, pathWidth)) {
+                int cost = step * (10 + RAMP_COLUMN_COST) + earthwork * EARTHWORK_BLOCK_COST
+                        + Math.abs(sample.pos().getY() - startY) * 5;
+                return new FeatureMove(new RouteFeature(CellKind.GRADED, direction,
+                        List.copyOf(centers), List.copyOf(cells), List.of()), sample, step, cost);
+            }
+            if (step > MAX_RAMP_RISE) {
+                return null;
+            }
+            int targetY = startY + sign * step;
+            for (int offset = firstWidthOffset; offset < firstWidthOffset + pathWidth; offset++) {
+                int columnX = rowX(x, direction, offset);
+                int columnZ = rowZ(z, direction, offset);
+                SurfaceSample column = gradableColumn(level, columnX, columnZ, targetY, roads, surfaceCache);
+                if (column == null) {
+                    return null;
+                }
+                earthwork += Math.abs(column.pos().getY() - targetY);
+                cells.add(new PlannedPathCell(new BlockPos(columnX, targetY, columnZ), column.snowPos(),
+                        CellKind.GRADED, column.pos().getY()));
+            }
+            centers.add(new BlockPos(x, targetY, z));
+        }
+        return null;
+    }
+
+    @Nullable
+    private SurfaceSample gradableColumn(ServerLevel level, int x, int z, int targetY,
+                                         PreparedVillageRoads roads, SurfaceCache surfaceCache) {
+        if (!level.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
+                || roads.streetByColumn().containsKey(columnKey(x, z))) {
+            return null;
+        }
+        SurfaceSample sample = surfaceCache.get(x, z);
+        if (sample == null || !isUsablePathSurface(sample.state())
+                || Math.abs(sample.pos().getY() - targetY) > MAX_RAMP_EARTHWORK) {
+            return null;
+        }
+        // A cut must not open the ramp's side walls onto water.
+        for (int y = targetY + 1; y <= sample.pos().getY(); y++) {
+            for (Direction side : HORIZONTAL_DIRECTIONS) {
+                int sideX = x + side.getStepX();
+                int sideZ = z + side.getStepZ();
+                if (!level.hasChunk(sideX >> 4, sideZ >> 4)
+                        || !level.getBlockState(new BlockPos(sideX, y, sideZ)).getFluidState().isEmpty()) {
+                    return null;
+                }
+            }
+        }
+        return sample;
+    }
+
+    /**
+     * Spans water up to {@link #MAX_WATER_BRIDGE_SPAN} columns, or a dry gap up
+     * to {@link #MAX_GAP_BRIDGE_SPAN}, with a deck level with the higher bank.
+     */
+    @Nullable
+    private FeatureMove planBridge(ServerLevel level, SurfaceSample from, SurfaceSample first,
+                                   Direction direction, PreparedVillageRoads roads,
+                                   SurfaceCache surfaceCache, int pathWidth, SearchBounds bounds) {
+        int startY = from.pos().getY();
+        boolean water = isWater(first.state());
+        if (!water && !isDryGap(first, startY)) {
+            return null;
+        }
+        int maxSpan = water ? MAX_WATER_BRIDGE_SPAN : MAX_GAP_BRIDGE_SPAN;
+        for (int step = 1; step <= maxSpan + 1; step++) {
+            int x = from.pos().getX() + direction.getStepX() * step;
+            int z = from.pos().getZ() + direction.getStepZ() * step;
+            if (!bounds.contains(x, z)) {
+                return null;
+            }
+            SurfaceSample sample = surfaceCache.get(x, z);
+            if (sample == null) {
+                return null;
+            }
+            if (step >= 2 && sample.state().getFluidState().isEmpty()
+                    && Math.abs(sample.pos().getY() - startY) <= 1
+                    && isCorridorRowTraversable(level, sample, null, direction, roads,
+                    surfaceCache, pathWidth)) {
+                int deckY = Math.max(startY, sample.pos().getY());
+                RouteFeature feature = bridgeFeature(level, from.pos(), direction, step - 1, deckY,
+                        roads, surfaceCache, pathWidth);
+                if (feature == null) {
+                    return null;
+                }
+                int cost = step * 10 + BRIDGE_COST + Math.abs(sample.pos().getY() - startY) * 5;
+                return new FeatureMove(feature, sample, step, cost);
+            }
+            if (step > maxSpan || !(isWater(sample.state()) || isDryGap(sample, startY))) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private RouteFeature bridgeFeature(ServerLevel level, BlockPos start, Direction direction,
+                                       int span, int deckY, PreparedVillageRoads roads,
+                                       SurfaceCache surfaceCache, int pathWidth) {
+        int firstWidthOffset = -(pathWidth / 2);
+        int lastWidthOffset = firstWidthOffset + pathWidth - 1;
+        int[] railOffsets = {firstWidthOffset - 1, lastWidthOffset + 1};
+        List<BlockPos> centers = new ArrayList<>();
+        List<PlannedPathCell> cells = new ArrayList<>();
+        List<PlannedDecoration> decorations = new ArrayList<>();
+        Set<Long> deckColumns = new HashSet<>();
+        for (int row = 1; row <= span; row++) {
+            int x = start.getX() + direction.getStepX() * row;
+            int z = start.getZ() + direction.getStepZ() * row;
+            for (int offset = firstWidthOffset; offset <= lastWidthOffset; offset++) {
+                int columnX = rowX(x, direction, offset);
+                int columnZ = rowZ(z, direction, offset);
+                SurfaceSample column = deckColumn(level, columnX, columnZ, deckY, roads, surfaceCache);
+                if (column == null) {
+                    return null;
+                }
+                cells.add(new PlannedPathCell(new BlockPos(columnX, deckY, columnZ), column.snowPos(),
+                        CellKind.DECK, column.pos().getY()));
+                deckColumns.add(columnKey(columnX, columnZ));
+            }
+            // Railings stand on one extra deck column at each side, where it is free.
+            for (int offset : railOffsets) {
+                int columnX = rowX(x, direction, offset);
+                int columnZ = rowZ(z, direction, offset);
+                SurfaceSample column = deckColumn(level, columnX, columnZ, deckY, roads, surfaceCache);
+                if (column == null) {
+                    continue;
+                }
+                cells.add(new PlannedPathCell(new BlockPos(columnX, deckY, columnZ), column.snowPos(),
+                        CellKind.DECK, column.pos().getY()));
+                deckColumns.add(columnKey(columnX, columnZ));
+                decorations.add(new PlannedDecoration(new BlockPos(columnX, deckY + 1, columnZ),
+                        DecorationKind.RAIL, direction));
+            }
+            centers.add(new BlockPos(x, deckY, z));
+        }
+
+        int middleRow = (span + 1) / 2;
+        boolean needsMiddlePost = span >= MIDDLE_POST_SPAN;
+        Set<Integer> postRows = new java.util.TreeSet<>(List.of(1, span));
+        if (needsMiddlePost) {
+            postRows.add(middleRow);
+        }
+        for (int row : postRows) {
+            int x = start.getX() + direction.getStepX() * row;
+            int z = start.getZ() + direction.getStepZ() * row;
+            for (int side = 0; side < 2; side++) {
+                int railOffset = railOffsets[side];
+                int offset = deckColumns.contains(columnKey(rowX(x, direction, railOffset),
+                        rowZ(z, direction, railOffset)))
+                        ? railOffset : (side == 0 ? firstWidthOffset : lastWidthOffset);
+                int columnX = rowX(x, direction, offset);
+                int columnZ = rowZ(z, direction, offset);
+                List<BlockPos> post = postColumn(level, columnX, deckY - 1, columnZ);
+                if (post == null) {
+                    // End posts are decorative; a long span needs its middle support.
+                    if (needsMiddlePost && row == middleRow) {
+                        return null;
+                    }
+                    continue;
+                }
+                for (BlockPos postPos : post) {
+                    decorations.add(new PlannedDecoration(postPos, DecorationKind.POST, direction));
+                }
+            }
+        }
+        return new RouteFeature(CellKind.DECK, direction, List.copyOf(centers), List.copyOf(cells),
+                List.copyOf(decorations));
+    }
+
+    @Nullable
+    private SurfaceSample deckColumn(ServerLevel level, int x, int z, int deckY,
+                                     PreparedVillageRoads roads, SurfaceCache surfaceCache) {
+        if (!level.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
+                || roads.streetByColumn().containsKey(columnKey(x, z))) {
+            return null;
+        }
+        SurfaceSample sample = surfaceCache.get(x, z);
+        if (sample == null || sample.pos().getY() > deckY) {
+            return null;
+        }
+        FluidState fluid = sample.state().getFluidState();
+        if (!fluid.isEmpty() && !fluid.is(FluidTags.WATER)) {
+            return null;
+        }
+        for (int y = deckY + 1; y <= deckY + 2; y++) {
+            BlockPos headroom = new BlockPos(x, y, z);
+            if (!level.getBlockState(headroom).getCollisionShape(level, headroom).isEmpty()) {
+                return null;
+            }
+        }
+        return sample;
+    }
+
+    /**
+     * Returns the post blocks from {@code topY} down to solid ground, an empty
+     * list when the deck already rests on ground, or null when no ground lies
+     * within {@link #MAX_POST_DEPTH}.
+     */
+    @Nullable
+    private List<BlockPos> postColumn(ServerLevel level, int x, int topY, int z) {
+        List<BlockPos> post = new ArrayList<>();
+        for (int y = topY; y > topY - MAX_POST_DEPTH; y--) {
+            BlockPos pos = new BlockPos(x, y, z);
+            BlockState state = level.getBlockState(pos);
+            FluidState fluid = state.getFluidState();
+            if (!fluid.isEmpty() && !fluid.is(FluidTags.WATER)) {
+                return null;
+            }
+            if (!state.isAir() && fluid.isEmpty() && !state.canBeReplaced()) {
+                return post;
+            }
+            post.add(pos);
+        }
+        return null;
+    }
+
+    private static boolean isWater(BlockState state) {
+        return state.getFluidState().is(FluidTags.WATER);
+    }
+
+    private static boolean isDryGap(SurfaceSample sample, int pathY) {
+        return sample.state().getFluidState().isEmpty()
+                && sample.pos().getY() <= pathY - MIN_GAP_DROP;
+    }
+
+    private static int rowX(int x, Direction travelDirection, int widthOffset) {
+        return travelDirection.getAxis() == Direction.Axis.X ? x : x + widthOffset;
+    }
+
+    private static int rowZ(int z, Direction travelDirection, int widthOffset) {
+        return travelDirection.getAxis() == Direction.Axis.X ? z + widthOffset : z;
+    }
+
+    @Nullable
+    private PlacementPlan createPlacementPlan(ServerLevel level, List<RouteCell> route,
+                                              List<RouteFeature> features,
+                                              int fixedEntranceRows,
+                                              Direction entranceDirection,
+                                              PreparedVillageRoads roads,
+                                              SurfaceCache surfaceCache,
+                                              int pathWidth,
+                                              VillagePathBlocks pathBlocks,
+                                              PlacementRejection rejection) {
+        if (route.size() < 2) {
+            rejection.set("ROUTE_TOO_SHORT", null);
+            return null;
+        }
+
+        List<BlockPos> centers = route.stream().map(RouteCell::pos).toList();
         Map<BlockPos, PlannedPathCell> cells = new LinkedHashMap<>();
+        Map<Long, PlannedColumn> columns = new HashMap<>();
         // The final center is an existing street block and remains untouched.
         for (int routeIndex = 0; routeIndex < route.size() - 1; routeIndex++) {
-            BlockPos center = route.get(routeIndex);
-            Direction direction = routeDirection(route, routeIndex, entranceDirection);
+            // Ramp and bridge rows were planned with their move; add them below.
+            if (route.get(routeIndex).kind() != CellKind.PATH) {
+                continue;
+            }
+            BlockPos center = centers.get(routeIndex);
+            Direction direction = routeDirection(centers, routeIndex, entranceDirection);
 
             int firstWidthOffset = -(pathWidth / 2);
             int lastWidthOffset = firstWidthOffset + pathWidth - 1;
@@ -793,7 +1175,7 @@ public final class VillageRoadPathGenerator {
                 if (roads.isInsideBuilding(x, z)) {
                     rejection.set(routeIndex < fixedEntranceRows
                             ? "ENTRANCE_ROW_INSIDE_BUILDING" : "INSIDE_BUILDING", x, z);
-                    return List.of();
+                    return null;
                 }
 
                 boolean fixedEntranceRow = routeIndex < fixedEntranceRows;
@@ -802,11 +1184,11 @@ public final class VillageRoadPathGenerator {
                         : surfaceCache.get(x, z);
                 if (sample == null) {
                     rejection.set(fixedEntranceRow ? "ENTRANCE_ROW_FLUID" : "NO_SURFACE", x, z);
-                    return List.of();
+                    return null;
                 }
                 if (!fixedEntranceRow && !isUsablePathSurface(sample.state())) {
                     rejection.set("UNUSABLE_SURFACE", x, z);
-                    return List.of();
+                    return null;
                 }
 
                 // Preserve actual street blocks after the entrance prefix. A
@@ -819,10 +1201,89 @@ public final class VillageRoadPathGenerator {
                     continue;
                 }
 
-                cells.putIfAbsent(sample.pos(), new PlannedPathCell(sample.pos(), sample.snowPos()));
+                if (cells.putIfAbsent(sample.pos(), new PlannedPathCell(sample.pos(), sample.snowPos(),
+                        CellKind.PATH, sample.pos().getY())) == null) {
+                    columns.putIfAbsent(columnKey(x, z), new PlannedColumn(sample.pos().getY(),
+                            direction, !fixedEntranceRow));
+                }
             }
         }
-        return new ArrayList<>(cells.values());
+
+        List<PlannedDecoration> decorations = new ArrayList<>();
+        for (RouteFeature feature : features) {
+            for (PlannedPathCell cell : feature.cells()) {
+                int x = cell.surfacePos().getX();
+                int z = cell.surfacePos().getZ();
+                long key = columnKey(x, z);
+                PlannedColumn existing = columns.get(key);
+                if (existing != null && existing.y() != cell.surfacePos().getY()) {
+                    rejection.set("FEATURE_CROSSES_PATH", x, z);
+                    return null;
+                }
+                cells.put(cell.surfacePos(), cell);
+                columns.put(key, new PlannedColumn(cell.surfacePos().getY(), feature.direction(),
+                        cell.kind() == CellKind.GRADED));
+            }
+            decorations.addAll(feature.decorations());
+        }
+        addStepDecorations(level, cells.values(), columns, roads, pathBlocks, decorations);
+        return new PlacementPlan(new ArrayList<>(cells.values()), decorations);
+    }
+
+    /**
+     * Softens each one-block rise along the path: a stair on the lower column
+     * faces the higher neighbour, and a column lower than both neighbours
+     * along its row gets a bottom slab. Bridge decks and fixed entrance rows
+     * are never decorated. Street columns count as neighbours.
+     */
+    private void addStepDecorations(ServerLevel level, java.util.Collection<PlannedPathCell> cells,
+                                    Map<Long, PlannedColumn> columns, PreparedVillageRoads roads,
+                                    VillagePathBlocks pathBlocks, List<PlannedDecoration> decorations) {
+        if (pathBlocks.stairBlock() == null || pathBlocks.slabBlock() == null) {
+            return;
+        }
+        for (PlannedPathCell cell : cells) {
+            int x = cell.surfacePos().getX();
+            int z = cell.surfacePos().getZ();
+            PlannedColumn column = columns.get(columnKey(x, z));
+            if (column == null || !column.decoratable() || cell.kind() == CellKind.DECK
+                    || column.y() != cell.surfacePos().getY()) {
+                continue;
+            }
+            Direction direction = column.direction();
+            int y = column.y();
+            boolean higherAhead = neighbourSurfaceY(columns, roads,
+                    x + direction.getStepX(), z + direction.getStepZ()) == y + 1;
+            boolean higherBehind = neighbourSurfaceY(columns, roads,
+                    x - direction.getStepX(), z - direction.getStepZ()) == y + 1;
+            if (!higherAhead && !higherBehind) {
+                continue;
+            }
+            BlockPos stepPos = cell.surfacePos().above();
+            // A ramp cut clears terrain at or below its natural surface during placement.
+            BlockState existing = level.getBlockState(stepPos);
+            if (stepPos.getY() > cell.naturalY() && (!existing.getFluidState().isEmpty()
+                    || (!existing.isAir() && !existing.canBeReplaced()))) {
+                continue;
+            }
+            if (higherAhead && higherBehind) {
+                decorations.add(new PlannedDecoration(stepPos, DecorationKind.SLAB, direction));
+            } else {
+                decorations.add(new PlannedDecoration(stepPos, DecorationKind.STAIR,
+                        higherAhead ? direction : direction.getOpposite()));
+            }
+        }
+    }
+
+    private static int neighbourSurfaceY(Map<Long, PlannedColumn> columns, PreparedVillageRoads roads,
+                                         int x, int z) {
+        long key = columnKey(x, z);
+        PlannedColumn column = columns.get(key);
+        if (column != null) {
+            return column.y();
+        }
+        StreetCell street = roads.streetByColumn().get(key);
+        return street != null ? street.pos().getY() : Integer.MIN_VALUE;
     }
 
     @Nullable
@@ -847,26 +1308,123 @@ public final class VillageRoadPathGenerator {
         return new SurfaceSample(surfacePos, state, snowPos);
     }
 
-    private void applyPlacementPlan(ServerLevel level, List<PlannedPathCell> cells,
-                                    VillagePathBlocks pathBlocks) {
+    private void applyPlacementPlan(ServerLevel level, PlannedPath path) {
+        VillagePathBlocks pathBlocks = path.pathBlocks;
         BlockState surfaceState = pathBlocks.surfaceBlock().defaultBlockState();
         BlockState supportState = pathBlocks.supportBlock().defaultBlockState();
+        BlockState fillState = pathBlocks.fillBlock().defaultBlockState();
 
-        for (PlannedPathCell cell : cells) {
-            if (cell.snowPos() != null && level.getBlockState(cell.snowPos()).is(Blocks.SNOW)) {
-                level.setBlock(cell.snowPos(), Blocks.AIR.defaultBlockState(), 2);
-            }
-
-            if (!level.getBlockState(cell.surfacePos()).is(pathBlocks.surfaceBlock())) {
-                level.setBlock(cell.surfacePos(), surfaceState, 2);
-            }
-
-            BlockPos below = cell.surfacePos().below();
-            BlockState belowState = level.getBlockState(below);
-            if (belowState.isAir() || !belowState.getFluidState().isEmpty()) {
-                level.setBlock(below, supportState, 2);
+        // A path block under a stair or slab would revert, so use the fill block there.
+        Set<BlockPos> underSteps = new HashSet<>();
+        for (PlannedDecoration decoration : path.decorations) {
+            if (decoration.kind() == DecorationKind.STAIR || decoration.kind() == DecorationKind.SLAB) {
+                underSteps.add(decoration.pos().below());
             }
         }
+
+        for (PlannedPathCell cell : path.cells) {
+            BlockState top = underSteps.contains(cell.surfacePos()) ? fillState : surfaceState;
+            switch (cell.kind()) {
+                case PATH -> placePathCell(level, cell, top, supportState);
+                case GRADED -> placeGradedCell(level, cell, top, fillState);
+                case DECK -> placeDeckCell(level, cell, path.bridgeBlocks.deck());
+            }
+        }
+
+        for (PlannedDecoration decoration : path.decorations) {
+            if (decoration.kind() == DecorationKind.POST) {
+                BlockState existing = level.getBlockState(decoration.pos());
+                if (existing.isAir() || existing.canBeReplaced() || !existing.getFluidState().isEmpty()) {
+                    level.setBlock(decoration.pos(), path.bridgeBlocks.post(), 2);
+                }
+            }
+        }
+        // Shaped blocks go last so stairs and railings connect to their final neighbours.
+        for (PlannedDecoration decoration : path.decorations) {
+            BlockState state = switch (decoration.kind()) {
+                case STAIR -> stairState(pathBlocks.stairBlock(), decoration.facing());
+                case SLAB -> pathBlocks.slabBlock() == null ? null : pathBlocks.slabBlock().defaultBlockState();
+                case RAIL -> path.bridgeBlocks.rail();
+                case POST -> null;
+            };
+            if (state != null) {
+                placeShapedBlock(level, decoration.pos(), state);
+            }
+        }
+    }
+
+    private static void placePathCell(ServerLevel level, PlannedPathCell cell, BlockState top,
+                                      BlockState supportState) {
+        clearSnow(level, cell);
+        if (level.getBlockState(cell.surfacePos()) != top) {
+            level.setBlock(cell.surfacePos(), top, 2);
+        }
+        BlockPos below = cell.surfacePos().below();
+        BlockState belowState = level.getBlockState(below);
+        if (belowState.isAir() || !belowState.getFluidState().isEmpty()) {
+            level.setBlock(below, supportState, 2);
+        }
+    }
+
+    /** Cuts or fills one ramp column to its planned height and clears its headroom. */
+    private static void placeGradedCell(ServerLevel level, PlannedPathCell cell, BlockState top,
+                                        BlockState fillState) {
+        clearSnow(level, cell);
+        BlockPos surface = cell.surfacePos();
+        int targetY = surface.getY();
+        int naturalY = cell.naturalY();
+        for (int y = naturalY + 1; y < targetY; y++) {
+            level.setBlock(surface.atY(y), fillState, 2);
+        }
+        int clearTop = Math.max(naturalY + 1, targetY + 2);
+        for (int y = targetY + 1; y <= clearTop; y++) {
+            BlockPos pos = surface.atY(y);
+            BlockState state = level.getBlockState(pos);
+            if (!state.isAir() && state.getFluidState().isEmpty()
+                    && (y <= naturalY || state.canBeReplaced())) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+            }
+        }
+        level.setBlock(surface, top, 2);
+        BlockState belowState = level.getBlockState(surface.below());
+        if (belowState.isAir() || !belowState.getFluidState().isEmpty()) {
+            level.setBlock(surface.below(), fillState, 2);
+        }
+    }
+
+    private static void placeDeckCell(ServerLevel level, PlannedPathCell cell, BlockState deck) {
+        clearSnow(level, cell);
+        level.setBlock(cell.surfacePos(), deck, 2);
+        for (int y = 1; y <= 2; y++) {
+            BlockPos pos = cell.surfacePos().above(y);
+            BlockState state = level.getBlockState(pos);
+            if (!state.isAir() && state.getFluidState().isEmpty() && state.canBeReplaced()) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+            }
+        }
+    }
+
+    private static void clearSnow(ServerLevel level, PlannedPathCell cell) {
+        if (cell.snowPos() != null && level.getBlockState(cell.snowPos()).is(Blocks.SNOW)) {
+            level.setBlock(cell.snowPos(), Blocks.AIR.defaultBlockState(), 2);
+        }
+    }
+
+    @Nullable
+    private static BlockState stairState(@Nullable Block stairBlock, Direction facing) {
+        if (stairBlock == null) {
+            return null;
+        }
+        BlockState state = stairBlock.defaultBlockState();
+        return state.hasProperty(StairBlock.FACING) ? state.setValue(StairBlock.FACING, facing) : state;
+    }
+
+    private static void placeShapedBlock(ServerLevel level, BlockPos pos, BlockState state) {
+        BlockState existing = level.getBlockState(pos);
+        if (!existing.getFluidState().isEmpty() || (!existing.isAir() && !existing.canBeReplaced())) {
+            return;
+        }
+        level.setBlock(pos, Block.updateFromNeighbourShapes(state, level, pos), 2);
     }
 
     private boolean searchChunksLoaded(ServerLevel level, BlockPos start, BlockPos target,
@@ -1052,8 +1610,43 @@ public final class VillageRoadPathGenerator {
         BLOCKED, RECONSTRUCT_FAILED
     }
 
-    private record RouteSearch(List<BlockPos> route, RouteOutcome outcome, int visited,
-                               String firstStepRejections) {
+    private record RouteSearch(List<RouteCell> route, List<RouteFeature> features,
+                               RouteOutcome outcome, int visited, String firstStepRejections) {
+    }
+
+    /** How a planned column is built: plain path, a graded ramp column, or a bridge deck. */
+    private enum CellKind { PATH, GRADED, DECK }
+
+    private enum DecorationKind { STAIR, SLAB, POST, RAIL }
+
+    private record RouteCell(BlockPos pos, CellKind kind) {
+    }
+
+    /**
+     * A ramp or bridge between two route nodes. {@code centers} are its
+     * intermediate route columns in travel order; {@code cells} cover its full
+     * width, including bridge railing columns.
+     */
+    private record RouteFeature(CellKind kind, Direction direction, List<BlockPos> centers,
+                                List<PlannedPathCell> cells, List<PlannedDecoration> decorations) {
+    }
+
+    private record FeatureMove(RouteFeature feature, SurfaceSample landing, int columns, int cost) {
+    }
+
+    private record SearchBounds(int minX, int maxX, int minZ, int maxZ) {
+        private boolean contains(int x, int z) {
+            return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+        }
+    }
+
+    private record PlannedColumn(int y, Direction direction, boolean decoratable) {
+    }
+
+    private record PlannedDecoration(BlockPos pos, DecorationKind kind, Direction facing) {
+    }
+
+    private record PlacementPlan(List<PlannedPathCell> cells, List<PlannedDecoration> decorations) {
     }
 
     /** Last placement-plan rejection, reused across targets of one connection. */
@@ -1078,7 +1671,8 @@ public final class VillageRoadPathGenerator {
     private record OpenRouteNode(RouteKey key, int estimatedTotalCost) {
     }
 
-    private record PlannedPathCell(BlockPos surfacePos, @Nullable BlockPos snowPos) {
+    private record PlannedPathCell(BlockPos surfacePos, @Nullable BlockPos snowPos, CellKind kind,
+                                   int naturalY) {
     }
 
     private record StreetCell(BlockPos pos) {
@@ -1087,11 +1681,24 @@ public final class VillageRoadPathGenerator {
     public static final class PreparedVillageRoads {
         private final Map<Long, StreetCell> streetByColumn;
         private final Map<Long, List<BoundingBox>> buildingsByChunk;
+        @Nullable
+        private final VillageBridgeBlocks bridgeBlocks;
 
         private PreparedVillageRoads(Map<Long, StreetCell> streetByColumn,
-                                     Map<Long, List<BoundingBox>> buildingsByChunk) {
+                                     Map<Long, List<BoundingBox>> buildingsByChunk,
+                                     @Nullable VillageBridgeBlocks bridgeBlocks) {
             this.streetByColumn = streetByColumn;
             this.buildingsByChunk = buildingsByChunk;
+            this.bridgeBlocks = bridgeBlocks;
+        }
+
+        /** Fixes this village's bridge materials for every connector planned from the snapshot. */
+        public PreparedVillageRoads withBridgeBlocks(VillageBridgeBlocks blocks) {
+            return new PreparedVillageRoads(streetByColumn, buildingsByChunk, blocks);
+        }
+
+        private VillageBridgeBlocks bridgeBlocks(String biomeType) {
+            return bridgeBlocks != null ? bridgeBlocks : VillageBridgeBlocks.forBiome(biomeType);
         }
 
         private Map<Long, StreetCell> streetByColumn() {
@@ -1156,7 +1763,7 @@ public final class VillageRoadPathGenerator {
                 }
             }
             merged.replaceAll((ignored, boxes) -> List.copyOf(boxes));
-            return new PreparedVillageRoads(streetByColumn, merged);
+            return new PreparedVillageRoads(streetByColumn, merged, bridgeBlocks);
         }
 
         /**
@@ -1174,7 +1781,7 @@ public final class VillageRoadPathGenerator {
                     filtered.put(key, remaining);
                 }
             });
-            return new PreparedVillageRoads(streetByColumn, filtered);
+            return new PreparedVillageRoads(streetByColumn, filtered, bridgeBlocks);
         }
 
         private static boolean sameBounds(BoundingBox first, BoundingBox second) {
@@ -1187,17 +1794,22 @@ public final class VillageRoadPathGenerator {
     /** Immutable path plan whose occupied surface columns can be reserved before placement. */
     public static final class PlannedPath {
         private final List<PlannedPathCell> cells;
+        private final List<PlannedDecoration> decorations;
         private final VillagePathBlocks pathBlocks;
+        private final VillageBridgeBlocks bridgeBlocks;
         private final String connectionType;
         private final int pathWidth;
         private final BlockPos pathStart;
         private final BlockPos target;
 
-        private PlannedPath(List<PlannedPathCell> cells, VillagePathBlocks pathBlocks,
+        private PlannedPath(List<PlannedPathCell> cells, List<PlannedDecoration> decorations,
+                            VillagePathBlocks pathBlocks, VillageBridgeBlocks bridgeBlocks,
                             String connectionType, int pathWidth,
                             BlockPos pathStart, BlockPos target) {
             this.cells = cells;
+            this.decorations = decorations;
             this.pathBlocks = pathBlocks;
+            this.bridgeBlocks = bridgeBlocks;
             this.connectionType = connectionType;
             this.pathWidth = pathWidth;
             this.pathStart = pathStart;

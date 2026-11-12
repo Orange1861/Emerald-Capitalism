@@ -319,7 +319,7 @@ public final class VillageLumbermillStructurePlacer {
                 : PLAINS_LUMBERMILL_VARIANT_ONE);
     }
 
-    static boolean isPlainsVariantTwoSelected(long worldSeed, BlockPos bellPos) {
+    public static boolean isPlainsVariantTwoSelected(long worldSeed, BlockPos bellPos) {
         return RandomSource.create(worldSeed ^ bellPos.asLong())
                 .nextInt(100) < PLAINS_VARIANT_TWO_CHANCE_PERCENT;
     }
