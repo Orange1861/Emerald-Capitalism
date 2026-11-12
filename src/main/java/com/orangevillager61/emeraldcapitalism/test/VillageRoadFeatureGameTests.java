@@ -48,7 +48,7 @@ public final class VillageRoadFeatureGameTests {
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
         List<int[]> forcedChunks = forceChunks(level, origin);
         try {
-            buildTerrain(helper);
+            buildTerrain(helper, CLIFF_X, CHANNEL_MIN_X, CHANNEL_MAX_X);
             VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
             BlockPos streetMin = helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0));
             BlockPos streetMax = helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19));
@@ -143,13 +143,49 @@ public final class VillageRoadFeatureGameTests {
         helper.succeed();
     }
 
-    private static void buildTerrain(GameTestHelper helper) {
+    @GameTest(template = "empty_20x3x20", batch = "ecap_road_features")
+    public static void wideRiverBridgeHasEvenlySpacedPosts(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<int[]> forcedChunks = forceChunks(level, helper.absolutePos(BlockPos.ZERO));
+        int channelMinX = 3;
+        int channelMaxX = 10;
+        try {
+            // No cliff: the whole fixture stands at the high surface.
+            buildTerrain(helper, Integer.MIN_VALUE, channelMinX, channelMaxX);
+            VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
+            VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
+                    BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0)),
+                            helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19))));
+            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(level,
+                    helper.absolutePos(new BlockPos(1, HIGH_SURFACE_Y, ROUTE_Z)),
+                    helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
+                    List.of(), "SAVANNA", Direction.EAST, roads, null);
+            helper.assertTrue(path != null, "connector across an 8-wide river was not planned");
+            generator.place(level, path);
+
+            for (int x = channelMinX; x <= channelMaxX; x++) {
+                assertBlock(helper, x, HIGH_SURFACE_Y, ROUTE_Z, Blocks.ACACIA_PLANKS, "savanna bridge deck");
+                assertBlock(helper, x, HIGH_SURFACE_Y + 1, ROUTE_Z - 2, Blocks.ACACIA_FENCE, "railing");
+            }
+            // An 8-row span gets end posts plus two interior posts at most 3 rows apart.
+            for (int x : new int[] {3, 5, 8, 10}) {
+                assertBlock(helper, x, WATER_Y, ROUTE_Z - 2, Blocks.ACACIA_LOG, "bridge post");
+                assertBlock(helper, x, WATER_Y, ROUTE_Z + 2, Blocks.ACACIA_LOG, "bridge post");
+            }
+            assertBlock(helper, 4, WATER_Y, ROUTE_Z - 2, Blocks.WATER, "open water between posts");
+            helper.succeed();
+        } finally {
+            releaseChunks(level, forcedChunks);
+        }
+    }
+
+    private static void buildTerrain(GameTestHelper helper, int cliffX, int channelMinX, int channelMaxX) {
         BlockState stone = Blocks.STONE.defaultBlockState();
         BlockState grass = Blocks.GRASS_BLOCK.defaultBlockState();
         for (int x = -2; x <= 21; x++) {
             for (int z = -2; z <= 21; z++) {
-                boolean channel = x >= CHANNEL_MIN_X && x <= CHANNEL_MAX_X && z >= 0 && z <= 19;
-                int surfaceY = x < CLIFF_X ? LOW_SURFACE_Y : HIGH_SURFACE_Y;
+                boolean channel = x >= channelMinX && x <= channelMaxX && z >= 0 && z <= 19;
+                int surfaceY = x < cliffX ? LOW_SURFACE_Y : HIGH_SURFACE_Y;
                 for (int y = 0; y <= 8; y++) {
                     BlockState state;
                     if (channel) {

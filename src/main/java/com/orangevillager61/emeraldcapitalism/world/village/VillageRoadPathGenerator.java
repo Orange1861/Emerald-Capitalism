@@ -59,13 +59,13 @@ public final class VillageRoadPathGenerator {
     private static final int MAX_RAMP_RISE = 4;
     /** Most blocks one ramp column may be cut or filled away from its terrain. */
     private static final int MAX_RAMP_EARTHWORK = 2;
-    private static final int MAX_WATER_BRIDGE_SPAN = 5;
-    private static final int MAX_GAP_BRIDGE_SPAN = 3;
+    private static final int MAX_WATER_BRIDGE_SPAN = 10;
+    private static final int MAX_GAP_BRIDGE_SPAN = 6;
     /** A dry column at least this far below the path is a gap to bridge, not a step. */
     private static final int MIN_GAP_DROP = 2;
     private static final int MAX_POST_DEPTH = 8;
-    /** Spans at least this long need a middle post that reaches the ground. */
-    private static final int MIDDLE_POST_SPAN = 4;
+    /** Most deck rows between two posts; interior posts must reach the ground. */
+    private static final int MAX_POST_SPACING = 3;
     private static final int RAMP_COLUMN_COST = 6;
     private static final int EARTHWORK_BLOCK_COST = 4;
     private static final int BRIDGE_COST = 40;
@@ -1038,12 +1038,16 @@ public final class VillageRoadPathGenerator {
             centers.add(new BlockPos(x, deckY, z));
         }
 
-        int middleRow = (span + 1) / 2;
-        boolean needsMiddlePost = span >= MIDDLE_POST_SPAN;
-        Set<Integer> postRows = new java.util.TreeSet<>(List.of(1, span));
-        if (needsMiddlePost) {
-            postRows.add(middleRow);
+        // End posts stand at the banks; interior posts split the span evenly so
+        // no more than MAX_POST_SPACING rows are unsupported.
+        int intervals = Math.max(1, (span - 1 + MAX_POST_SPACING - 1) / MAX_POST_SPACING);
+        Set<Integer> interiorRows = new HashSet<>();
+        for (int index = 1; index < intervals; index++) {
+            interiorRows.add(1 + (int) Math.round((double) index * (span - 1) / intervals));
         }
+        Set<Integer> postRows = new java.util.TreeSet<>(interiorRows);
+        postRows.add(1);
+        postRows.add(span);
         for (int row : postRows) {
             int x = start.getX() + direction.getStepX() * row;
             int z = start.getZ() + direction.getStepZ() * row;
@@ -1056,8 +1060,8 @@ public final class VillageRoadPathGenerator {
                 int columnZ = rowZ(z, direction, offset);
                 List<BlockPos> post = postColumn(level, columnX, deckY - 1, columnZ);
                 if (post == null) {
-                    // End posts are decorative; a long span needs its middle support.
-                    if (needsMiddlePost && row == middleRow) {
+                    // End posts are decorative; a long span needs its interior support.
+                    if (interiorRows.contains(row)) {
                         return null;
                     }
                     continue;
