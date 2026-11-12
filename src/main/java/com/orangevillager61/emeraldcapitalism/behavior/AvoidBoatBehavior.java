@@ -1,17 +1,10 @@
 package com.orangevillager61.emeraldcapitalism.behavior;
 
 import com.orangevillager61.emeraldcapitalism.Config;
-import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSpec;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestSubmission;
-import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestTerminationReason;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.behavior.Behavior;
-import net.minecraft.world.entity.ai.behavior.EntityTracker;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.npc.Villager;
@@ -29,6 +22,13 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>All wood variants are covered because they are instances of {@link Boat}
  * (including chest boats in supported versions).</p>
+ *
+ * <p>Movement intent: the behavior only publishes {@code WALK_TARGET} and
+ * {@code LOOK_TARGET} through {@link BrainMovementIntent}. Vanilla
+ * {@code MoveToTargetSink} plans and walks the route, so this class neither
+ * preflights paths nor calls navigation. Escape targets are chosen from block
+ * collision checks alone; vanilla's own fallback route covers an unreachable
+ * one, and a fresh pick replaces it within ten ticks.</p>
  */
 public class AvoidBoatBehavior extends Behavior<Villager> {
 
@@ -36,25 +36,24 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
     private static final double MIN_SAFE_DISTANCE = 4.5D;
     private static final double PUSH_AWAY_DISTANCE = 3.0D;
     private static final float SPEED_MODIFIER = 0.7F;
+    private static final int CLOSE_ENOUGH = 0;
     private static final long NEARBY_BOAT_LOOKUP_INTERVAL_TICKS = 5L;
     private static final long EMPTY_BOAT_LOOKUP_INTERVAL_TICKS = 20L;
+    private static final long REPICK_INTERVAL_TICKS = 10L;
+    /** Matches the behavior's maximum duration; a journey this long means the escape is stuck. */
+    private static final long INTENT_TIMEOUT_TICKS = 80L;
+    /** Escape directions tried in order, as rotations of the straight-away direction. */
+    private static final double[] ESCAPE_ANGLES = {0.0D, 0.6D, -0.6D, 1.2D, -1.2D};
+    private static final double[] ESCAPE_DISTANCES = {PUSH_AWAY_DISTANCE, PUSH_AWAY_DISTANCE + 2.0D};
 
     @Nullable
     private UUID cachedVillagerId;
     @Nullable
     private Boat cachedClosestBoat;
     private long nextBoatLookupTick = Long.MIN_VALUE;
-    @Nullable
-    private BlockPos escapeTarget;
-    private long nextEscapeSearchTick = Long.MIN_VALUE;
-    @Nullable
-    private MovementRequestHandle movementHandle;
-    @Nullable
-    private MovementRequestSpec cachedMovementSpec;
-    @Nullable
-    private Boat lookTargetBoat;
-    @Nullable
-    private EntityTracker lookTargetTracker;
+    private long nextRepickTick = Long.MIN_VALUE;
+    private final BrainMovementIntent intent =
+            new BrainMovementIntent("emeraldcapitalism:boat_avoidance", true, INTENT_TIMEOUT_TICKS);
 
     public AvoidBoatBehavior() {
         super(
@@ -78,30 +77,18 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
 
     @Override
     protected void start(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
-        escapeTarget = null;
-        nextEscapeSearchTick = gameTime;
-        updatePathAwayFromBoat(villager, gameTime);
+        nextRepickTick = gameTime;
+        publishEscape(villager, gameTime);
     }
 
     @Override
     protected void tick(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
-        updatePathAwayFromBoat(villager, gameTime);
+        publishEscape(villager, gameTime);
     }
 
     @Override
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
-        MovementRequestTerminationReason reason = escapeTarget != null
-                && villager.blockPosition().distSqr(escapeTarget) <= 4.0D
-                ? MovementRequestTerminationReason.ARRIVED
-                : MovementRequestTerminationReason.ABANDONED;
-        if (movementHandle != null) {
-            MovementRequestManager.cancel(villager, movementHandle, reason);
-            movementHandle = null;
-        }
-        escapeTarget = null;
-        cachedMovementSpec = null;
-        lookTargetBoat = null;
-        lookTargetTracker = null;
+        intent.release(villager);
     }
 
     @Override
@@ -110,91 +97,81 @@ public class AvoidBoatBehavior extends Behavior<Villager> {
             return false;
         }
         Boat boat = findClosestBoat(villager);
-        return boat != null && isTooClose(villager, boat)
-                && movementHandle != null
-                && MovementRequestManager.isActive(villager, movementHandle);
+        if (boat == null || !isTooClose(villager, boat)) {
+            return false;
+        }
+        // Another behavior published a different WALK_TARGET (panic, a higher-priority task):
+        // yield instead of overwriting it.
+        return intent.observe(villager, gameTime) != BrainMovementIntent.Status.REPLACED;
     }
 
-    private void updatePathAwayFromBoat(Villager villager, long gameTime) {
+    private void publishEscape(Villager villager, long gameTime) {
         Boat boat = findClosestBoat(villager);
         if (boat == null || !isTooClose(villager, boat)) {
             return;
         }
+        intent.lookAt(villager, boat);
 
-        Vec3 boatPos = boat.position();
-        Vec3 villagerPos = villager.position();
-        Vec3 away = villagerPos.subtract(boatPos);
-
-        if (away.lengthSqr() < 1.0E-6D) {
-            away = new Vec3(villager.getRandom().nextDouble() - 0.5D, 0.0D, villager.getRandom().nextDouble() - 0.5D);
+        BrainMovementIntent.Status status = intent.observe(villager, gameTime);
+        boolean needsTarget = status != BrainMovementIntent.Status.MOVING;
+        if (!needsTarget && gameTime < nextRepickTick) {
+            return;
         }
-
-        Vec3 normalizedAway = new Vec3(away.x, 0.0D, away.z).normalize();
-        if (normalizedAway.lengthSqr() < 1.0E-6D) {
-            normalizedAway = new Vec3(1.0D, 0.0D, 0.0D);
-        }
-
-        Vec3 targetVec = villagerPos.add(normalizedAway.scale(PUSH_AWAY_DISTANCE));
-        BlockPos desiredTarget = BlockPos.containing(targetVec);
-
-        if (escapeTarget == null || gameTime >= nextEscapeSearchTick) {
-            escapeTarget = VillagerNavigationTargets.findReachableTargetOrFallback(
-                    villager,
-                    desiredTarget,
-                    3,
-                    candidate -> {
-                        double dx = candidate.getX() + 0.5D - boatPos.x;
-                        double dz = candidate.getZ() + 0.5D - boatPos.z;
-                        return dx * dx + dz * dz >= MIN_SAFE_DISTANCE * MIN_SAFE_DISTANCE;
-                    });
-            if (escapeTarget == null && isClearEscapeTarget(villager, desiredTarget)) {
-                // Keep a safe, empty fallback when path creation is temporarily
-                // unavailable (for example while a neighboring chunk is loading).
-                escapeTarget = desiredTarget;
-            }
-            nextEscapeSearchTick = gameTime + 10L;
-        }
-
-        if (escapeTarget != null) {
-            MovementRequestSpec spec = cachedMovementSpec;
-            if (spec == null || !spec.destination().equals(escapeTarget)) {
-                spec = new MovementRequestSpec(
-                        "emeraldcapitalism:boat_avoidance",
-                        "boat-escape",
-                        escapeTarget,
-                        SPEED_MODIFIER,
-                        0,
-                        "boat-avoidance-v1",
-                        "ground-ladder-v1",
-                        MovementRequestManager.PRIORITY_ESCAPE - 10,
-                        null);
-                cachedMovementSpec = spec;
-            }
-            MovementRequestSubmission submission = movementHandle == null
-                    ? MovementRequestManager.submit(villager, spec)
-                    : MovementRequestManager.maintain(villager, movementHandle, spec);
-            if (submission.accepted()) {
-                movementHandle = submission.handle();
-                MovementRequestManager.claimLookTarget(villager, movementHandle,
-                        lookTargetTracker(boat));
-            } else {
-                movementHandle = null;
-            }
-        } else {
-            if (movementHandle != null) {
-                MovementRequestManager.cancel(villager, movementHandle,
-                        MovementRequestTerminationReason.FAILED);
-                movementHandle = null;
-            }
+        // Re-pick while moving too, so a boat that drifts is not escaped toward its new side.
+        BlockPos escape = chooseEscape(villager, boat);
+        nextRepickTick = gameTime + REPICK_INTERVAL_TICKS;
+        if (escape != null) {
+            intent.walkTo(villager, escape, SPEED_MODIFIER, CLOSE_ENOUGH, gameTime);
         }
     }
 
-    private EntityTracker lookTargetTracker(Boat boat) {
-        if (lookTargetTracker == null || lookTargetBoat != boat) {
-            lookTargetBoat = boat;
-            lookTargetTracker = new EntityTracker(boat, true);
+    @Nullable
+    private static BlockPos chooseEscape(Villager villager, Boat boat) {
+        Vec3 boatPos = boat.position();
+        Vec3 villagerPos = villager.position();
+        Vec3 away = new Vec3(villagerPos.x - boatPos.x, 0.0D, villagerPos.z - boatPos.z);
+        if (away.lengthSqr() < 1.0E-6D) {
+            away = new Vec3(villager.getRandom().nextDouble() - 0.5D, 0.0D,
+                    villager.getRandom().nextDouble() - 0.5D);
         }
-        return lookTargetTracker;
+        Vec3 direction = away.lengthSqr() < 1.0E-6D ? new Vec3(1.0D, 0.0D, 0.0D) : away.normalize();
+
+        BlockPos fallback = null;
+        for (double distance : ESCAPE_DISTANCES) {
+            for (double angle : ESCAPE_ANGLES) {
+                double cos = Math.cos(angle);
+                double sin = Math.sin(angle);
+                Vec3 rotated = new Vec3(direction.x * cos - direction.z * sin, 0.0D,
+                        direction.x * sin + direction.z * cos);
+                BlockPos desired = BlockPos.containing(villagerPos.add(rotated.scale(distance)));
+                if (fallback == null) {
+                    fallback = desired;
+                }
+                BlockPos standable = findStandable(villager, desired);
+                if (standable != null && farEnoughFromBoat(standable, boatPos)) {
+                    return standable;
+                }
+            }
+        }
+        // Vanilla's sink falls back to a nearby route when the exact block is unusable.
+        return fallback;
+    }
+
+    private static boolean farEnoughFromBoat(BlockPos candidate, Vec3 boatPos) {
+        double dx = candidate.getX() + 0.5D - boatPos.x;
+        double dz = candidate.getZ() + 0.5D - boatPos.z;
+        return dx * dx + dz * dz >= MIN_SAFE_DISTANCE * MIN_SAFE_DISTANCE;
+    }
+
+    @Nullable
+    private static BlockPos findStandable(Villager villager, BlockPos target) {
+        for (int dy : new int[] {0, 1, -1}) {
+            BlockPos candidate = target.above(dy);
+            if (isClearEscapeTarget(villager, candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private static boolean isClearEscapeTarget(Villager villager, BlockPos target) {

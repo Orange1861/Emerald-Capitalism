@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.Config;
+import com.orangevillager61.emeraldcapitalism.behavior.BrainMovementIntent;
 import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestPumpkinGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestManager;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MovementRequestHandle;
@@ -963,13 +964,10 @@ public final class MovementRequestManagerRegressionGameTests {
                                         BoatJourneyProgress progress,
                                         int remainingTicks) {
         try {
-            MovementRequestHandle active = MovementRequestManager.activeHandle(progress.farmer);
-            if (active != null && active.owner().equals("emeraldcapitalism:boat_avoidance")) {
+            WalkTarget escapeTarget = progress.farmer.getBrain()
+                    .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+            if ("emeraldcapitalism:boat_avoidance".equals(BrainMovementIntent.ownerOf(escapeTarget))) {
                 progress.escapePublished = true;
-                WalkTarget escapeTarget = progress.farmer.getBrain()
-                        .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
-                helper.assertTrue(escapeTarget != null,
-                        "boat preemption did not publish its owned WALK_TARGET");
                 helper.assertTrue(escapeTarget.getTarget().currentBlockPosition()
                                 .distSqr(progress.boat.blockPosition()) > 12.0D,
                         "boat escape target did not create meaningful distance from the boat");
@@ -990,7 +988,8 @@ public final class MovementRequestManagerRegressionGameTests {
                         + ", boat=" + progress.boat.position()
                         + ", initialDistance=" + progress.initialBoatDistance
                         + ", currentDistance=" + progress.farmer.distanceToSqr(progress.boat)
-                        + ", active=" + MovementRequestManager.activeHandle(progress.farmer));
+                        + ", walkTarget=" + progress.farmer.getBrain()
+                        .getMemory(MemoryModuleType.WALK_TARGET).orElse(null));
                 return;
             }
             helper.runAfterDelay(1, () -> awaitBoatEscape(helper, progress, remainingTicks - 1));
@@ -1004,24 +1003,12 @@ public final class MovementRequestManagerRegressionGameTests {
                                                 BoatJourneyProgress progress,
                                                 int remainingTicks) {
         try {
-            MovementRequestHandle latest = MovementRequestManager.lastPublishedHandle(progress.farmer);
-            if (latest != null && latest.owner().equals("emeraldcapitalism:pumpkin_harvest")
-                    && latest.generation() != progress.initialWorkGeneration) {
-                progress.workResumed = true;
-            }
             BlockPos pumpkin = progress.pumpkin;
             if (helper.getLevel().getBlockState(pumpkin).isAir()
                     && countItem(progress.farmer, Items.PUMPKIN) > 0) {
-                helper.assertTrue(progress.workResumed,
-                        "pumpkin world effect occurred without a later work request resuming: initial="
-                                + progress.initialWorkGeneration + ", latest="
-                                + MovementRequestManager.lastPublishedHandle(progress.farmer)
-                                + ", active=" + MovementRequestManager.activeHandle(progress.farmer)
-                                + ", goalTarget=" + progress.pumpkinGoal.getTargetPos()
-                                + ", position=" + progress.farmer.blockPosition());
-                helper.assertValueEqual(MovementRequestManager.terminalCount(progress.farmer,
-                                MovementRequestTerminationReason.PREEMPTED), 1L,
-                        "boat escape did not record exactly one work-request preemption for this villager");
+                helper.assertFalse(BrainMovementIntent.isPublishedIntent(progress.farmer.getBrain()
+                                .getMemory(MemoryModuleType.WALK_TARGET).orElse(null)),
+                        "the boat intent's walk target outlived the boat");
                 helper.assertTrue(MovementRequestManager.terminalCount(progress.farmer,
                                 MovementRequestTerminationReason.ARRIVED) >= 1L,
                         "resumed production work did not record a completed movement leg");
@@ -1403,7 +1390,6 @@ public final class MovementRequestManagerRegressionGameTests {
         private double initialBoatDistance;
         private long initialWorkGeneration = Long.MIN_VALUE;
         private boolean escapePublished;
-        private boolean workResumed;
         private boolean finished;
 
         private BoatJourneyProgress(Villager farmer, HarvestPumpkinGoal pumpkinGoal,

@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.behavior.BrainMovementIntent;
 import com.orangevillager61.emeraldcapitalism.navigation.MovementIntent;
 import com.orangevillager61.emeraldcapitalism.navigation.MovementRequestLifecycleCoordinator;
 import com.orangevillager61.emeraldcapitalism.navigation.MovementRequestLedger;
@@ -407,6 +408,11 @@ public final class MovementRequestManager {
         if (state == null) {
             return;
         }
+        if (BrainMovementIntent.outranksLegacyRequests(target)) {
+            // A Brain safety intent owns WALK_TARGET; the legacy request must not reclaim it.
+            state.pendingSinkTarget = null;
+            return;
+        }
         if (state.activeHandle != null && target == state.ownedWalkTarget) {
             state.pendingSinkTarget = target;
             state.pendingSinkGameTime = gameTime;
@@ -701,6 +707,23 @@ public final class MovementRequestManager {
 
         WalkTarget currentWalkTarget = villager.getBrain()
                 .getMemory(MemoryModuleType.WALK_TARGET).orElse(null);
+        if (BrainMovementIntent.outranksLegacyRequests(currentWalkTarget)) {
+            // Transitional bridge until step 15: a Brain safety intent preempts this request.
+            // Drop only this request's live route so the sink plans the safety target from a
+            // clean PATH; the request republishes its own target once the intent is released.
+            Path navigationPath = villager.getNavigation().getPath();
+            if (state.ownedPath != null) {
+                if (navigationPath == state.ownedPath) {
+                    villager.getNavigation().stop();
+                }
+                if (villager.getBrain().getMemory(MemoryModuleType.PATH).orElse(null) == state.ownedPath) {
+                    villager.getBrain().eraseMemory(MemoryModuleType.PATH);
+                }
+                state.ownedPath = null;
+            }
+            snapshotMemoryState(villager, state);
+            return repaired;
+        }
         if (currentWalkTarget == null || currentWalkTarget != state.ownedWalkTarget
                 || !(currentWalkTarget.getTarget() instanceof BlockPosTracker)
                 || !spec.destination().equals(currentWalkTarget.getTarget().currentBlockPosition())
@@ -834,6 +857,14 @@ public final class MovementRequestManager {
                 .getMemory(MemoryModuleType.LOOK_TARGET).orElse(null);
         Long failure = villager.getBrain()
                 .getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE).orElse(null);
+
+        // Published Brain intents belong to their behavior and are never restored by this manager.
+        if (BrainMovementIntent.isPublishedIntent(walkTarget)) {
+            walkTarget = null;
+        }
+        if (BrainMovementIntent.isPublishedIntent(lookTarget)) {
+            lookTarget = null;
+        }
 
         if (!state.foreignSnapshotInitialized) {
             state.foreignWalkTarget = walkTarget;

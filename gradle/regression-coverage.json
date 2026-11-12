@@ -100,6 +100,9 @@
       "gameTests": [
         "scenariorunnergametests.mixedvillagekeepsvanillaworkmeetrestpanicandtrade",
         "scenariorunnergametests.scenariocommandsareregisteredonlyoutsideproduction",
+        "boatavoidanceintentgametests.boatavoidancenaturallywalksawayandleavesnointentbehind",
+        "boatavoidanceintentgametests.stoppedboatavoidancecannoteraseanewerwalktarget",
+        "boatavoidanceintentgametests.boatavoidancereplacesitstargetwhentheboatmoves",
         "mixinauditinvariantgametests.villagerinventoryhaseighteenslots",
         "mixinauditinvariantgametests.villagerbreedingusescustomhungerthreshold",
         "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",
