@@ -54,6 +54,15 @@ public final class VillageRoadPathGenerator {
      */
     private static final long MAX_PLANNING_NANOS_PER_PATH = 8_000_000L;
     private static final long NO_DEADLINE = Long.MIN_VALUE;
+    /**
+     * Server-thread time the first route search of a connection may use, about
+     * nine thousand nodes on a warm server. A search that reaches no street
+     * ends here instead of running to the node cap; retries share the
+     * connection's planning deadline.
+     */
+    private static final long MAX_SEARCH_NANOS = 40_000_000L;
+    /** Route searches per connection; each retry drops a target whose placement failed. */
+    private static final int MAX_ROUTE_SEARCHES = 4;
     private static final int MIN_TARGET_SPACING_SQ = 9;
     /** Highest climb one graded ramp makes; it rises one block per column. */
     private static final int MAX_RAMP_RISE = 4;
@@ -340,19 +349,13 @@ public final class VillageRoadPathGenerator {
                 ? new StringBuilder() : null;
         PlacementRejection placementRejection = new PlacementRejection();
 
+        List<StreetTarget> candidates = new ArrayList<>(targetAttempts);
         for (int targetIndex = 0; targetIndex < targetAttempts; targetIndex++) {
-            if (targetIndex > 0 && System.nanoTime() > deadline) {
-                appendDiagnostic(diagnostics, targetIndex, null, "TIME_LIMIT after "
-                        + (System.nanoTime() - planningStarted) / 1_000_000L + "ms, "
-                        + (targetAttempts - targetIndex) + " untried");
-                break;
-            }
             StreetTarget streetTarget = streetTargets.get(targetIndex);
             if (manhattan(searchStart, streetTarget.pos()) > profile.maxRouteSteps()) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "BEYOND_STEP_BUDGET");
                 continue;
             }
-            long targetStarted = diagnostics != null ? System.nanoTime() : 0L;
             // Never load chunks here: a blocking load during route search stalls
             // the server tick. Every world read in the search and placement plan
             // checks hasChunk first, so unloaded columns are simply impassable;
@@ -361,22 +364,35 @@ public final class VillageRoadPathGenerator {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "CHUNK_UNAVAILABLE");
                 continue;
             }
+            candidates.add(streetTarget);
+        }
 
-            // Loaded terrain does not change while one connection is planned, but
-            // the chunk check above may have loaded columns cached as unavailable.
-            surfaceCache.forgetUnavailableColumns();
-            RouteSearch search = findRoute(level, searchStart, streetTarget.pos(), entranceDirection,
-                    roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps());
+        // One search heads for every candidate street at once and stops at the
+        // first one it reaches, so an unreachable nearby street cannot use up
+        // the planning time before a reachable one is tried.
+        surfaceCache.forgetUnavailableColumns();
+        for (int searchIndex = 0; searchIndex < MAX_ROUTE_SEARCHES && !candidates.isEmpty(); searchIndex++) {
+            long searchStarted = System.nanoTime();
+            if (searchIndex > 0 && searchStarted > deadline) {
+                appendDiagnostic(diagnostics, searchIndex, null, "TIME_LIMIT after "
+                        + (searchStarted - planningStarted) / 1_000_000L + "ms, "
+                        + candidates.size() + " targets left");
+                break;
+            }
+            RouteSearch search = findRoute(level, searchStart, candidates, entranceDirection,
+                    roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps(),
+                    searchIndex == 0 ? Math.max(deadline, searchStarted + MAX_SEARCH_NANOS) : deadline);
             List<RouteCell> route = search.route();
-            if (route.isEmpty()) {
+            StreetTarget streetTarget = search.target();
+            if (route.isEmpty() || streetTarget == null) {
                 if (diagnostics != null) {
-                    appendDiagnostic(diagnostics, targetIndex, streetTarget, "ROUTE_" + search.outcome()
+                    appendDiagnostic(diagnostics, searchIndex, null, "ROUTE_" + search.outcome()
                             + " visited=" + search.visited()
-                            + " manhattan=" + manhattan(searchStart, streetTarget.pos())
-                            + " ms=" + (System.nanoTime() - targetStarted) / 1_000_000L
+                            + " targets=" + candidates.size()
+                            + " ms=" + (System.nanoTime() - searchStarted) / 1_000_000L
                             + (search.visited() == 1 ? " firstStep{" + search.firstStepRejections() + "}" : ""));
                 }
-                continue;
+                break;
             }
 
             List<RouteCell> completeRoute = new ArrayList<>(entrancePrefix.size() + route.size());
@@ -391,16 +407,17 @@ public final class VillageRoadPathGenerator {
                     entranceDirection, roads, surfaceCache, profile.pathWidth(), pathBlocks,
                     placementRejection);
             if (placementPlan == null) {
-                appendDiagnostic(diagnostics, targetIndex, streetTarget,
+                appendDiagnostic(diagnostics, searchIndex, streetTarget,
                         "PLACEMENT_" + placementRejection.reason + " at " + placementRejection.column);
+                candidates.remove(streetTarget);
                 continue;
             }
 
             if (diagnostics != null) {
                 EmeraldCapitalism.LOGGER.info(
-                        "[ECAP][RoadDiag] {} path from {} planned in {} ms after {} target(s)",
+                        "[ECAP][RoadDiag] {} path from {} planned in {} ms after {} search(es)",
                         profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
-                        (System.nanoTime() - planningStarted) / 1_000_000L, targetIndex + 1);
+                        (System.nanoTime() - planningStarted) / 1_000_000L, searchIndex + 1);
             }
             return new PlannedPath(List.copyOf(placementPlan.cells()),
                     List.copyOf(placementPlan.decorations()), pathBlocks,
@@ -573,14 +590,36 @@ public final class VillageRoadPathGenerator {
                 : List.of();
     }
 
-    private RouteSearch findRoute(ServerLevel level, BlockPos start, BlockPos target,
+    /**
+     * A* from {@code start} to whichever target street column it reaches first.
+     * The heuristic is the Manhattan distance to the nearest target, which stays
+     * admissible because every step costs at least ten per column.
+     */
+    private RouteSearch findRoute(ServerLevel level, BlockPos start, List<StreetTarget> targets,
                                   Direction startDirection, PreparedVillageRoads roads,
                                   SurfaceCache surfaceCache, int pathWidth,
-                                  int maxRouteSteps) {
-        int minX = Math.min(start.getX(), target.getX()) - SEARCH_MARGIN;
-        int maxX = Math.max(start.getX(), target.getX()) + SEARCH_MARGIN;
-        int minZ = Math.min(start.getZ(), target.getZ()) - SEARCH_MARGIN;
-        int maxZ = Math.max(start.getZ(), target.getZ()) + SEARCH_MARGIN;
+                                  int maxRouteSteps, long searchDeadline) {
+        Map<Long, StreetTarget> targetsByColumn = new HashMap<>();
+        int[] targetXs = new int[targets.size()];
+        int[] targetZs = new int[targets.size()];
+        int minX = start.getX();
+        int maxX = start.getX();
+        int minZ = start.getZ();
+        int maxZ = start.getZ();
+        for (int index = 0; index < targets.size(); index++) {
+            BlockPos target = targets.get(index).pos();
+            targetsByColumn.putIfAbsent(columnKey(target.getX(), target.getZ()), targets.get(index));
+            targetXs[index] = target.getX();
+            targetZs[index] = target.getZ();
+            minX = Math.min(minX, target.getX());
+            maxX = Math.max(maxX, target.getX());
+            minZ = Math.min(minZ, target.getZ());
+            maxZ = Math.max(maxZ, target.getZ());
+        }
+        minX -= SEARCH_MARGIN;
+        maxX += SEARCH_MARGIN;
+        minZ -= SEARCH_MARGIN;
+        maxZ += SEARCH_MARGIN;
 
         RouteKey startKey = new RouteKey(start.getX(), start.getZ(), startDirection);
         PriorityQueue<OpenRouteNode> open = new PriorityQueue<>(
@@ -599,13 +638,15 @@ public final class VillageRoadPathGenerator {
 
         costs.put(startKey, 0);
         steps.put(startKey, 0);
-        open.add(new OpenRouteNode(startKey, heuristic(startKey.x(), startKey.z(), target)));
+        open.add(new OpenRouteNode(startKey,
+                nearestTargetDistance(startKey.x(), startKey.z(), targetXs, targetZs) * 10));
 
         int visited = 0;
         boolean stepLimited = false;
         boolean startSampled = false;
         StringBuilder firstStepRejections = PerformanceTimingCounters.isDetailedTimingEnabled()
                 ? new StringBuilder() : null;
+        boolean timeLimited = false;
         while (!open.isEmpty() && visited < MAX_VISITED_NODES) {
             OpenRouteNode queued = open.poll();
             RouteKey current = queued.key();
@@ -613,9 +654,14 @@ public final class VillageRoadPathGenerator {
                 continue;
             }
             visited++;
+            if ((visited & 255) == 0 && System.nanoTime() > searchDeadline) {
+                timeLimited = true;
+                break;
+            }
 
-            if (current.x() == target.getX() && current.z() == target.getZ()) {
-                return reconstructRoute(current, cameFrom, features, surfaceCache, visited);
+            StreetTarget reached = targetsByColumn.get(columnKey(current.x(), current.z()));
+            if (reached != null) {
+                return reconstructRoute(current, cameFrom, features, surfaceCache, visited, reached);
             }
 
             int currentSteps = steps.getOrDefault(current, maxRouteSteps);
@@ -642,15 +688,16 @@ public final class VillageRoadPathGenerator {
                 }
                 // Every step moves one column, so a node that cannot reach the
                 // target within the remaining step budget can never succeed.
-                if (currentSteps + 1 + Math.abs(target.getX() - nextX)
-                        + Math.abs(target.getZ() - nextZ) > maxRouteSteps) {
+                if (currentSteps + 1 + nearestTargetDistance(nextX, nextZ, targetXs, targetZs)
+                        > maxRouteSteps) {
                     stepLimited = true;
                     continue;
                 }
                 // Placement widens each route cell across its outgoing direction,
                 // so a turn also sweeps the current cell's row on the new axis.
                 if (direction.getAxis() != current.incomingDirection().getAxis()
-                        && !isTurnRowClear(level, current.x(), current.z(), direction, roads, pathWidth)) {
+                        && !isTurnRowClear(level, currentSurface, direction, roads, surfaceCache,
+                        pathWidth)) {
                     continue;
                 }
 
@@ -677,8 +724,8 @@ public final class VillageRoadPathGenerator {
                         if (closed.contains(landing)) {
                             continue;
                         }
-                        if (landingSteps + Math.abs(target.getX() - landing.x())
-                                + Math.abs(target.getZ() - landing.z()) > maxRouteSteps) {
+                        if (landingSteps + nearestTargetDistance(landing.x(), landing.z(),
+                                targetXs, targetZs) > maxRouteSteps) {
                             stepLimited = true;
                             continue;
                         }
@@ -692,7 +739,8 @@ public final class VillageRoadPathGenerator {
                         cameFrom.put(landing, current);
                         features.put(landing, move.feature());
                         open.add(new OpenRouteNode(landing,
-                                landingCost + heuristic(landing.x(), landing.z(), target)));
+                                landingCost + nearestTargetDistance(landing.x(), landing.z(),
+                                        targetXs, targetZs) * 10));
                     }
                     continue;
                 }
@@ -714,12 +762,14 @@ public final class VillageRoadPathGenerator {
                 cameFrom.put(next, current);
                 features.remove(next);
                 open.add(new OpenRouteNode(next,
-                        nextCost + heuristic(nextX, nextZ, target)));
+                        nextCost + nearestTargetDistance(nextX, nextZ, targetXs, targetZs) * 10));
             }
         }
 
         RouteOutcome outcome;
-        if (!startSampled) {
+        if (timeLimited) {
+            outcome = RouteOutcome.TIME_LIMIT;
+        } else if (!startSampled) {
             outcome = RouteOutcome.START_UNAVAILABLE;
         } else if (visited >= MAX_VISITED_NODES) {
             outcome = RouteOutcome.VISITED_CAP;
@@ -728,7 +778,7 @@ public final class VillageRoadPathGenerator {
         } else {
             outcome = RouteOutcome.BLOCKED;
         }
-        return new RouteSearch(List.of(), List.of(), outcome, visited,
+        return new RouteSearch(List.of(), List.of(), null, outcome, visited,
                 firstStepRejections == null ? "" : firstStepRejections.toString().trim());
     }
 
@@ -809,13 +859,26 @@ public final class VillageRoadPathGenerator {
         return true;
     }
 
-    private boolean isTurnRowClear(ServerLevel level, int x, int z, Direction newDirection,
-                                   PreparedVillageRoads roads, int pathWidth) {
+    /**
+     * Placement widens each route cell across its outgoing direction, so a turn
+     * also paves the current cell's row on the new axis. That row needs the same
+     * surface and height checks as a row entered by a straight step.
+     */
+    private boolean isTurnRowClear(ServerLevel level, SurfaceSample center, Direction newDirection,
+                                   PreparedVillageRoads roads, SurfaceCache surfaceCache,
+                                   int pathWidth) {
+        int x = center.pos().getX();
+        int z = center.pos().getZ();
         int firstWidthOffset = -(pathWidth / 2);
         for (int width = firstWidthOffset; width < firstWidthOffset + pathWidth; width++) {
             int rowX = newDirection.getAxis() == Direction.Axis.X ? x : x + width;
             int rowZ = newDirection.getAxis() == Direction.Axis.X ? z + width : z;
             if (!level.hasChunk(rowX >> 4, rowZ >> 4) || roads.isInsideBuilding(rowX, rowZ)) {
+                return false;
+            }
+            SurfaceSample sample = surfaceCache.get(rowX, rowZ);
+            if (sample == null || Math.abs(sample.pos().getY() - center.pos().getY()) > 1
+                    || !isUsablePathSurface(sample.state())) {
                 return false;
             }
         }
@@ -825,14 +888,16 @@ public final class VillageRoadPathGenerator {
     /** Rebuilds the route, expanding each ramp or bridge into its own columns. */
     private RouteSearch reconstructRoute(RouteKey end, Map<RouteKey, RouteKey> cameFrom,
                                          Map<RouteKey, RouteFeature> features,
-                                         SurfaceCache surfaceCache, int visited) {
+                                         SurfaceCache surfaceCache, int visited,
+                                         StreetTarget target) {
         List<RouteCell> reversed = new ArrayList<>();
         List<RouteFeature> usedFeatures = new ArrayList<>();
         RouteKey current = end;
         while (current != null) {
             SurfaceSample sample = surfaceCache.get(current.x(), current.z());
             if (sample == null) {
-                return new RouteSearch(List.of(), List.of(), RouteOutcome.RECONSTRUCT_FAILED, visited, "");
+                return new RouteSearch(List.of(), List.of(), null, RouteOutcome.RECONSTRUCT_FAILED,
+                        visited, "");
             }
             reversed.add(new RouteCell(sample.pos(), CellKind.PATH));
             RouteFeature feature = features.get(current);
@@ -846,7 +911,7 @@ public final class VillageRoadPathGenerator {
         }
         Collections.reverse(reversed);
         Collections.reverse(usedFeatures);
-        return new RouteSearch(reversed, usedFeatures, RouteOutcome.FOUND, visited, "");
+        return new RouteSearch(reversed, usedFeatures, target, RouteOutcome.FOUND, visited, "");
     }
 
     /**
@@ -1520,8 +1585,12 @@ public final class VillageRoadPathGenerator {
         return element.contains("/streets/") || element.contains("/street/");
     }
 
-    private int heuristic(int x, int z, BlockPos target) {
-        return (Math.abs(target.getX() - x) + Math.abs(target.getZ() - z)) * 10;
+    private static int nearestTargetDistance(int x, int z, int[] targetXs, int[] targetZs) {
+        int nearest = Integer.MAX_VALUE;
+        for (int index = 0; index < targetXs.length; index++) {
+            nearest = Math.min(nearest, Math.abs(targetXs[index] - x) + Math.abs(targetZs[index] - z));
+        }
+        return nearest;
     }
 
     private static int directionOrder(Direction direction) {
@@ -1607,11 +1676,12 @@ public final class VillageRoadPathGenerator {
 
     private enum RouteOutcome {
         FOUND, START_UNAVAILABLE, VISITED_CAP, EXHAUSTED_WITH_STEP_PRUNING,
-        BLOCKED, RECONSTRUCT_FAILED
+        BLOCKED, RECONSTRUCT_FAILED, TIME_LIMIT
     }
 
     private record RouteSearch(List<RouteCell> route, List<RouteFeature> features,
-                               RouteOutcome outcome, int visited, String firstStepRejections) {
+                               @Nullable StreetTarget target, RouteOutcome outcome, int visited,
+                               String firstStepRejections) {
     }
 
     /** How a planned column is built: plain path, a graded ramp column, or a bridge deck. */
