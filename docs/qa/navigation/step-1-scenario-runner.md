@@ -50,7 +50,7 @@ POIs, or move villagers. `inspect` and `result` only read.
 | S1.4 | Reuse the same fixture builders for automated tests and manual scenes. | Both go through `ScenarioRunner.load`. | Same code path; no separate test builder exists. | Not applicable. | PASS |
 | S1.5 | One mixed-village scene covering work, meet, rest, sleep, panic, and trade, recorded before any behavior moves. | `mixed_village`. | `mixedVillageKeepsVanillaWorkMeetRestPanicAndTrade` on 1.21.1 and 1.21.4; results below. | Each checkpoint fails after its limit and the failure message prints every actor's inspection line. | PASS |
 | S1.6 | The scene is part of the standing check after every later step. | The test is in the normal GameTest suite and listed under `villager-gameplay` in `gradle/regression-coverage.json`. | `verifyRegressionCoverage`. | Not applicable. | PASS |
-| M1.1 | Developer loads the scene, starts it, follows the checkpoints, and records `result`. | Run sheet below. | None; only the developer can pass this. | Not applicable. | BLOCKED (developer) |
+| M1.1 | Developer loads the scene, starts it, follows the checkpoints, and records `result`. | Run sheet below. | None; only the developer can pass this. | Not applicable. | PASS (developer, 2026-11-11; see below) |
 
 Not in Step 1, by the 2026-11-10 amendment ("step 1 builds only a minimal scenario runner and
 the rest grows with each profession"): the Phase 6 reachable, unreachable, interrupted, and
@@ -80,6 +80,21 @@ The first run failed `work` on both targets because the actors' Brains were stil
 unemployed villager, so vanilla's job-site validation erased every job site they claimed. The
 scene now rebuilds the Brain after setting the profession, as vanilla does on a profession
 change.
+
+## Developer result for M1.1
+
+On 2026-11-11 the developer ran the run sheet in game, following the request to use the
+1.21.1 client (the screenshot does not show the version), and shared this `result` output:
+
+```text
+mixed_village: released 2126 ticks ago, day time 13257
+work PASS after 139 ticks
+trade PASS after 0 ticks
+panic PASS after 44 ticks
+calm PASS after 21 ticks
+meet PASS after 127 ticks
+rest PASS after 110 ticks
+```
 
 ## Developer run sheet for M1.1
 
