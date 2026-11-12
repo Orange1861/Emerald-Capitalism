@@ -36,11 +36,11 @@ public final class VillageRoadPathGenerator {
     private static final ConnectionProfile BANK_PROFILE =
             new ConnectionProfile("Bank", 4, 4, 128, 160);
     private static final ConnectionProfile FARM_PROFILE =
-            new ConnectionProfile("Farm", 3, 0, 64, 64);
+            new ConnectionProfile("Farm", 3, 0, 64, 96);
     private static final ConnectionProfile LIBRARY_PROFILE =
-            new ConnectionProfile("Library", 3, 3, 96, 96);
+            new ConnectionProfile("Library", 3, 3, 96, 144);
     private static final ConnectionProfile LUMBERMILL_PROFILE =
-            new ConnectionProfile("Lumbermill", 3, 0, 96, 96);
+            new ConnectionProfile("Lumbermill", 3, 0, 96, 144);
     private static final int MAX_VISITED_NODES = 20_000;
     private static final int SEARCH_MARGIN = 12;
     private static final int MAX_TARGET_ATTEMPTS = 24;
@@ -50,6 +50,7 @@ public final class VillageRoadPathGenerator {
      * in a single tick. The first target is always tried.
      */
     private static final long MAX_PLANNING_NANOS_PER_PATH = 8_000_000L;
+    private static final long NO_DEADLINE = Long.MIN_VALUE;
     private static final int MIN_TARGET_SPACING_SQ = 9;
     private static final Direction[] HORIZONTAL_DIRECTIONS = {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
@@ -72,7 +73,7 @@ public final class VillageRoadPathGenerator {
                          List<StructurePiece> villagePieces, String biomeType,
                          Direction entranceDirection, @Nullable PreparedVillageRoads preparedRoads) {
         place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, BANK_PROFILE, preparedRoads, null));
+                entranceDirection, BANK_PROFILE, preparedRoads, null, true, NO_DEADLINE));
     }
 
     /**
@@ -85,7 +86,7 @@ public final class VillageRoadPathGenerator {
                                           String biomeType,
                                           Direction entranceDirection) {
         place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, FARM_PROFILE, null, null));
+                entranceDirection, FARM_PROFILE, null, null, true, NO_DEADLINE));
     }
 
     /** Reuses the stable village street and building snapshot across farm paths. */
@@ -96,7 +97,7 @@ public final class VillageRoadPathGenerator {
                                           Direction entranceDirection,
                                           PreparedVillageRoads preparedRoads) {
         place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, FARM_PROFILE, preparedRoads, null));
+                entranceDirection, FARM_PROFILE, preparedRoads, null, true, NO_DEADLINE));
     }
 
     /** Plans, but does not place, the important four-wide bank connector. */
@@ -109,7 +110,7 @@ public final class VillageRoadPathGenerator {
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget) {
         return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, BANK_PROFILE, preparedRoads, sharedLoadBudget);
+                entranceDirection, BANK_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
     }
 
     /** Plans, but does not place, a compact farm connector. */
@@ -121,8 +122,28 @@ public final class VillageRoadPathGenerator {
                                           Direction entranceDirection,
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget) {
+        return planFarmConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+                entranceDirection, preparedRoads, sharedLoadBudget, true, newPlanningDeadline());
+    }
+
+    /**
+     * Plans a farm connector; a caller trying several farm edges passes
+     * {@code warnOnFailure = false} for every edge except its last and shares
+     * one {@link #newPlanningDeadline()} across all of them.
+     */
+    @Nullable
+    public PlannedPath planFarmConnection(ServerLevel level, BlockPos pathStart,
+                                          BlockPos pathTargetHint,
+                                          List<StructurePiece> villagePieces,
+                                          String biomeType,
+                                          Direction entranceDirection,
+                                          PreparedVillageRoads preparedRoads,
+                                          ChunkLoadBudget sharedLoadBudget,
+                                          boolean warnOnFailure,
+                                          long planningDeadline) {
         return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, FARM_PROFILE, preparedRoads, sharedLoadBudget);
+                entranceDirection, FARM_PROFILE, preparedRoads, sharedLoadBudget, warnOnFailure,
+                planningDeadline);
     }
 
     /** Plans a compact library connector using the same bounded street search as farms. */
@@ -135,7 +156,7 @@ public final class VillageRoadPathGenerator {
                                              PreparedVillageRoads preparedRoads,
                                              ChunkLoadBudget sharedLoadBudget) {
         return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, LIBRARY_PROFILE, preparedRoads, sharedLoadBudget);
+                entranceDirection, LIBRARY_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
     }
 
     /** Plans a compact lumbermill connector from its authored or inferred entrance. */
@@ -148,7 +169,12 @@ public final class VillageRoadPathGenerator {
                                                 PreparedVillageRoads preparedRoads,
                                                 ChunkLoadBudget sharedLoadBudget) {
         return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, LUMBERMILL_PROFILE, preparedRoads, sharedLoadBudget);
+                entranceDirection, LUMBERMILL_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
+    }
+
+    /** Deadline for one connection's planning, shared by callers that try several entrances. */
+    public static long newPlanningDeadline() {
+        return System.nanoTime() + MAX_PLANNING_NANOS_PER_PATH;
     }
 
     /** Applies a previously reserved plan after every village building is in place. */
@@ -208,7 +234,9 @@ public final class VillageRoadPathGenerator {
                                        Direction entranceDirection,
                                        ConnectionProfile profile,
                                        @Nullable PreparedVillageRoads preparedRoads,
-                                       @Nullable ChunkLoadBudget sharedLoadBudget) {
+                                       @Nullable ChunkLoadBudget sharedLoadBudget,
+                                       boolean warnOnFailure,
+                                       long planningDeadline) {
         if (!entranceDirection.getAxis().isHorizontal()) {
             return null;
         }
@@ -219,7 +247,7 @@ public final class VillageRoadPathGenerator {
         SurfaceCache surfaceCache = new SurfaceCache(level);
         StreetTargetSearch targetSearch = findStreetTargets(
                 level, pathStart, pathTargetHint, roads.streetByColumn(),
-                profile.maxTargetDistance());
+                profile.maxTargetDistance(), profile.maxRouteSteps() + profile.fixedEntranceRows());
         List<StreetTarget> streetTargets = targetSearch.targets();
         if (streetTargets.isEmpty()) {
             EmeraldCapitalism.LOGGER.warn(
@@ -239,10 +267,10 @@ public final class VillageRoadPathGenerator {
         }
 
         BlockPos searchStart = entrancePrefix.get(entrancePrefix.size() - 1);
-        ChunkLoadBudget loadBudget = sharedLoadBudget != null
-                ? sharedLoadBudget : new ChunkLoadBudget();
         int targetAttempts = Math.min(MAX_TARGET_ATTEMPTS, streetTargets.size());
         long planningStarted = System.nanoTime();
+        long deadline = planningDeadline == NO_DEADLINE
+                ? planningStarted + MAX_PLANNING_NANOS_PER_PATH : planningDeadline;
         // Per-target failure reasons are collected only when performance timing
         // is enabled, so the normal generation path does no extra allocation.
         StringBuilder diagnostics = PerformanceTimingCounters.isDetailedTimingEnabled()
@@ -250,21 +278,29 @@ public final class VillageRoadPathGenerator {
         PlacementRejection placementRejection = new PlacementRejection();
 
         for (int targetIndex = 0; targetIndex < targetAttempts; targetIndex++) {
-            if (targetIndex > 0 && System.nanoTime() - planningStarted > MAX_PLANNING_NANOS_PER_PATH) {
+            if (targetIndex > 0 && System.nanoTime() > deadline) {
                 appendDiagnostic(diagnostics, targetIndex, null, "TIME_LIMIT after "
                         + (System.nanoTime() - planningStarted) / 1_000_000L + "ms, "
                         + (targetAttempts - targetIndex) + " untried");
                 break;
             }
             StreetTarget streetTarget = streetTargets.get(targetIndex);
+            if (manhattan(searchStart, streetTarget.pos()) > profile.maxRouteSteps()) {
+                appendDiagnostic(diagnostics, targetIndex, streetTarget, "BEYOND_STEP_BUDGET");
+                continue;
+            }
             long targetStarted = diagnostics != null ? System.nanoTime() : 0L;
-            if (!ensureSearchChunksLoaded(level, searchStart, streetTarget.pos(),
-                    loadBudget, profile.pathWidth())) {
+            // Never load chunks here: a blocking load during route search stalls
+            // the server tick. The pipeline preloads the village area; a target
+            // whose search area lies outside it is skipped.
+            if (!searchChunksLoaded(level, searchStart, streetTarget.pos(), profile.pathWidth())) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "CHUNK_UNAVAILABLE");
                 continue;
             }
 
-            surfaceCache.clear();
+            // Loaded terrain does not change while one connection is planned, but
+            // the chunk check above may have loaded columns cached as unavailable.
+            surfaceCache.forgetUnavailableColumns();
             RouteSearch search = findRoute(level, searchStart, streetTarget.pos(), entranceDirection,
                     roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps());
             List<BlockPos> route = search.route();
@@ -302,9 +338,11 @@ public final class VillageRoadPathGenerator {
                     profile.connectionType(), profile.pathWidth(), pathStart, streetTarget.pos());
         }
 
-        EmeraldCapitalism.LOGGER.warn(
-                "[ECAP] Could not plan a complete {} path from {} to a reachable village street",
-                profile.connectionType().toLowerCase(Locale.ROOT), pathStart);
+        if (warnOnFailure) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP] Could not plan a complete {} path from {} to a reachable village street",
+                    profile.connectionType().toLowerCase(Locale.ROOT), pathStart);
+        }
         if (diagnostics != null) {
             EmeraldCapitalism.LOGGER.info(
                     "[ECAP][RoadDiag] {} path from {} failed in {} ms (search start {}, facing {}, hint {}): "
@@ -338,7 +376,8 @@ public final class VillageRoadPathGenerator {
     private StreetTargetSearch findStreetTargets(ServerLevel level, BlockPos from,
                                                   BlockPos targetHint,
                                                   Map<Long, StreetCell> streetByColumn,
-                                                  int maxTargetDistance) {
+                                                  int maxTargetDistance,
+                                                  int maxManhattanDistance) {
         Map<Long, StreetTarget> candidatesByColumn = new HashMap<>();
         long maxDistanceSq = (long) maxTargetDistance * maxTargetDistance;
 
@@ -350,6 +389,12 @@ public final class VillageRoadPathGenerator {
             }
             long distanceSq = horizontalDistanceSq(from, cell.pos().getX(), cell.pos().getZ());
             if (distanceSq > maxDistanceSq) {
+                continue;
+            }
+            // A route moves one column per step, so a street cell farther than the
+            // step budget in Manhattan distance can never be reached.
+            if (Math.abs(cell.pos().getX() - from.getX())
+                    + Math.abs(cell.pos().getZ() - from.getZ()) > maxManhattanDistance) {
                 continue;
             }
             // Building-specific orientation chooses the intended street edge. Favor
@@ -516,6 +561,19 @@ public final class VillageRoadPathGenerator {
                 if (nextX < minX || nextX > maxX || nextZ < minZ || nextZ > maxZ) {
                     continue;
                 }
+                // Every step moves one column, so a node that cannot reach the
+                // target within the remaining step budget can never succeed.
+                if (currentSteps + 1 + Math.abs(target.getX() - nextX)
+                        + Math.abs(target.getZ() - nextZ) > maxRouteSteps) {
+                    stepLimited = true;
+                    continue;
+                }
+                // Placement widens each route cell across its outgoing direction,
+                // so a turn also sweeps the current cell's row on the new axis.
+                if (direction.getAxis() != current.incomingDirection().getAxis()
+                        && !isTurnRowClear(level, current.x(), current.z(), direction, roads, pathWidth)) {
+                    continue;
+                }
 
                 SurfaceSample nextSurface = surfaceCache.get(nextX, nextZ);
                 if (nextSurface == null || !isCorridorRowTraversable(level, nextSurface,
@@ -555,7 +613,7 @@ public final class VillageRoadPathGenerator {
         } else if (visited >= MAX_VISITED_NODES) {
             outcome = RouteOutcome.VISITED_CAP;
         } else if (stepLimited) {
-            outcome = RouteOutcome.STEP_LIMIT;
+            outcome = RouteOutcome.EXHAUSTED_WITH_STEP_PRUNING;
         } else {
             outcome = RouteOutcome.BLOCKED;
         }
@@ -634,6 +692,19 @@ public final class VillageRoadPathGenerator {
             if (sample == null
                     || Math.abs(sample.pos().getY() - center.pos().getY()) > 1
                     || !isUsablePathSurface(sample.state())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isTurnRowClear(ServerLevel level, int x, int z, Direction newDirection,
+                                   PreparedVillageRoads roads, int pathWidth) {
+        int firstWidthOffset = -(pathWidth / 2);
+        for (int width = firstWidthOffset; width < firstWidthOffset + pathWidth; width++) {
+            int rowX = newDirection.getAxis() == Direction.Axis.X ? x : x + width;
+            int rowZ = newDirection.getAxis() == Direction.Axis.X ? z + width : z;
+            if (!level.hasChunk(rowX >> 4, rowZ >> 4) || roads.isInsideBuilding(rowX, rowZ)) {
                 return false;
             }
         }
@@ -767,8 +838,8 @@ public final class VillageRoadPathGenerator {
         }
     }
 
-    private boolean ensureSearchChunksLoaded(ServerLevel level, BlockPos start, BlockPos target,
-                                             ChunkLoadBudget budget, int pathWidth) {
+    private boolean searchChunksLoaded(ServerLevel level, BlockPos start, BlockPos target,
+                                       int pathWidth) {
         int minX = Math.min(start.getX(), target.getX()) - SEARCH_MARGIN - pathWidth;
         int maxX = Math.max(start.getX(), target.getX()) + SEARCH_MARGIN + pathWidth;
         int minZ = Math.min(start.getZ(), target.getZ()) - SEARCH_MARGIN - pathWidth;
@@ -776,7 +847,7 @@ public final class VillageRoadPathGenerator {
 
         for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
             for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
-                if (!budget.ensureLoaded(level, chunkX, chunkZ)) {
+                if (!level.hasChunk(chunkX, chunkZ)) {
                     return false;
                 }
             }
@@ -930,8 +1001,7 @@ public final class VillageRoadPathGenerator {
             return sample;
         }
 
-        private void clear() {
-            samples.clear();
+        private void forgetUnavailableColumns() {
             invalidColumns.clear();
         }
     }
@@ -947,7 +1017,7 @@ public final class VillageRoadPathGenerator {
     }
 
     private enum RouteOutcome {
-        FOUND, START_UNAVAILABLE, VISITED_CAP, STEP_LIMIT,
+        FOUND, START_UNAVAILABLE, VISITED_CAP, EXHAUSTED_WITH_STEP_PRUNING,
         BLOCKED, RECONSTRUCT_FAILED
     }
 

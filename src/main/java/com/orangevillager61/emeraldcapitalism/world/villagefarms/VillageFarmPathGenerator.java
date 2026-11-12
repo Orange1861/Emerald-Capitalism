@@ -9,6 +9,8 @@ import net.minecraft.world.level.levelgen.structure.StructurePiece;
 
 import javax.annotation.Nullable;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /** Connects placed outskirt farms to the village's actual street network. */
@@ -39,46 +41,67 @@ public final class VillageFarmPathGenerator {
         }
     }
 
-    /** Plans a farm connector for the shared pipeline without mutating the world. */
+    /**
+     * Plans a farm connector for the shared pipeline without mutating the world.
+     * The edge facing the village is tried first. Farms are often cut into a
+     * slope or sit beside water, so the remaining edges are tried in order of
+     * their distance to the village before the farm is left unconnected.
+     */
     @Nullable
     public VillageRoadPathGenerator.PlannedPath planPath(
             ServerLevel level, PlacedFarmInfo farm, BlockPos villageCenter,
             List<StructurePiece> pieces, String biomeType,
             VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
             ChunkLoadBudget loadBudget) {
-        FarmEntrance entrance = findFarmEntrance(farm, villageCenter);
-        return roadPathGenerator.planFarmConnection(level, entrance.start(), villageCenter,
-                pieces, biomeType, entrance.direction(), preparedRoads, loadBudget);
+        List<FarmEntrance> entrances = farmEntrances(farm, villageCenter);
+        // Every edge shares one planning deadline; once it passes, the remaining
+        // edges are skipped so one farm stays within a single path's tick budget.
+        long deadline = VillageRoadPathGenerator.newPlanningDeadline();
+        for (int i = 0; i < entrances.size(); i++) {
+            if (i > 0 && System.nanoTime() > deadline) {
+                break;
+            }
+            FarmEntrance entrance = entrances.get(i);
+            VillageRoadPathGenerator.PlannedPath path = roadPathGenerator.planFarmConnection(
+                    level, entrance.start(), villageCenter, pieces, biomeType,
+                    entrance.direction(), preparedRoads, loadBudget, false, deadline);
+            if (path != null) {
+                return path;
+            }
+        }
+        EmeraldCapitalism.LOGGER.warn(
+                "[ECAP] Could not plan a complete farm path from {} to a reachable village street",
+                entrances.getFirst().start());
+        return null;
     }
 
-    /** Returns the first block outside the farm edge that faces the village. */
-    private FarmEntrance findFarmEntrance(PlacedFarmInfo farm, BlockPos villageCenter) {
+    /** Edge midpoints just outside the farm, ordered by distance to the village center. */
+    static List<FarmEntrance> farmEntrances(PlacedFarmInfo farm, BlockPos villageCenter) {
         int minX = farm.originX();
         int minZ = farm.originZ();
         int maxXExclusive = minX + farm.footprintX();
         int maxZExclusive = minZ + farm.footprintZ();
         int midX = minX + farm.footprintX() / 2;
         int midZ = minZ + farm.footprintZ() / 2;
+        int y = farm.placementY();
 
-        int dx = villageCenter.getX() - midX;
-        int dz = villageCenter.getZ() - midZ;
-        if (Math.abs(dx) > Math.abs(dz)) {
-            if (dx > 0) {
-                return new FarmEntrance(
-                        new BlockPos(maxXExclusive, farm.placementY(), midZ), Direction.EAST);
-            }
-            return new FarmEntrance(
-                    new BlockPos(minX - 1, farm.placementY(), midZ), Direction.WEST);
-        }
-
-        if (dz > 0) {
-            return new FarmEntrance(
-                    new BlockPos(midX, farm.placementY(), maxZExclusive), Direction.SOUTH);
-        }
-        return new FarmEntrance(
-                new BlockPos(midX, farm.placementY(), minZ - 1), Direction.NORTH);
+        List<FarmEntrance> entrances = new ArrayList<>(4);
+        entrances.add(new FarmEntrance(new BlockPos(maxXExclusive, y, midZ), Direction.EAST));
+        entrances.add(new FarmEntrance(new BlockPos(minX - 1, y, midZ), Direction.WEST));
+        entrances.add(new FarmEntrance(new BlockPos(midX, y, maxZExclusive), Direction.SOUTH));
+        entrances.add(new FarmEntrance(new BlockPos(midX, y, minZ - 1), Direction.NORTH));
+        // Stable sort: equal distances keep the fixed edge order above.
+        entrances.sort(Comparator.comparingLong(entrance -> horizontalDistanceSq(
+                entrance.start(), villageCenter)));
+        return entrances;
     }
 
-    private record FarmEntrance(BlockPos start, Direction direction) {
+    private static long horizontalDistanceSq(BlockPos from, BlockPos to) {
+        long dx = (long) to.getX() - from.getX();
+        long dz = (long) to.getZ() - from.getZ();
+        return dx * dx + dz * dz;
+    }
+
+    record FarmEntrance(BlockPos start, Direction direction) {
     }
 }
