@@ -98,6 +98,8 @@
         "core/src/test/java/com/orangevillager61/emeraldcapitalism/villager/HungerStateTest.java"
       ],
       "gameTests": [
+        "scenariorunnergametests.mixedvillagekeepsvanillaworkmeetrestpanicandtrade",
+        "scenariorunnergametests.scenariocommandsareregisteredonlyoutsideproduction",
         "mixinauditinvariantgametests.villagerinventoryhaseighteenslots",
         "mixinauditinvariantgametests.villagerbreedingusescustomhungerthreshold",
         "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",

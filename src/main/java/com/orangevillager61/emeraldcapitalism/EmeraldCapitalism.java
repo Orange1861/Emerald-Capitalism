@@ -3,8 +3,8 @@ package com.orangevillager61.emeraldcapitalism;
 import com.orangevillager61.emeraldcapitalism.command.VillageCommand;
 import com.orangevillager61.emeraldcapitalism.command.VillageLocateCommand;
 import com.orangevillager61.emeraldcapitalism.command.AbandonedVaultLocateCommand;
-import com.orangevillager61.emeraldcapitalism.command.StateReloadScenarioCommand;
 import com.orangevillager61.emeraldcapitalism.command.SteveGraveLocateCommand;
+import com.orangevillager61.emeraldcapitalism.scenario.ScenarioCommand;
 import com.orangevillager61.emeraldcapitalism.event.EmeraldGolemEvents;
 import com.orangevillager61.emeraldcapitalism.event.SteveGraveEvents;
 import com.orangevillager61.emeraldcapitalism.event.VillageDetectionHandler;
@@ -38,6 +38,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.common.NeoForge;
 //? if >=1.21.4 {
@@ -137,6 +138,6 @@ public class EmeraldCapitalism {
         VillageLocateCommand.register(event.getDispatcher());
         AbandonedVaultLocateCommand.register(event.getDispatcher());
         SteveGraveLocateCommand.register(event.getDispatcher());
-        StateReloadScenarioCommand.register(event.getDispatcher());
+        ScenarioCommand.register(event.getDispatcher(), FMLEnvironment.production);
     }
 }

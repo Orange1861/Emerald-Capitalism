@@ -29,8 +29,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Temporary Phase 3 manual scenario; Phase 6 migrates it to the common scenario runner.
- * It builds a disposable farmer job and reports lease state without changing it.
+ * Temporary Phase 3 manual scenario. It builds a disposable farmer job and reports lease state
+ * without changing it. {@code ScenarioCommand} registers it under {@code /ecapscenario} in
+ * development runs only; it moves onto {@code ScenarioRunner} when the farmer migrates (step 9).
  */
 @EventBusSubscriber(modid = EmeraldCapitalism.MODID)
 public final class StateReloadScenarioCommand {

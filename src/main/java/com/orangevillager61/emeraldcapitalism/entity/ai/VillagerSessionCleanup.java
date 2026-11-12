@@ -5,6 +5,7 @@ import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttac
 import com.orangevillager61.emeraldcapitalism.behavior.VillagerBehaviorRegistry;
 import com.orangevillager61.emeraldcapitalism.block.entity.BankBlockEntity;
 import com.orangevillager61.emeraldcapitalism.command.StateReloadScenarioCommand;
+import com.orangevillager61.emeraldcapitalism.scenario.ScenarioRunner;
 import com.orangevillager61.emeraldcapitalism.event.VillageRegistryEvents;
 import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
 import com.orangevillager61.emeraldcapitalism.util.VillagerBreedingSessions;
@@ -92,6 +93,7 @@ public final class VillagerSessionCleanup {
         // run afterward and their now-stale handles cannot add ABANDONED.
         VillagerBehaviorRegistry.clearBindings();
         StateReloadScenarioCommand.clearWatch();
+        ScenarioRunner.clearActive();
         VillagerSpawnEvents.clearParentAssignmentRetries();
     }
 

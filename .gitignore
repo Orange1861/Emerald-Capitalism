@@ -103,6 +103,7 @@ config/emeraldcapitalism-common-1.toml.bak
 !docs/qa/navigation/phase-2-ownership-ledger.md
 !docs/qa/navigation/phase-2-ownership-review.md
 !docs/qa/navigation/phase-3-state-ledger.md
+!docs/qa/navigation/step-1-scenario-runner.md
 !Books needed to write.md
 /config
 *.gz
