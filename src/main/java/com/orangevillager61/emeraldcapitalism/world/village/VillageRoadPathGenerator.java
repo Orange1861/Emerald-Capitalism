@@ -999,7 +999,7 @@ public final class VillageRoadPathGenerator {
             return null;
         }
         SurfaceSample sample = surfaceCache.get(x, z);
-        if (sample == null || !isUsablePathSurface(sample.state())
+        if (sample == null || !isUsablePathSurface(sample.state()) || isConnectorSurface(sample.state())
                 || Math.abs(sample.pos().getY() - targetY) > MAX_RAMP_EARTHWORK) {
             return null;
         }
@@ -1148,7 +1148,7 @@ public final class VillageRoadPathGenerator {
             return null;
         }
         SurfaceSample sample = surfaceCache.get(x, z);
-        if (sample == null || sample.pos().getY() > deckY) {
+        if (sample == null || sample.pos().getY() > deckY || isConnectorSurface(sample.state())) {
             return null;
         }
         FluidState fluid = sample.state().getFluidState();
@@ -1274,7 +1274,8 @@ public final class VillageRoadPathGenerator {
                 // Fixed entrance rows are intentionally retained in the plan:
                 // bank placement grades and clears that apron after this plan is
                 // created, so those road blocks must be restored afterward.
-                if (!fixedEntranceRow && isStreetSurface(sample.state().getBlock())) {
+                if (!fixedEntranceRow && (isStreetSurface(sample.state().getBlock())
+                        || isConnectorSurface(sample.state()))) {
                     continue;
                 }
 
@@ -1536,9 +1537,21 @@ public final class VillageRoadPathGenerator {
         return null;
     }
 
+    /**
+     * Stairs, slabs and bridge decks from an earlier connector. A later route may
+     * walk over them, but never repaves, grades or bridges them.
+     */
+    private static boolean isConnectorSurface(BlockState state) {
+        Block block = state.getBlock();
+        return VillagePathBlocks.isPathStep(block) || VillageBridgeBlocks.isDeck(block);
+    }
+
     private boolean isUsablePathSurface(BlockState state) {
         if (!state.getFluidState().isEmpty()) {
             return false;
+        }
+        if (isConnectorSurface(state)) {
+            return true;
         }
         Block block = state.getBlock();
         return isStreetSurface(block)

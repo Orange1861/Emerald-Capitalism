@@ -94,6 +94,18 @@ public final class VillageRoadFeatureGameTests {
             assertBlock(helper, CHANNEL_MIN_X + 1, WATER_Y, ROUTE_Z, Blocks.WATER,
                     "water under the deck");
 
+            // A later connector walks over the existing stairs and deck and never repaves them.
+            VillageRoadPathGenerator.PlannedPath second = generator.planLumbermillConnection(level,
+                    helper.absolutePos(new BlockPos(1, LOW_SURFACE_Y + 1, ROUTE_Z)),
+                    helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
+                    List.of(), "PLAINS", Direction.EAST, roads, null);
+            helper.assertTrue(second != null, "a second connector could not cross the first one's stairs and deck");
+            for (BlockPos cell : second.reservedSurfaceCells()) {
+                BlockState state = level.getBlockState(cell);
+                helper.assertTrue(!state.is(ECAPBlocks.DIRT_PATH_STAIRS.get()) && !state.is(Blocks.OAK_PLANKS),
+                        "second connector would repave " + state + " at " + cell);
+            }
+
         } catch (RuntimeException exception) {
             releaseChunks(level, forcedChunks);
             throw exception;

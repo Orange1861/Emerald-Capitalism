@@ -24,6 +24,13 @@ public record VillageBridgeBlocks(BlockState deck, BlockState post, BlockState r
         return forBiome(biomeType);
     }
 
+    /** Whether a block is a deck block of any village bridge palette. */
+    public static boolean isDeck(net.minecraft.world.level.block.Block block) {
+        return block == Blocks.OAK_PLANKS || block == Blocks.BIRCH_PLANKS
+                || block == Blocks.ACACIA_PLANKS || block == Blocks.SPRUCE_PLANKS
+                || block == Blocks.SMOOTH_SANDSTONE;
+    }
+
     public static VillageBridgeBlocks forBiome(String biomeType) {
         return switch (biomeType == null ? "" : biomeType) {
             case "DESERT" -> new VillageBridgeBlocks(Blocks.SMOOTH_SANDSTONE.defaultBlockState(),

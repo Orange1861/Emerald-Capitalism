@@ -61,6 +61,15 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
         return forBiome(fallbackBiomeType);
     }
 
+    /** Whether a block is a stair or slab that a generated connector path places. */
+    public static boolean isPathStep(Block block) {
+        return block == ECAPBlocks.DIRT_PATH_STAIRS.get() || block == ECAPBlocks.DIRT_PATH_SLAB.get()
+                || block == Blocks.SANDSTONE_STAIRS || block == Blocks.SANDSTONE_SLAB
+                || block == Blocks.RED_SANDSTONE_STAIRS || block == Blocks.RED_SANDSTONE_SLAB
+                || block == Blocks.COBBLESTONE_STAIRS || block == Blocks.COBBLESTONE_SLAB
+                || block == Blocks.MOSSY_COBBLESTONE_STAIRS || block == Blocks.MOSSY_COBBLESTONE_SLAB;
+    }
+
     private static VillagePathBlocks dirtPath() {
         return new VillagePathBlocks(Blocks.DIRT_PATH, Blocks.COBBLESTONE, false, Blocks.DIRT,
                 ECAPBlocks.DIRT_PATH_STAIRS.get(), ECAPBlocks.DIRT_PATH_SLAB.get());
