@@ -26,7 +26,7 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
 
     public static VillagePathBlocks forBiome(String biomeType) {
         return switch (biomeType == null ? "" : biomeType) {
-            case "DESERT" -> sand();
+            case "DESERT" -> desert();
             default -> dirtPath();
         };
     }
@@ -36,13 +36,10 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
      * generated connector matches that street instead of guessing from biome.
      */
     public static VillagePathBlocks matchingStreet(Block streetSurface, String fallbackBiomeType) {
-        if (streetSurface == Blocks.SMOOTH_SANDSTONE) {
-            // Desert village streets.
-            return new VillagePathBlocks(Blocks.SMOOTH_SANDSTONE, Blocks.SANDSTONE, false,
-                    Blocks.SANDSTONE, Blocks.SMOOTH_SANDSTONE_STAIRS, Blocks.SMOOTH_SANDSTONE_SLAB);
-        }
-        if (streetSurface == Blocks.SAND) {
-            return sand();
+        if (streetSurface == Blocks.SMOOTH_SANDSTONE || streetSurface == Blocks.SAND) {
+            // Desert streets are smooth sandstone; a street piece also covers plain
+            // sand beside it, which must not turn the connector into sand.
+            return desert();
         }
         if (streetSurface == Blocks.RED_SAND) {
             return new VillagePathBlocks(Blocks.RED_SAND, Blocks.RED_SANDSTONE, true,
@@ -81,9 +78,10 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
                 ECAPBlocks.DIRT_PATH_STAIRS.get(), ECAPBlocks.DIRT_PATH_SLAB.get());
     }
 
-    private static VillagePathBlocks sand() {
-        return new VillagePathBlocks(Blocks.SAND, Blocks.SANDSTONE, true,
-                Blocks.SANDSTONE, Blocks.SANDSTONE_STAIRS, Blocks.SANDSTONE_SLAB);
+    /** Desert connectors are paved like desert village streets, never with sand. */
+    private static VillagePathBlocks desert() {
+        return new VillagePathBlocks(Blocks.SMOOTH_SANDSTONE, Blocks.SANDSTONE, false,
+                Blocks.SANDSTONE, Blocks.SMOOTH_SANDSTONE_STAIRS, Blocks.SMOOTH_SANDSTONE_SLAB);
     }
 
     /**

@@ -249,6 +249,33 @@ public final class VillageRoadFeatureGameTests {
         }
     }
 
+    @GameTest(template = "empty_20x3x20", batch = "ecap_road_features")
+    public static void desertConnectorToSandStreetIsStillSmoothSandstone(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<int[]> forcedChunks = forceChunks(level, helper.absolutePos(BlockPos.ZERO));
+        try {
+            // A desert street piece also covers plain sand; joining there must not pave with sand.
+            buildTerrain(helper, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE,
+                    Blocks.SAND.defaultBlockState(), Blocks.SAND.defaultBlockState());
+            VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
+            VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
+                    BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0)),
+                            helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19))));
+            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(VillageTerrain.live(level),
+                    helper.absolutePos(new BlockPos(1, HIGH_SURFACE_Y, ROUTE_Z)),
+                    helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
+                    List.of(), "DESERT", Direction.EAST, roads, null);
+            helper.assertTrue(path != null, "desert connector to a sand street was not planned");
+            generator.place(level, path);
+            for (int x = 2; x <= STREET_MIN_X - 2; x++) {
+                assertBlock(helper, x, HIGH_SURFACE_Y, ROUTE_Z, Blocks.SMOOTH_SANDSTONE, "desert connector paving");
+            }
+            helper.succeed();
+        } finally {
+            releaseChunks(level, forcedChunks);
+        }
+    }
+
     private static void buildTerrain(GameTestHelper helper, int cliffX, int channelMinX, int channelMaxX) {
         buildTerrain(helper, cliffX, channelMinX, channelMaxX, Blocks.GRASS_BLOCK.defaultBlockState(),
                 Blocks.DIRT_PATH.defaultBlockState());
