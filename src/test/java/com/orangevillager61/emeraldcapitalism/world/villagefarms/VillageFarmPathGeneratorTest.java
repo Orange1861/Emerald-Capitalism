@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VillageFarmPathGeneratorTest {
 
@@ -14,23 +15,39 @@ class VillageFarmPathGeneratorTest {
     private static final PlacedFarmInfo FARM = new PlacedFarmInfo(100, 200, 64, 13, 9, 4);
 
     @Test
-    void offersEveryEdgeJustOutsideTheFootprint() {
+    void offersEntrancesEveryThreeBlocksJustOutsideEachEdge() {
         List<VillageFarmPathGenerator.FarmEntrance> entrances =
                 VillageFarmPathGenerator.farmEntrances(FARM, new BlockPos(106, 64, 300));
 
-        assertEquals(4, entrances.size());
+        // Three positions per edge: the midpoint and three blocks either side,
+        // never at a corner column.
+        assertEquals(12, entrances.size());
         assertEquals(new BlockPos(106, 64, 209), entrances.get(0).start());
         assertEquals(Direction.SOUTH, entrances.get(0).direction());
-        assertEquals(new BlockPos(106, 64, 199), entrances.get(3).start());
-        assertEquals(Direction.NORTH, entrances.get(3).direction());
+        for (VillageFarmPathGenerator.FarmEntrance entrance : entrances) {
+            BlockPos start = entrance.start();
+            switch (entrance.direction()) {
+                case EAST -> assertEquals(113, start.getX());
+                case WEST -> assertEquals(99, start.getX());
+                case SOUTH -> assertEquals(209, start.getZ());
+                case NORTH -> assertEquals(199, start.getZ());
+                default -> throw new AssertionError("vertical entrance " + entrance);
+            }
+            assertTrue(start.getX() >= 99 && start.getX() <= 113 && start.getZ() >= 199 && start.getZ() <= 209);
+            assertTrue(!(start.getX() == 99 || start.getX() == 113) || (start.getZ() > 200 && start.getZ() < 208),
+                    "east and west entrances stay off the corner columns: " + start);
+        }
+        assertTrue(entrances.stream().anyMatch(entrance -> entrance.start().equals(new BlockPos(103, 64, 199))));
+        assertTrue(entrances.stream().anyMatch(entrance -> entrance.start().equals(new BlockPos(113, 64, 207))));
     }
 
     @Test
-    void ordersEdgesByDistanceToTheVillage() {
+    void ordersEntrancesByDistanceToTheVillage() {
         List<Direction> order = VillageFarmPathGenerator.farmEntrances(FARM, new BlockPos(40, 64, 230))
                 .stream().map(VillageFarmPathGenerator.FarmEntrance::direction).toList();
 
-        assertEquals(List.of(Direction.WEST, Direction.SOUTH, Direction.NORTH, Direction.EAST), order);
+        assertEquals(Direction.WEST, order.getFirst());
+        assertEquals(Direction.EAST, order.getLast());
     }
 
     @Test
@@ -39,6 +56,7 @@ class VillageFarmPathGeneratorTest {
         List<Direction> order = VillageFarmPathGenerator.farmEntrances(square, new BlockPos(4, 64, 4))
                 .stream().map(VillageFarmPathGenerator.FarmEntrance::direction).toList();
 
-        assertEquals(List.of(Direction.EAST, Direction.WEST, Direction.SOUTH, Direction.NORTH), order);
+        assertEquals(List.of(Direction.EAST, Direction.WEST, Direction.SOUTH, Direction.NORTH),
+                order.subList(0, 4));
     }
 }

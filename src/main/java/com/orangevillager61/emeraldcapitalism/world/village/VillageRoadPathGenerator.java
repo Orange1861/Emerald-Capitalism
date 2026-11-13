@@ -39,7 +39,7 @@ public final class VillageRoadPathGenerator {
     private static final ConnectionProfile BANK_PROFILE =
             new ConnectionProfile("Bank", 4, 4, 128, 160);
     private static final ConnectionProfile FARM_PROFILE =
-            new ConnectionProfile("Farm", 3, 0, 64, 96);
+            new ConnectionProfile("Farm", 3, 0, 96, 144);
     private static final ConnectionProfile LIBRARY_PROFILE =
             new ConnectionProfile("Library", 3, 3, 96, 144);
     private static final ConnectionProfile LUMBERMILL_PROFILE =
@@ -190,6 +190,22 @@ public final class VillageRoadPathGenerator {
                 planningDeadline);
     }
 
+    /**
+     * Plans a farm connector from whichever of several entrances reaches a street
+     * first. One search starts from every entrance at once, so an edge that faces
+     * water, a slope or a house cannot use up the planning time of the others.
+     */
+    @Nullable
+    public PlannedPath planFarmConnection(ServerLevel level, List<ConnectionEntrance> entrances,
+                                          BlockPos pathTargetHint,
+                                          List<StructurePiece> villagePieces,
+                                          String biomeType,
+                                          PreparedVillageRoads preparedRoads,
+                                          ChunkLoadBudget sharedLoadBudget) {
+        return planConnection(level, entrances, pathTargetHint, villagePieces, biomeType,
+                FARM_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
+    }
+
     /** Plans a compact library connector using the same bounded street search as farms. */
     @Nullable
     public PlannedPath planLibraryConnection(ServerLevel level, BlockPos pathStart,
@@ -309,9 +325,27 @@ public final class VillageRoadPathGenerator {
                                        @Nullable ChunkLoadBudget sharedLoadBudget,
                                        boolean warnOnFailure,
                                        long planningDeadline) {
-        if (!entranceDirection.getAxis().isHorizontal()) {
+        return planConnection(level, List.of(new ConnectionEntrance(pathStart, entranceDirection)),
+                pathTargetHint, villagePieces, biomeType, profile, preparedRoads, sharedLoadBudget,
+                warnOnFailure, planningDeadline);
+    }
+
+    @Nullable
+    private PlannedPath planConnection(ServerLevel level, List<ConnectionEntrance> entrances,
+                                       BlockPos pathTargetHint,
+                                       List<StructurePiece> villagePieces,
+                                       String biomeType,
+                                       ConnectionProfile profile,
+                                       @Nullable PreparedVillageRoads preparedRoads,
+                                       @Nullable ChunkLoadBudget sharedLoadBudget,
+                                       boolean warnOnFailure,
+                                       long planningDeadline) {
+        if (entrances.isEmpty()) {
             return null;
         }
+        // The first entrance names the connection in logs and anchors target ranking.
+        BlockPos pathStart = entrances.getFirst().pathStart();
+        Direction entranceDirection = entrances.getFirst().direction();
 
         PreparedVillageRoads roads = preparedRoads != null
                 ? preparedRoads
@@ -328,17 +362,27 @@ public final class VillageRoadPathGenerator {
             return null;
         }
 
-        List<BlockPos> entrancePrefix = profile.fixedEntranceRows() > 0
-                ? buildEntrancePrefix(level, pathStart, entranceDirection, profile.fixedEntranceRows())
-                : buildSurfaceEntrance(level, pathStart);
-        if (entrancePrefix.isEmpty()) {
+        List<StartOption> startOptions = new ArrayList<>(entrances.size());
+        for (ConnectionEntrance entrance : entrances) {
+            if (!entrance.direction().getAxis().isHorizontal()) {
+                continue;
+            }
+            List<BlockPos> prefix = profile.fixedEntranceRows() > 0
+                    ? buildEntrancePrefix(level, entrance.pathStart(), entrance.direction(),
+                    profile.fixedEntranceRows())
+                    : buildSurfaceEntrance(level, entrance.pathStart());
+            if (!prefix.isEmpty()) {
+                startOptions.add(new StartOption(entrance, prefix));
+            }
+        }
+        if (startOptions.isEmpty()) {
             logPlanningFailure(warnOnFailure,
                     "[ECAP] {} path entrance chunk is unavailable at {}",
                     profile.connectionType(), pathStart);
             return null;
         }
 
-        BlockPos searchStart = entrancePrefix.get(entrancePrefix.size() - 1);
+        BlockPos searchStart = startOptions.getFirst().searchStart();
         int targetAttempts = Math.min(MAX_TARGET_ATTEMPTS, streetTargets.size());
         long planningStarted = System.nanoTime();
         long deadline = planningDeadline == NO_DEADLINE
@@ -352,15 +396,19 @@ public final class VillageRoadPathGenerator {
         List<StreetTarget> candidates = new ArrayList<>(targetAttempts);
         for (int targetIndex = 0; targetIndex < targetAttempts; targetIndex++) {
             StreetTarget streetTarget = streetTargets.get(targetIndex);
-            if (manhattan(searchStart, streetTarget.pos()) > profile.maxRouteSteps()) {
+            int nearestStart = Integer.MAX_VALUE;
+            for (StartOption option : startOptions) {
+                nearestStart = Math.min(nearestStart, manhattan(option.searchStart(), streetTarget.pos()));
+            }
+            if (nearestStart > profile.maxRouteSteps()) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "BEYOND_STEP_BUDGET");
                 continue;
             }
             // Never load chunks here: a blocking load during route search stalls
             // the server tick. Every world read in the search and placement plan
             // checks hasChunk first, so unloaded columns are simply impassable;
-            // only the two endpoints must be loaded.
-            if (!endpointChunksLoaded(level, searchStart, streetTarget.pos())) {
+            // only the endpoints must be loaded, and every start option already is.
+            if (!endpointChunksLoaded(level, streetTarget.pos(), streetTarget.pos())) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "CHUNK_UNAVAILABLE");
                 continue;
             }
@@ -379,7 +427,12 @@ public final class VillageRoadPathGenerator {
                         + candidates.size() + " targets left");
                 break;
             }
-            RouteSearch search = findRoute(level, searchStart, candidates, entranceDirection,
+            List<RouteKey> startKeys = new ArrayList<>(startOptions.size());
+            for (StartOption option : startOptions) {
+                startKeys.add(new RouteKey(option.searchStart().getX(), option.searchStart().getZ(),
+                        option.entrance().direction()));
+            }
+            RouteSearch search = findRoute(level, startKeys, candidates,
                     roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps(),
                     searchIndex == 0 ? Math.max(deadline, searchStarted + MAX_SEARCH_NANOS) : deadline);
             List<RouteCell> route = search.route();
@@ -395,8 +448,14 @@ public final class VillageRoadPathGenerator {
                 break;
             }
 
-            List<RouteCell> completeRoute = new ArrayList<>(entrancePrefix.size() + route.size());
-            for (BlockPos prefixCell : entrancePrefix) {
+            BlockPos routeStart = route.getFirst().pos();
+            StartOption chosen = startOptions.stream()
+                    .filter(option -> option.searchStart().getX() == routeStart.getX()
+                            && option.searchStart().getZ() == routeStart.getZ())
+                    .findFirst()
+                    .orElse(startOptions.getFirst());
+            List<RouteCell> completeRoute = new ArrayList<>(chosen.prefix().size() + route.size());
+            for (BlockPos prefixCell : chosen.prefix()) {
                 completeRoute.add(new RouteCell(prefixCell, CellKind.PATH));
             }
             completeRoute.addAll(route.subList(1, route.size()));
@@ -404,7 +463,7 @@ public final class VillageRoadPathGenerator {
                     streetTarget.surfaceBlock(), biomeType);
             PlacementPlan placementPlan = createPlacementPlan(
                     level, completeRoute, search.features(), profile.fixedEntranceRows(),
-                    entranceDirection, roads, surfaceCache, profile.pathWidth(), pathBlocks,
+                    chosen.entrance().direction(), roads, surfaceCache, profile.pathWidth(), pathBlocks,
                     placementRejection);
             if (placementPlan == null) {
                 appendDiagnostic(diagnostics, searchIndex, streetTarget,
@@ -416,13 +475,13 @@ public final class VillageRoadPathGenerator {
             if (diagnostics != null) {
                 EmeraldCapitalism.LOGGER.info(
                         "[ECAP][RoadDiag] {} path from {} planned in {} ms after {} search(es)",
-                        profile.connectionType().toLowerCase(Locale.ROOT), pathStart,
+                        profile.connectionType().toLowerCase(Locale.ROOT), chosen.entrance().pathStart(),
                         (System.nanoTime() - planningStarted) / 1_000_000L, searchIndex + 1);
             }
             return new PlannedPath(List.copyOf(placementPlan.cells()),
                     List.copyOf(placementPlan.decorations()), pathBlocks,
                     roads.bridgeBlocks(biomeType), profile.connectionType(), profile.pathWidth(),
-                    pathStart, streetTarget.pos());
+                    chosen.entrance().pathStart(), streetTarget.pos());
         }
 
         if (warnOnFailure) {
@@ -595,17 +654,23 @@ public final class VillageRoadPathGenerator {
      * The heuristic is the Manhattan distance to the nearest target, which stays
      * admissible because every step costs at least ten per column.
      */
-    private RouteSearch findRoute(ServerLevel level, BlockPos start, List<StreetTarget> targets,
-                                  Direction startDirection, PreparedVillageRoads roads,
+    private RouteSearch findRoute(ServerLevel level, List<RouteKey> startKeys, List<StreetTarget> targets,
+                                  PreparedVillageRoads roads,
                                   SurfaceCache surfaceCache, int pathWidth,
                                   int maxRouteSteps, long searchDeadline) {
         Map<Long, StreetTarget> targetsByColumn = new HashMap<>();
         int[] targetXs = new int[targets.size()];
         int[] targetZs = new int[targets.size()];
-        int minX = start.getX();
-        int maxX = start.getX();
-        int minZ = start.getZ();
-        int maxZ = start.getZ();
+        int minX = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        for (RouteKey startKey : startKeys) {
+            minX = Math.min(minX, startKey.x());
+            maxX = Math.max(maxX, startKey.x());
+            minZ = Math.min(minZ, startKey.z());
+            maxZ = Math.max(maxZ, startKey.z());
+        }
         for (int index = 0; index < targets.size(); index++) {
             BlockPos target = targets.get(index).pos();
             targetsByColumn.putIfAbsent(columnKey(target.getX(), target.getZ()), targets.get(index));
@@ -621,7 +686,6 @@ public final class VillageRoadPathGenerator {
         minZ -= SEARCH_MARGIN;
         maxZ += SEARCH_MARGIN;
 
-        RouteKey startKey = new RouteKey(start.getX(), start.getZ(), startDirection);
         PriorityQueue<OpenRouteNode> open = new PriorityQueue<>(
                 Comparator.comparingInt(OpenRouteNode::estimatedTotalCost)
                         .thenComparingInt(node -> node.key().x())
@@ -636,10 +700,12 @@ public final class VillageRoadPathGenerator {
         SearchBounds bounds = new SearchBounds(minX, maxX, minZ, maxZ);
         Set<RouteKey> closed = new HashSet<>();
 
-        costs.put(startKey, 0);
-        steps.put(startKey, 0);
-        open.add(new OpenRouteNode(startKey,
-                nearestTargetDistance(startKey.x(), startKey.z(), targetXs, targetZs) * 10));
+        for (RouteKey startKey : startKeys) {
+            costs.put(startKey, 0);
+            steps.put(startKey, 0);
+            open.add(new OpenRouteNode(startKey,
+                    nearestTargetDistance(startKey.x(), startKey.z(), targetXs, targetZs) * 10));
+        }
 
         int visited = 0;
         boolean stepLimited = false;
@@ -1703,6 +1769,17 @@ public final class VillageRoadPathGenerator {
     private enum DecorationKind { STAIR, SLAB, POST, RAIL }
 
     private record RouteCell(BlockPos pos, CellKind kind) {
+    }
+
+    /** One place a connector may leave its building, and the direction it leaves in. */
+    public record ConnectionEntrance(BlockPos pathStart, Direction direction) {
+    }
+
+    /** An entrance with its fixed approach rows; the search starts at the last row. */
+    private record StartOption(ConnectionEntrance entrance, List<BlockPos> prefix) {
+        private BlockPos searchStart() {
+            return prefix.getLast();
+        }
     }
 
     /**
