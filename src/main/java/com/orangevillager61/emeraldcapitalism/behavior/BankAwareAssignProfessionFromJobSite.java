@@ -30,7 +30,11 @@ public final class BankAwareAssignProfessionFromJobSite implements BehaviorContr
         if (!atBankerWorkSide(level, villager)) {
             return false;
         }
-        return delegate.tryStart(level, villager, gameTime);
+        boolean assigned = delegate.tryStart(level, villager, gameTime);
+        if (assigned) {
+            BankerSchedule.apply(villager);
+        }
+        return assigned;
     }
 
     @Override

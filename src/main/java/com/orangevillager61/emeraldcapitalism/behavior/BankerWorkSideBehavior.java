@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.schedule.Activity;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.Nonnull;
@@ -30,6 +31,9 @@ import java.util.Map;
  * {@code WALK_TARGET} regardless of priority and would pull the banker off the work side. Any
  * other writer (panic, boats, wanted items, trading) simply holds the walk target while it
  * runs; this behavior waits and walks back afterwards.
+ *
+ * <p>Hours: the banker's schedule ({@link BankerSchedule}) keeps the WORK activity through the bell
+ * hours, so the banker works at the bell time and follows vanilla's schedule otherwise.
  */
 public final class BankerWorkSideBehavior extends Behavior<Villager> {
 
@@ -82,7 +86,9 @@ public final class BankerWorkSideBehavior extends Behavior<Villager> {
 
     @Override
     protected boolean canStillUse(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
-        if (failed || bank == null || !isEligible(villager)) {
+        // The Brain does not stop a running behavior when its activity ends (panic, raid, rest),
+        // so the behavior ends itself; see the activity rules in the navigation plan.
+        if (failed || bank == null || !isEligible(villager) || !villager.getBrain().isActive(Activity.WORK)) {
             return false;
         }
         if (gameTime >= nextValidationTick) {

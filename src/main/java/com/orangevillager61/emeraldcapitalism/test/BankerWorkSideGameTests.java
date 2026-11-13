@@ -45,7 +45,7 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public final class BankerWorkSideGameTests {
 
-    private static final long WORK_DAY_TIME = 2_500L;
+    static final long WORK_DAY_TIME = 2_500L;
     private static final int ARRIVAL_LIMIT_TICKS = 500;
     private static final int HOLD_TICKS = 400;
 
@@ -53,7 +53,7 @@ public final class BankerWorkSideGameTests {
     }
 
     /** A bank registered to its own village, and the banker employed there. */
-    private record Site(BankBlockEntity bank, BlockPos bankPos, BlockPos workPos, Villager banker) {
+    record Site(BankBlockEntity bank, BlockPos bankPos, BlockPos workPos, Villager banker) {
     }
 
     /** Natural AI: one banker walks to the work side and stays through the work day. */
@@ -253,6 +253,8 @@ public final class BankerWorkSideGameTests {
         Site site = site(helper, new BlockPos(10, 1, 10), new BlockPos(3, 1, 3), 0, 19);
         Villager villager = site.banker();
         villager.setNoAi(true);
+        // The behavior ends itself outside the WORK activity (the Brain does not stop it).
+        villager.getBrain().setActiveActivityIfPossible(net.minecraft.world.entity.schedule.Activity.WORK);
         Behavior<Villager> behavior = new BankerWorkSideBehavior();
         long now = level.getGameTime();
 
@@ -327,7 +329,7 @@ public final class BankerWorkSideGameTests {
         }
     }
 
-    private static Site site(GameTestHelper helper, BlockPos bankLocal, BlockPos bankerLocal,
+    static Site site(GameTestHelper helper, BlockPos bankLocal, BlockPos bankerLocal,
                              int minX, int maxX) {
         placeBank(helper, bankLocal);
         ServerLevel level = helper.getLevel();
@@ -340,7 +342,7 @@ public final class BankerWorkSideGameTests {
     }
 
     /** Fixture setup only: the village, its bank, and an employed banker with an ordinary Brain. */
-    private static Site employ(GameTestHelper helper, BankBlockEntity bank, BlockPos bankPos,
+    static Site employ(GameTestHelper helper, BankBlockEntity bank, BlockPos bankPos,
                                BlockPos bankerLocal, int minX, int maxX) {
         ServerLevel level = helper.getLevel();
         UUID villageId = UUID.randomUUID();
@@ -370,7 +372,7 @@ public final class BankerWorkSideGameTests {
         return new Site(bank, bankPos, workPos, banker);
     }
 
-    private static void placeBank(GameTestHelper helper, BlockPos bankLocal) {
+    static void placeBank(GameTestHelper helper, BlockPos bankLocal) {
         helper.setBlock(bankLocal, ECAPBlocks.BANK.get().defaultBlockState()
                 .setValue(BankBlock.FACING, Direction.EAST));
     }
@@ -386,7 +388,7 @@ public final class BankerWorkSideGameTests {
                 .filter(entry -> entry.getSecond().getClass().getSimpleName().equals(simpleName)).count();
     }
 
-    private static void installFloor(GameTestHelper helper) {
+    static void installFloor(GameTestHelper helper) {
         for (int x = 0; x < 20; x++) {
             for (int z = 0; z < 20; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());

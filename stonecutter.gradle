@@ -312,9 +312,11 @@ tasks.register('verifyNavigationArchitecture') {
         }
         Map<String, List<String>> requiredFrozenDecisions = [
                 'mayor-door-repair-activity': ['WORK', 'villageId + MAYOR + mayor UUID + door position + task generation'],
-                'mayor-governor-follow-activity': ['IDLE', 'villageId + MAYOR + mayor UUID + candidate UUID + session generation'],
+                'mayor-governor-follow-activity': ['IDLE, MEET and WORK', 'villageId + MAYOR + mayor UUID + candidate UUID + session generation'],
                 'avoidance-safety-activity': ['CORE', 'villager UUID + hazard identity + safety generation'],
-                'begging-social-session': ['WORK', 'beggar UUID + donor UUID + session generation'],
+                'begging-social-session': ['IDLE, MEET and WORK', 'beggar UUID + donor UUID + session generation'],
+                'banker-work-activity': ['WORK, through the bell hours by BankerSchedule', 'villager UUID + bank identity'],
+                'mod-behavior-activity-bound': ['a mod behavior ends itself when its activity ends', 'behavior instance per villager Brain'],
                 'lumberjack-shared-furnace-pool': ['WORK', 'villageId + LUMBERJACK + furnace identity + owner UUID + generation'],
                 'farmer-pumpkin-work-cell-pipeline': ['WORK', 'villageId + FARMER + work-cell identity + attached pumpkin position + owner UUID + task generation'],
                 'farmer-assignment-excludes-bank-employees': ['bank employees are ineligible', 'villageId + FARMER + eligible non-bank-employee villager UUID + work-cell lease generation'],

@@ -873,6 +873,48 @@ an override such as panic or raid. Activities do not stack by priority.
 - Step 4 (Phase 13) chooses the exact placement for governor following and
   begging and freezes it before steps 8 and 12 begin.
 
+### Activity placement rules (frozen by step 4)
+
+Step 4 (Phase 13) froze these rules on 2026-11-13. Steps 8, 12, and later job migrations
+implement them; none may reopen them without amending this section.
+
+1. **A mod behavior ends itself when its activity ends.** The Brain does not stop a running
+   behavior when the active activity changes (panic, raid, rest): it only stops starting behaviors
+   from inactive activities. Every mod behavior in a non-CORE activity checks that its activity is
+   still active in `canStillUse`. Found on the banker in step 4 and covered by the panic, raid, and
+   rest tests.
+2. **A mod job holds the WORK slot by replacing vanilla's movers.** Vanilla's WORK-package job-site
+   gate (`StrollAroundPoi`, `StrollToPoi`) writes `WALK_TARGET` regardless of priority, so no mod
+   behavior can hold a position against it. For a profession whose job owns positioning, the package
+   composition removes that gate (the second `RunOne`) and keeps `WorkAtPoi`; the mod behavior runs
+   at priority 1 and starts only while `WALK_TARGET` is absent. Any other writer (panic, boat,
+   wanted item, trading) holds the walk target while it runs; the mod job waits, yields if its own
+   target is replaced, and walks back afterwards. First applied to the banker, then the lumberjack.
+3. **Mod jobs resume by reacquiring.** A work behavior keeps no task state across a stop. On the
+   next start it re-resolves its bank, tree, or crop and publishes a fresh target. Persistent
+   claims follow the claim contract of Phase 11, not the behavior instance.
+4. **Hours.** A profession's schedule is vanilla's unless a decision below changes it. The banker
+   works through the bell hours (9000 to 11000) because `BankerSchedule` replaces MEET with WORK
+   for it; work, idle, and rest hours are vanilla's. The schedule is applied by a 20-tick
+   reconcile in `VillagerSpawnEvents.onVillagerTick` and at profession assignment, so it needs no
+   new mixin.
+5. **Begging** is placed in IDLE, MEET, and WORK, at priority 5, starting only while `WALK_TARGET`
+   is absent. It is not in REST, PANIC, RAID, or PLAY, so vanilla safety and sleep win without
+   arbitration. Step 8 adds the IDLE and MEET placements (today it is WORK only) and stops other
+   behavior from resetting its countdown.
+6. **Governor-candidate following** is placed in IDLE, MEET, and WORK, at priority 1, gated on a
+   valid contest session. It republishes its tracker target from its tick, which runs after
+   vanilla's start phase, so a vanilla stroll write is overwritten in the same Brain tick before
+   movement acts on it. Vanilla writes at most once per 80 to 180 ticks, so at most one
+   single-tick replan results. Step 12 proves this with a natural test. The Phase 2 placement in
+   IDLE alone is withdrawn.
+7. **Inventory-bank visits compete with lumberjack work.** `VillagerInventoryBankGoal` stays
+   legacy until step 13. A visit starts only at a lumberjack stage boundary (see "Furnace items
+   and claim stages"); step 13 moves it onto these rules.
+8. **Safety wins structurally.** CORE safety behaviors (boat, plague, hostile flee) run in every
+   activity. PANIC, RAID, and REST contain no mod work, so vanilla's activity choice decides, and
+   rule 1 makes mod work stop.
+
 ### Regression baseline entries that are not pathing
 
 `malformedbankstatefailsloudly` and

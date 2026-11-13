@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.behavior.BankerSchedule;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFamilyUtils;
@@ -163,6 +164,7 @@ public class VillagerSpawnEvents {
         // assignment uses Minecraft's loaded entity sections for nearby lookup.
         if (villager.tickCount % 20 == 0) {
             VillageRegistryEvents.refreshFarmerRoster(villager);
+            BankerSchedule.apply(villager);
         }
 
         if (!villager.isBaby()) {
