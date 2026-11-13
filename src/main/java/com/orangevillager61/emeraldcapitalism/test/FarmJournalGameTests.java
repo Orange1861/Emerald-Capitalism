@@ -115,8 +115,17 @@ public final class FarmJournalGameTests {
         resetTerrain(helper, site);
         VillageFarmSavedData journal = new VillageFarmSavedData();
 
+        Map<String, Integer> untouched = blockCounts(level, site);
+        boolean[] durableBeforeBlocks = {false};
         JournaledFarmTask first = JournaledFarmTask.begin(journal, site.center(), List.of(site.placement()),
-                site.placement(), newTask(level, site));
+                site.placement(), newTask(level, site), () -> {
+                    // The journal is complete and no block has changed yet: this is the moment it
+                    // is written to disk in production.
+                    durableBeforeBlocks[0] = blockCounts(level, site).equals(untouched)
+                            && journal.farmsToPlace(site.center()).equals(List.of(site.placement()));
+                });
+        helper.assertTrue(durableBeforeBlocks[0],
+                "the journal was not complete and the terrain untouched when it was made durable");
         for (int step = 0; step < 6; step++) {
             first.processStep();
         }
@@ -131,7 +140,7 @@ public final class FarmJournalGameTests {
                 "the pending farm did not survive a save and reload");
 
         JournaledFarmTask replay = JournaledFarmTask.begin(restored, site.center(), restored.farmsToPlace(site.center()),
-                restored.farmsToPlace(site.center()).get(0), newTask(level, site));
+                restored.farmsToPlace(site.center()).get(0), newTask(level, site), () -> { });
         int steps = 0;
         while (!replay.processStep() && ++steps < MAX_STEPS) {
             // Runs to completion.
@@ -160,7 +169,7 @@ public final class FarmJournalGameTests {
             helper.assertFalse(journal.hasFarmJournal(site.center()) && journal.farmsResolved(site.center()),
                     "the farm was already resolved before attempt " + attempt);
             JournaledFarmTask task = JournaledFarmTask.begin(journal, site.center(), List.of(unplaceable), unplaceable,
-                    placer.createPlacementTask(level, unplaceable, "PLAINS", new ChunkLoadBudget(), cache));
+                    placer.createPlacementTask(level, unplaceable, "PLAINS", new ChunkLoadBudget(), cache), () -> { });
             int steps = 0;
             while (!task.processStep() && ++steps < MAX_STEPS) {
                 // Runs to its failure.

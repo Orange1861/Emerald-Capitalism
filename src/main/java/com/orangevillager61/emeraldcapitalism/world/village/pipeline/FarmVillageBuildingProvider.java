@@ -10,6 +10,7 @@ import com.orangevillager61.emeraldcapitalism.world.villagefarms.PlacedFarmInfo;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmPathGenerator;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmPlacer;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.JournaledFarmTask;
+import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSavedData;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSiteSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -168,9 +169,11 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         }
 
         private JournaledFarmTask journaledTask(VillageGenerationContext context) {
-            return JournaledFarmTask.begin(context.farmSavedData(), villageCenter, plannedSet, placement,
+            VillageFarmSavedData farms = context.farmSavedData();
+            return JournaledFarmTask.begin(farms, villageCenter, plannedSet, placement,
                     placer.createPlacementTask(context.level(), placement, context.biomeType(),
-                            context.chunkLoadBudget(), spatialCache));
+                            context.chunkLoadBudget(), spatialCache),
+                    () -> farms.flushNow(context.level()));
         }
 
         @Override

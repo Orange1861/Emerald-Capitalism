@@ -38,9 +38,14 @@ Agent review recorded here is a self-review.
 
 Not done, and why:
 
-- A hard crash between a chunk being saved and the saved data being written can still lose the
-  journal entry. Saved data and chunks flush together on the normal save, so the window is small;
-  closing it would need a forced save per farm, which costs more than the risk.
+- The crash window between a chunk save and the saved-data write is closed for the journal
+  entry: `VillageFarmSavedData.flushNow` writes the farm data file (temporary file, then an atomic
+  move) after the journal entry exists and before the first block of the farm changes, once per farm.
+  A completed farm is deliberately not flushed: a durable "done" ahead of the chunk save would lose
+  the farm instead. The remaining case is the other direction: a crash after a farm finished but
+  before the next normal save replays that farm at its site, which rebuilds the same farm and
+  would discard player edits made to it in that interval. Two writers to the data file at once (the
+  normal async save and this flush) are not coordinated; each writes a complete valid file.
 - The bank, library, and lumbermill staged placements are not journaled.
 - The water-containment pass runs once at the end of a pipeline run. A farm placed in an earlier
   run that was interrupted before that pass does not get it on the retry.
@@ -51,6 +56,7 @@ Not done, and why:
 | --- | --- | --- |
 | Decide between reverting the incremental placement and making it resumable. | Made resumable: replaying the same site from scratch yields the same farm. | PASS |
 | Never mark farms complete when a required placement failed. | `failedFarmPlacementIsRetriedThenGivenUp`; `VillageFarmJournalTest` (attempt limit, pending until done). | PASS (automated) |
+| Journal entry durable before the first block changes. | `flushNow` runs between journaling and the first step; `interruptedFarmStaysPendingInTheJournalUntilItsReplayCompletes` checks the journal is complete and the terrain untouched at that moment; `VillageFarmJournalTest` checks the file is what the data storage reads (compressed `data` tag plus `DataVersion`), leaves no temp file, and a second flush replaces it. | PASS (automated); a real crash was not simulated |
 | Make every mutating phase idempotent or provide rollback. | `interruptedFarmPlacementReplaysToTheSameFarmAtEveryStep`: stops a real placement after every step (0 to 17), replays the same site, and compares the block counts of the farm and its margin with an uninterrupted run. Every phase of the run was interrupted. | PASS (automated) |
 | Interruption tests at every mutating phase, including save and reload and forced failure. | The test above; `interruptedFarmStaysPendingInTheJournalUntilItsReplayCompletes` (journal saved, loaded, replayed); `failedFarmPlacementIsRetriedThenGivenUp` (forced failure). | PASS (automated) |
 | Measure the worst single-tick cost of template placement. | Logged by the interruption test: `PLACE_TEMPLATE` worst step about 6 ms for `plains_small_farm_1` on this PC, 1.21.1 and 1.21.4 (other phases under 1.3 ms). Larger farms were not measured. | PASS for the small farm |

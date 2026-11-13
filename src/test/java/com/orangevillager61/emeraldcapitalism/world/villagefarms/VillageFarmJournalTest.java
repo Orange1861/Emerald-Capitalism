@@ -7,7 +7,14 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.SharedConstants;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import java.util.List;
 
@@ -18,6 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class VillageFarmJournalTest {
 
     private static final BlockPos CENTER = new BlockPos(100, 64, -200);
+
+    @BeforeAll
+    static void detectVersion() {
+        // The data version written into a flushed file comes from the detected game version.
+        SharedConstants.tryDetectVersion();
+    }
 
     private static FarmPlacement farm(int x, int z) {
         return new FarmPlacement(new BlockPos(x, 64, z), ResourceLocation.parse("minecraft:farm"),
@@ -157,5 +170,41 @@ class VillageFarmJournalTest {
         oversizedFootprint.put("placement", footprintTag);
         assertTrue(FarmJournalEntry.CODEC.parse(NbtOps.INSTANCE, oversizedFootprint).error().isPresent(),
                 "an absurd footprint must not decode");
+    }
+
+    @Test
+    void aFlushedJournalIsAFileTheLoaderReadsAndLeavesNoTempFile(@TempDir Path folder) throws Exception {
+        VillageFarmSavedData data = new VillageFarmSavedData();
+        FarmPlacement first = farm(0, 0);
+        data.recordPlannedFarms(CENTER, List.of(first));
+        data.beginFarmPlacement(CENTER, first);
+        Path file = folder.resolve("data").resolve("emeraldcapitalism_village_farms.dat");
+
+        data.flushTo(file, null);
+
+        assertTrue(Files.isRegularFile(file));
+        assertFalse(Files.exists(file.resolveSibling(file.getFileName() + ".journal-tmp")),
+                "the temporary file must be moved into place");
+        CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
+        assertTrue(root.contains("DataVersion"), "the file must carry the data version the loader expects");
+        VillageFarmSavedData loaded = VillageFarmSavedData.load(root.getCompound("data"), null);
+        assertEquals(List.of(first), loaded.farmsToPlace(CENTER));
+        assertTrue(data.isDirty(), "the normal save must still rewrite the data");
+    }
+
+    @Test
+    void aSecondFlushReplacesTheFileWithTheNewerJournal(@TempDir Path folder) throws Exception {
+        VillageFarmSavedData data = new VillageFarmSavedData();
+        FarmPlacement first = farm(0, 0);
+        data.recordPlannedFarms(CENTER, List.of(first));
+        Path file = folder.resolve("farms.dat");
+        data.flushTo(file, null);
+        data.beginFarmPlacement(CENTER, first);
+        data.completeFarmPlacement(CENTER, first);
+        data.flushTo(file, null);
+
+        VillageFarmSavedData loaded = VillageFarmSavedData.load(
+                NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap()).getCompound("data"), null);
+        assertTrue(loaded.farmsResolved(CENTER));
     }
 }

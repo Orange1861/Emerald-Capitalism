@@ -7,11 +7,18 @@ import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -166,6 +173,42 @@ public class VillageFarmSavedData extends SavedData {
             setDirty();
         }
         return false;
+    }
+
+    /**
+     * Writes this data to the overworld's data file now. A farm's journal entry must be on disk
+     * before the farm's first block is written: chunks can be saved on unload, ahead of the next
+     * saved-data write, and a crash in between would leave part-built terrain and no journal.
+     * Only the journal-creating call needs this. A completed farm is deliberately not flushed,
+     * because a durable "done" ahead of the chunk save would lose the farm instead.
+     */
+    public void flushNow(ServerLevel level) {
+        Path file = level.getServer().getWorldPath(LevelResource.ROOT).resolve("data").resolve(DATA_NAME + ".dat");
+        flushTo(file, level.registryAccess());
+    }
+
+    /**
+     * Writes {@code file} in the format the data storage reads: a compressed {@code data} tag with
+     * the data version. The file is written beside it and moved into place, so a crash during the
+     * write leaves the previous file intact. This data stays dirty for the normal save.
+     */
+    public void flushTo(Path file, HolderLookup.Provider registries) {
+        Path temp = file.resolveSibling(file.getFileName() + ".journal-tmp");
+        try {
+            Files.createDirectories(file.getParent());
+            CompoundTag root = new CompoundTag();
+            root.put("data", save(new CompoundTag(), registries));
+            NbtUtils.addCurrentDataVersion(root);
+            NbtIo.writeCompressed(root, temp);
+            try {
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException | RuntimeException exception) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP] Could not flush the village farm journal to {}: {}",
+                    file, exception.toString());
+        }
     }
 
     /** Whether a farm set was planned for this village and is not yet resolved. */

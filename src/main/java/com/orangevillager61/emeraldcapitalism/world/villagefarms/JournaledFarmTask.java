@@ -28,12 +28,17 @@ public final class JournaledFarmTask implements VillageBuildingPlacementTask {
         this.placement = placement;
     }
 
-    /** Journals the planned set and this attempt, then wraps {@code task}. Call before any block is written. */
+    /**
+     * Journals the planned set and this attempt, runs {@code makeDurable} to put the journal on
+     * disk, then wraps {@code task}. Call before any block is written; the returned task writes
+     * its first block only on its first step, after the journal is durable.
+     */
     public static JournaledFarmTask begin(VillageFarmSavedData farms, BlockPos villageCenter,
                                           List<FarmPlacement> plannedSet, FarmPlacement placement,
-                                          VillageFarmPlacer.FarmPlacementTask task) {
+                                          VillageFarmPlacer.FarmPlacementTask task, Runnable makeDurable) {
         farms.recordPlannedFarms(villageCenter, plannedSet);
         farms.beginFarmPlacement(villageCenter, placement);
+        makeDurable.run();
         return new JournaledFarmTask(task, farms, villageCenter, placement);
     }
 
