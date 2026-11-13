@@ -9,6 +9,7 @@ import com.orangevillager61.emeraldcapitalism.world.villagefarms.FarmPlacement;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.PlacedFarmInfo;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmPathGenerator;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmPlacer;
+import com.orangevillager61.emeraldcapitalism.world.villagefarms.JournaledFarmTask;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSiteSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -37,12 +38,16 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         }
 
         VillageFarmSiteSelector.VillageSpatialCache cache = context.spatialCacheWithReservations();
+        BlockPos center = context.structureCenter();
+        if (context.farmSavedData().hasFarmJournal(center)) {
+            return replayJournaledFarms(context, center, cache);
+        }
         List<FarmPlacement> sites = context.farmSiteSelector().findSites(
                 context.level(), context.structureCenter(), context.biomeType(),
                 context.villageBox(), context.pieces(), context.chunkLoadBudget(), cache);
         List<PlannedFarm> result = new ArrayList<>(sites.size());
         for (FarmPlacement site : sites) {
-            result.add(new PlannedFarm(site, cache));
+            result.add(new PlannedFarm(site, sites, center, cache));
         }
         return result;
     }
@@ -57,6 +62,13 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         if (!Config.outskirtFarmsEnabled.get()
                 || context.farmSavedData().areFarmsPlaced(context.structureCenter())) {
             return VillageBuildingPlanningTask.completed(List.of());
+        }
+        if (context.farmSavedData().hasFarmJournal(context.structureCenter())) {
+            // An earlier run planned this village's farms and did not finish them. Replay those
+            // exact sites: terrain may already be part-modified there, and a fresh site search
+            // would pick somewhere else and leave the scar behind.
+            return VillageBuildingPlanningTask.completed(replayJournaledFarms(
+                    context, context.structureCenter(), context.spatialCacheWithReservations()));
         }
         VillageFarmSiteSelector selector = context.farmSiteSelector();
         VillageFarmSiteSelector.SiteSearch search = selector.prepareSiteSearch(
@@ -74,10 +86,27 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
                     villageBox, pieces, cache);
             List<PlannedFarm> planned = new ArrayList<>(sites.size());
             for (FarmPlacement site : sites) {
-                planned.add(new PlannedFarm(site, cache));
+                planned.add(new PlannedFarm(site, sites, center, cache));
             }
             return planned;
         });
+    }
+
+    /** The journaled farms that still need placing, at their original sites. */
+    private List<PlannedFarm> replayJournaledFarms(
+            VillageGenerationContext context, BlockPos center,
+            VillageFarmSiteSelector.VillageSpatialCache cache) {
+        List<FarmPlacement> pending = context.farmSavedData().farmsToPlace(center);
+        List<PlannedFarm> planned = new ArrayList<>(pending.size());
+        for (FarmPlacement site : pending) {
+            planned.add(new PlannedFarm(site, pending, center, cache));
+        }
+        if (!pending.isEmpty()) {
+            EmeraldCapitalism.LOGGER.info(
+                    "[ECAP] Retrying {} unfinished farm(s) for village {} at their saved sites",
+                    pending.size(), center);
+        }
+        return planned;
     }
 
     @Override
@@ -100,13 +129,18 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
 
     private final class PlannedFarm implements PlannedVillageBuilding {
         private final FarmPlacement placement;
+        /** Every site planned together with this one; journaled before the first placement. */
+        private final List<FarmPlacement> plannedSet;
+        private final BlockPos villageCenter;
         private final VillageFarmSiteSelector.VillageSpatialCache spatialCache;
         private PlacedFarmInfo placed;
         private VillageFarmPlacer.FarmPlacementTask placementTask;
 
-        private PlannedFarm(FarmPlacement placement,
+        private PlannedFarm(FarmPlacement placement, List<FarmPlacement> plannedSet, BlockPos villageCenter,
                             VillageFarmSiteSelector.VillageSpatialCache spatialCache) {
             this.placement = placement;
+            this.plannedSet = List.copyOf(plannedSet);
+            this.villageCenter = villageCenter;
             this.spatialCache = spatialCache;
         }
 
@@ -124,16 +158,26 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
 
         @Override
         public boolean place(VillageGenerationContext context) {
-            placed = placer.place(context.level(), placement, context.biomeType(),
-                    context.chunkLoadBudget(), spatialCache);
+            JournaledFarmTask task = journaledTask(context);
+            while (!task.processStep()) {
+                // Synchronous callers run the same journaled steps without yielding.
+            }
+            placementTask = task.placement();
+            placed = placementTask.result();
             return placed != null;
+        }
+
+        private JournaledFarmTask journaledTask(VillageGenerationContext context) {
+            return JournaledFarmTask.begin(context.farmSavedData(), villageCenter, plannedSet, placement,
+                    placer.createPlacementTask(context.level(), placement, context.biomeType(),
+                            context.chunkLoadBudget(), spatialCache));
         }
 
         @Override
         public VillageBuildingPlacementTask startPlacement(VillageGenerationContext context) {
-            placementTask = placer.createPlacementTask(context.level(), placement,
-                    context.biomeType(), context.chunkLoadBudget(), spatialCache);
-            return placementTask;
+            JournaledFarmTask task = journaledTask(context);
+            placementTask = task.placement();
+            return task;
         }
 
         @Override

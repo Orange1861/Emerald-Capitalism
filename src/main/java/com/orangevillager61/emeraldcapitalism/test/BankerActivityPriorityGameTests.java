@@ -65,7 +65,7 @@ public final class BankerActivityPriorityGameTests {
     }
 
     /** Natural AI: through the bell hours the banker stays and works instead of walking to the bell. */
-    @GameTest(template = "empty_20x3x20", batch = "ecap_banker_activity", timeoutTicks = 1_400)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_banker_activity_bell", timeoutTicks = 1_400)
     public static void bankerHoldsTheWorkSideThroughTheBellHours(GameTestHelper helper) {
         Run run = new Run(helper, BELL_TIME);
         BankerWorkSideGameTests.installFloor(helper);
@@ -165,7 +165,7 @@ public final class BankerActivityPriorityGameTests {
     }
 
     /** Natural AI: at rest hours the banker's work behavior ends and leaves nothing behind. */
-    @GameTest(template = "empty_20x3x20", batch = "ecap_banker_activity", timeoutTicks = 1_400)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_banker_activity_rest", timeoutTicks = 1_400)
     public static void restHoursStopTheBankerWork(GameTestHelper helper) {
         Run run = new Run(helper, BankerWorkSideGameTests.WORK_DAY_TIME);
         BankerWorkSideGameTests.installFloor(helper);

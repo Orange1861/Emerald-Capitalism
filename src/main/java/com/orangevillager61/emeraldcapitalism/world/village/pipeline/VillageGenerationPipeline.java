@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
 import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrainSnapshot;
+import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSavedData;
 import java.util.concurrent.CompletableFuture;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
@@ -481,7 +482,22 @@ public final class VillageGenerationPipeline {
 
         private boolean finalizeTask() {
             context.releaseChunks();
-            context.farmSavedData().markFarmsPlaced(context.structureCenter());
+            VillageFarmSavedData farms = context.farmSavedData();
+            if (farms.farmsResolved(context.structureCenter())) {
+                int givenUp = farms.unfinishedFarmCount(context.structureCenter());
+                if (givenUp > 0) {
+                    EmeraldCapitalism.LOGGER.warn(
+                            "[ECAP] Giving up on {} farm(s) of village {} after {} attempts each",
+                            givenUp, context.villageId(), VillageFarmSavedData.MAX_PLACEMENT_ATTEMPTS);
+                }
+                farms.markFarmsPlaced(context.structureCenter());
+            } else {
+                // A farm failed or was interrupted. Leaving the village unmarked lets the next
+                // detection pass retry just those farms from the journal.
+                EmeraldCapitalism.LOGGER.warn(
+                        "[ECAP] {} farm(s) of village {} are unfinished; they will be retried",
+                        farms.unfinishedFarmCount(context.structureCenter()), context.villageId());
+            }
             context.registryData().setDirty();
             context.markPipelineCompletedSuccessfully();
             completion.accept(context);

@@ -19,11 +19,15 @@
       "id": "persistence-village",
       "boundary": "Village registry and manager links round-trip, isolate missing/corrupt optional fields, and mark durable mutations dirty.",
       "unitTests": [
+        "src/test/java/com/orangevillager61/emeraldcapitalism/world/villagefarms/VillageFarmJournalTest.java",
         "src/test/java/com/orangevillager61/emeraldcapitalism/world/village/VillageRegistryDataCodecTest.java",
         "src/test/java/com/orangevillager61/emeraldcapitalism/world/village/VillageRelationshipTest.java",
         "src/test/java/com/orangevillager61/emeraldcapitalism/world/village/VillageOwnershipSettingsTest.java"
       ],
       "gameTests": [
+        "farmjournalgametests.interruptedfarmplacementreplaystothesamefarmateverystep",
+        "farmjournalgametests.interruptedfarmstayspendinginthejournaluntilitsreplaycompletes",
+        "farmjournalgametests.failedfarmplacementisretriedthengivenup",
         "villagemanagerpersistencegametests.linkedmanagersurvivesrealblockentitysavereload",
         "villagemanagerpersistencegametests.malformedormissinglinksdefaultwithoutcrashing",
         "villagemanagerpersistencegametests.durablelinkandunlinkmutationsmarkchunkchanged",

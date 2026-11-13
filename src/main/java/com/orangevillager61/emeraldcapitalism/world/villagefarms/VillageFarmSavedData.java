@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,6 +30,18 @@ public class VillageFarmSavedData extends SavedData {
 
     private static final String DATA_NAME = "emeraldcapitalism_village_farms";
     static final int MAX_PERSISTED_VILLAGE_POSITIONS = 65_536;
+    /** A farm whose placement started this many times without finishing is given up on. */
+    public static final int MAX_PLACEMENT_ATTEMPTS = 3;
+    static final int MAX_JOURNAL_FARMS_PER_VILLAGE = 64;
+
+    /** One village's farm journal as persisted. */
+    record JournalVillage(BlockPos center, List<FarmJournalEntry> farms) {
+        static final Codec<JournalVillage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                BlockPos.CODEC.fieldOf("center").forGetter(JournalVillage::center),
+                FarmJournalEntry.CODEC.sizeLimitedListOf(MAX_JOURNAL_FARMS_PER_VILLAGE)
+                        .fieldOf("farms").forGetter(JournalVillage::farms)
+        ).apply(instance, JournalVillage::new));
+    }
 
     /** Codec for the two durable village-position sets. */
     public static final Codec<VillageFarmSavedData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -37,22 +50,35 @@ public class VillageFarmSavedData extends SavedData {
                     .forGetter(data -> new ArrayList<>(data.detectedVillages)),
             BlockPos.CODEC.sizeLimitedListOf(MAX_PERSISTED_VILLAGE_POSITIONS)
                     .optionalFieldOf("farms_placed_villages", List.of())
-                    .forGetter(data -> new ArrayList<>(data.farmsPlacedVillages))
+                    .forGetter(data -> new ArrayList<>(data.farmsPlacedVillages)),
+            JournalVillage.CODEC.sizeLimitedListOf(MAX_PERSISTED_VILLAGE_POSITIONS)
+                    .optionalFieldOf("farm_journal", List.of())
+                    .forGetter(data -> data.farmJournal.entrySet().stream()
+                            .map(entry -> new JournalVillage(entry.getKey(), entry.getValue())).toList())
     ).apply(instance, VillageFarmSavedData::fromCodec));
 
     private final Set<BlockPos> detectedVillages = ConcurrentHashMap.newKeySet();
     private final Set<BlockPos> farmsPlacedVillages = ConcurrentHashMap.newKeySet();
+    /** Planned farms of villages whose farm set is not yet resolved; values are replaced, never mutated. */
+    private final Map<BlockPos, List<FarmJournalEntry>> farmJournal = new ConcurrentHashMap<>();
 
     public VillageFarmSavedData() {
     }
 
     private static VillageFarmSavedData fromCodec(
             List<BlockPos> detectedVillages,
-            List<BlockPos> farmsPlacedVillages
+            List<BlockPos> farmsPlacedVillages,
+            List<JournalVillage> journal
     ) {
         VillageFarmSavedData data = new VillageFarmSavedData();
         data.detectedVillages.addAll(detectedVillages);
         data.farmsPlacedVillages.addAll(farmsPlacedVillages);
+        for (JournalVillage village : journal) {
+            // A village whose farms are already marked placed has no use for a journal.
+            if (!village.farms().isEmpty() && !data.farmsPlacedVillages.contains(village.center())) {
+                data.farmJournal.put(village.center(), List.copyOf(village.farms()));
+            }
+        }
         return data;
     }
 
@@ -131,11 +157,88 @@ public class VillageFarmSavedData extends SavedData {
      * Returns true if this is a new marking.
      */
     public boolean markFarmsPlaced(BlockPos center) {
+        boolean journalCleared = farmJournal.remove(center) != null;
         if (farmsPlacedVillages.add(center)) {
             setDirty();
             return true;
         }
+        if (journalCleared) {
+            setDirty();
+        }
         return false;
+    }
+
+    /** Whether a farm set was planned for this village and is not yet resolved. */
+    public boolean hasFarmJournal(BlockPos center) {
+        return farmJournal.containsKey(center);
+    }
+
+    /** The planned farms that still need placing: not done, with attempts remaining. */
+    public List<FarmPlacement> farmsToPlace(BlockPos center) {
+        return farmJournal.getOrDefault(center, List.of()).stream()
+                .filter(FarmJournalEntry::pending)
+                .map(FarmJournalEntry::placement)
+                .toList();
+    }
+
+    /**
+     * Saves the planned farm set before any farm is placed. Ignored when the village already
+     * has a journal, so a retry replays the original sites instead of selecting new ones.
+     */
+    public void recordPlannedFarms(BlockPos center, List<FarmPlacement> placements) {
+        if (placements.isEmpty() || farmsPlacedVillages.contains(center) || farmJournal.containsKey(center)) {
+            return;
+        }
+        List<FarmJournalEntry> entries = placements.stream()
+                .limit(MAX_JOURNAL_FARMS_PER_VILLAGE)
+                .map(placement -> new FarmJournalEntry(placement, 0, false))
+                .toList();
+        if (farmJournal.putIfAbsent(center, entries) == null) {
+            setDirty();
+        }
+    }
+
+    /** Counts one more attempt for {@code placement}; call before its first block is written. */
+    public void beginFarmPlacement(BlockPos center, FarmPlacement placement) {
+        updateEntry(center, placement, FarmJournalEntry::begun);
+    }
+
+    /** Records that {@code placement} completed. */
+    public void completeFarmPlacement(BlockPos center, FarmPlacement placement) {
+        updateEntry(center, placement, FarmJournalEntry::completed);
+    }
+
+    /**
+     * Whether the village's farm set needs no further placement: it has no journal, or every farm
+     * is either done or out of attempts. Only then may the village be marked as having its farms.
+     */
+    public boolean farmsResolved(BlockPos center) {
+        List<FarmJournalEntry> entries = farmJournal.get(center);
+        return entries == null || entries.stream().noneMatch(FarmJournalEntry::pending);
+    }
+
+    /** How many journaled farms of the village are not done. */
+    public int unfinishedFarmCount(BlockPos center) {
+        return (int) farmJournal.getOrDefault(center, List.of()).stream()
+                .filter(entry -> !entry.done()).count();
+    }
+
+    private void updateEntry(BlockPos center, FarmPlacement placement,
+                             java.util.function.UnaryOperator<FarmJournalEntry> change) {
+        farmJournal.computeIfPresent(center, (key, entries) -> {
+            List<FarmJournalEntry> updated = new ArrayList<>(entries.size());
+            boolean changed = false;
+            for (FarmJournalEntry entry : entries) {
+                if (entry.placement().equals(placement)) {
+                    updated.add(change.apply(entry));
+                    changed = true;
+                } else {
+                    updated.add(entry);
+                }
+            }
+            return changed ? List.copyOf(updated) : entries;
+        });
+        setDirty();
     }
 
     /**

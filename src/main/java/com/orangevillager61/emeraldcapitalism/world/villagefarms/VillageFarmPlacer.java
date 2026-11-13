@@ -218,6 +218,11 @@ public class VillageFarmPlacer {
             return result;
         }
 
+        /** The current phase name, for tests that interrupt the task at every phase. */
+        public String phaseName() {
+            return phase.name();
+        }
+
         private boolean validate() {
             Optional<StructureTemplate> templateOpt = level.getStructureManager()
                     .get(placement.templateLocation());

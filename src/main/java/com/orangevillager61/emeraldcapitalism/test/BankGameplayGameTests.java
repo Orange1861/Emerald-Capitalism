@@ -742,7 +742,7 @@ public final class BankGameplayGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20")
+    @GameTest(template = "empty_20x3x20", batch = "ecap_bank_daily_delivery_time")
     public static void generatedVillagerInitialEmeraldsGoStraightToBank(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BankBlockEntity bank = setupMarketBank(helper, Items.BREAD, 0);
