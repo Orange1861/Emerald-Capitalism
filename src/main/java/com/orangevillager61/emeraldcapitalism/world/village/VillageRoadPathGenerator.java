@@ -1346,7 +1346,8 @@ public final class VillageRoadPathGenerator {
                 // Fixed entrance rows are intentionally retained in the plan:
                 // bank placement grades and clears that apron after this plan is
                 // created, so those road blocks must be restored afterward.
-                if (!fixedEntranceRow && (isStreetSurface(sample.state().getBlock())
+                if (!fixedEntranceRow && (roads.streetByColumn().containsKey(columnKey(x, z))
+                        || isPavedStreetSurface(sample.state().getBlock())
                         || isConnectorSurface(sample.state()))) {
                     continue;
                 }
@@ -1640,11 +1641,25 @@ public final class VillageRoadPathGenerator {
                 || block == Blocks.ANDESITE
                 || block == Blocks.DIORITE
                 || block == Blocks.GRANITE
-                || block == Blocks.TUFF;
+                || block == Blocks.TUFF
+                || block == Blocks.SANDSTONE
+                || block == Blocks.RED_SANDSTONE;
+    }
+
+    /**
+     * Street blocks that only roads use. Natural sand and gravel can be street
+     * surface inside a street piece, but elsewhere they are terrain to pave.
+     */
+    private static boolean isPavedStreetSurface(Block block) {
+        return block == Blocks.DIRT_PATH
+                || block == Blocks.SMOOTH_SANDSTONE
+                || block == Blocks.COBBLESTONE
+                || block == Blocks.MOSSY_COBBLESTONE;
     }
 
     private boolean isStreetSurface(Block block) {
         return block == Blocks.DIRT_PATH
+                || block == Blocks.SMOOTH_SANDSTONE
                 || block == Blocks.GRAVEL
                 || block == Blocks.SAND
                 || block == Blocks.RED_SAND
@@ -1653,7 +1668,8 @@ public final class VillageRoadPathGenerator {
     }
 
     private int streetSurfacePenalty(Block block) {
-        if (block == Blocks.DIRT_PATH || block == Blocks.SAND || block == Blocks.RED_SAND) {
+        if (block == Blocks.DIRT_PATH || block == Blocks.SMOOTH_SANDSTONE
+                || block == Blocks.SAND || block == Blocks.RED_SAND) {
             return 0;
         }
         if (block == Blocks.GRAVEL) {

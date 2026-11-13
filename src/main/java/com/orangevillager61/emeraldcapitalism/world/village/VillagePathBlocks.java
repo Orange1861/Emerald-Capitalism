@@ -36,6 +36,11 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
      * generated connector matches that street instead of guessing from biome.
      */
     public static VillagePathBlocks matchingStreet(Block streetSurface, String fallbackBiomeType) {
+        if (streetSurface == Blocks.SMOOTH_SANDSTONE) {
+            // Desert village streets.
+            return new VillagePathBlocks(Blocks.SMOOTH_SANDSTONE, Blocks.SANDSTONE, false,
+                    Blocks.SANDSTONE, Blocks.SMOOTH_SANDSTONE_STAIRS, Blocks.SMOOTH_SANDSTONE_SLAB);
+        }
         if (streetSurface == Blocks.SAND) {
             return sand();
         }
@@ -65,6 +70,7 @@ public record VillagePathBlocks(Block surfaceBlock, Block supportBlock, boolean 
     public static boolean isPathStep(Block block) {
         return block == ECAPBlocks.DIRT_PATH_STAIRS.get() || block == ECAPBlocks.DIRT_PATH_SLAB.get()
                 || block == Blocks.SANDSTONE_STAIRS || block == Blocks.SANDSTONE_SLAB
+                || block == Blocks.SMOOTH_SANDSTONE_STAIRS || block == Blocks.SMOOTH_SANDSTONE_SLAB
                 || block == Blocks.RED_SANDSTONE_STAIRS || block == Blocks.RED_SANDSTONE_SLAB
                 || block == Blocks.COBBLESTONE_STAIRS || block == Blocks.COBBLESTONE_SLAB
                 || block == Blocks.MOSSY_COBBLESTONE_STAIRS || block == Blocks.MOSSY_COBBLESTONE_SLAB;

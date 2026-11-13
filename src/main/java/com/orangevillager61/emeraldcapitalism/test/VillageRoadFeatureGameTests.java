@@ -214,9 +214,50 @@ public final class VillageRoadFeatureGameTests {
         }
     }
 
+    @GameTest(template = "empty_20x3x20", batch = "ecap_road_features")
+    public static void desertConnectorPavesSandWithSmoothSandstone(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<int[]> forcedChunks = forceChunks(level, helper.absolutePos(BlockPos.ZERO));
+        try {
+            // Desert villages: sand terrain and smooth sandstone streets, no channel.
+            buildTerrain(helper, CLIFF_X, Integer.MAX_VALUE, Integer.MIN_VALUE,
+                    Blocks.SAND.defaultBlockState(), Blocks.SMOOTH_SANDSTONE.defaultBlockState());
+            VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
+            VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
+                    BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0)),
+                            helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19))));
+            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(VillageTerrain.live(level),
+                    helper.absolutePos(new BlockPos(1, LOW_SURFACE_Y + 1, ROUTE_Z)),
+                    helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
+                    List.of(), "DESERT", Direction.EAST, roads, null);
+            helper.assertTrue(path != null, "desert connector to a smooth sandstone street was not planned");
+            generator.place(level, path);
+
+            // Natural sand is paved, not mistaken for an existing street.
+            assertBlock(helper, 3, LOW_SURFACE_Y, ROUTE_Z, Blocks.SMOOTH_SANDSTONE, "paved sand at the start");
+            assertBlock(helper, CLIFF_X + 3, HIGH_SURFACE_Y, ROUTE_Z, Blocks.SMOOTH_SANDSTONE, "paved sand above the ramp");
+            for (int x = CLIFF_X - 1; x <= CLIFF_X + 1; x++) {
+                BlockState stair = level.getBlockState(helper.absolutePos(
+                        new BlockPos(x, LOW_SURFACE_Y + 1 + (x - CLIFF_X + 1), ROUTE_Z)));
+                helper.assertTrue(stair.is(Blocks.SMOOTH_SANDSTONE_STAIRS),
+                        "desert ramp step at x=" + x + " is " + stair);
+            }
+            assertBlock(helper, CLIFF_X - 1, LOW_SURFACE_Y, ROUTE_Z, Blocks.SANDSTONE, "sandstone under a desert stair");
+            helper.succeed();
+        } finally {
+            releaseChunks(level, forcedChunks);
+        }
+    }
+
     private static void buildTerrain(GameTestHelper helper, int cliffX, int channelMinX, int channelMaxX) {
+        buildTerrain(helper, cliffX, channelMinX, channelMaxX, Blocks.GRASS_BLOCK.defaultBlockState(),
+                Blocks.DIRT_PATH.defaultBlockState());
+    }
+
+    private static void buildTerrain(GameTestHelper helper, int cliffX, int channelMinX, int channelMaxX,
+                                     BlockState ground, BlockState street) {
         BlockState stone = Blocks.STONE.defaultBlockState();
-        BlockState grass = Blocks.GRASS_BLOCK.defaultBlockState();
+        BlockState grass = ground;
         for (int x = -2; x <= 21; x++) {
             for (int z = -2; z <= 21; z++) {
                 boolean channel = x >= channelMinX && x <= channelMaxX && z >= 0 && z <= 19;
@@ -230,7 +271,7 @@ public final class VillageRoadFeatureGameTests {
                         state = stone;
                     } else if (y == surfaceY) {
                         state = x >= STREET_MIN_X && x <= STREET_MAX_X && z >= 0 && z <= 19
-                                ? Blocks.DIRT_PATH.defaultBlockState() : grass;
+                                ? street : grass;
                     } else {
                         state = Blocks.AIR.defaultBlockState();
                     }
