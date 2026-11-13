@@ -114,6 +114,7 @@
         "bankerworksidegametests.bankerworksidewaitsforandyieldstoanotherwalktarget",
         "bankerworksidegametests.twobankersholdtheirownbanksworksides",
         "bankerworksidegametests.unemployedvillagerreachesthebankworksideandbecomesabankerunaided",
+        "bankerworksidegametests.playerplacedbankiscontrolledandoffersnobankerjobuntilreleased",
         "bankeractivityprioritygametests.bankerholdstheworksidethroughthebellhours",
         "bankeractivityprioritygametests.bankerscheduleworksthebellhoursandkeepstherest",
         "bankeractivityprioritygametests.panicstopsthebankerattheworksideandworkresumes",

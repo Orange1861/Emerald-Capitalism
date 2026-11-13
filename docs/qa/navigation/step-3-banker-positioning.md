@@ -103,6 +103,17 @@ failed on 1.21.1 and passed on the next two; I did not touch gate code and treat
 
 Gradle on this PC needs `$env:GRADLE_OPTS = '-Djava.net.preferIPv4Stack=true'` and `--no-daemon`.
 
+## Finding (2026-11-13): player-placed banks offer no banker job
+
+The developer reported that villagers do not become bankers at a bank block placed in an artificial
+bank with a village ledger. Cause, from the code and confirmed by
+`playerPlacedBankIsControlledAndOffersNoBankerJobUntilReleased` on 1.21.1 and 1.21.4: `BankBlock.setPlacedBy`
+makes the placing player the bank's controller, `BankBlockEntity.setController` then sets the bank
+block's `banker_available` state to false, and `ECAPPoiTypes.BANKER` only matches `banker_available=true`.
+A player-controlled bank is therefore not a job-site POI and no villager is sent to it. Releasing control
+from the bank screen (the controller only) sets it back to independent and restores the job. This predates
+Steps 3 and 4; the test documents the current design and must change if that design changes.
+
 ## Developer run sheet for M3.1
 
 1. `.\gradlew :1.21.1:runClient`, then repeat with `:1.21.4:runClient`. Use a world with a

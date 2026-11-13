@@ -29,6 +29,7 @@ import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -203,6 +204,46 @@ public final class BankerWorkSideGameTests {
             return;
         }
         helper.runAfterDelay(1, () -> awaitBanker(helper, candidate, previousDayTime, remaining - 1));
+    }
+
+    /**
+     * Component, documenting current design: a bank a player places is player-controlled, and a
+     * player-controlled bank is not a banker job site, so no villager is sent to staff it until
+     * the controller releases it from the bank screen.
+     */
+    @GameTest(template = "empty_3x3x3")
+    public static void playerPlacedBankIsControlledAndOffersNoBankerJobUntilReleased(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos local = new BlockPos(1, 1, 1);
+        BlockPos bankPos = helper.absolutePos(local);
+        helper.setBlock(local, ECAPBlocks.BANK.get().defaultBlockState());
+        net.minecraft.world.entity.player.Player player =
+                helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        BlockState placed = level.getBlockState(bankPos);
+        helper.assertTrue(placed.getValue(BankBlock.BANKER_AVAILABLE),
+                "control: a bank that nobody placed is a banker job site");
+        helper.assertTrue(isBankerPoi(level, bankPos), "control: the unplaced bank is not a banker POI");
+
+        ECAPBlocks.BANK.get().setPlacedBy(level, bankPos, placed, player,
+                new net.minecraft.world.item.ItemStack(ECAPBlocks.BANK.get()));
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        helper.assertTrue(bank != null && bank.isControlledBy(player.getUUID()),
+                "the placing player did not become the bank's controller");
+        helper.assertFalse(level.getBlockState(bankPos).getValue(BankBlock.BANKER_AVAILABLE),
+                "a player-controlled bank still offers the banker job");
+        helper.assertFalse(isBankerPoi(level, bankPos), "a player-controlled bank is still a banker POI");
+
+        bank.setController(null);
+        helper.assertTrue(level.getBlockState(bankPos).getValue(BankBlock.BANKER_AVAILABLE),
+                "releasing control did not restore the banker job");
+        helper.assertTrue(isBankerPoi(level, bankPos), "a released bank is not a banker POI again");
+        helper.succeed();
+    }
+
+    private static boolean isBankerPoi(ServerLevel level, BlockPos pos) {
+        return level.getPoiManager().getType(pos)
+                .map(type -> type.is(com.orangevillager61.emeraldcapitalism.registry.ECAPPoiTypes.BANKER.getKey()))
+                .orElse(false);
     }
 
     /** Component: the banker's package drops vanilla's job-site strolling and other jobs keep it. */
