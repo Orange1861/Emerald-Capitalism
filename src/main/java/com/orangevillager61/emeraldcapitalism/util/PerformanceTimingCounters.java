@@ -64,7 +64,11 @@ public final class PerformanceTimingCounters {
         BANK_INVENTORY_TOTAL_REFRESH,
         LADDER_SEGMENT_SCAN,
         LADDER_BLOCK_SCAN,
-        LADDER_PURGE_VISIT
+        LADDER_PURGE_VISIT,
+        /** One whole server tick, for the performance baseline (B4). */
+        SERVER_TICK,
+        /** One villager entity tick including its Brain and goals, for the performance baseline (B4). */
+        VILLAGER_ENTITY_TICK
     }
 
     public record Snapshot(long calls, long totalNanos, long maximumNanos,
