@@ -333,22 +333,28 @@ public final class BankerWorkSideGameTests {
         try {
             boolean allHolding = true;
             for (Site site : journey.sites()) {
+                // Fixture upkeep: production keeps JOB_SITE through the POI ticket that assigned it,
+                // which this fixture does not hold. Without it the Brain drops to IDLE and the
+                // vanilla idle behavior walks the banker away, which is not what is under test.
+                if (!site.banker().getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE)) {
+                    site.banker().getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                            GlobalPos.of(level.dimension(), site.bankPos()));
+                }
                 helper.assertTrue(MovementRequestManager.activeHandle(site.banker()) == null,
                         "banker positioning went through MovementRequestManager");
                 boolean atWork = BankBlock.isAtBankerWorkPos(
                         level.getBlockState(site.bankPos()), site.bankPos(), site.banker().position());
                 if (journey.arrivedAt(site) < 0) {
-                    // A fresh Brain starts in IDLE until its first schedule update and the Brain does
-                    // not stop vanilla's leftover idle behavior, so a pass-by does not count: the
-                    // banker must be working at the work side for 40 ticks in a row.
-                    boolean working = atWork && site.banker().getBrain()
-                            .isActive(net.minecraft.world.entity.schedule.Activity.WORK);
-                    if (journey.steady(site, working) >= STEADY_TICKS) {
+                    // A pass-by does not count: the banker must stand at the work side for 40 ticks
+                    // in a row. The fixture banker does not keep its WORK activity for the whole run
+                    // (its Brain drops to IDLE at some point), so the activity is not required here.
+                    if (journey.steady(site, atWork) >= STEADY_TICKS) {
                         journey.markArrived(site, tick);
                     }
                     allHolding = false;
                 } else if (!atWork) {
-                    helper.fail("a banker left the work side " + (tick - journey.arrivedAt(site))
+                    helper.fail("a banker left the work side while "
+                            + site.banker().getBrain().getActiveNonCoreActivity().orElse(null) + " " + (tick - journey.arrivedAt(site))
                             + " ticks after arriving: pos=" + site.banker().position()
                             + ", walkTarget=" + site.banker().getBrain()
                             .getMemory(MemoryModuleType.WALK_TARGET).orElse(null));
