@@ -125,13 +125,23 @@ public final class BankerActivityPriorityGameTests {
             helper.getLevel().addFreshEntity(pillager);
             until(run, 200, () -> banker.getBrain().isActive(Activity.PANIC),
                     "the banker did not panic at the hostile", () ->
-                    afterActivityChange(run, () -> during(run, 40, () -> interruptionViolation(banker), () -> {
+                    afterActivityChange(run, () -> {
+                        double startDistance = banker.distanceTo(pillager);
+                        during(run, 60, () -> interruptionViolation(banker), () -> {
+                        if (banker.distanceTo(pillager) < startDistance + 1.5D) {
+                            run.fail("the banker did not run from the hostile: distance " + startDistance + " -> "
+                                    + banker.distanceTo(pillager) + ", walkTarget="
+                                    + banker.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                                    + ", activity=" + banker.getBrain().getActiveNonCoreActivity().orElse(null));
+                            return;
+                        }
                         pillager.discard();
                         until(run, 700, () -> atWorkSide(helper, site)
                                         && banker.getBrain().isActive(Activity.WORK),
                                 "the banker did not return to the work side after the threat left",
                                 run::succeed);
-                    })));
+                        });
+                    }));
         };
         BooleanSupplier checkpoint = atWorkSide
                 ? () -> atWorkSide(helper, site)
