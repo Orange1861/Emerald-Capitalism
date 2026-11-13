@@ -449,7 +449,8 @@ public final class VillageRoadPathGenerator {
                             + " visited=" + search.visited()
                             + " targets=" + candidates.size()
                             + " ms=" + (System.nanoTime() - searchStarted) / 1_000_000L
-                            + (search.visited() == 1 ? " firstStep{" + search.firstStepRejections() + "}" : ""));
+                            + (search.firstStepRejections().isEmpty() ? ""
+                            : (search.visited() == 1 ? " firstStep{" : " {") + search.firstStepRejections() + "}"));
                 }
                 break;
             }
@@ -718,6 +719,8 @@ public final class VillageRoadPathGenerator {
         boolean startSampled = false;
         StringBuilder firstStepRejections = PerformanceTimingCounters.isDetailedTimingEnabled()
                 ? new StringBuilder() : null;
+        // Diagnostic-only tally of why expansions were rejected, reported when no street is reached.
+        Map<String, Integer> rejectionTally = firstStepRejections != null ? new HashMap<>() : null;
         boolean timeLimited = false;
         while (!open.isEmpty() && visited < MAX_VISITED_NODES) {
             OpenRouteNode queued = open.poll();
@@ -770,17 +773,23 @@ public final class VillageRoadPathGenerator {
                 if (direction.getAxis() != current.incomingDirection().getAxis()
                         && !isTurnRowClear(terrain, currentSurface, direction, roads, surfaceCache,
                         pathWidth)) {
+                    if (rejectionTally != null) {
+                        rejectionTally.merge("turn_row", 1, Integer::sum);
+                    }
                     continue;
                 }
 
                 SurfaceSample nextSurface = surfaceCache.get(nextX, nextZ);
                 if (nextSurface == null || !isCorridorRowTraversable(terrain, nextSurface,
                         currentSurface, direction, roads, surfaceCache, pathWidth)) {
-                    if (visited == 1 && firstStepRejections != null) {
-                        firstStepRejections.append(direction.getSerializedName().charAt(0)).append('=')
-                                .append(describeRowRejection(terrain, nextSurface, currentSurface,
-                                        direction, roads, surfaceCache, pathWidth))
-                                .append(' ');
+                    if (firstStepRejections != null) {
+                        String reason = describeRowRejection(terrain, nextSurface, currentSurface,
+                                direction, roads, surfaceCache, pathWidth);
+                        if (visited == 1) {
+                            firstStepRejections.append(direction.getSerializedName().charAt(0)).append('=')
+                                    .append(reason).append(' ');
+                        }
+                        rejectionTally.merge(rejectionCategory(reason), 1, Integer::sum);
                     }
                     if (nextSurface == null) {
                         continue;
@@ -850,8 +859,31 @@ public final class VillageRoadPathGenerator {
         } else {
             outcome = RouteOutcome.BLOCKED;
         }
+        if (rejectionTally != null && visited > 1) {
+            firstStepRejections.append("rejected:");
+            rejectionTally.entrySet().stream()
+                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .limit(6)
+                    .forEach(entry -> firstStepRejections.append(' ').append(entry.getKey())
+                            .append('=').append(entry.getValue()));
+        }
         return new RouteSearch(List.of(), List.of(), null, outcome, visited,
                 firstStepRejections == null ? "" : firstStepRejections.toString().trim());
+    }
+
+    /** Diagnostic grouping of a row rejection, without its coordinates. */
+    private static String rejectionCategory(String reason) {
+        String category = reason.contains("@") ? reason.substring(0, reason.indexOf('@')) : reason;
+        if (category.startsWith("building")) {
+            return "building";
+        }
+        if (category.startsWith("side_step(")) {
+            return "side_step";
+        }
+        if (category.startsWith("step(")) {
+            return "step";
+        }
+        return category;
     }
 
     /** Diagnostic-only description of why one corridor row cannot be entered. */
