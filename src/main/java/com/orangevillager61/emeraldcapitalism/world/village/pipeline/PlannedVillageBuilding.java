@@ -43,10 +43,14 @@ public interface PlannedVillageBuilding {
         return null;
     }
 
-    /** Called after every structure is placed; may plan paths that depend on resolved placement Y. */
-    default List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
-            VillageGenerationContext context) {
-        return reservedPaths();
+    /**
+     * Called on the server thread after every structure is placed. Returns the
+     * job that plans this building's connectors on the planning worker, against
+     * a terrain copy taken after placement; it may depend on resolved placement Y.
+     */
+    default PathPlanningJob pathPlanningJob(VillageGenerationContext context) {
+        List<VillageRoadPathGenerator.PlannedPath> reserved = reservedPaths();
+        return terrain -> reserved;
     }
 
     /** Called after all connector paths have been placed. */

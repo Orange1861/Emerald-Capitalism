@@ -61,8 +61,7 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
         }
 
         @Override
-        public List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
-                VillageGenerationContext context) {
+        public PathPlanningJob pathPlanningJob(VillageGenerationContext context) {
             // The library reservation includes a deliberate two-block approach
             // apron. Allow this connector to pave that apron while retaining the
             // actual library footprint as a path obstacle. Aim for the street
@@ -71,11 +70,15 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
             VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
                     .withoutBuilding(plan.reservationBox())
                     .withAdditionalBuildings(List.of(plan.placementBox()));
-            VillageRoadPathGenerator.PlannedPath path = context.roadGenerator().planLibraryConnection(
-                    VillageTerrain.live(context.level()), plan.pathStart(), plan.pathStart(), context.pieces(),
-                    context.biomeType(), plan.entranceDirection(),
-                    roads, context.chunkLoadBudget());
-            return path == null ? List.of() : List.of(path);
+            VillageRoadPathGenerator generator = context.roadGenerator();
+            List<net.minecraft.world.level.levelgen.structure.StructurePiece> pieces = context.pieces();
+            String biomeType = context.biomeType();
+            return terrain -> {
+                VillageRoadPathGenerator.PlannedPath path = generator.planLibraryConnection(
+                        terrain, plan.pathStart(), plan.pathStart(), pieces, biomeType,
+                        plan.entranceDirection(), roads, null);
+                return path == null ? List.of() : List.of(path);
+            };
         }
     }
 }

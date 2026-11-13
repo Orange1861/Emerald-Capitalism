@@ -111,8 +111,8 @@ public final class VillageLumbermillStructurePlacer {
                                   VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
                                   ChunkLoadBudget loadBudget,
                                   Predicate<BoundingBox> reservedCollision) {
-        SitePlanning planning = startPlanning(level, bellPos, biomeType, villagePieces,
-                preparedRoads, loadBudget, reservedCollision);
+        SitePlanning planning = startPlanning(level, VillageTerrain.live(level), bellPos, biomeType,
+                villagePieces, preparedRoads, reservedCollision);
         if (planning == null) {
             return null;
         }
@@ -127,13 +127,18 @@ public final class VillageLumbermillStructurePlacer {
      * as a single-pass search and selection runs only after all of them, so the
      * chosen site does not depend on how the work is split across ticks.
      *
+     * <p>The level is read only here, on the server thread, to load the templates
+     * and their entrances. Candidate evaluation reads {@code terrain} alone, so it
+     * may run on the planning worker against a terrain snapshot; a candidate whose
+     * footprint is not loaded in that terrain is skipped.</p>
+     *
      * @return null when no template is available for the biome
      */
     @Nullable
-    public SitePlanning startPlanning(ServerLevel level, BlockPos bellPos, String biomeType,
+    public SitePlanning startPlanning(ServerLevel level, VillageTerrain terrain, BlockPos bellPos,
+                                      String biomeType,
                                       List<StructurePiece> villagePieces,
                                       VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
-                                      ChunkLoadBudget loadBudget,
                                       Predicate<BoundingBox> reservedCollision) {
         List<ResourceLocation> templateLocations = templateLocationsFor(level, bellPos, biomeType);
         if (templateLocations == null) {
@@ -171,8 +176,8 @@ public final class VillageLumbermillStructurePlacer {
                 }
             }
         }
-        return new SitePlanning(level, bellPos, biomeType, villagePieces, preparedRoads,
-                loadBudget, reservedCollision, candidates);
+        return new SitePlanning(terrain, bellPos, biomeType, villagePieces, preparedRoads,
+                reservedCollision, candidates);
     }
 
     /** Resumable lumbermill site search; see {@link #startPlanning}. */
@@ -183,12 +188,11 @@ public final class VillageLumbermillStructurePlacer {
          */
         private static final long BATCH_NANOS = 10_000_000L;
 
-        private final ServerLevel level;
+        private final VillageTerrain terrain;
         private final BlockPos bellPos;
         private final String biomeType;
         private final List<StructurePiece> villagePieces;
         private final VillageRoadPathGenerator.PreparedVillageRoads preparedRoads;
-        private final ChunkLoadBudget loadBudget;
         private final Predicate<BoundingBox> reservedCollision;
         private final List<SiteCandidate> candidates;
         private final List<LumbermillSite> sites = new ArrayList<>();
@@ -196,17 +200,16 @@ public final class VillageLumbermillStructurePlacer {
         private boolean finished;
         private PlannedLumbermill result;
 
-        private SitePlanning(ServerLevel level, BlockPos bellPos, String biomeType,
+        private SitePlanning(VillageTerrain terrain, BlockPos bellPos, String biomeType,
                              List<StructurePiece> villagePieces,
                              VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
-                             ChunkLoadBudget loadBudget, Predicate<BoundingBox> reservedCollision,
+                             Predicate<BoundingBox> reservedCollision,
                              List<SiteCandidate> candidates) {
-            this.level = level;
+            this.terrain = terrain;
             this.bellPos = bellPos;
             this.biomeType = biomeType;
             this.villagePieces = villagePieces;
             this.preparedRoads = preparedRoads;
-            this.loadBudget = loadBudget;
             this.reservedCollision = reservedCollision;
             this.candidates = candidates;
         }
@@ -262,16 +265,16 @@ public final class VillageLumbermillStructurePlacer {
             if (reservedCollision.test(footprint)
                     || overlapsVillagePiece(footprint, villagePieces)
                     || preparedRoads.intersectsStreet(footprint)
-                    || !ensureFootprintLoaded(level, footprint, loadBudget)) {
+                    || !footprintLoaded(terrain, footprint)) {
                 return;
             }
 
-            TerrainProfile terrain = terrainProfile(level, footprint.minX(), footprint.minZ(),
+            TerrainProfile profile = terrainProfile(terrain, footprint.minX(), footprint.minZ(),
                     footprint.getXSpan(), footprint.getZSpan());
-            if (terrain == null) {
+            if (profile == null) {
                 return;
             }
-            BlockPos origin = anchor.atY(terrain.placementY());
+            BlockPos origin = anchor.atY(profile.placementY());
             footprint = loaded.template().getBoundingBox(settings, origin);
             LumbermillEntrance entrance = findTemplateEntrance(loaded, origin,
                     candidate.rotation(), footprint, bellPos);
@@ -281,7 +284,7 @@ public final class VillageLumbermillStructurePlacer {
                     bellPos.getX() - entrance.pathStart().getX(),
                     bellPos.getZ() - entrance.pathStart().getZ());
             sites.add(new LumbermillSite(loaded, anchor, footprint,
-                    terrain.placementY(), terrain.roughness(), candidate.rotation(), 0,
+                    profile.placementY(), profile.roughness(), candidate.rotation(), 0,
                     entrance, facesVillage));
         }
 
@@ -303,7 +306,7 @@ public final class VillageLumbermillStructurePlacer {
                         "[ECAP] No lumbermill site near bell {} faces the village; using any valid site",
                         bellPos);
             }
-            applyTreePreference(level, biomeType, sites);
+            applyTreePreference(terrain, biomeType, sites);
             sites.sort(Comparator.comparingInt(LumbermillSite::treeDensityScore).reversed()
                     .thenComparingInt(LumbermillSite::roughness)
                     .thenComparingInt(site -> site.anchor().getX())
@@ -346,7 +349,7 @@ public final class VillageLumbermillStructurePlacer {
      * closer to the building carry more weight, and the probe never loads chunks
      * that were not already available to the pipeline.
      */
-    private static void applyTreePreference(ServerLevel level, String biomeType,
+    private static void applyTreePreference(VillageTerrain level, String biomeType,
                                             List<LumbermillSite> sites) {
         if (!"PLAINS".equals(biomeType)) {
             return;
@@ -368,7 +371,7 @@ public final class VillageLumbermillStructurePlacer {
         }
     }
 
-    private static TreeDensityProfile treeDensityProfile(ServerLevel level, BoundingBox footprint,
+    private static TreeDensityProfile treeDensityProfile(VillageTerrain level, BoundingBox footprint,
                                                          TreeSampleCache cache) {
         int weightedSignal = 0;
         int sampleWeight = 0;
@@ -622,11 +625,10 @@ public final class VillageLumbermillStructurePlacer {
                 desiredMinZ - initialBox.minZ());
     }
 
-    private static boolean ensureFootprintLoaded(ServerLevel level, BoundingBox footprint,
-                                                  ChunkLoadBudget loadBudget) {
+    private static boolean footprintLoaded(VillageTerrain terrain, BoundingBox footprint) {
         for (int chunkX = footprint.minX() >> 4; chunkX <= footprint.maxX() >> 4; chunkX++) {
             for (int chunkZ = footprint.minZ() >> 4; chunkZ <= footprint.maxZ() >> 4; chunkZ++) {
-                if (!loadBudget.ensureLoaded(level, chunkX, chunkZ)) {
+                if (!terrain.hasChunk(chunkX, chunkZ)) {
                     return false;
                 }
             }
@@ -726,7 +728,7 @@ public final class VillageLumbermillStructurePlacer {
     }
 
     @Nullable
-    private static TerrainProfile terrainProfile(ServerLevel level, int originX, int originZ,
+    private static TerrainProfile terrainProfile(VillageTerrain level, int originX, int originZ,
                                                  int sizeX, int sizeZ) {
         int[] heights = new int[sizeX * sizeZ];
         int index = 0;
@@ -826,10 +828,10 @@ public final class VillageLumbermillStructurePlacer {
     }
 
     private static final class TreeSampleCache {
-        private final ServerLevel level;
+        private final VillageTerrain level;
         private final Map<Long, Integer> samples = new HashMap<>();
 
-        private TreeSampleCache(ServerLevel level) {
+        private TreeSampleCache(VillageTerrain level) {
             this.level = level;
         }
 
@@ -854,8 +856,8 @@ public final class VillageLumbermillStructurePlacer {
                     sampleX, sampleZ) - 1;
             int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE,
                     sampleX, sampleZ) - 1;
-            if (noLeavesY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
-                    || surfaceY < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)) {
+            if (noLeavesY < level.minBuildHeight()
+                    || surfaceY < level.minBuildHeight()) {
                 samples.put(key, -1);
                 return -1;
             }

@@ -1985,6 +1985,18 @@ public final class VillageRoadPathGenerator {
         public List<BlockPos> reservedSurfaceCells() {
             return cells.stream().map(PlannedPathCell::surfacePos).toList();
         }
+
+        /** Every column this plan writes, as {@code (x << 32) ^ (z & 0xFFFFFFFF)} keys. */
+        public java.util.Set<Long> touchedColumns() {
+            java.util.Set<Long> columns = new java.util.LinkedHashSet<>();
+            for (PlannedPathCell cell : cells) {
+                columns.add(columnKey(cell.surfacePos().getX(), cell.surfacePos().getZ()));
+            }
+            for (PlannedDecoration decoration : decorations) {
+                columns.add(columnKey(decoration.pos().getX(), decoration.pos().getZ()));
+            }
+            return columns;
+        }
     }
 
     private record ConnectionProfile(String connectionType, int pathWidth,

@@ -84,8 +84,7 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         }
 
         @Override
-        public List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
-                VillageGenerationContext context) {
+        public PathPlanningJob pathPlanningJob(VillageGenerationContext context) {
             /*
              * The bank placer grades and clears the entrance apron during
              * placement. Replan the connector against that final terrain so
@@ -96,20 +95,24 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
             VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
                     .withoutBuilding(plan.reservationBox())
                     .withAdditionalBuildings(List.of(plan.placementBox()));
-            VillageRoadPathGenerator.PlannedPath postPlacementConnector =
-                    context.roadGenerator().planBankConnection(
-                            VillageTerrain.live(context.level()), plan.pathStart(), plan.pathTarget(), context.pieces(),
-                            context.biomeType(), plan.entranceDirection(),
-                            roads, context.chunkLoadBudget(), false);
-            if (postPlacementConnector != null) {
-                return List.of(postPlacementConnector);
-            }
-            if (connector == null) {
-                EmeraldCapitalism.LOGGER.warn(
-                        "[ECAP] Could not plan a complete bank path from {} to a reachable village street",
-                        plan.pathStart());
-            }
-            return reservedPaths();
+            VillageRoadPathGenerator generator = context.roadGenerator();
+            List<net.minecraft.world.level.levelgen.structure.StructurePiece> pieces = context.pieces();
+            String biomeType = context.biomeType();
+            List<VillageRoadPathGenerator.PlannedPath> fallback = reservedPaths();
+            return terrain -> {
+                VillageRoadPathGenerator.PlannedPath postPlacementConnector = generator.planBankConnection(
+                        terrain, plan.pathStart(), plan.pathTarget(), pieces, biomeType,
+                        plan.entranceDirection(), roads, null, false);
+                if (postPlacementConnector != null) {
+                    return List.of(postPlacementConnector);
+                }
+                if (fallback.isEmpty()) {
+                    EmeraldCapitalism.LOGGER.warn(
+                            "[ECAP] Could not plan a complete bank path from {} to a reachable village street",
+                            plan.pathStart());
+                }
+                return fallback;
+            };
         }
 
         @Override

@@ -10,6 +10,7 @@ import com.orangevillager61.emeraldcapitalism.world.villagefarms.PlacedFarmInfo;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmPathGenerator;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmPlacer;
 import com.orangevillager61.emeraldcapitalism.world.villagefarms.VillageFarmSiteSelector;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -103,19 +104,23 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         }
 
         @Override
-        public List<VillageRoadPathGenerator.PlannedPath> pathsAfterPlacement(
-                VillageGenerationContext context) {
+        public PathPlanningJob pathPlanningJob(VillageGenerationContext context) {
             if (placementTask != null) {
                 placed = placementTask.result();
             }
             if (placed == null || !Config.outskirtFarmsPathsEnabled.get()) {
-                return List.of();
+                return terrain -> List.of();
             }
-            VillageRoadPathGenerator.PlannedPath path = pathGenerator.planPath(
-                    VillageTerrain.live(context.level()), placed, context.structureCenter(), context.pieces(),
-                    context.biomeType(), context.preparedRoadsWithReservations(),
-                    context.chunkLoadBudget());
-            return path == null ? List.of() : List.of(path);
+            PlacedFarmInfo farm = placed;
+            BlockPos center = context.structureCenter();
+            List<net.minecraft.world.level.levelgen.structure.StructurePiece> pieces = context.pieces();
+            String biomeType = context.biomeType();
+            VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations();
+            return terrain -> {
+                VillageRoadPathGenerator.PlannedPath path = pathGenerator.planPath(
+                        terrain, farm, center, pieces, biomeType, roads, null);
+                return path == null ? List.of() : List.of(path);
+            };
         }
     }
 }

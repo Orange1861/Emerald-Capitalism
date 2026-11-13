@@ -52,6 +52,17 @@ public final class VillageGenerationReservations {
         }
     }
 
+    /**
+     * An independent copy for a planning job on the worker thread. Reservations
+     * made afterwards on the server thread do not change it.
+     */
+    public VillageGenerationReservations copy() {
+        VillageGenerationReservations copy = new VillageGenerationReservations();
+        copy.buildings.addAll(buildings);
+        copy.pathColumns.addAll(pathColumns);
+        return copy;
+    }
+
     public List<BoundingBox> buildingBoxes() {
         return buildings.stream().map(Reservation::exclusionBox).toList();
     }

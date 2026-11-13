@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrainSnapshot;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBridgeBlocks;
@@ -60,6 +61,27 @@ public final class VillageRoadFeatureGameTests {
                     helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
                     List.of(), "PLAINS", Direction.EAST, roads, null);
             helper.assertTrue(path != null, "connector over a cliff and a channel was not planned");
+
+            // The planning worker reads a terrain snapshot on another thread; it
+            // must plan exactly the connector the live level does.
+            VillageTerrainSnapshot snapshot = new VillageTerrainSnapshot(level,
+                    (origin.getX() - 24) >> 4, (origin.getX() + 44) >> 4,
+                    (origin.getZ() - 24) >> 4, (origin.getZ() + 44) >> 4);
+            while (!snapshot.captureStep(level, 64)) {
+                // Capture every chunk now; the pipeline spreads this over ticks.
+            }
+            BlockPos start = helper.absolutePos(new BlockPos(1, LOW_SURFACE_Y + 1, ROUTE_Z));
+            BlockPos hint = helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z));
+            VillageRoadPathGenerator.PlannedPath fromSnapshot = java.util.concurrent.CompletableFuture
+                    .supplyAsync(() -> generator.planLumbermillConnection(snapshot, start, hint,
+                            List.of(), "PLAINS", Direction.EAST, roads, null))
+                    .join();
+            helper.assertTrue(fromSnapshot != null, "snapshot planning on another thread found no connector");
+            helper.assertTrue(fromSnapshot.reservedSurfaceCells().equals(path.reservedSurfaceCells()),
+                    "snapshot plan differs from the live plan");
+            helper.assertTrue(fromSnapshot.touchedColumns().equals(path.touchedColumns()),
+                    "snapshot plan decorates different columns than the live plan");
+
             generator.place(level, path);
 
             for (int z = ROUTE_Z - 1; z <= ROUTE_Z + 1; z++) {

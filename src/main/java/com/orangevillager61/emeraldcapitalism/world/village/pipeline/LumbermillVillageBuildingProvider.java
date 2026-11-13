@@ -1,5 +1,8 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import java.util.concurrent.CompletableFuture;
+import net.minecraft.world.level.levelgen.structure.StructurePiece;
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBuildingImportance;
@@ -31,8 +34,10 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
     }
 
     /**
-     * Site search runs in time-bounded batches, then the connector is planned in
-     * its own step. Neither split changes the chosen site or connector.
+     * The site search and the lumbermill's connector run as one job on the
+     * planning worker, against the village's terrain snapshot. The server thread
+     * only loads the templates, copies the current reservations and roads, and
+     * checks each tick whether the job has finished.
      */
     @Override
     public VillageBuildingPlanningTask startPlanning(VillageGenerationContext context) {
@@ -40,13 +45,32 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
                 || context.registryData().hasGeneratedLumbermill(context.villageId())) {
             return VillageBuildingPlanningTask.completed(List.of());
         }
+        // Only a snapshot may be read off the server thread. Without one, as when
+        // planning outside the pipeline, the job runs here against the live level.
+        boolean onWorker = context.terrainSnapshot() != null;
+        VillageTerrain terrain = onWorker ? context.terrainSnapshot() : VillageTerrain.live(context.level());
+        VillageGenerationReservations reservations = context.reservations().copy();
         VillageLumbermillStructurePlacer.SitePlanning sitePlanning = placer.startPlanning(
-                context.level(), context.bellPos(), context.biomeType(), context.pieces(),
-                context.preparedRoads(),
-                context.chunkLoadBudget(), context.reservations()::intersects);
+                context.level(), terrain, context.bellPos(), context.biomeType(), context.pieces(),
+                context.preparedRoads(), reservations::intersects);
         if (sitePlanning == null) {
             return VillageBuildingPlanningTask.completed(List.of());
         }
+        VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations();
+        VillageRoadPathGenerator generator = context.roadGenerator();
+        List<StructurePiece> pieces = context.pieces();
+        String biomeType = context.biomeType();
+        java.util.function.Supplier<List<PlannedVillageBuilding>> search = () -> {
+            while (!sitePlanning.step()) {
+                // The whole search runs in one job; batches only matter on the server thread.
+            }
+            VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill = sitePlanning.result();
+            return lumbermill == null ? List.of()
+                    : List.of(planConnector(terrain, generator, roads, pieces, biomeType, lumbermill));
+        };
+        CompletableFuture<List<PlannedVillageBuilding>> job = onWorker
+                ? VillagePlanningWorker.submit(search)
+                : CompletableFuture.completedFuture(search.get());
         return new VillageBuildingPlanningTask() {
             private List<? extends PlannedVillageBuilding> result;
 
@@ -55,12 +79,16 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
                 if (result != null) {
                     return true;
                 }
-                if (!sitePlanning.isFinished()) {
-                    sitePlanning.step();
+                if (!job.isDone()) {
                     return false;
                 }
-                VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill = sitePlanning.result();
-                result = lumbermill == null ? List.of() : planConnector(context, lumbermill);
+                try {
+                    result = job.join();
+                } catch (RuntimeException exception) {
+                    EmeraldCapitalism.LOGGER.error("[ECAP] Lumbermill planning failed near {}",
+                            context.bellPos(), exception);
+                    result = List.of();
+                }
                 return true;
             }
 
@@ -71,21 +99,21 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
         };
     }
 
-    private List<? extends PlannedVillageBuilding> planConnector(
-            VillageGenerationContext context, VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill) {
+    private PlannedVillageBuilding planConnector(VillageTerrain terrain, VillageRoadPathGenerator generator,
+                                                 VillageRoadPathGenerator.PreparedVillageRoads villageRoads,
+                                                 List<StructurePiece> pieces, String biomeType,
+                                                 VillageLumbermillStructurePlacer.PlannedLumbermill lumbermill) {
         // The building reservation is committed after this provider returns,
         // so include this footprint while planning its own connector. A first
         // turn must not widen the path back over the entrance stairs. The
         // lumbermill can stand far outside the village core, so aim for the
         // street nearest its door rather than the village center.
         VillageRoadPathGenerator.PreparedVillageRoads roads =
-                context.preparedRoadsWithReservations()
-                        .withAdditionalBuildings(List.of(lumbermill.placementBox()));
-        VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planLumbermillConnection(
-                VillageTerrain.live(context.level()), lumbermill.pathStart(), lumbermill.pathStart(), context.pieces(),
-                context.biomeType(), lumbermill.entranceDirection(),
-                roads, context.chunkLoadBudget());
-        return List.of(new PlannedLumbermill(lumbermill, connector));
+                villageRoads.withAdditionalBuildings(List.of(lumbermill.placementBox()));
+        VillageRoadPathGenerator.PlannedPath connector = generator.planLumbermillConnection(
+                terrain, lumbermill.pathStart(), lumbermill.pathStart(), pieces, biomeType,
+                lumbermill.entranceDirection(), roads, null);
+        return new PlannedLumbermill(lumbermill, connector);
     }
 
     private final class PlannedLumbermill implements PlannedVillageBuilding {

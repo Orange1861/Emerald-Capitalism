@@ -1,5 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrainSnapshot;
+import java.util.concurrent.CompletableFuture;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters;
 import com.orangevillager61.emeraldcapitalism.util.SharedScanGenerationBudget;
@@ -30,6 +32,8 @@ import java.util.function.Consumer;
 public final class VillageGenerationPipeline {
     /** New asynchronous chunk requests started per active tick during the cache phase. */
     private static final int CACHE_CHUNKS_PER_TICK = 4;
+    /** Preloaded chunks copied into the planning terrain snapshot per active tick. */
+    private static final int TERRAIN_CHUNKS_PER_TICK = 12;
     private static final long SLOW_STEP_LOG_NANOS = 50_000_000L;
     private static final ConcurrentLinkedQueue<PipelineTask> PENDING = new ConcurrentLinkedQueue<>();
     private static final Set<PipelineKey> QUEUED_OR_ACTIVE = ConcurrentHashMap.newKeySet();
@@ -103,6 +107,7 @@ public final class VillageGenerationPipeline {
         PENDING.clear();
         QUEUED_OR_ACTIVE.clear();
         activeTask = null;
+        VillagePlanningWorker.shutdown();
         SharedScanGenerationBudget.clearAll();
     }
 
@@ -119,9 +124,11 @@ public final class VillageGenerationPipeline {
 
     private enum Phase {
         BUILD_CACHES(PerformanceTimingCounters.Operation.VILLAGE_GEN_BUILD_CACHES),
+        CAPTURE_TERRAIN(PerformanceTimingCounters.Operation.VILLAGE_GEN_CAPTURE_TERRAIN),
         PLAN_BUILDINGS(PerformanceTimingCounters.Operation.VILLAGE_GEN_PLAN_BUILDINGS),
         PLACE_MANAGER(PerformanceTimingCounters.Operation.VILLAGE_GEN_PLACE_MANAGER),
         PLACE_BUILDINGS(PerformanceTimingCounters.Operation.VILLAGE_GEN_PLACE_BUILDINGS),
+        RECAPTURE_TERRAIN(PerformanceTimingCounters.Operation.VILLAGE_GEN_CAPTURE_TERRAIN),
         GENERATE_PATHS(PerformanceTimingCounters.Operation.VILLAGE_GEN_GENERATE_PATHS),
         PREPARE_POST_PROCESS(PerformanceTimingCounters.Operation.VILLAGE_GEN_PREPARE_POST_PROCESS),
         POST_PROCESS(PerformanceTimingCounters.Operation.VILLAGE_GEN_POST_PROCESS),
@@ -154,6 +161,7 @@ public final class VillageGenerationPipeline {
         private VillageBuildingPlanningTask activePlanningTask;
         private PlannedVillageBuilding activePlacementPlan;
         private VillageBuildingPlacementTask activePlacementTask;
+        private CompletableFuture<List<VillageRoadPathGenerator.PlannedPath>> pendingPaths;
 
         private void finishActivePlacement() {
             if (activePlacementTask == null) {
@@ -191,6 +199,8 @@ public final class VillageGenerationPipeline {
             try {
                 return switch (stepPhase) {
                     case BUILD_CACHES -> buildCaches();
+                    case CAPTURE_TERRAIN -> captureTerrain();
+                    case RECAPTURE_TERRAIN -> recaptureTerrain();
                     case PLAN_BUILDINGS -> planBuildings();
                     case PLACE_MANAGER -> placeManager();
                     case PLACE_BUILDINGS -> placeBuildings();
@@ -235,7 +245,30 @@ public final class VillageGenerationPipeline {
 
         private boolean buildCaches() {
             if (context.buildSharedCachesStep(CACHE_CHUNKS_PER_TICK)) {
+                phase = Phase.CAPTURE_TERRAIN;
+            }
+            return false;
+        }
+
+        /** Copies the preloaded terrain for the planning worker, a few chunks per tick. */
+        private boolean captureTerrain() {
+            if (context.captureTerrainStep(TERRAIN_CHUNKS_PER_TICK)) {
                 phase = Phase.PLAN_BUILDINGS;
+            }
+            return false;
+        }
+
+        /** Building placement changed the terrain; copy it again before connectors are planned. */
+        private void startPathPlanning() {
+            index = 0;
+            context.restartTerrainCapture();
+            phase = Phase.RECAPTURE_TERRAIN;
+        }
+
+        private boolean recaptureTerrain() {
+            if (context.captureTerrainStep(TERRAIN_CHUNKS_PER_TICK)) {
+                index = 0;
+                phase = Phase.GENERATE_PATHS;
             }
             return false;
         }
@@ -312,8 +345,7 @@ public final class VillageGenerationPipeline {
                     placedBuildings.add(completedPlan);
                 }
                 if (index >= plans.size()) {
-                    index = 0;
-                    phase = Phase.GENERATE_PATHS;
+                    startPathPlanning();
                 }
                 return false;
             }
@@ -330,30 +362,53 @@ public final class VillageGenerationPipeline {
                     placedBuildings.add(plan);
                 }
                 if (index >= plans.size()) {
-                    index = 0;
-                    phase = Phase.GENERATE_PATHS;
+                    startPathPlanning();
                 }
                 return false;
             }
-            index = 0;
-            phase = Phase.GENERATE_PATHS;
+            startPathPlanning();
             return false;
         }
 
-        /** Plans and places one building's connectors per tick after all structures exist. */
+        /**
+         * One building's connectors at a time: the server thread prepares the
+         * job, the planning worker plans against the terrain snapshot, and the
+         * server thread places the result and refreshes the snapshot columns it
+         * changed before the next building's job is submitted. The worker never
+         * reads the snapshot while it is being refreshed.
+         */
         private boolean generatePaths() {
-            if (index < placedBuildings.size()) {
-                PlannedVillageBuilding building = placedBuildings.get(index++);
-                List<VillageRoadPathGenerator.PlannedPath> buildingPaths =
-                        building.pathsAfterPlacement(context);
+            if (pendingPaths != null) {
+                if (!pendingPaths.isDone()) {
+                    return false;
+                }
+                List<VillageRoadPathGenerator.PlannedPath> buildingPaths;
+                try {
+                    buildingPaths = pendingPaths.join();
+                } catch (RuntimeException exception) {
+                    EmeraldCapitalism.LOGGER.error("[ECAP] Connector planning failed for village {}",
+                            context.villageId(), exception);
+                    buildingPaths = List.of();
+                }
+                pendingPaths = null;
                 paths.addAll(buildingPaths);
                 for (VillageRoadPathGenerator.PlannedPath path : buildingPaths) {
                     context.roadGenerator().place(context.level(), path);
+                    for (long column : path.touchedColumns()) {
+                        context.terrainSnapshot().refreshColumn(context.level(),
+                                (int) (column >> 32), (int) column);
+                    }
                 }
                 if (index >= placedBuildings.size()) {
                     index = 0;
                     phase = Phase.PREPARE_POST_PROCESS;
                 }
+                return false;
+            }
+            if (index < placedBuildings.size()) {
+                PathPlanningJob job = placedBuildings.get(index++).pathPlanningJob(context);
+                VillageTerrainSnapshot terrain = context.terrainSnapshot();
+                pendingPaths = VillagePlanningWorker.submit(() -> job.plan(terrain));
                 return false;
             }
             index = 0;

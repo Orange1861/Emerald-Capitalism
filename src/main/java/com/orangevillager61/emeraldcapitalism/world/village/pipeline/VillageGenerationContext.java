@@ -6,6 +6,7 @@ import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEn
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBridgeBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageLumbermillStructurePlacer;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrainSnapshot;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageManagerPlacement;
 import com.orangevillager61.emeraldcapitalism.world.village.VillagePathBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageColor;
@@ -56,6 +57,15 @@ public final class VillageGenerationContext {
     private VillageManagerBlockEntity manager;
     private boolean managerResidentNeeded;
     private PipelineChunkPreloader preloader;
+    private int preloadMinChunkX;
+    private int preloadMaxChunkX;
+    private int preloadMinChunkZ;
+    private int preloadMaxChunkZ;
+    /**
+     * Terrain copy read by the planning worker. Owned by this context only and
+     * dropped with it, so it cannot outlive the village's generation.
+     */
+    private VillageTerrainSnapshot terrainSnapshot;
     private final PreloadStepStats preloadStepStats = new PreloadStepStats();
     private boolean cachesBuilt;
     private boolean pipelineCompletedSuccessfully;
@@ -94,11 +104,12 @@ public final class VillageGenerationContext {
             // the lumbermill reaches farthest from the bell, and any chunk left
             // out here would be loaded, or even generated, on the server thread.
             int reach = VillageLumbermillStructurePlacer.MAX_SITE_REACH;
+            preloadMinChunkX = Math.min((villageBox.minX() >> 4) - 2, (bellPos.getX() - reach) >> 4);
+            preloadMaxChunkX = Math.max((villageBox.maxX() >> 4) + 2, (bellPos.getX() + reach) >> 4);
+            preloadMinChunkZ = Math.min((villageBox.minZ() >> 4) - 2, (bellPos.getZ() - reach) >> 4);
+            preloadMaxChunkZ = Math.max((villageBox.maxZ() >> 4) + 2, (bellPos.getZ() + reach) >> 4);
             preloader = new PipelineChunkPreloader(level, villageId,
-                    Math.min((villageBox.minX() >> 4) - 2, (bellPos.getX() - reach) >> 4),
-                    Math.max((villageBox.maxX() >> 4) + 2, (bellPos.getX() + reach) >> 4),
-                    Math.min((villageBox.minZ() >> 4) - 2, (bellPos.getZ() - reach) >> 4),
-                    Math.max((villageBox.maxZ() >> 4) + 2, (bellPos.getZ() + reach) >> 4));
+                    preloadMinChunkX, preloadMaxChunkX, preloadMinChunkZ, preloadMaxChunkZ);
         }
         preloadStepStats.reset();
         if (!preloader.step(newChunkRequestsPerTick, preloadStepStats)) {
@@ -208,6 +219,30 @@ public final class VillageGenerationContext {
     }
 
     /** Releases the preload tickets. Called once the pipeline finishes or fails. */
+    /**
+     * Copies up to {@code chunksPerStep} more preloaded chunks into the terrain
+     * snapshot; returns true once the whole preloaded area is captured.
+     */
+    public boolean captureTerrainStep(int chunksPerStep) {
+        if (terrainSnapshot == null) {
+            terrainSnapshot = new VillageTerrainSnapshot(level,
+                    preloadMinChunkX, preloadMaxChunkX, preloadMinChunkZ, preloadMaxChunkZ);
+        }
+        return terrainSnapshot.captureStep(level, chunksPerStep);
+    }
+
+    /** Recaptures the whole snapshot after placement changed the terrain. */
+    public void restartTerrainCapture() {
+        if (terrainSnapshot != null) {
+            terrainSnapshot.restartCapture();
+        }
+    }
+
+    /** The captured terrain; valid after {@link #captureTerrainStep} returned true. */
+    public VillageTerrainSnapshot terrainSnapshot() {
+        return terrainSnapshot;
+    }
+
     public void releaseChunks() {
         if (preloader != null) {
             preloader.releaseAll();
