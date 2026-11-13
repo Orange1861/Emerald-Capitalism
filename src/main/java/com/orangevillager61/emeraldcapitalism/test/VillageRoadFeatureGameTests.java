@@ -281,6 +281,40 @@ public final class VillageRoadFeatureGameTests {
         }
     }
 
+    @GameTest(template = "empty_20x3x20", batch = "ecap_road_features")
+    public static void entranceRowsAboveTheGroundStepDownWithStairs(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<int[]> forcedChunks = forceChunks(level, helper.absolutePos(BlockPos.ZERO));
+        try {
+            // The door sits two blocks above flat ground. A library connector paves
+            // its three entrance rows at door height, then must step down with
+            // stairs instead of leaving a two-block ledge after the last row.
+            buildTerrain(helper, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE);
+            int doorY = HIGH_SURFACE_Y + 2;
+            VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
+            VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
+                    BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0)),
+                            helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19))));
+            VillageRoadPathGenerator.PlannedPath path = generator.planLibraryConnection(VillageTerrain.live(level),
+                    helper.absolutePos(new BlockPos(1, doorY, ROUTE_Z)),
+                    helper.absolutePos(new BlockPos(1, doorY, ROUTE_Z)),
+                    List.of(), "PLAINS", Direction.EAST, roads, null);
+            helper.assertTrue(path != null, "connector from a raised door was not planned");
+            generator.place(level, path);
+
+            for (int x = 4; x <= 5; x++) {
+                BlockPos stairPos = helper.absolutePos(new BlockPos(x, doorY + 4 - x, ROUTE_Z));
+                BlockState stair = level.getBlockState(stairPos);
+                helper.assertTrue(stair.is(ECAPBlocks.DIRT_PATH_STAIRS.get())
+                                && stair.getValue(StairBlock.FACING) == Direction.WEST,
+                        "step down from the entrance rows at x=" + x + " is " + stair);
+            }
+            helper.succeed();
+        } finally {
+            releaseChunks(level, forcedChunks);
+        }
+    }
+
     private static void buildTerrain(GameTestHelper helper, int cliffX, int channelMinX, int channelMaxX) {
         buildTerrain(helper, cliffX, channelMinX, channelMaxX, Blocks.GRASS_BLOCK.defaultBlockState(),
                 Blocks.DIRT_PATH.defaultBlockState());

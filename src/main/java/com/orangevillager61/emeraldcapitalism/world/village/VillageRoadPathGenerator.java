@@ -431,6 +431,14 @@ public final class VillageRoadPathGenerator {
         // first one it reaches, so an unreachable nearby street cannot use up
         // the planning time before a reachable one is tried.
         surfaceCache.forgetUnavailableColumns();
+        // Fixed entrance rows are paved at door height whatever the terrain under
+        // them. Let the search see them at that height, so the first route row
+        // must step from the door level and gets a stair or ramp where it drops.
+        if (profile.fixedEntranceRows() > 0) {
+            for (StartOption option : startOptions) {
+                overrideEntranceRows(terrain, surfaceCache, option, profile.pathWidth());
+            }
+        }
         for (int searchIndex = 0; searchIndex < MAX_ROUTE_SEARCHES && !candidates.isEmpty(); searchIndex++) {
             long searchStarted = System.nanoTime();
             if (searchIndex > 0 && searchStarted > deadline) {
@@ -1754,6 +1762,25 @@ public final class VillageRoadPathGenerator {
         return element.contains("/streets/") || element.contains("/street/");
     }
 
+    private void overrideEntranceRows(VillageTerrain terrain, SurfaceCache surfaceCache, StartOption option,
+                                      int pathWidth) {
+        Direction direction = option.entrance().direction();
+        int firstWidthOffset = -(pathWidth / 2);
+        for (BlockPos row : option.prefix()) {
+            for (int width = firstWidthOffset; width < firstWidthOffset + pathWidth; width++) {
+                int x = rowX(row.getX(), direction, width);
+                int z = rowZ(row.getZ(), direction, width);
+                if (!terrain.hasChunk(x >> 4, z >> 4)) {
+                    continue;
+                }
+                SurfaceSample doorLevel = fixedEntranceSurface(terrain, x, row.getY(), z);
+                if (doorLevel != null) {
+                    surfaceCache.override(x, z, doorLevel);
+                }
+            }
+        }
+    }
+
     private static int nearestTargetDistance(int x, int z, int[] targetXs, int[] targetZs) {
         int nearest = Integer.MAX_VALUE;
         for (int index = 0; index < targetXs.length; index++) {
@@ -1830,6 +1857,13 @@ public final class VillageRoadPathGenerator {
 
         private void forgetUnavailableColumns() {
             invalidColumns.clear();
+        }
+
+        /** Replaces a column's sample with one the planner knows better, such as a paved entrance row. */
+        private void override(int x, int z, SurfaceSample sample) {
+            long key = columnKey(x, z);
+            invalidColumns.remove(key);
+            samples.put(key, sample);
         }
     }
 
