@@ -77,8 +77,8 @@ ticking per server tick, and its total divided by `SERVER_TICK`'s total is the s
 that villager ticks take. Both are inert unless detailed timing is on. The hooks are in
 `event/PerformanceTimingEvents` and only time server-side villagers.
 
-**The capture itself is not taken.** It needs a busy village in a real world, which only you have.
-Taking it now, on this HEAD, gives the reference for the comparison after steps 9 and 15.
+**The capture was taken by the developer on 2026-11-13** (results below).
+Taking it on this HEAD, on this HEAD, gives the reference for the comparison after steps 9 and 15.
 
 ### How to take the capture (B4 run sheet)
 
@@ -97,17 +97,34 @@ Taking it now, on this HEAD, gives the reference for the comparison after steps 
 
 | Operation | Calls | Average ms | p95 ms | Max ms |
 | --- | ---: | ---: | ---: | ---: |
-| `server_tick` | | | | |
-| `villager_entity_tick` | | | | |
-| `movement_manager_time` | | | | |
-| `lumberjack_search` | | | | |
-| `village_registry_manager_tick` | | | | |
-| `bank_chest_cache_rebuild` | | | | |
+| `server_tick` | 7,319 | 21.973 | 38.325 | 310.731 |
+| `villager_entity_tick` | 402,427 | 0.109 | 0.163 | 73.908 |
+| `movement_manager_time` | 10,451 | 0.010 | 0.034 | 5.837 |
+| `movement_vanilla_path_plan_attempt` | 17,644 | 0.858 | 1.666 | 22.352 |
+| `movement_helper_path_plan_attempt` | 17,024 | 0.587 | 1.657 | 14.861 |
+| `lumberjack_search` | 3,078 | 0.064 | 0.135 | 13.030 |
+| `village_registry_manager_tick` | 21,957 | 0.116 | 0.026 | 282.173 |
+| `village_full_scan` | 142 | 11.727 | 64.166 | 282.092 |
+| `village_detection_tick` | 7,319 | 0.017 | 0.010 | 44.881 |
+| `bank_chest_cache_rebuild` | 23 | 0.556 | 1.012 | 2.468 |
+| `bank_inventory_total_refresh` | 52 | 0.033 | 0.058 | 0.163 |
 
-Commit: (HEAD when captured). Villagers loaded: (count). World and village: (name).
+Captured 2026-11-13 at commit `b6b3fef3`, a 1.21.1 integrated server (client run), about 6 minutes of server time
+(7,319 server ticks) after `/gamerule doDaylightCycle false` and `/time set 3000`. Raw line:
+`b4-baseline-2026-11-13-performance-line.txt`.
+
+What the numbers say:
+
+- **Villagers:** 402,427 villager ticks over 7,319 server ticks is about **55 villagers ticking per server tick**.
+- **Share of server time:** villager entity ticks took 44 s of 161 s, **27.3%** of server tick time. Average 0.109 ms per villager tick, p99 1.64 ms, worst 73.9 ms.
+- **Server tick:** average **22.0 ms**, p95 38.3 ms, p99 58.2 ms, worst **311 ms**. The average is under 50 ms but the tail is long.
+- **Path planning:** vanilla `createPath` attempts took 15 s and the mod helper's preflight attempts 10 s: together about **15.6%** of server tick time (these run inside villager ticks, so they overlap the villager share, not add to it). The helper preflight (`movement_helper_path_plan_attempt`, 17,024 calls) is the kind of work the refactor removes, so this is the number to watch after steps 9 and 15.
+- **Spike:** `village_registry_manager_tick` (max 282 ms) and `village_full_scan` (max 282 ms) have the same worst case, so the worst single stall in this run is one full village scan inside the registry manager tick. That is the likely source of the 310 ms worst server tick.
+- **Not a cost here:** banks (`bank_*`, under 13 ms total), lumberjack search (197 ms total), and the movement manager (107 ms total) are small.
+- **Caveats:** this is an integrated server, so rendering shares the machine; one world, one run; the world and its villager count were not recorded beyond the derived average.
 
 | ID | Requirement | Status |
 | --- | --- | --- |
 | B4.1 | Counters for whole server ticks and villager ticks. | PASS (compiled and verified; the events are exercised by every GameTest tick) |
-| B4.2 | One capture of a busy village at the current HEAD. | BLOCKED (waiting for the developer) |
+| B4.2 | One capture of a busy village at the current HEAD. | PASS (developer capture 2026-11-13, commit b6b3fef3, recorded above) |
 | B4.3 | Repeat after steps 9 and 15. | Not due |
