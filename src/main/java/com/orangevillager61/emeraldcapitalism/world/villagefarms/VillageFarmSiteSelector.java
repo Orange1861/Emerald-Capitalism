@@ -40,6 +40,8 @@ import java.util.*;
  * village bounds filling any remaining capacity.</p>
  */
 public class VillageFarmSiteSelector {
+    /** Blocks kept clear between two outskirt farms, one connector road wide. */
+    private static final int FARM_SPACING = 3;
 
     private static final Map<String, List<FarmTemplate>> BIOME_FARMS = new HashMap<>();
     private static final int[][] PATH_CLEAR_DIRECTIONS = {
@@ -352,9 +354,14 @@ public class VillageFarmSiteSelector {
                     bestCandidate.z + bestCandidate.footprintZ - 1
             );
 
+            // Keep a road-width gap between outskirt farms: a farm packed against
+            // another would put its connector entrances inside its neighbour.
+            BoundingBox spacedFarmBB = new BoundingBox(
+                    farmBB.minX() - FARM_SPACING, farmBB.minY(), farmBB.minZ() - FARM_SPACING,
+                    farmBB.maxX() + FARM_SPACING, farmBB.maxY(), farmBB.maxZ() + FARM_SPACING);
             boolean overlaps = false;
             for (BoundingBox existing : placedFootprints) {
-                if (farmBB.intersects(existing)) {
+                if (spacedFarmBB.intersects(existing)) {
                     overlaps = true;
                     break;
                 }
