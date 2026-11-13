@@ -64,6 +64,12 @@ public final class VillageRoadPathGenerator {
     /** Route searches per connection; each retry drops a target whose placement failed. */
     private static final int MAX_ROUTE_SEARCHES = 4;
     private static final int MIN_TARGET_SPACING_SQ = 9;
+    /**
+     * Most blocks a road side column may differ from its centre column. Placement
+     * cuts or fills a two-block difference to the centre height; the walkable
+     * centre line itself still changes by at most one block per column.
+     */
+    private static final int MAX_SIDE_GRADE = 2;
     /** Highest climb one graded ramp makes; it rises one block per column. */
     private static final int MAX_RAMP_RISE = 4;
     /** Most blocks one ramp column may be cut or filled away from its terrain. */
@@ -916,7 +922,7 @@ public final class VillageRoadPathGenerator {
             if (sample == null) {
                 return "no_side_surface@" + x + "," + z;
             }
-            if (Math.abs(sample.pos().getY() - center.pos().getY()) > 1) {
+            if (Math.abs(sample.pos().getY() - center.pos().getY()) > MAX_SIDE_GRADE) {
                 return "side_step(" + center.pos().getY() + "->" + sample.pos().getY() + ")@" + x + "," + z;
             }
             if (!isUsablePathSurface(sample.state())) {
@@ -954,9 +960,13 @@ public final class VillageRoadPathGenerator {
             }
 
             SurfaceSample sample = surfaceCache.get(x, z);
-            if (sample == null
-                    || Math.abs(sample.pos().getY() - center.pos().getY()) > 1
-                    || !isUsablePathSurface(sample.state())) {
+            if (sample == null || !isUsablePathSurface(sample.state())) {
+                return false;
+            }
+            int sideStep = Math.abs(sample.pos().getY() - center.pos().getY());
+            if (sideStep > MAX_SIDE_GRADE
+                    || (sideStep == MAX_SIDE_GRADE
+                    && gradableColumn(terrain, x, z, center.pos().getY(), roads, surfaceCache) == null)) {
                 return false;
             }
         }
@@ -965,8 +975,9 @@ public final class VillageRoadPathGenerator {
 
     /**
      * Placement widens each route cell across its outgoing direction, so a turn
-     * also paves the current cell's row on the new axis. That row needs the same
-     * surface and height checks as a row entered by a straight step.
+     * also paves the current cell's row on the new axis. That row must not enter
+     * a building or an unloaded chunk; placement grades its cells to the centre
+     * where it can and leaves the rest unpaved.
      */
     private boolean isTurnRowClear(VillageTerrain terrain, SurfaceSample center, Direction newDirection,
                                    PreparedVillageRoads roads, SurfaceCache surfaceCache,
@@ -978,11 +989,6 @@ public final class VillageRoadPathGenerator {
             int rowX = newDirection.getAxis() == Direction.Axis.X ? x : x + width;
             int rowZ = newDirection.getAxis() == Direction.Axis.X ? z + width : z;
             if (!terrain.hasChunk(rowX >> 4, rowZ >> 4) || roads.isInsideBuilding(rowX, rowZ)) {
-                return false;
-            }
-            SurfaceSample sample = surfaceCache.get(rowX, rowZ);
-            if (sample == null || Math.abs(sample.pos().getY() - center.pos().getY()) > 1
-                    || !isUsablePathSurface(sample.state())) {
                 return false;
             }
         }
@@ -1364,10 +1370,17 @@ public final class VillageRoadPathGenerator {
                         ? fixedEntranceSurface(terrain, x, center.getY(), z)
                         : surfaceCache.get(x, z);
                 if (sample == null) {
+                    if (!fixedEntranceRow && width != 0) {
+                        continue;
+                    }
                     rejection.set(fixedEntranceRow ? "ENTRANCE_ROW_FLUID" : "NO_SURFACE", x, z);
                     return null;
                 }
                 if (!fixedEntranceRow && !isUsablePathSurface(sample.state())) {
+                    if (width != 0) {
+                        // Only a turn's widened row reaches here; leave this side cell unpaved.
+                        continue;
+                    }
                     rejection.set("UNUSABLE_SURFACE", x, z);
                     return null;
                 }
@@ -1384,6 +1397,24 @@ public final class VillageRoadPathGenerator {
                     continue;
                 }
 
+                int sideStep = sample.pos().getY() - center.getY();
+                if (!fixedEntranceRow && Math.abs(sideStep) > 1) {
+                    if (Math.abs(sideStep) > MAX_SIDE_GRADE
+                            || columns.containsKey(columnKey(x, z))
+                            || gradableColumn(terrain, x, z, center.getY(), roads, surfaceCache) == null) {
+                        continue;
+                    }
+                    BlockPos graded = new BlockPos(x, center.getY(), z);
+                    cells.put(graded, new PlannedPathCell(graded, sample.snowPos(), CellKind.GRADED,
+                            sample.pos().getY()));
+                    columns.put(columnKey(x, z), new PlannedColumn(center.getY(), direction, true));
+                    continue;
+                }
+                PlannedColumn planned = columns.get(columnKey(x, z));
+                if (planned != null && planned.y() != sample.pos().getY()) {
+                    // An earlier row already graded this column; keep that one cell.
+                    continue;
+                }
                 if (cells.putIfAbsent(sample.pos(), new PlannedPathCell(sample.pos(), sample.snowPos(),
                         CellKind.PATH, sample.pos().getY())) == null) {
                     columns.putIfAbsent(columnKey(x, z), new PlannedColumn(sample.pos().getY(),
@@ -1677,7 +1708,8 @@ public final class VillageRoadPathGenerator {
                 || block == Blocks.GRANITE
                 || block == Blocks.TUFF
                 || block == Blocks.SANDSTONE
-                || block == Blocks.RED_SANDSTONE;
+                || block == Blocks.RED_SANDSTONE
+                || block == Blocks.TERRACOTTA;
     }
 
     /**
