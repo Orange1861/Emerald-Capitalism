@@ -1660,6 +1660,8 @@ public final class VillageRoadPathGenerator {
         }
         Block block = state.getBlock();
         return isStreetSurface(block)
+                || block == Blocks.SAND
+                || block == Blocks.RED_SAND
                 || block == Blocks.GRASS_BLOCK
                 || block == Blocks.DIRT
                 || block == Blocks.PODZOL
@@ -1689,19 +1691,21 @@ public final class VillageRoadPathGenerator {
                 || block == Blocks.MOSSY_COBBLESTONE;
     }
 
+    /**
+     * Blocks that form village street surface. Sand is not one: desert streets are
+     * smooth sandstone, and the plain sand a desert street piece also covers is
+     * terrain, so a connector must not end on it.
+     */
     private boolean isStreetSurface(Block block) {
         return block == Blocks.DIRT_PATH
                 || block == Blocks.SMOOTH_SANDSTONE
                 || block == Blocks.GRAVEL
-                || block == Blocks.SAND
-                || block == Blocks.RED_SAND
                 || block == Blocks.COBBLESTONE
                 || block == Blocks.MOSSY_COBBLESTONE;
     }
 
     private int streetSurfacePenalty(Block block) {
-        if (block == Blocks.DIRT_PATH || block == Blocks.SMOOTH_SANDSTONE
-                || block == Blocks.SAND || block == Blocks.RED_SAND) {
+        if (block == Blocks.DIRT_PATH || block == Blocks.SMOOTH_SANDSTONE) {
             return 0;
         }
         if (block == Blocks.GRAVEL) {

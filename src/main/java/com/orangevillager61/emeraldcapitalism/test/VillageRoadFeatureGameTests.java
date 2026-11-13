@@ -254,9 +254,14 @@ public final class VillageRoadFeatureGameTests {
         ServerLevel level = helper.getLevel();
         List<int[]> forcedChunks = forceChunks(level, helper.absolutePos(BlockPos.ZERO));
         try {
-            // A desert street piece also covers plain sand; joining there must not pave with sand.
+            // A desert street piece also covers plain sand beside the smooth sandstone.
+            // The connector must end on the real street and pave that sand.
             buildTerrain(helper, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE,
-                    Blocks.SAND.defaultBlockState(), Blocks.SAND.defaultBlockState());
+                    Blocks.SAND.defaultBlockState(), Blocks.SMOOTH_SANDSTONE.defaultBlockState());
+            for (int z = 0; z <= 19; z++) {
+                level.setBlock(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, z)),
+                        Blocks.SAND.defaultBlockState(), 2);
+            }
             VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
             VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
                     BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0)),
@@ -267,7 +272,7 @@ public final class VillageRoadFeatureGameTests {
                     List.of(), "DESERT", Direction.EAST, roads, null);
             helper.assertTrue(path != null, "desert connector to a sand street was not planned");
             generator.place(level, path);
-            for (int x = 2; x <= STREET_MIN_X - 2; x++) {
+            for (int x = 2; x <= STREET_MIN_X; x++) {
                 assertBlock(helper, x, HIGH_SURFACE_Y, ROUTE_Z, Blocks.SMOOTH_SANDSTONE, "desert connector paving");
             }
             helper.succeed();
