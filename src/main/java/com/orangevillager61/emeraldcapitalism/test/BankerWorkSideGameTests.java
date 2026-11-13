@@ -49,6 +49,7 @@ public final class BankerWorkSideGameTests {
     static final long WORK_DAY_TIME = 2_500L;
     private static final int ARRIVAL_LIMIT_TICKS = 500;
     private static final int HOLD_TICKS = 400;
+    private static final int STEADY_TICKS = 40;
 
     private BankerWorkSideGameTests() {
     }
@@ -337,7 +338,12 @@ public final class BankerWorkSideGameTests {
                 boolean atWork = BankBlock.isAtBankerWorkPos(
                         level.getBlockState(site.bankPos()), site.bankPos(), site.banker().position());
                 if (journey.arrivedAt(site) < 0) {
-                    if (atWork) {
+                    // A fresh Brain starts in IDLE until its first schedule update and the Brain does
+                    // not stop vanilla's leftover idle behavior, so a pass-by does not count: the
+                    // banker must be working at the work side for 40 ticks in a row.
+                    boolean working = atWork && site.banker().getBrain()
+                            .isActive(net.minecraft.world.entity.schedule.Activity.WORK);
+                    if (journey.steady(site, working) >= STEADY_TICKS) {
                         journey.markArrived(site, tick);
                     }
                     allHolding = false;
@@ -360,7 +366,11 @@ public final class BankerWorkSideGameTests {
             if (tick > ARRIVAL_LIMIT_TICKS + HOLD_TICKS) {
                 level.setDayTime(journey.previousDayTime());
                 helper.fail("a banker did not reach and hold the work side: "
-                        + journey.sites().stream().map(site -> site.banker().position().toString()).toList());
+                        + journey.sites().stream().map(site -> site.banker().position() + " activity="
+                                + site.banker().getBrain().getActiveNonCoreActivity().orElse(null)
+                                + " arrivedAt=" + journey.arrivedAt(site) + " dayTime=" + level.getDayTime()
+                                + " walkTarget=" + site.banker().getBrain()
+                                .getMemory(MemoryModuleType.WALK_TARGET).isPresent()).toList());
                 return;
             }
             helper.runAfterDelay(1, () -> observe(helper, journey, tick + 1));
@@ -442,11 +452,13 @@ public final class BankerWorkSideGameTests {
         private final List<Site> sites;
         private final long previousDayTime;
         private final int[] arrivals;
+        private final int[] steadyTicks;
 
         private Journey(List<Site> sites, long previousDayTime) {
             this.sites = sites;
             this.previousDayTime = previousDayTime;
             this.arrivals = new int[sites.size()];
+            this.steadyTicks = new int[sites.size()];
             java.util.Arrays.fill(arrivals, -1);
         }
 
@@ -456,6 +468,13 @@ public final class BankerWorkSideGameTests {
 
         private long previousDayTime() {
             return previousDayTime;
+        }
+
+        /** Counts consecutive ticks {@code working} has held for {@code site}. */
+        private int steady(Site site, boolean working) {
+            int index = sites.indexOf(site);
+            steadyTicks[index] = working ? steadyTicks[index] + 1 : 0;
+            return steadyTicks[index];
         }
 
         private int arrivedAt(Site site) {

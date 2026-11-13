@@ -73,6 +73,11 @@ public class Config {
             .translation("emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance")
             .define("ai.villagerAI.enableBoatAvoidance", true);
 
+    private static final ModConfigSpec.BooleanValue ENABLE_RANGED_HOSTILE_COVER = BUILDER
+            .comment("If true, a panicking villager that can see a ranged hostile (a pillager or illusioner) first tries to get out of its sight, and otherwise flees as normal.")
+            .translation("emeraldcapitalism.configuration.ai.villagerAI.enableRangedHostileCover")
+            .define("ai.villagerAI.enableRangedHostileCover", true);
+
     private static final ModConfigSpec.BooleanValue ENABLE_LADDER_TRAVERSAL = BUILDER
             .comment("If true, villagers and emerald golems can pathfind through and climb ladders and other climbable blocks.",
                      "They will ascend and descend ladders as part of their normal navigation.",
@@ -514,6 +519,7 @@ public class Config {
     public static boolean enableFenceGateInteraction;
     public static boolean enableVillagerStatsShiftClick;
     public static boolean enableBoatAvoidance;
+    public static boolean enableRangedHostileCover = true;
     public static boolean enableLadderTraversal;
     public static boolean enableZombieVillagerSunAvoidance = true;
     public static boolean alwaysConvertVillagersToZombieVillagers = true;
@@ -561,6 +567,7 @@ public class Config {
         enableFenceGateInteraction = ENABLE_FENCE_GATE_INTERACTION.get();
         enableVillagerStatsShiftClick = ENABLE_VILLAGER_STATS_SHIFT_CLICK.get();
         enableBoatAvoidance = ENABLE_BOAT_AVOIDANCE.get();
+        enableRangedHostileCover = ENABLE_RANGED_HOSTILE_COVER.get();
         enableLadderTraversal = ENABLE_LADDER_TRAVERSAL.get();
         enableZombieVillagerSunAvoidance = ENABLE_ZOMBIE_VILLAGER_SUN_AVOIDANCE.get();
         alwaysConvertVillagersToZombieVillagers = ALWAYS_CONVERT_VILLAGERS_TO_ZOMBIE_VILLAGERS.get();

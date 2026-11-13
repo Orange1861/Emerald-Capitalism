@@ -3,7 +3,9 @@ package com.orangevillager61.emeraldcapitalism.behavior;
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.behavior.RunOne;
 import net.minecraft.world.entity.ai.behavior.WorkAtPoi;
 import net.minecraft.world.entity.npc.Villager;
@@ -30,6 +32,8 @@ public final class VillagerGoalPackageIntegration {
     public static final int FENCE_GATE_PRIORITY = 6;
     /** Vanilla's WORK package runs its work-at-poi gate at this priority. */
     private static final int VANILLA_WORK_PRIORITY = 5;
+    /** Vanilla's panic package puts both walk-away movers at this priority. */
+    private static final int PANIC_MOVER_PRIORITY = 1;
 
     private VillagerGoalPackageIntegration() {
     }
@@ -103,6 +107,34 @@ public final class VillagerGoalPackageIntegration {
                 return;
             }
         }
+    }
+
+    /**
+     * Panic package with its two walk-away movers (from the nearest hostile, from the attacker)
+     * wrapped in {@link CoverSeekingFlee}. Both sit at priority 1 in vanilla's order; wrapping is
+     * idempotent and leaves every other entry, and the order, as vanilla has them.
+     */
+    @SuppressWarnings("unchecked")
+    public static ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> addPanicBehaviors(
+            float speedModifier,
+            List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> original) {
+        List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> modified = new ArrayList<>(original);
+        float fleeSpeed = speedModifier * 1.5F;
+        int movers = 0;
+        for (int index = 0; index < modified.size() && movers < 2; index++) {
+            Pair<Integer, ? extends BehaviorControl<? super Villager>> entry = modified.get(index);
+            if (entry.getFirst() != PANIC_MOVER_PRIORITY) {
+                continue;
+            }
+            if (!(entry.getSecond() instanceof CoverSeekingFlee)) {
+                MemoryModuleType<? extends LivingEntity> threat = movers == 0
+                        ? MemoryModuleType.NEAREST_HOSTILE : MemoryModuleType.HURT_BY_ENTITY;
+                modified.set(index, Pair.of(PANIC_MOVER_PRIORITY,
+                        new CoverSeekingFlee(threat, (BehaviorControl<Villager>) entry.getSecond(), fleeSpeed)));
+            }
+            movers++;
+        }
+        return ImmutableList.copyOf(modified);
     }
 
     private static void addIfMissing(

@@ -79,6 +79,26 @@ vanilla's 9-block job-site range); the bell-hours test now waits 40 ticks at the
 Panic, rest, and the other interruption tests check two ticks after the activity changes because the Brain
 changes activity after its own tick.
 
+## Addendum (2026-11-13): cover from ranged hostiles
+
+The developer reported that a banker working behind a wall with a gap did not flee a pillager that could
+shoot it through the gap. A control experiment (`trappedBankerReactsToAVisibleHostileLikeAnyTrappedVillager`)
+showed the banker reacts like any walled-in villager: it panics and tries to flee, but the cell has no
+way out. The developer asked that villagers instead try to get out of sight of ranged hostiles.
+
+Implemented as `CoverSeekingFlee`, which wraps the two walk-away movers in the PANIC package (plan rule 8):
+a panicking villager that sees a pillager or illusioner walks to the nearest reachable block with no line
+to the hostile, found by a flood fill of at most 400 nodes and 10 steps, and otherwise flees as vanilla does.
+It applies to every villager, not only bankers, and can be turned off with
+`ai.villagerAI.enableRangedHostileCover`. Tests: `panickingVillagerWalksBehindCoverFromAPillager` (natural),
+`panickingVillagerStillFleesAMeleeHostileInTheOpen`, `panicPackageWrapsBothMoversOnceAndKeepsVanillaOrder`.
+
+Known limits: a villager walled in with no hidden block, such as a 1 by 3 cell lined up with the gap,
+still cannot hide and behaves as before. Once hidden the hostile leaves its senses, panic ends, and a
+banker walks back to its work side, so a banker whose work side is in view may step out of sight and
+back repeatedly. The step-3 hold tests now wait for 40 steady ticks working at the work side before
+judging a hold, because a fresh Brain runs leftover vanilla idle behavior for a short time.
+
 ## Developer run sheet for M4.1
 
 Use a village with a banker whose bank does not confine it (an artificial bank), plus one natural

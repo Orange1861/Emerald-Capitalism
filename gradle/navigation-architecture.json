@@ -70,6 +70,14 @@
       "sourcePaths": ["src/main/java/com/orangevillager61/emeraldcapitalism/behavior/BegForFoodBehavior.java"]
     },
     {
+      "id": "ranged-cover-panic-wrapper",
+      "decision": "PANIC, wrapping vanilla's walk-away movers",
+      "ownershipScope": "villager UUID + ranged hostile",
+      "migrationPhase": 21,
+      "reason": "A panicking villager that can see a ranged hostile first tries to get out of its sight. The wrapper replaces vanilla's two priority-1 walk-away movers in place, runs the vanilla mover when no cover exists, and writes a walk target only while none exists, so it never alternates the target.",
+      "sourcePaths": ["src/main/java/com/orangevillager61/emeraldcapitalism/behavior/CoverSeekingFlee.java", "src/main/java/com/orangevillager61/emeraldcapitalism/behavior/VillagerGoalPackageIntegration.java"]
+    },
+    {
       "id": "banker-work-activity",
       "decision": "WORK, through the bell hours by BankerSchedule",
       "ownershipScope": "villager UUID + bank identity",

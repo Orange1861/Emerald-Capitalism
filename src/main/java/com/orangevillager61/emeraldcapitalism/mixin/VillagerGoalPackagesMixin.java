@@ -24,7 +24,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * fence-gate interaction and one boat-avoidance behavior, and every returned
  * work package has exactly one begging behavior, and a banker's work package has one
  * work-side behavior and no vanilla job-site {@code RunOne}; no other vanilla entry is
- * removed or reordered.</p>
+ * removed or reordered; every returned panic package has its two priority-1 walk-away movers
+ * wrapped, once each, in the cover-seeking wrapper.</p>
  *
  * <p>Target fragility: these static vanilla package factories change their
  * profession signature in later Minecraft versions. NeoForge 21.1.219 exposes
@@ -100,6 +101,20 @@ public class VillagerGoalPackagesMixin {
             CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir
     ) {
         cir.setReturnValue(VillagerGoalPackageIntegration.addMeetBehaviors(cir.getReturnValue()));
+    }
+
+    @Inject(
+        method = "getPanicPackage",
+        at = @At("RETURN"),
+        cancellable = true,
+        require = 1
+    )
+    private static void addPanicBehaviors(
+            VillagerProfession profession,
+            float speedModifier,
+            CallbackInfoReturnable<ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>>> cir
+    ) {
+        cir.setReturnValue(VillagerGoalPackageIntegration.addPanicBehaviors(speedModifier, cir.getReturnValue()));
     }
 
     @Inject(

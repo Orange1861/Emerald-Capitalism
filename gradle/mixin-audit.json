@@ -154,15 +154,16 @@
       "side": "server",
       "auditMode": "gametest",
       "mixins": ["VillagerGoalPackagesMixin"],
-      "invariant": "Core, idle, meet, and work goal packages contain the mod behaviors exactly once, preserve vanilla ordering, route begging through WORK, and route banker job-site work through the bank-aware behavior.",
+      "invariant": "Core, idle, meet, and work goal packages contain the mod behaviors exactly once, preserve vanilla ordering, route begging through WORK, and route banker job-site work through the bank-aware behavior; the panic package keeps vanilla's entries and order with its two walk-away movers wrapped once each in the cover-seeking wrapper.",
       "tests": [
         "villagergoalbehaviorgametests.packagecontentsareexactandconstructiondoesnotduplicate",
         "villagergoalbehaviorgametests.bankerjobsiteusesworksidebeforeassignment",
         "beggingjourneygametests.starvingvillagerbegsandreceivesfood",
         "villagergoalbehaviorgametests.fencegatebehavioropensandclosesthepathgate",
-        "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat"
+        "villagergoalbehaviorgametests.boatavoidancechoosesawalktargetawayfromtheboat",
+        "coverfromrangedhostilesgametests.panickingvillagerwalksbehindcoverfromapillager"
       ],
-      "target": "net.minecraft.world.entity.ai.behavior.VillagerGoalPackages#getCorePackage, #getIdlePackage, #getMeetPackage, and #getWorkPackage",
+      "target": "net.minecraft.world.entity.ai.behavior.VillagerGoalPackages#getCorePackage, #getIdlePackage, #getMeetPackage, #getWorkPackage, and #getPanicPackage",
       "injectionPoint": "RETURN injections plus NEW/INVOKE redirects inside getCorePackage",
       "supportedEventAlternative": "NeoForge 21.1.219 exposes no public goal-package construction event; preserve composition in VillagerGoalPackageIntegration and keep this adapter narrow."
     },

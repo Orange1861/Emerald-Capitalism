@@ -42,6 +42,8 @@
   "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick": "Enable Villager/Skrimisher Stats Shift-Click",
   "emeraldcapitalism.configuration.ai.villagerAI.enableVillagerStatsShiftClick.tooltip": "If true, shift-right-clicking a villager or Emerald Skrimisher opens its read-only information screen.",
 
+  "emeraldcapitalism.configuration.ai.villagerAI.enableRangedHostileCover": "Enable Cover From Ranged Hostiles",
+  "emeraldcapitalism.configuration.ai.villagerAI.enableRangedHostileCover.tooltip": "If true, a panicking villager that can see a ranged hostile (a pillager or illusioner) first tries to get out of its sight, and otherwise flees as normal.",
   "emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance": "Enable Boat Avoidance",
   "emeraldcapitalism.configuration.ai.villagerAI.enableBoatAvoidance.tooltip": "If true, villagers will avoid nearby boats and try to keep a few blocks away.",
 

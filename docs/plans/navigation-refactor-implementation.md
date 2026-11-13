@@ -911,7 +911,14 @@ implement them; none may reopen them without amending this section.
 7. **Inventory-bank visits compete with lumberjack work.** `VillagerInventoryBankGoal` stays
    legacy until step 13. A visit starts only at a lumberjack stage boundary (see "Furnace items
    and claim stages"); step 13 moves it onto these rules.
-8. **Safety wins structurally.** CORE safety behaviors (boat, plague, hostile flee) run in every
+8. **Panic movers may be wrapped, not fought.** A mod behavior that changes how a villager flees
+   (cover from ranged hostiles, `CoverSeekingFlee`) wraps vanilla's own walk-away mover in the
+   PANIC package at its place and priority, and runs vanilla's mover whenever it has nothing better.
+   Like the vanilla mover it writes a walk target only while none exists, so it never alternates
+   the target with another behavior. Cover means a reachable block, found by a short flood fill,
+   with no line to the hostile's eye. A villager that is walled in with no such block flees as
+   vanilla does. Ranged hostiles are pillagers and illusioners.
+9. **Safety wins structurally.** CORE safety behaviors (boat, plague, hostile flee) run in every
    activity. PANIC, RAID, and REST contain no mod work, so vanilla's activity choice decides, and
    rule 1 makes mod work stop.
 
