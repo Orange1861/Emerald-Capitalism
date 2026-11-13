@@ -246,7 +246,8 @@ public class VillageFarmPlacer {
 
             if (VillageFarmSiteSelector.countPathOverlap(originX, originZ,
                     placement.footprintX(), placement.footprintZ(), spatialCache.pathPieces()) > 0
-                    || VillageFarmSiteSelector.overlapsExistingPathSurface(level, originX, originZ,
+                    || VillageFarmSiteSelector.overlapsExistingPathSurface(
+                            com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain.live(level), originX, originZ,
                     placement.footprintX(), placement.footprintZ())
                     || containsBlacklistedBlocks(level, originX, originZ,
                     placement.footprintX(), placement.footprintZ(), spatialCache.blacklist())
@@ -731,7 +732,8 @@ public class VillageFarmPlacer {
             // an already-generated path surface.
             if (VillageFarmSiteSelector.countPathOverlap(originX, originZ,
                     placement.footprintX(), placement.footprintZ(), spatialCache.pathPieces()) > 0
-                    || VillageFarmSiteSelector.overlapsExistingPathSurface(level, originX, originZ,
+                    || VillageFarmSiteSelector.overlapsExistingPathSurface(
+                            com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain.live(level), originX, originZ,
                     placement.footprintX(), placement.footprintZ())) {
                 return null;
             }

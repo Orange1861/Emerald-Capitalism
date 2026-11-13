@@ -1,5 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import net.minecraft.world.level.levelgen.structure.StructurePiece;
+import net.minecraft.core.BlockPos;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBuildingImportance;
@@ -30,6 +32,30 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
                 context.level(), context.bellPos(), context.biomeType(), context.pieces(),
                 context.chunkLoadBudget(), context.reservations()::intersects);
         return library == null ? List.of() : List.of(new PlannedLibrary(library));
+    }
+
+    /**
+     * Loads the template on the server thread, then searches sites on the
+     * planning worker against the village's terrain snapshot.
+     */
+    @Override
+    public VillageBuildingPlanningTask startPlanning(VillageGenerationContext context) {
+        if (context.registryData().hasGeneratedLibrary(context.villageId())) {
+            return VillageBuildingPlanningTask.completed(List.of());
+        }
+        VillageLibraryStructurePlacer.SiteSearch search =
+                placer.prepareSiteSearch(context.level(), context.biomeType());
+        if (search == null) {
+            return VillageBuildingPlanningTask.completed(List.of());
+        }
+        VillageGenerationReservations reservations = context.reservations().copy();
+        BlockPos bellPos = context.bellPos();
+        List<StructurePiece> pieces = context.pieces();
+        return VillagePlanningWorker.planningTask(context, "Library", terrain -> {
+            VillageLibraryStructurePlacer.PlannedLibrary library = placer.findSite(
+                    terrain, search, bellPos, pieces, reservations::intersects);
+            return library == null ? List.of() : List.of(new PlannedLibrary(library));
+        });
     }
 
     private final class PlannedLibrary implements PlannedVillageBuilding {

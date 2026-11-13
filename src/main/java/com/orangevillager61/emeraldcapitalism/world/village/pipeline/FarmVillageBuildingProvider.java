@@ -47,6 +47,39 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
         return result;
     }
 
+    /**
+     * Loads the farm templates on the server thread, then selects sites on the
+     * planning worker against the village's terrain snapshot. The spatial cache
+     * is only read and filled by this job until it finishes.
+     */
+    @Override
+    public VillageBuildingPlanningTask startPlanning(VillageGenerationContext context) {
+        if (!Config.outskirtFarmsEnabled.get()
+                || context.farmSavedData().areFarmsPlaced(context.structureCenter())) {
+            return VillageBuildingPlanningTask.completed(List.of());
+        }
+        VillageFarmSiteSelector selector = context.farmSiteSelector();
+        VillageFarmSiteSelector.SiteSearch search = selector.prepareSiteSearch(
+                context.level(), context.structureCenter(), context.biomeType());
+        if (search == null) {
+            return VillageBuildingPlanningTask.completed(List.of());
+        }
+        VillageFarmSiteSelector.VillageSpatialCache cache = context.spatialCacheWithReservations();
+        BlockPos center = context.structureCenter();
+        String biomeType = context.biomeType();
+        BoundingBox villageBox = context.villageBox();
+        List<net.minecraft.world.level.levelgen.structure.StructurePiece> pieces = context.pieces();
+        return VillagePlanningWorker.planningTask(context, "Farm", terrain -> {
+            List<FarmPlacement> sites = selector.findSites(terrain, search, center, biomeType,
+                    villageBox, pieces, cache);
+            List<PlannedFarm> planned = new ArrayList<>(sites.size());
+            for (FarmPlacement site : sites) {
+                planned.add(new PlannedFarm(site, cache));
+            }
+            return planned;
+        });
+    }
+
     @Override
     public VillagePostProcessTask createPostProcessTask(
             VillageGenerationContext context, List<PlannedVillageBuilding> placedBuildings) {

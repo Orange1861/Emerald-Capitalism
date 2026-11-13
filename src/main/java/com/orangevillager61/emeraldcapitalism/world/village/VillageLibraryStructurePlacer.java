@@ -81,6 +81,17 @@ public final class VillageLibraryStructurePlacer {
     public PlannedLibrary plan(ServerLevel level, BlockPos bellPos, String biomeType,
                                List<StructurePiece> villagePieces, ChunkLoadBudget loadBudget,
                                Predicate<BoundingBox> reservedCollision) {
+        SiteSearch search = prepareSiteSearch(level, biomeType);
+        return search == null ? null
+                : findSite(VillageTerrain.live(level), search, bellPos, villagePieces, reservedCollision);
+    }
+
+    /**
+     * The server-thread part of a site search: loads the template and records its
+     * entrance jigsaws for every rotation, so {@link #findSite} needs no level.
+     */
+    @Nullable
+    public SiteSearch prepareSiteSearch(ServerLevel level, String biomeType) {
         ResourceLocation templateLocation = LIBRARY_TEMPLATES.get(biomeType);
         if (templateLocation == null) {
             EmeraldCapitalism.LOGGER.warn(
@@ -95,7 +106,25 @@ public final class VillageLibraryStructurePlacer {
                     templateLocation);
             return null;
         }
+        Map<Rotation, List<StructureTemplate.StructureBlockInfo>> jigsaws = new HashMap<>();
+        for (Rotation rotation : ROTATIONS) {
+            jigsaws.put(rotation, List.copyOf(template.get().filterBlocks(
+                    BlockPos.ZERO, placementSettings(rotation), Blocks.JIGSAW)));
+        }
+        return new SiteSearch(template.get(), templateLocation, Map.copyOf(jigsaws));
+    }
 
+    /**
+     * Searches library sites using only {@code terrain} and the prepared search,
+     * so it may run on the planning worker against a terrain snapshot. A site
+     * whose footprint is not loaded in that terrain is skipped.
+     */
+    @Nullable
+    public PlannedLibrary findSite(VillageTerrain level, SiteSearch search, BlockPos bellPos,
+                                   List<StructurePiece> villagePieces,
+                                   Predicate<BoundingBox> reservedCollision) {
+        Optional<StructureTemplate> template = Optional.of(search.template());
+        ResourceLocation templateLocation = search.location();
         List<BoundingBox> pathBoxes = collectPathBoxes(villagePieces);
         List<LibrarySite> sites = new ArrayList<>();
         for (int distance : DISTANCES_FROM_BELL) {
@@ -111,7 +140,7 @@ public final class VillageLibraryStructurePlacer {
                     BoundingBox footprint = template.get().getBoundingBox(placementSettings, anchor);
                     if (reservedCollision.test(footprint)
                             || overlapsVillagePiece(footprint, villagePieces)
-                            || !ensureFootprintLoaded(level, footprint, loadBudget)) {
+                            || !footprintLoaded(level, footprint)) {
                         continue;
                     }
 
@@ -122,9 +151,8 @@ public final class VillageLibraryStructurePlacer {
                     }
                     BlockPos origin = anchor.atY(terrain.placementY());
                     footprint = template.get().getBoundingBox(placementSettings, origin);
-                    LibraryEntrance entrance = findTemplateEntrance(template.get(), origin,
-                            rotation, footprint, bellPos,
-                            pathBoxes);
+                    LibraryEntrance entrance = findTemplateEntrance(search.jigsaws().get(rotation),
+                            origin, footprint, bellPos, pathBoxes);
                     sites.add(new LibrarySite(anchor, footprint, terrain.placementY(),
                             terrain.roughness(), rotation, entrance,
                             hasOpenApproach(level, entrance)));
@@ -298,11 +326,10 @@ public final class VillageLibraryStructurePlacer {
                 originX + sizeX - 1, Integer.MAX_VALUE / 2, originZ + sizeZ - 1);
     }
 
-    private static boolean ensureFootprintLoaded(ServerLevel level, BoundingBox footprint,
-                                                  ChunkLoadBudget loadBudget) {
+    private static boolean footprintLoaded(VillageTerrain terrain, BoundingBox footprint) {
         for (int chunkX = footprint.minX() >> 4; chunkX <= footprint.maxX() >> 4; chunkX++) {
             for (int chunkZ = footprint.minZ() >> 4; chunkZ <= footprint.maxZ() >> 4; chunkZ++) {
-                if (!loadBudget.ensureLoaded(level, chunkX, chunkZ)) {
+                if (!terrain.hasChunk(chunkX, chunkZ)) {
                     return false;
                 }
             }
@@ -319,15 +346,15 @@ public final class VillageLibraryStructurePlacer {
         return false;
     }
 
-    private static LibraryEntrance findTemplateEntrance(StructureTemplate template, BlockPos placePos,
-                                                        Rotation rotation, BoundingBox footprint,
+    private static LibraryEntrance findTemplateEntrance(List<StructureTemplate.StructureBlockInfo> jigsawsAtOrigin,
+                                                        BlockPos placePos,
+                                                        BoundingBox footprint,
                                                         BlockPos villageCenter,
                                                         List<BoundingBox> pathBoxes) {
-        StructurePlaceSettings settings = new StructurePlaceSettings()
-                .setRotation(rotation)
-                .setMirror(Mirror.NONE);
-        List<StructureTemplate.StructureBlockInfo> jigsaws = template.filterBlocks(
-                placePos, settings, Blocks.JIGSAW);
+        List<StructureTemplate.StructureBlockInfo> jigsaws = jigsawsAtOrigin.stream()
+                .map(info -> new StructureTemplate.StructureBlockInfo(
+                        info.pos().offset(placePos), info.state(), info.nbt()))
+                .toList();
         LibraryEntrance best = null;
         for (StructureTemplate.StructureBlockInfo jigsaw : jigsaws) {
             if (jigsaw.nbt() == null || !jigsaw.nbt().contains("final_state")) {
@@ -376,7 +403,7 @@ public final class VillageLibraryStructurePlacer {
      * within two, so the route can continue by plain steps or a stair ramp.
      * Unloaded columns count as blocked; this check never loads chunks.
      */
-    private static boolean hasOpenApproach(ServerLevel level, LibraryEntrance entrance) {
+    private static boolean hasOpenApproach(VillageTerrain level, LibraryEntrance entrance) {
         BlockPos start = entrance.start();
         Direction direction = entrance.direction();
         Direction side = direction.getClockWise();
@@ -493,7 +520,7 @@ public final class VillageLibraryStructurePlacer {
     }
 
     @Nullable
-    private static TerrainProfile terrainProfile(ServerLevel level, int originX, int originZ,
+    private static TerrainProfile terrainProfile(VillageTerrain level, int originX, int originZ,
                                                  int sizeX, int sizeZ) {
         int[] heights = new int[sizeX * sizeZ];
         int index = 0;
@@ -565,6 +592,11 @@ public final class VillageLibraryStructurePlacer {
     }
 
     private record LibraryEntrance(BlockPos start, Direction direction, int connectionCost) {
+    }
+
+    /** A loaded library template with its entrance jigsaws per rotation, placed at the origin. */
+    public record SiteSearch(StructureTemplate template, ResourceLocation location,
+                             Map<Rotation, List<StructureTemplate.StructureBlockInfo>> jigsaws) {
     }
 
     private record TerrainProfile(int placementY, int roughness) {

@@ -1,8 +1,14 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrainSnapshot;
+
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +38,48 @@ final class VillagePlanningWorker {
             });
         }
         return CompletableFuture.supplyAsync(job, executor);
+    }
+
+    /**
+     * A building-planning task whose search runs as one job. With the village's
+     * terrain snapshot the job runs on the worker against it; without one, as
+     * when planning outside the pipeline, it runs immediately on the calling
+     * server thread against the live level. The job must read only the terrain
+     * it is given and values the caller computed beforehand.
+     */
+    static VillageBuildingPlanningTask planningTask(
+            VillageGenerationContext context, String description,
+            Function<VillageTerrain, List<? extends PlannedVillageBuilding>> job) {
+        VillageTerrainSnapshot snapshot = context.terrainSnapshot();
+        CompletableFuture<List<? extends PlannedVillageBuilding>> future = snapshot != null
+                ? submit(() -> job.apply(snapshot))
+                : CompletableFuture.completedFuture(job.apply(VillageTerrain.live(context.level())));
+        return new VillageBuildingPlanningTask() {
+            private List<? extends PlannedVillageBuilding> result;
+
+            @Override
+            public boolean processStep() {
+                if (result != null) {
+                    return true;
+                }
+                if (!future.isDone()) {
+                    return false;
+                }
+                try {
+                    result = future.join();
+                } catch (RuntimeException exception) {
+                    EmeraldCapitalism.LOGGER.error("[ECAP] {} planning failed for village {}",
+                            description, context.villageId(), exception);
+                    result = List.of();
+                }
+                return true;
+            }
+
+            @Override
+            public List<? extends PlannedVillageBuilding> result() {
+                return result == null ? List.of() : result;
+            }
+        };
     }
 
     /** Drops queued jobs; a job already running finishes and its result is discarded. */

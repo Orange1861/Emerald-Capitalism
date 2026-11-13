@@ -1,5 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.world.villagefarms;
 
+import javax.annotation.Nullable;
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.block.entity.VillageManagerBlockEntity;
@@ -179,19 +181,56 @@ public class VillageFarmSiteSelector {
     public List<FarmPlacement> findSites(ServerLevel level, BlockPos center, String biomeType,
                                           BoundingBox villageBB, List<StructurePiece> pieces,
                                           ChunkLoadBudget budget, VillageSpatialCache context) {
+        SiteSearch search = prepareSiteSearch(level, center, biomeType);
+        return search == null ? Collections.emptyList()
+                : findSites(VillageTerrain.live(level), search, center, biomeType, villageBB, pieces, context);
+    }
+
+    /**
+     * The server-thread part of a farm site search: loads the biome's templates
+     * and derives the deterministic placement seed, so {@link #findSites(VillageTerrain,
+     * SiteSearch, BlockPos, String, BoundingBox, List, VillageSpatialCache)} needs no level.
+     */
+    @Nullable
+    public SiteSearch prepareSiteSearch(ServerLevel level, BlockPos center, String biomeType) {
         List<FarmTemplate> farmTemplates = BIOME_FARMS.get(biomeType);
         if (farmTemplates == null || farmTemplates.isEmpty()) {
             EmeraldCapitalism.LOGGER.warn("[ECAP] No farm templates for biome: {}", biomeType);
-            return Collections.emptyList();
+            return null;
         }
-
-        StructureTemplateManager templateManager = level.getStructureManager();
-
+        Map<FarmTemplate, TemplateDetails> templateDetails =
+                buildTemplateDetails(farmTemplates, level.getStructureManager());
+        if (templateDetails.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn("[ECAP] No loadable farm templates for biome: {}", biomeType);
+            return null;
+        }
         // Seed placement RNG from the world seed and village center for deterministic layouts.
         long villageSeed = level.getSeed()
                 ^ ((long) center.getX() * 341873128712L)
                 ^ ((long) center.getZ() * 132897987541L);
-        RandomSource random = RandomSource.create(villageSeed);
+        return new SiteSearch(templateDetails, villageSeed);
+    }
+
+    /** Loaded farm templates and the placement seed for one village's site search. */
+    public static final class SiteSearch {
+        private final Map<FarmTemplate, TemplateDetails> templateDetails;
+        private final long villageSeed;
+
+        private SiteSearch(Map<FarmTemplate, TemplateDetails> templateDetails, long villageSeed) {
+            this.templateDetails = templateDetails;
+            this.villageSeed = villageSeed;
+        }
+    }
+
+    /**
+     * Finds farm sites using only {@code terrain}, so it may run on the planning
+     * worker against a terrain snapshot. A footprint whose chunks are not loaded
+     * in that terrain is rejected.
+     */
+    public List<FarmPlacement> findSites(VillageTerrain level, SiteSearch search, BlockPos center,
+                                          String biomeType, BoundingBox villageBB,
+                                          List<StructurePiece> pieces, VillageSpatialCache context) {
+        RandomSource random = RandomSource.create(search.villageSeed);
 
         int bbChunksX = (villageBB.maxX() >> 4) - (villageBB.minX() >> 4) + 1;
         int bbChunksZ = (villageBB.maxZ() >> 4) - (villageBB.minZ() >> 4) + 1;
@@ -201,11 +240,7 @@ public class VillageFarmSiteSelector {
         int perChunkBonus = Config.outskirtFarmsPerChunkBonus.get();
         int maxCount = Math.min(baseFarms + perChunkBonus * bbChunkCount, Config.outskirtFarmsMaxCount.get());
 
-        Map<FarmTemplate, TemplateDetails> templateDetails = buildTemplateDetails(farmTemplates, templateManager);
-        if (templateDetails.isEmpty()) {
-            EmeraldCapitalism.LOGGER.warn("[ECAP] No loadable farm templates for biome: {}", biomeType);
-            return Collections.emptyList();
-        }
+        Map<FarmTemplate, TemplateDetails> templateDetails = search.templateDetails;
 
         EmeraldCapitalism.LOGGER.debug(
                 "[ECAP] Village BB covers {}x{} = {} chunks, target farm count: {} (base {} + {} per chunk, max {})",
@@ -231,7 +266,7 @@ public class VillageFarmSiteSelector {
         for (PathEndpoint endpoint : endpoints) {
             CandidateSite site = createCandidateAtEndpoint(
                     endpoint, random, templateDetails,
-                    level, villageBuildingPieceBoxes, pathPieces, budget, context);
+                    level, villageBuildingPieceBoxes, pathPieces, context);
             if (site != null) {
                 candidates.add(site);
             }
@@ -253,7 +288,7 @@ public class VillageFarmSiteSelector {
 
                 CandidateSite site = createCandidateAt(
                         candidateX, candidateZ, angle, random, templateDetails,
-                        level, villageBuildingPieceBoxes, pathPieces, budget, context);
+                        level, villageBuildingPieceBoxes, pathPieces, context);
                 if (site != null) {
                     candidates.add(site);
                 }
@@ -431,9 +466,8 @@ public class VillageFarmSiteSelector {
      */
     private CandidateSite createCandidateAtEndpoint(PathEndpoint endpoint, RandomSource random,
                                                      Map<FarmTemplate, TemplateDetails> templateDetails,
-                                                     ServerLevel level, List<BoundingBox> buildingPieceBoxes,
+                                                     VillageTerrain level, List<BoundingBox> buildingPieceBoxes,
                                                      List<StructurePiece> pathPieces,
-                                                     ChunkLoadBudget budget,
                                                      VillageSpatialCache context) {
         // Perpendicular direction for sideways nudges
         double perpX = -endpoint.dirZ;
@@ -449,7 +483,7 @@ public class VillageFarmSiteSelector {
             int candidateZ = endpoint.z + (int) (endpoint.dirZ * off[0] + perpZ * off[1]);
 
             CandidateSite site = createCandidateAt(candidateX, candidateZ, endpoint.angle(), random,
-                    templateDetails, level, buildingPieceBoxes, pathPieces, budget, context);
+                    templateDetails, level, buildingPieceBoxes, pathPieces, context);
             if (site != null) {
                 return site;
             }
@@ -465,9 +499,8 @@ public class VillageFarmSiteSelector {
      */
     private CandidateSite createCandidateAt(int candidateX, int candidateZ, double angle, RandomSource random,
                                              Map<FarmTemplate, TemplateDetails> templateDetails,
-                                             ServerLevel level, List<BoundingBox> buildingPieceBoxes,
+                                             VillageTerrain level, List<BoundingBox> buildingPieceBoxes,
                                              List<StructurePiece> pathPieces,
-                                             ChunkLoadBudget budget,
                                              VillageSpatialCache context) {
         // Shuffle templates so we try them in random order, falling back to others if one doesn't fit
         List<TemplateDetails> shuffled = new ArrayList<>(templateDetails.values());
@@ -487,7 +520,7 @@ public class VillageFarmSiteSelector {
 
             CandidatePosition position = findPathClearPosition(
                     level, candidateX, candidateZ, footprintX, footprintZ,
-                    buildingPieceBoxes, pathPieces, budget, context);
+                    buildingPieceBoxes, pathPieces, context);
             if (position != null) {
                 return new CandidateSite(position.x, position.z, angle, template, rotation,
                         footprintX, footprintZ, position.pathDistance);
@@ -526,15 +559,14 @@ public class VillageFarmSiteSelector {
      * bounded by the farm size so site selection stays deterministic and cheap.
      */
     @javax.annotation.Nullable
-    private CandidatePosition findPathClearPosition(ServerLevel level, int candidateX, int candidateZ,
+    private CandidatePosition findPathClearPosition(VillageTerrain level, int candidateX, int candidateZ,
                                                     int footprintX, int footprintZ,
                                                     List<BoundingBox> buildingPieceBoxes,
                                                     List<StructurePiece> pathPieces,
-                                                    ChunkLoadBudget budget,
                                                     VillageSpatialCache context) {
         CandidatePosition direct = validatePathClearPosition(
                 level, candidateX, candidateZ, footprintX, footprintZ,
-                buildingPieceBoxes, pathPieces, budget, context);
+                buildingPieceBoxes, pathPieces, context);
         if (direct != null) {
             return direct;
         }
@@ -550,7 +582,7 @@ public class VillageFarmSiteSelector {
                 int z = candidateZ + offsetZ;
                 CandidatePosition position = validatePathClearPosition(
                         level, x, z, footprintX, footprintZ,
-                        buildingPieceBoxes, pathPieces, budget, context);
+                        buildingPieceBoxes, pathPieces, context);
                 if (position == null) {
                     continue;
                 }
@@ -570,17 +602,16 @@ public class VillageFarmSiteSelector {
     }
 
     @javax.annotation.Nullable
-    private CandidatePosition validatePathClearPosition(ServerLevel level, int x, int z,
+    private CandidatePosition validatePathClearPosition(VillageTerrain level, int x, int z,
                                                         int footprintX, int footprintZ,
                                                         List<BoundingBox> buildingPieceBoxes,
                                                         List<StructurePiece> pathPieces,
-                                                        ChunkLoadBudget budget,
                                                         VillageSpatialCache context) {
         if (countPathOverlap(x, z, footprintX, footprintZ, pathPieces) > 0) {
             return null;
         }
         if (!isTerrainSuitable(level, x, z, footprintX, footprintZ,
-                buildingPieceBoxes, budget, context)) {
+                buildingPieceBoxes, context)) {
             return null;
         }
         // Terrain validation above ensures every footprint chunk is available
@@ -593,7 +624,7 @@ public class VillageFarmSiteSelector {
     }
 
     /** Returns true when an existing village-road surface would be replaced by the farm. */
-    static boolean overlapsExistingPathSurface(ServerLevel level, int x, int z,
+    static boolean overlapsExistingPathSurface(VillageTerrain level, int x, int z,
                                                int footprintX, int footprintZ) {
         for (int sx = x; sx < x + footprintX; sx++) {
             for (int sz = z; sz < z + footprintZ; sz++) {
@@ -634,9 +665,18 @@ public class VillageFarmSiteSelector {
         return supportState.isFaceSturdy(level, supportPos, Direction.UP);
     }
 
+    /**
+     * The terrain form of {@link #isFarmSurfaceSupported(BlockGetter, BlockPos)}.
+     * Sturdiness is judged from the block state alone, without neighbouring blocks.
+     */
+    static boolean isFarmSurfaceSupported(VillageTerrain terrain, BlockPos supportPos) {
+        return terrain.getBlockState(supportPos)
+                .isFaceSturdy(net.minecraft.world.level.EmptyBlockGetter.INSTANCE, supportPos, Direction.UP);
+    }
+
     /** Validates terrain and structure constraints for a candidate footprint. */
-    private boolean isTerrainSuitable(ServerLevel level, int x, int z, int footprintX, int footprintZ,
-                                       List<BoundingBox> buildingPieceBoxes, ChunkLoadBudget budget,
+    private boolean isTerrainSuitable(VillageTerrain level, int x, int z, int footprintX, int footprintZ,
+                                       List<BoundingBox> buildingPieceBoxes, 
                                        VillageSpatialCache context) {
         TerrainKey key = new TerrainKey(x, z, footprintX, footprintZ);
         Boolean cached = context.terrainSuitability.get(key);
@@ -644,15 +684,14 @@ public class VillageFarmSiteSelector {
             return cached;
         }
         boolean suitable = evaluateTerrainSuitability(
-                level, x, z, footprintX, footprintZ, buildingPieceBoxes, budget, context);
+                level, x, z, footprintX, footprintZ, buildingPieceBoxes, context);
         context.terrainSuitability.put(key, suitable);
         return suitable;
     }
 
-    private boolean evaluateTerrainSuitability(ServerLevel level, int x, int z,
+    private boolean evaluateTerrainSuitability(VillageTerrain level, int x, int z,
                                                 int footprintX, int footprintZ,
                                                 List<BoundingBox> buildingPieceBoxes,
-                                                ChunkLoadBudget budget,
                                                 VillageSpatialCache context) {
         if (overlapsPipelineReservation(x, z, footprintX, footprintZ, context)) {
             return false;
@@ -665,7 +704,7 @@ public class VillageFarmSiteSelector {
 
         for (int cx = minChunkX; cx <= maxChunkX; cx++) {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
-                if (!budget.ensureLoaded(level, cx, cz)) {
+                if (!level.hasChunk(cx, cz)) {
                     return false;
                 }
             }

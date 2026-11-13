@@ -11,8 +11,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * A copy of the terrain the village planners read, so planning can run on the
  * planning worker without touching the live level.
  *
- * <p>Each column keeps both planning heightmaps, the block at the
- * {@code WORLD_SURFACE} height, and a window of block states from
+ * <p>Each column keeps both planning heightmaps, the {@link #WORLD_SURFACE_DEPTH}
+ * blocks at and under the {@code WORLD_SURFACE} height, and a window of block states from
  * {@link #DEPTH_BELOW} below to {@link #HEIGHT_ABOVE} above its
  * {@code MOTION_BLOCKING_NO_LEAVES} surface. Above the window nothing blocks
  * motion and no fluid exists, which the heightmap guarantees, so reads there
@@ -27,6 +27,8 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
     static final int DEPTH_BELOW = 10;
     static final int HEIGHT_ABOVE = 4;
     private static final int WINDOW = DEPTH_BELOW + HEIGHT_ABOVE + 1;
+    /** Blocks kept at and under the world surface, which a tree canopy can lift above the window. */
+    static final int WORLD_SURFACE_DEPTH = 4;
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
     private static final BlockState BELOW_WINDOW = Blocks.STONE.defaultBlockState();
 
@@ -42,7 +44,7 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
     private final boolean[] chunkCaptured;
     private final int[] noLeavesHeight;
     private final int[] worldSurfaceHeight;
-    private final BlockState[] worldSurfaceState;
+    private final BlockState[] worldSurfaceStates;
     private final BlockState[] window;
     private int nextChunk;
 
@@ -61,7 +63,7 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
         this.chunkCaptured = new boolean[chunksX * chunksZ];
         this.noLeavesHeight = new int[columns];
         this.worldSurfaceHeight = new int[columns];
-        this.worldSurfaceState = new BlockState[columns];
+        this.worldSurfaceStates = new BlockState[columns * WORLD_SURFACE_DEPTH];
         this.window = new BlockState[columns * WINDOW];
     }
 
@@ -110,7 +112,10 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
         int worldSurface = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         noLeavesHeight[column] = noLeaves;
         worldSurfaceHeight[column] = worldSurface;
-        worldSurfaceState[column] = level.getBlockState(cursor.set(x, worldSurface - 1, z));
+        for (int depth = 0; depth < WORLD_SURFACE_DEPTH; depth++) {
+            worldSurfaceStates[column * WORLD_SURFACE_DEPTH + depth] =
+                    level.getBlockState(cursor.set(x, worldSurface - 1 - depth, z));
+        }
         int base = noLeaves - 1 - DEPTH_BELOW;
         for (int offset = 0; offset < WINDOW; offset++) {
             window[column * WINDOW + offset] = level.getBlockState(cursor.set(x, base + offset, z));
@@ -148,8 +153,9 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
         if (offset >= 0 && offset < WINDOW) {
             return window[column * WINDOW + offset];
         }
-        if (pos.getY() == worldSurfaceHeight[column] - 1) {
-            return worldSurfaceState[column];
+        int depth = worldSurfaceHeight[column] - 1 - pos.getY();
+        if (depth >= 0 && depth < WORLD_SURFACE_DEPTH) {
+            return worldSurfaceStates[column * WORLD_SURFACE_DEPTH + depth];
         }
         return offset >= WINDOW ? AIR : BELOW_WINDOW;
     }
