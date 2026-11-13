@@ -142,6 +142,69 @@ public final class BankerWorkSideGameTests {
         helper.runAfterDelay(1, () -> awaitRepair(helper, site, previousDayTime, remaining - 1));
     }
 
+    /**
+     * Natural AI: an unemployed villager with the bank as its potential job site walks to the
+     * work side by itself and becomes a banker. It must not stop a block short and wait to be
+     * pushed (the work-side check needs the villager at the work position).
+     */
+    @GameTest(template = "empty_20x3x20", batch = "ecap_banker_work_side", timeoutTicks = 1_400)
+    public static void unemployedVillagerReachesTheBankWorkSideAndBecomesABankerUnaided(GameTestHelper helper) {
+        installFloor(helper);
+        ServerLevel level = helper.getLevel();
+        long previousDayTime = level.getDayTime();
+        level.setDayTime(WORK_DAY_TIME);
+        BlockPos bankLocal = new BlockPos(10, 1, 10);
+        placeBank(helper, bankLocal);
+        BlockPos bankPos = helper.absolutePos(bankLocal);
+        BankBlockEntity bank = (BankBlockEntity) level.getBlockEntity(bankPos);
+        if (bank == null) {
+            helper.fail("bank block entity was not created");
+            return;
+        }
+        UUID villageId = UUID.randomUUID();
+        BlockPos min = helper.absolutePos(new BlockPos(0, -1, 0));
+        BlockPos max = helper.absolutePos(new BlockPos(20, 5, 20));
+        VillageRegistryData registry = VillageRegistryData.get(level);
+        VillageRecord village = registry.getOrCreateVillage(villageId, bankPos,
+                new AABB(min.getX(), min.getY(), min.getZ(), max.getX(), max.getY(), max.getZ()));
+        registry.registerBankPosition(villageId, bankPos);
+        bank.setVillageId(villageId);
+        Villager candidate = helper.spawn(EntityType.VILLAGER, 3, 1, 10);
+        // Fixture setup: acquisition is vanilla's AcquirePoi and is not what is under test; walking
+        // to the work side and assignment are. On 1.21.4 this memory is gone one tick after setup
+        // for a reason not yet found, so this test is an expected failure there (see the baseline).
+        candidate.getBrain().setMemory(MemoryModuleType.POTENTIAL_JOB_SITE,
+                GlobalPos.of(level.dimension(), bankPos));
+        village.addMember(new VillagerPOIRecord(
+                candidate.getUUID(), candidate.getName().getString(), VillagerProfession.NONE.name(),
+                null, null, null, candidate.getHealth(), VillagerPOIRecord.Status.ACTIVE, 0,
+                level.getGameTime()));
+        awaitBanker(helper, candidate, previousDayTime, 1_200);
+    }
+
+    private static void awaitBanker(GameTestHelper helper, Villager candidate, long previousDayTime,
+                                    int remaining) {
+        ServerLevel level = helper.getLevel();
+        if (candidate.getVillagerData().getProfession() == ECAPVillagerProfessions.BANKER.get()) {
+            level.setDayTime(previousDayTime);
+            helper.succeed();
+            return;
+        }
+        if (remaining <= 0) {
+            level.setDayTime(previousDayTime);
+            helper.fail("the bank candidate did not become a banker without help: pos=" + candidate.position()
+                    + ", potentialJobSite=" + candidate.getBrain()
+                    .getMemory(MemoryModuleType.POTENTIAL_JOB_SITE).orElse(null)
+                    + ", walkTarget=" + candidate.getBrain().getMemory(MemoryModuleType.WALK_TARGET).orElse(null)
+                    + ", activity=" + candidate.getBrain().getActiveNonCoreActivity().orElse(null)
+                    + ", profession=" + candidate.getVillagerData().getProfession()
+                    + ", bankPoi=" + level.getPoiManager().getType(helper.absolutePos(new BlockPos(10, 1, 10)))
+                    + ", dayTime=" + level.getDayTime());
+            return;
+        }
+        helper.runAfterDelay(1, () -> awaitBanker(helper, candidate, previousDayTime, remaining - 1));
+    }
+
     /** Component: the banker's package drops vanilla's job-site strolling and other jobs keep it. */
     @GameTest(template = "empty_3x3x3")
     public static void bankerWorkPackageReplacesVanillaSiteStrollingOnly(GameTestHelper helper) {

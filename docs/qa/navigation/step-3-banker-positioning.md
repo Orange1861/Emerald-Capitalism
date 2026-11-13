@@ -23,6 +23,12 @@ recorded here is a self-review.
   `RunOne` and adds plain `WorkAtPoi` (work sound, `LAST_WORKED_AT_POI`, restock) in its place.
   Other professions are unchanged. The mixin now passes the profession. Step 4 generalizes this
   into the written rule for every mod job.
+- Candidate stall fix (developer report, 2026-11-13): a villager taking the bank job walked up,
+  stopped about a block short, and was not assigned until pushed. `BankAwarePotentialJobSiteBehavior`
+  targeted the work-side block with vanilla's close-enough distance of 1, so `MoveToTargetSink` stopped
+  on the block before it, and `BankAwareAssignProfessionFromJobSite` requires the villager at the work
+  position. The bank target now uses close-enough 0. This predates Step 3; it is fixed here because
+  the new banker behavior shares the work-side geometry.
 - Any other writer (panic, boat, wanted item, trading, a newer target) is respected: the behavior
   waits for `WALK_TARGET` to clear, yields if its own target is replaced, and walks back after.
   A journey that fails or exceeds 400 ticks retries after 100 ticks.
@@ -35,6 +41,13 @@ recorded here is a self-review.
   `VillageRegistryEvents` goal-registration count is 10. Baseline: 288 discovered, 286 executed,
   new hash.
 
+Schedule note (developer, 2026-11-13): natural banks are built so their employees are trapped and
+cannot join the village at the bell, so meeting-time behavior is not testable there; bankers at
+artificial banks are probably not confined. The old goal held the work side all day, including
+meeting hours. The Brain behavior lives only in WORK, so an unconfined banker now follows the vanilla
+schedule (bell at meeting time, back to the work side after). Holding the work side through MEET and
+IDLE too would be a Phase 13 activity-placement decision; this step does not make it.
+
 Not done in Step 3, and why:
 
 - No scenario-runner banker scene or `inspect` output for behavior start/stop counts. The plan
@@ -45,6 +58,11 @@ Not done in Step 3, and why:
 - The tracked guard against a feature being on both the legacy and the Brain path covers the
   banker only (`bankerPositioningRunsOnlyOnTheBrain`). It becomes generic when a second job moves.
 - No test for a banker whose work side is unreachable. The retry path exists but is untested.
+- The candidate test (`unemployedVillagerReachesTheBankWorkSideAndBecomesABankerUnaided`) fails on
+  1.21.4 and is recorded as an expected failure there. The candidate's `POTENTIAL_JOB_SITE`
+  fixture memory is gone one tick after setup on 1.21.4 for a reason I did not find
+  (`YieldJobSite` is identical on both versions and no other villager exists). The stall fix itself is
+  therefore verified on 1.21.1 only; the 1.21.4 behavior is unverified until you check it in game.
 
 ## Requirement ledger
 
@@ -55,6 +73,7 @@ Not done in Step 3, and why:
 | P10.3 | Per-villager guard against legacy plus Brain. | `BankerWorkGoal` deleted. | `bankerPositioningRunsOnlyOnTheBrain` (component): no banker goal on the GoalSelector after production join. | Package test: other professions never receive the banker behavior. | PASS for the banker; not generic yet |
 | P10.4 | Two villagers, two professions, no global singleton. | One behavior instance per Brain. | `twoBankersHoldTheirOwnBanksWorkSides` (natural, two villages); mixed-village scene (farmer, librarian, cleric) passes. | Each bank refuses the other's banker. | PASS (automated) |
 | P19.1 | Banker positioning as a Brain work task, scoped to village and bank. | Village-scoped lookup through `BankEmployeeLookup`. | The two natural journey tests. | Two villages do not cross. | PASS (automated); unreachable case untested |
+| P19.3 | A villager taking the bank job reaches the work position and is assigned without being pushed. | Bank target close-enough 0 in `BankAwarePotentialJobSiteBehavior`. | `unemployedVillagerReachesTheBankWorkSideAndBecomesABankerUnaided` (natural walk and assignment): passes on 1.21.1. | Before the fix the candidate stopped one block short of the work-side block and the test failed on 1.21.1. | PASS on 1.21.1; FAIL on 1.21.4 (expected-failure entry, cause not found) |
 | P19.2 | Natural reach and hold across the work day; inventory effect after real arrival, once. | Hold plus repair on arrival. | Hold test requires 400 ticks at the work side after arriving; `bankerPlacesPreparedChestAfterReachingTheWorkSide` checks one chest, prepared count 0, banker at the work side. | See below. | PASS (automated) |
 | P4.1 | Port rule and dependency check from step 3. | Feature logic in the shared tree, mixin as the only version-sensitive piece. | None for the dependency check. | None. | BLOCKED (check not built) |
 | M3.1 | Developer observes banker positioning in game. | Run sheet below. | None; only the developer can pass this. | Not applicable. | BLOCKED (waiting for the developer) |
@@ -65,17 +84,22 @@ Leaving vanilla's job-site `RunOne` in the banker package (rule disabled) makes 
 tests fail on 1.21.1: the banker walks off the work side about 140 ticks after arriving. With the
 rule they pass. The package-contents test also fails.
 
-## Recorded results (HEAD c14d27d3 plus Step 3, uncommitted)
+## Recorded results (HEAD 7d6e11a2 plus the candidate fix, uncommitted)
 
-Compile, `verifyNavigationArchitecture`, and `verifyRegressionCoverage` pass (288 GameTests
-discovered). GameTests ran 286 on each target. Failures are exactly the baseline set: five on
-1.21.1, six on 1.21.4 (the same five plus the known flaky `normalfarmerharvestsandreplantsmaturewheat`).
-All six new banker tests pass on both. Mixed-village runner lines:
+Compile, `verifyNavigationArchitecture`, and `verifyRegressionCoverage` pass (296 GameTests
+discovered). GameTests ran 294 on each target. On 1.21.1 the failures are exactly the five baseline
+ones. On 1.21.4 they are the baseline six (the five plus the known flaky
+`normalfarmerharvestsandreplantsmaturewheat`) and the new candidate test, which is an expected-failure
+entry. The five other new banker tests pass on both targets. Mixed-village runner lines:
 
 ```text
-1.21.1: work PASS after 126 ticks | trade PASS after 0 | panic PASS after 26 | calm PASS after 26 | meet PASS after 126 | rest PASS after 106
-1.21.4: work PASS after 81 ticks | trade PASS after 0 | panic PASS after 41 | calm PASS after 21 | meet PASS after 161 | rest PASS after 181
+1.21.1: work PASS after 78 ticks | trade PASS after 0 | panic PASS after 38 | calm PASS after 18 | meet PASS after 138 | rest PASS after 118
+1.21.4: work PASS after 85 ticks | trade PASS after 0 | panic PASS after 25 | calm PASS after 25 | meet PASS after 125 | rest PASS after 85
 ```
+
+The candidate test failed on 1.21.1 before the close-enough fix (the villager stood one block from the
+work-side block) and passed after it. One run of the unrelated `gateremainsopenwhileanothermobapproaches`
+failed on 1.21.1 and passed on the next two; I did not touch gate code and treat it as flaky.
 
 Gradle on this PC needs `$env:GRADLE_OPTS = '-Djava.net.preferIPv4Stack=true'` and `--no-daemon`.
 
@@ -90,13 +114,18 @@ Gradle on this PC needs `$env:GRADLE_OPTS = '-Djava.net.preferIPv4Stack=true'` a
    around the bank, stands at the front, pushes into the bank, or jitters.
 4. Run `/data get entity @e[type=minecraft:villager,limit=1,sort=nearest] Brain.memories` while the
    banker stands there. There should be no `walk_target` and no `path`.
-5. `/time set 9200` (meeting). The banker should go to the bell like other villagers, not stay at
-   the bank. `/time set 2500` again: it walks back to the back of the bank.
+5. Only for a bank that does not confine its banker (artificial banks): `/time set 9200`. The banker
+   follows the normal schedule and goes to the bell, and `/time set 2500` sends it back to the back of
+   the bank. Skip this step for natural banks, whose employees cannot leave.
 6. With the banker at the back of the bank, summon a boat next to it
    (`/summon minecraft:boat ~2 ~ ~`, `oak_boat` on 1.21.4). It should step away and return after
    `/kill @e[type=boat]` (`oak_boat` on 1.21.4).
-7. Right-click the banker or deposit at the front. Normal bank use must still work.
-8. `/time set 13000`: the banker goes to bed like other villagers.
-9. If the village has two banks, check each banker stays at its own bank.
+7. Candidate check (the reported stall): place a bank where villagers can reach it, bring an
+   unemployed adult villager near it (`/summon minecraft:villager ~ ~ ~ {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}`),
+   and wait without touching it. It should walk onto the block behind the bank and become a banker
+   within about a minute, without another villager pushing it. Failure sign: it stops one block short.
+8. Right-click the banker or deposit at the front. Normal bank use must still work.
+9. `/time set 13000`: the banker goes to bed like other villagers.
+10. If the village has two banks, check each banker stays at its own bank.
 
 Repeat on 1.21.4 and record anything that looks wrong.

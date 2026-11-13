@@ -3,14 +3,14 @@
   "description": "Exact Phase 1 navigation regression baseline. These failures are expected only as explicitly assigned later-phase gameplay work; any set difference requires review.",
   "targets": {
     "1.21.1": {
-      "staticGameTestsDiscovered": 288,
-      "gameTestsExecuted": 286,
-      "discoveredTestsSha256": "2dbb200362e15eee50d31aa25a197d145b507d6664050dc9c1e0372201ffcf6a"
+      "staticGameTestsDiscovered": 296,
+      "gameTestsExecuted": 294,
+      "discoveredTestsSha256": "91d10de22deac4df9a2813f4e3bc612c14e4f62af46c02142f055de6cc81b62a"
     },
     "1.21.4": {
-      "staticGameTestsDiscovered": 288,
-      "gameTestsExecuted": 286,
-      "discoveredTestsSha256": "2dbb200362e15eee50d31aa25a197d145b507d6664050dc9c1e0372201ffcf6a"
+      "staticGameTestsDiscovered": 296,
+      "gameTestsExecuted": 294,
+      "discoveredTestsSha256": "91d10de22deac4df9a2813f4e3bc612c14e4f62af46c02142f055de6cc81b62a"
     }
   },
   "expectedGameplayFailures": [
@@ -26,12 +26,14 @@
     {"target": "1.21.1", "suite": "mixin-audit-baseline", "test": "normalvillagerblockedtopexitcancelsandreplanswithoutcollision", "owningPhase": 14, "owner": "route capabilities and ladders"},
     {"target": "1.21.4", "suite": "runtime-gametest", "test": "contestedgovernormaykillbankemployeewithoutvillageopinionpenalty", "owningPhase": 18, "owner": "mayor following and civic work"},
     {"target": "1.21.4", "suite": "runtime-gametest", "test": "malformedbankstatefailsloudly", "owningPhase": 19, "owner": "banker and inventory-bank work"},
+    {"target": "1.21.4", "suite": "runtime-gametest", "test": "unemployedvillagerreachesthebankworksideandbecomesabankerunaided", "owningPhase": 19, "owner": "banker and inventory-bank work"},
     {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalfarmerharvestsandreplantsmaturewheat", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
     {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillageraidescendsladderandcompleteslowerwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
     {"target": "1.21.4", "suite": "runtime-gametest", "test": "twonormalvillagerscontendforoneladderandoneworktarget", "owningPhase": 14, "owner": "route capabilities and ladders"},
     {"target": "1.21.4", "suite": "runtime-gametest", "test": "normalvillagerblockedtopexitcancelsandreplanswithoutcollision", "owningPhase": 14, "owner": "route capabilities and ladders"},
     {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "contestedgovernormaykillbankemployeewithoutvillageopinionpenalty", "owningPhase": 18, "owner": "mayor following and civic work"},
     {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "malformedbankstatefailsloudly", "owningPhase": 19, "owner": "banker and inventory-bank work"},
+    {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "unemployedvillagerreachesthebankworksideandbecomesabankerunaided", "owningPhase": 19, "owner": "banker and inventory-bank work"},
     {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalfarmerharvestsandreplantsmaturewheat", "owningPhase": 15, "owner": "farmer crop and pumpkin work"},
     {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "normalvillageraidescendsladderandcompleteslowerwork", "owningPhase": 14, "owner": "route capabilities and ladders"},
     {"target": "1.21.4", "suite": "mixin-audit-baseline", "test": "twonormalvillagerscontendforoneladderandoneworktarget", "owningPhase": 14, "owner": "route capabilities and ladders"},

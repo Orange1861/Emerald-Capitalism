@@ -17,6 +17,8 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class BankAwarePotentialJobSiteBehavior extends GoToPotentialJobSite {
 
+    private static final int VANILLA_CLOSE_ENOUGH = 1;
+
     private final float speedModifier;
 
     public BankAwarePotentialJobSiteBehavior(float speedModifier) {
@@ -44,14 +46,18 @@ public final class BankAwarePotentialJobSiteBehavior extends GoToPotentialJobSit
                 .orElseThrow(() -> new IllegalStateException(
                         "Potential job-site behavior ticked without a potential job site"));
         BlockPos target = potentialJobSite.pos();
+        int closeEnough = VANILLA_CLOSE_ENOUGH;
 
         if (potentialJobSite.dimension().equals(level.dimension())) {
             BlockState state = level.getBlockState(target);
             if (state.is(ECAPBlocks.BANK.get())) {
                 target = BankBlock.getBankerWorkPos(state, target);
+                // Assignment requires standing at the work position. Vanilla's distance of 1
+                // lets MoveToTargetSink stop on the block before it and wait to be pushed.
+                closeEnough = 0;
             }
         }
 
-        BehaviorUtils.setWalkAndLookTargetMemories(owner, target, speedModifier, 1);
+        BehaviorUtils.setWalkAndLookTargetMemories(owner, target, speedModifier, closeEnough);
     }
 }

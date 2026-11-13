@@ -109,6 +109,7 @@
         "bankerworksidegametests.bankerworkpackagereplacesvanillasitestrollingonly",
         "bankerworksidegametests.bankerworksidewaitsforandyieldstoanotherwalktarget",
         "bankerworksidegametests.twobankersholdtheirownbanksworksides",
+        "bankerworksidegametests.unemployedvillagerreachesthebankworksideandbecomesabankerunaided",
         "mixinauditinvariantgametests.villagerinventoryhaseighteenslots",
         "mixinauditinvariantgametests.villagerbreedingusescustomhungerthreshold",
         "mixinauditinvariantgametests.villagerpickupreservesfinalslotsforfood",
