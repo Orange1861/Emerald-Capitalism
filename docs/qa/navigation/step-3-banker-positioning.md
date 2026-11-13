@@ -76,7 +76,7 @@ Not done in Step 3, and why:
 | P19.3 | A villager taking the bank job reaches the work position and is assigned without being pushed. | Bank target close-enough 0 in `BankAwarePotentialJobSiteBehavior`. | `unemployedVillagerReachesTheBankWorkSideAndBecomesABankerUnaided` (natural walk and assignment): passes on 1.21.1. | Before the fix the candidate stopped one block short of the work-side block and the test failed on 1.21.1. | PASS on 1.21.1; FAIL on 1.21.4 (expected-failure entry, cause not found) |
 | P19.2 | Natural reach and hold across the work day; inventory effect after real arrival, once. | Hold plus repair on arrival. | Hold test requires 400 ticks at the work side after arriving; `bankerPlacesPreparedChestAfterReachingTheWorkSide` checks one chest, prepared count 0, banker at the work side. | See below. | PASS (automated) |
 | P4.1 | Port rule and dependency check from step 3. | Feature logic in the shared tree, mixin as the only version-sensitive piece. | None for the dependency check. | None. | BLOCKED (check not built) |
-| M3.1 | Developer observes banker positioning in game. | Run sheet below. | None; only the developer can pass this. | Not applicable. | BLOCKED (waiting for the developer) |
+| M3.1 | Developer observes banker positioning in game. | Run sheet below. | None; only the developer can pass this. | Not applicable. | PASS (developer, 2026-11-13; findings: player-placed banks offer no banker job, see the finding above; a walled-in banker could not flee a pillager, see the step 4 addendum) |
 
 ### Negative case
 
