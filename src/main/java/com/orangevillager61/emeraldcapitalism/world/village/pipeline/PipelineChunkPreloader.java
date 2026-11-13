@@ -31,8 +31,12 @@ final class PipelineChunkPreloader {
             Comparator.<UUID>naturalOrder()
     );
     private static final int TICKET_RADIUS = 0;
-    /** Unfinished asynchronous loads allowed at once for one village. */
-    private static final int MAX_OUTSTANDING_LOADS = 8;
+    /**
+     * Unfinished asynchronous loads allowed at once for one village. Loads run on
+     * the world-generation threads, so a wider window only adds parallel worldgen
+     * work, not server-thread time.
+     */
+    private static final int MAX_OUTSTANDING_LOADS = 32;
     private static final int LOAD_TIMEOUT_TICKS = 400;
 
     private final ServerLevel level;

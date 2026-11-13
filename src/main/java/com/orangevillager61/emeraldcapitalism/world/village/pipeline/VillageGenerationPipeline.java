@@ -31,7 +31,13 @@ import java.util.function.Consumer;
  */
 public final class VillageGenerationPipeline {
     /** New asynchronous chunk requests started per active tick during the cache phase. */
-    private static final int CACHE_CHUNKS_PER_TICK = 4;
+    private static final int CACHE_CHUNKS_PER_TICK = 16;
+    /**
+     * Server-thread time one tick may spend on further pipeline steps in phases
+     * whose steps are self-contained. A step that starts within the budget may
+     * finish after it, so the per-tick ceiling is this plus one bounded step.
+     */
+    private static final long STEP_BUDGET_NANOS = 15_000_000L;
     /** Preloaded chunks copied into the planning terrain snapshot per active tick. */
     private static final int TERRAIN_CHUNKS_PER_TICK = 12;
     private static final long SLOW_STEP_LOG_NANOS = 50_000_000L;
@@ -80,9 +86,14 @@ public final class VillageGenerationPipeline {
                 SharedScanGenerationBudget.WorkType.GENERATION)) {
             return;
         }
-        boolean finished = PerformanceTimingCounters.measure(
-                PerformanceTimingCounters.Operation.VILLAGE_GENERATION,
-                activeTask::processStep);
+        long tickStarted = System.nanoTime();
+        boolean finished;
+        do {
+            finished = PerformanceTimingCounters.measure(
+                    PerformanceTimingCounters.Operation.VILLAGE_GENERATION,
+                    activeTask::processStep);
+        } while (!finished && activeTask.phase.batchesWithinTick()
+                && System.nanoTime() - tickStarted < STEP_BUDGET_NANOS);
         if (finished) {
             QUEUED_OR_ACTIVE.remove(activeTask.key);
             activeTask = null;
@@ -139,6 +150,19 @@ public final class VillageGenerationPipeline {
 
         Phase(PerformanceTimingCounters.Operation timing) {
             this.timing = timing;
+        }
+
+        /**
+         * Whether several steps of this phase may run in one tick. Phases that
+         * wait on asynchronous chunk loads or the planning worker take one step
+         * per tick, so the loop never spins on unfinished work; connector
+         * generation also stays at one building per tick.
+         */
+        private boolean batchesWithinTick() {
+            return switch (this) {
+                case BUILD_CACHES, PLAN_BUILDINGS, GENERATE_PATHS -> false;
+                default -> true;
+            };
         }
     }
 
