@@ -116,6 +116,7 @@
         "bankerworksidegametests.unemployedvillagerreachesthebankworksideandbecomesabankerunaided",
         "bankerworksidegametests.playerplacedbankiscontrolledandoffersnobankerjobuntilreleased",
         "bankeractivityprioritygametests.bankerholdstheworksidethroughthebellhours",
+        "bankeractivityprioritygametests.trappedbankerreactstoavisiblehostilelikeanytrappedvillager",
         "bankeractivityprioritygametests.bankerscheduleworksthebellhoursandkeepstherest",
         "bankeractivityprioritygametests.panicstopsthebankerattheworksideandworkresumes",
         "bankeractivityprioritygametests.panicstopsthebankerwalkingtoworkandworkresumes",

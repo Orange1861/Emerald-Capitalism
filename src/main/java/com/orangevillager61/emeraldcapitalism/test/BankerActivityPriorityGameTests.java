@@ -149,6 +149,93 @@ public final class BankerActivityPriorityGameTests {
         until(run, ARRIVAL_LIMIT, checkpoint, "the banker never reached the panic checkpoint", threat);
     }
 
+    /**
+     * Control experiment for a reported "banker does not flee": a banker and an ordinary villager
+     * stand in identical walled one-by-three cells, each against a solid block at the far end (the
+     * bank for the banker), with a pillager seen through a gap at the second layer of the near wall.
+     * Neither can get away. The banker must react exactly as the control does.
+     */
+    @GameTest(template = "empty_20x3x20", batch = "ecap_banker_activity_trapped", timeoutTicks = 600)
+    public static void trappedBankerReactsToAVisibleHostileLikeAnyTrappedVillager(GameTestHelper helper) {
+        Run run = new Run(helper, BankerWorkSideGameTests.WORK_DAY_TIME);
+        if (helper.getLevel().getDifficulty() == Difficulty.PEACEFUL) {
+            run.fail("panic needs difficulty easy or higher");
+            return;
+        }
+        BankerWorkSideGameTests.installFloor(helper);
+        buildCell(helper, 10);
+        buildCell(helper, 4);
+        Site site = BankerWorkSideGameTests.site(helper, new BlockPos(10, 1, 10), new BlockPos(9, 1, 10), 0, 19);
+        helper.setBlock(new BlockPos(10, 2, 10), Blocks.STONE.defaultBlockState());
+        Villager banker = site.banker();
+        Villager control = helper.spawn(EntityType.VILLAGER, 9, 1, 4);
+        control.setVillagerData(control.getVillagerData().setProfession(VillagerProfession.FARMER));
+        control.setVillagerXp(1);
+        control.refreshBrain(helper.getLevel());
+        helper.setBlock(new BlockPos(10, 1, 4), Blocks.STONE.defaultBlockState());
+
+        until(run, 120, () -> banker.getBrain().isActive(Activity.WORK), "the banker never started working", () -> {
+            Pillager bankerThreat = heldPillager(helper, 4, 10);
+            Pillager controlThreat = heldPillager(helper, 4, 4);
+            net.minecraft.world.phys.Vec3 bankerStart = banker.position();
+            net.minecraft.world.phys.Vec3 controlStart = control.position();
+            boolean[] panicked = {false, false};
+            during(run, 100, () -> {
+                panicked[0] |= banker.getBrain().isActive(Activity.PANIC);
+                panicked[1] |= control.getBrain().isActive(Activity.PANIC);
+                return null;
+            }, () -> {
+                String report = "banker panicked=" + panicked[0] + " moved="
+                        + banker.position().distanceTo(bankerStart) + " activity="
+                        + banker.getBrain().getActiveNonCoreActivity().orElse(null) + " walkTarget="
+                        + banker.getBrain().getMemory(MemoryModuleType.WALK_TARGET).isPresent()
+                        + " hostile=" + banker.getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)
+                        + " | control panicked=" + panicked[1] + " moved="
+                        + control.position().distanceTo(controlStart) + " activity="
+                        + control.getBrain().getActiveNonCoreActivity().orElse(null) + " walkTarget="
+                        + control.getBrain().getMemory(MemoryModuleType.WALK_TARGET).isPresent()
+                        + " hostile=" + control.getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE);
+                com.orangevillager61.emeraldcapitalism.EmeraldCapitalism.LOGGER.info("[ECAP][TrappedBanker] {}", report);
+                bankerThreat.discard();
+                controlThreat.discard();
+                if (panicked[0] != panicked[1]) {
+                    run.fail("the banker and the control villager reacted differently: " + report);
+                    return;
+                }
+                run.succeed();
+            });
+        });
+    }
+
+    /** A one-by-three cell along x at {@code z}: walls two high, a roof, and a gap at the second layer of the west wall. */
+    private static void buildCell(GameTestHelper helper, int z) {
+        for (int x = 6; x <= 10; x++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dz == 0 && x > 6 && x < 10) {
+                    helper.setBlock(new BlockPos(x, 3, z), Blocks.STONE.defaultBlockState());
+                    continue;
+                }
+                helper.setBlock(new BlockPos(x, 1, z + dz), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(x, 2, z + dz), Blocks.STONE.defaultBlockState());
+                helper.setBlock(new BlockPos(x, 3, z + dz), Blocks.STONE.defaultBlockState());
+            }
+        }
+        // The gap: the west wall's second layer is open, the first layer is solid.
+        helper.setBlock(new BlockPos(6, 2, z), Blocks.AIR.defaultBlockState());
+        helper.setBlock(new BlockPos(6, 1, z), Blocks.STONE.defaultBlockState());
+    }
+
+    private static Pillager heldPillager(GameTestHelper helper, int x, int z) {
+        Pillager pillager = EntityCreation.create(EntityType.PILLAGER, helper.getLevel());
+        BlockPos pos = helper.absolutePos(new BlockPos(x, 1, z));
+        pillager.moveTo(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D, 0.0F, 0.0F);
+        pillager.setNoAi(true);
+        pillager.setInvulnerable(true);
+        pillager.setPersistenceRequired();
+        helper.getLevel().addFreshEntity(pillager);
+        return pillager;
+    }
+
     /** Natural AI: a trade interrupts the work side and the banker goes back afterwards. */
     @GameTest(template = "empty_20x3x20", batch = "ecap_banker_activity", timeoutTicks = 1_400)
     public static void tradingStopsTheBankerWorkAndWorkResumes(GameTestHelper helper) {
