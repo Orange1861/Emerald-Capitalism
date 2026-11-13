@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBuildingImportance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageLumbermillStructurePlacer;
@@ -81,7 +82,7 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
                 context.preparedRoadsWithReservations()
                         .withAdditionalBuildings(List.of(lumbermill.placementBox()));
         VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planLumbermillConnection(
-                context.level(), lumbermill.pathStart(), lumbermill.pathStart(), context.pieces(),
+                VillageTerrain.live(context.level()), lumbermill.pathStart(), lumbermill.pathStart(), context.pieces(),
                 context.biomeType(), lumbermill.entranceDirection(),
                 roads, context.chunkLoadBudget());
         return List.of(new PlannedLumbermill(lumbermill, connector));

@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBuildingImportance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBankStructurePlacer;
@@ -54,7 +55,7 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
                 .withAdditionalBuildings(List.of(bank.placementBox()));
         VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planBankConnection(
-                context.level(), bank.pathStart(), bank.pathTarget(), context.pieces(),
+                VillageTerrain.live(context.level()), bank.pathStart(), bank.pathTarget(), context.pieces(),
                 context.biomeType(), bank.entranceDirection(),
                 roads,
                 context.chunkLoadBudget(), false);
@@ -97,7 +98,7 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
                     .withAdditionalBuildings(List.of(plan.placementBox()));
             VillageRoadPathGenerator.PlannedPath postPlacementConnector =
                     context.roadGenerator().planBankConnection(
-                            context.level(), plan.pathStart(), plan.pathTarget(), context.pieces(),
+                            VillageTerrain.live(context.level()), plan.pathStart(), plan.pathTarget(), context.pieces(),
                             context.biomeType(), plan.entranceDirection(),
                             roads, context.chunkLoadBudget(), false);
             if (postPlacementConnector != null) {

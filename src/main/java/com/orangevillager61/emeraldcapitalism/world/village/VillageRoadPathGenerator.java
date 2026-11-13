@@ -98,8 +98,11 @@ public final class VillageRoadPathGenerator {
     public void generate(ServerLevel level, BlockPos pathStart, BlockPos pathTargetHint,
                          List<StructurePiece> villagePieces, String biomeType,
                          Direction entranceDirection, @Nullable PreparedVillageRoads preparedRoads) {
-        place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, BANK_PROFILE, preparedRoads, null, true, NO_DEADLINE));
+        place(level, planConnection(VillageTerrain.live(level), pathStart, pathTargetHint,
+                villagePieces, biomeType,
+                entranceDirection, BANK_PROFILE,
+                preparedRoads != null ? preparedRoads : prepare(level, villagePieces),
+                null, true, NO_DEADLINE));
     }
 
     /**
@@ -111,8 +114,9 @@ public final class VillageRoadPathGenerator {
                                           List<StructurePiece> villagePieces,
                                           String biomeType,
                                           Direction entranceDirection) {
-        place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
-                entranceDirection, FARM_PROFILE, null, null, true, NO_DEADLINE));
+        place(level, planConnection(VillageTerrain.live(level), pathStart, pathTargetHint,
+                villagePieces, biomeType,
+                entranceDirection, FARM_PROFILE, prepare(level, villagePieces), null, true, NO_DEADLINE));
     }
 
     /** Reuses the stable village street and building snapshot across farm paths. */
@@ -122,20 +126,21 @@ public final class VillageRoadPathGenerator {
                                           String biomeType,
                                           Direction entranceDirection,
                                           PreparedVillageRoads preparedRoads) {
-        place(level, planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        place(level, planConnection(VillageTerrain.live(level), pathStart, pathTargetHint,
+                villagePieces, biomeType,
                 entranceDirection, FARM_PROFILE, preparedRoads, null, true, NO_DEADLINE));
     }
 
     /** Plans, but does not place, the important four-wide bank connector. */
     @Nullable
-    public PlannedPath planBankConnection(ServerLevel level, BlockPos pathStart,
+    public PlannedPath planBankConnection(VillageTerrain terrain, BlockPos pathStart,
                                           BlockPos pathTargetHint,
                                           List<StructurePiece> villagePieces,
                                           String biomeType,
                                           Direction entranceDirection,
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget) {
-        return planBankConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        return planBankConnection(terrain, pathStart, pathTargetHint, villagePieces, biomeType,
                 entranceDirection, preparedRoads, sharedLoadBudget, true);
     }
 
@@ -144,7 +149,7 @@ public final class VillageRoadPathGenerator {
      * {@code warnOnFailure = false} and reports only when no connector remains.
      */
     @Nullable
-    public PlannedPath planBankConnection(ServerLevel level, BlockPos pathStart,
+    public PlannedPath planBankConnection(VillageTerrain terrain, BlockPos pathStart,
                                           BlockPos pathTargetHint,
                                           List<StructurePiece> villagePieces,
                                           String biomeType,
@@ -152,21 +157,21 @@ public final class VillageRoadPathGenerator {
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget,
                                           boolean warnOnFailure) {
-        return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        return planConnection(terrain, pathStart, pathTargetHint, villagePieces, biomeType,
                 entranceDirection, BANK_PROFILE, preparedRoads, sharedLoadBudget, warnOnFailure,
                 NO_DEADLINE);
     }
 
     /** Plans, but does not place, a compact farm connector. */
     @Nullable
-    public PlannedPath planFarmConnection(ServerLevel level, BlockPos pathStart,
+    public PlannedPath planFarmConnection(VillageTerrain terrain, BlockPos pathStart,
                                           BlockPos pathTargetHint,
                                           List<StructurePiece> villagePieces,
                                           String biomeType,
                                           Direction entranceDirection,
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget) {
-        return planFarmConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        return planFarmConnection(terrain, pathStart, pathTargetHint, villagePieces, biomeType,
                 entranceDirection, preparedRoads, sharedLoadBudget, true, newPlanningDeadline());
     }
 
@@ -176,7 +181,7 @@ public final class VillageRoadPathGenerator {
      * one {@link #newPlanningDeadline()} across all of them.
      */
     @Nullable
-    public PlannedPath planFarmConnection(ServerLevel level, BlockPos pathStart,
+    public PlannedPath planFarmConnection(VillageTerrain terrain, BlockPos pathStart,
                                           BlockPos pathTargetHint,
                                           List<StructurePiece> villagePieces,
                                           String biomeType,
@@ -185,7 +190,7 @@ public final class VillageRoadPathGenerator {
                                           ChunkLoadBudget sharedLoadBudget,
                                           boolean warnOnFailure,
                                           long planningDeadline) {
-        return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        return planConnection(terrain, pathStart, pathTargetHint, villagePieces, biomeType,
                 entranceDirection, FARM_PROFILE, preparedRoads, sharedLoadBudget, warnOnFailure,
                 planningDeadline);
     }
@@ -196,39 +201,39 @@ public final class VillageRoadPathGenerator {
      * water, a slope or a house cannot use up the planning time of the others.
      */
     @Nullable
-    public PlannedPath planFarmConnection(ServerLevel level, List<ConnectionEntrance> entrances,
+    public PlannedPath planFarmConnection(VillageTerrain terrain, List<ConnectionEntrance> entrances,
                                           BlockPos pathTargetHint,
                                           List<StructurePiece> villagePieces,
                                           String biomeType,
                                           PreparedVillageRoads preparedRoads,
                                           ChunkLoadBudget sharedLoadBudget) {
-        return planConnection(level, entrances, pathTargetHint, villagePieces, biomeType,
+        return planConnection(terrain, entrances, pathTargetHint, villagePieces, biomeType,
                 FARM_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
     }
 
     /** Plans a compact library connector using the same bounded street search as farms. */
     @Nullable
-    public PlannedPath planLibraryConnection(ServerLevel level, BlockPos pathStart,
+    public PlannedPath planLibraryConnection(VillageTerrain terrain, BlockPos pathStart,
                                              BlockPos pathTargetHint,
                                              List<StructurePiece> villagePieces,
                                              String biomeType,
                                              Direction entranceDirection,
                                              PreparedVillageRoads preparedRoads,
                                              ChunkLoadBudget sharedLoadBudget) {
-        return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        return planConnection(terrain, pathStart, pathTargetHint, villagePieces, biomeType,
                 entranceDirection, LIBRARY_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
     }
 
     /** Plans a compact lumbermill connector from its authored or inferred entrance. */
     @Nullable
-    public PlannedPath planLumbermillConnection(ServerLevel level, BlockPos pathStart,
+    public PlannedPath planLumbermillConnection(VillageTerrain terrain, BlockPos pathStart,
                                                 BlockPos pathTargetHint,
                                                 List<StructurePiece> villagePieces,
                                                 String biomeType,
                                                 Direction entranceDirection,
                                                 PreparedVillageRoads preparedRoads,
                                                 ChunkLoadBudget sharedLoadBudget) {
-        return planConnection(level, pathStart, pathTargetHint, villagePieces, biomeType,
+        return planConnection(terrain, pathStart, pathTargetHint, villagePieces, biomeType,
                 entranceDirection, LUMBERMILL_PROFILE, preparedRoads, sharedLoadBudget, true, NO_DEADLINE);
     }
 
@@ -256,7 +261,7 @@ public final class VillageRoadPathGenerator {
      * village structure pieces.
      */
     public PreparedVillageRoads prepareStreetArea(ServerLevel level, BoundingBox streetArea) {
-        SurfaceCache surfaceCache = new SurfaceCache(level);
+        SurfaceCache surfaceCache = new SurfaceCache(VillageTerrain.live(level));
         Map<Long, StreetCell> streetByColumn = new HashMap<>();
         for (int x = streetArea.minX(); x <= streetArea.maxX(); x++) {
             for (int z = streetArea.minZ(); z <= streetArea.maxZ(); z++) {
@@ -274,7 +279,7 @@ public final class VillageRoadPathGenerator {
      * The result is intended to live only for one village-generation task.
      */
     public PreparedVillageRoads prepare(ServerLevel level, List<StructurePiece> villagePieces) {
-        SurfaceCache surfaceCache = new SurfaceCache(level);
+        SurfaceCache surfaceCache = new SurfaceCache(VillageTerrain.live(level));
         Map<Long, StreetCell> streetByColumn = new HashMap<>();
         Map<Long, List<BoundingBox>> buildingsByChunk = new HashMap<>();
 
@@ -315,7 +320,7 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private PlannedPath planConnection(ServerLevel level, BlockPos pathStart,
+    private PlannedPath planConnection(VillageTerrain terrain, BlockPos pathStart,
                                        BlockPos pathTargetHint,
                                        List<StructurePiece> villagePieces,
                                        String biomeType,
@@ -325,13 +330,13 @@ public final class VillageRoadPathGenerator {
                                        @Nullable ChunkLoadBudget sharedLoadBudget,
                                        boolean warnOnFailure,
                                        long planningDeadline) {
-        return planConnection(level, List.of(new ConnectionEntrance(pathStart, entranceDirection)),
+        return planConnection(terrain, List.of(new ConnectionEntrance(pathStart, entranceDirection)),
                 pathTargetHint, villagePieces, biomeType, profile, preparedRoads, sharedLoadBudget,
                 warnOnFailure, planningDeadline);
     }
 
     @Nullable
-    private PlannedPath planConnection(ServerLevel level, List<ConnectionEntrance> entrances,
+    private PlannedPath planConnection(VillageTerrain terrain, List<ConnectionEntrance> entrances,
                                        BlockPos pathTargetHint,
                                        List<StructurePiece> villagePieces,
                                        String biomeType,
@@ -347,12 +352,13 @@ public final class VillageRoadPathGenerator {
         BlockPos pathStart = entrances.getFirst().pathStart();
         Direction entranceDirection = entrances.getFirst().direction();
 
-        PreparedVillageRoads roads = preparedRoads != null
-                ? preparedRoads
-                : prepare(level, villagePieces);
-        SurfaceCache surfaceCache = new SurfaceCache(level);
+        if (preparedRoads == null) {
+            return null;
+        }
+        PreparedVillageRoads roads = preparedRoads;
+        SurfaceCache surfaceCache = new SurfaceCache(terrain);
         StreetTargetSearch targetSearch = findStreetTargets(
-                level, pathStart, pathTargetHint, roads.streetByColumn(),
+                terrain, pathStart, pathTargetHint, roads.streetByColumn(),
                 profile.maxTargetDistance(), profile.maxRouteSteps() + profile.fixedEntranceRows());
         List<StreetTarget> streetTargets = targetSearch.targets();
         if (streetTargets.isEmpty()) {
@@ -368,9 +374,9 @@ public final class VillageRoadPathGenerator {
                 continue;
             }
             List<BlockPos> prefix = profile.fixedEntranceRows() > 0
-                    ? buildEntrancePrefix(level, entrance.pathStart(), entrance.direction(),
+                    ? buildEntrancePrefix(terrain, entrance.pathStart(), entrance.direction(),
                     profile.fixedEntranceRows())
-                    : buildSurfaceEntrance(level, entrance.pathStart());
+                    : buildSurfaceEntrance(terrain, entrance.pathStart());
             if (!prefix.isEmpty()) {
                 startOptions.add(new StartOption(entrance, prefix));
             }
@@ -408,7 +414,7 @@ public final class VillageRoadPathGenerator {
             // the server tick. Every world read in the search and placement plan
             // checks hasChunk first, so unloaded columns are simply impassable;
             // only the endpoints must be loaded, and every start option already is.
-            if (!endpointChunksLoaded(level, streetTarget.pos(), streetTarget.pos())) {
+            if (!endpointChunksLoaded(terrain, streetTarget.pos(), streetTarget.pos())) {
                 appendDiagnostic(diagnostics, targetIndex, streetTarget, "CHUNK_UNAVAILABLE");
                 continue;
             }
@@ -432,7 +438,7 @@ public final class VillageRoadPathGenerator {
                 startKeys.add(new RouteKey(option.searchStart().getX(), option.searchStart().getZ(),
                         option.entrance().direction()));
             }
-            RouteSearch search = findRoute(level, startKeys, candidates,
+            RouteSearch search = findRoute(terrain, startKeys, candidates,
                     roads, surfaceCache, profile.pathWidth(), profile.maxRouteSteps(),
                     searchIndex == 0 ? Math.max(deadline, searchStarted + MAX_SEARCH_NANOS) : deadline);
             List<RouteCell> route = search.route();
@@ -462,7 +468,7 @@ public final class VillageRoadPathGenerator {
             VillagePathBlocks pathBlocks = VillagePathBlocks.matchingStreet(
                     streetTarget.surfaceBlock(), biomeType);
             PlacementPlan placementPlan = createPlacementPlan(
-                    level, completeRoute, search.features(), profile.fixedEntranceRows(),
+                    terrain, completeRoute, search.features(), profile.fixedEntranceRows(),
                     chosen.entrance().direction(), roads, surfaceCache, profile.pathWidth(), pathBlocks,
                     placementRejection);
             if (placementPlan == null) {
@@ -523,7 +529,7 @@ public final class VillageRoadPathGenerator {
         return Math.abs(from.getX() - to.getX()) + Math.abs(from.getZ() - to.getZ());
     }
 
-    private StreetTargetSearch findStreetTargets(ServerLevel level, BlockPos from,
+    private StreetTargetSearch findStreetTargets(VillageTerrain terrain, BlockPos from,
                                                   BlockPos targetHint,
                                                   Map<Long, StreetCell> streetByColumn,
                                                   int maxTargetDistance,
@@ -533,10 +539,10 @@ public final class VillageRoadPathGenerator {
 
         for (Map.Entry<Long, StreetCell> entry : streetByColumn.entrySet()) {
             StreetCell cell = entry.getValue();
-            if (!level.hasChunk(cell.pos().getX() >> 4, cell.pos().getZ() >> 4)) {
+            if (!terrain.hasChunk(cell.pos().getX() >> 4, cell.pos().getZ() >> 4)) {
                 continue;
             }
-            Block currentSurface = level.getBlockState(cell.pos()).getBlock();
+            Block currentSurface = terrain.getBlockState(cell.pos()).getBlock();
             if (!isStreetSurface(currentSurface)) {
                 continue;
             }
@@ -626,13 +632,13 @@ public final class VillageRoadPathGenerator {
         return largest;
     }
 
-    private List<BlockPos> buildEntrancePrefix(ServerLevel level, BlockPos pathStart,
+    private List<BlockPos> buildEntrancePrefix(VillageTerrain terrain, BlockPos pathStart,
                                                 Direction entranceDirection, int rowCount) {
         List<BlockPos> prefix = new ArrayList<>(rowCount);
 
         for (int step = 0; step < rowCount; step++) {
             BlockPos column = pathStart.relative(entranceDirection, step);
-            if (!level.hasChunk(column.getX() >> 4, column.getZ() >> 4)) {
+            if (!terrain.hasChunk(column.getX() >> 4, column.getZ() >> 4)) {
                 return List.of();
             }
             // Bank placement already grades and clears this four-row apron. Keep
@@ -643,8 +649,8 @@ public final class VillageRoadPathGenerator {
         return prefix;
     }
 
-    private List<BlockPos> buildSurfaceEntrance(ServerLevel level, BlockPos pathStart) {
-        return level.hasChunk(pathStart.getX() >> 4, pathStart.getZ() >> 4)
+    private List<BlockPos> buildSurfaceEntrance(VillageTerrain terrain, BlockPos pathStart) {
+        return terrain.hasChunk(pathStart.getX() >> 4, pathStart.getZ() >> 4)
                 ? List.of(pathStart)
                 : List.of();
     }
@@ -654,7 +660,7 @@ public final class VillageRoadPathGenerator {
      * The heuristic is the Manhattan distance to the nearest target, which stays
      * admissible because every step costs at least ten per column.
      */
-    private RouteSearch findRoute(ServerLevel level, List<RouteKey> startKeys, List<StreetTarget> targets,
+    private RouteSearch findRoute(VillageTerrain terrain, List<RouteKey> startKeys, List<StreetTarget> targets,
                                   PreparedVillageRoads roads,
                                   SurfaceCache surfaceCache, int pathWidth,
                                   int maxRouteSteps, long searchDeadline) {
@@ -762,17 +768,17 @@ public final class VillageRoadPathGenerator {
                 // Placement widens each route cell across its outgoing direction,
                 // so a turn also sweeps the current cell's row on the new axis.
                 if (direction.getAxis() != current.incomingDirection().getAxis()
-                        && !isTurnRowClear(level, currentSurface, direction, roads, surfaceCache,
+                        && !isTurnRowClear(terrain, currentSurface, direction, roads, surfaceCache,
                         pathWidth)) {
                     continue;
                 }
 
                 SurfaceSample nextSurface = surfaceCache.get(nextX, nextZ);
-                if (nextSurface == null || !isCorridorRowTraversable(level, nextSurface,
+                if (nextSurface == null || !isCorridorRowTraversable(terrain, nextSurface,
                         currentSurface, direction, roads, surfaceCache, pathWidth)) {
                     if (visited == 1 && firstStepRejections != null) {
                         firstStepRejections.append(direction.getSerializedName().charAt(0)).append('=')
-                                .append(describeRowRejection(level, nextSurface, currentSurface,
+                                .append(describeRowRejection(terrain, nextSurface, currentSurface,
                                         direction, roads, surfaceCache, pathWidth))
                                 .append(' ');
                     }
@@ -781,7 +787,7 @@ public final class VillageRoadPathGenerator {
                     }
                     List<FeatureMove> moves = featureMoveCache.computeIfAbsent(
                             new RouteKey(current.x(), current.z(), direction),
-                            ignored -> featureMoves(level, currentSurface, nextSurface, direction,
+                            ignored -> featureMoves(terrain, currentSurface, nextSurface, direction,
                                     roads, surfaceCache, pathWidth, bounds));
                     for (FeatureMove move : moves) {
                         RouteKey landing = new RouteKey(move.landing().pos().getX(),
@@ -849,7 +855,7 @@ public final class VillageRoadPathGenerator {
     }
 
     /** Diagnostic-only description of why one corridor row cannot be entered. */
-    private String describeRowRejection(ServerLevel level, @Nullable SurfaceSample center,
+    private String describeRowRejection(VillageTerrain terrain, @Nullable SurfaceSample center,
                                         SurfaceSample previousCenter, Direction travelDirection,
                                         PreparedVillageRoads roads, SurfaceCache surfaceCache,
                                         int pathWidth) {
@@ -868,7 +874,7 @@ public final class VillageRoadPathGenerator {
             } else {
                 x += width;
             }
-            if (!level.hasChunk(x >> 4, z >> 4)) {
+            if (!terrain.hasChunk(x >> 4, z >> 4)) {
                 return "unloaded@" + x + "," + z;
             }
             if (roads.isInsideBuilding(x, z)) {
@@ -888,7 +894,7 @@ public final class VillageRoadPathGenerator {
         return "unknown";
     }
 
-    private boolean isCorridorRowTraversable(ServerLevel level, SurfaceSample center,
+    private boolean isCorridorRowTraversable(VillageTerrain terrain, SurfaceSample center,
                                              @Nullable SurfaceSample previousCenter,
                                              Direction travelDirection,
                                              PreparedVillageRoads roads,
@@ -910,7 +916,7 @@ public final class VillageRoadPathGenerator {
                 x += width;
             }
 
-            if (!level.hasChunk(x >> 4, z >> 4)
+            if (!terrain.hasChunk(x >> 4, z >> 4)
                     || roads.isInsideBuilding(x, z)) {
                 return false;
             }
@@ -930,7 +936,7 @@ public final class VillageRoadPathGenerator {
      * also paves the current cell's row on the new axis. That row needs the same
      * surface and height checks as a row entered by a straight step.
      */
-    private boolean isTurnRowClear(ServerLevel level, SurfaceSample center, Direction newDirection,
+    private boolean isTurnRowClear(VillageTerrain terrain, SurfaceSample center, Direction newDirection,
                                    PreparedVillageRoads roads, SurfaceCache surfaceCache,
                                    int pathWidth) {
         int x = center.pos().getX();
@@ -939,7 +945,7 @@ public final class VillageRoadPathGenerator {
         for (int width = firstWidthOffset; width < firstWidthOffset + pathWidth; width++) {
             int rowX = newDirection.getAxis() == Direction.Axis.X ? x : x + width;
             int rowZ = newDirection.getAxis() == Direction.Axis.X ? z + width : z;
-            if (!level.hasChunk(rowX >> 4, rowZ >> 4) || roads.isInsideBuilding(rowX, rowZ)) {
+            if (!terrain.hasChunk(rowX >> 4, rowZ >> 4) || roads.isInsideBuilding(rowX, rowZ)) {
                 return false;
             }
             SurfaceSample sample = surfaceCache.get(rowX, rowZ);
@@ -984,15 +990,15 @@ public final class VillageRoadPathGenerator {
      * Ramp and bridge moves leaving {@code from} in {@code direction}. They are
      * only considered where the plain one-column step is not traversable.
      */
-    private List<FeatureMove> featureMoves(ServerLevel level, SurfaceSample from, SurfaceSample first,
+    private List<FeatureMove> featureMoves(VillageTerrain terrain, SurfaceSample from, SurfaceSample first,
                                            Direction direction, PreparedVillageRoads roads,
                                            SurfaceCache surfaceCache, int pathWidth,
                                            SearchBounds bounds) {
         if (!from.state().getFluidState().isEmpty()) {
             return List.of();
         }
-        FeatureMove ramp = planRamp(level, from, first, direction, roads, surfaceCache, pathWidth, bounds);
-        FeatureMove bridge = planBridge(level, from, first, direction, roads, surfaceCache, pathWidth, bounds);
+        FeatureMove ramp = planRamp(terrain, from, first, direction, roads, surfaceCache, pathWidth, bounds);
+        FeatureMove bridge = planBridge(terrain, from, first, direction, roads, surfaceCache, pathWidth, bounds);
         if (ramp == null) {
             return bridge == null ? List.of() : List.of(bridge);
         }
@@ -1005,7 +1011,7 @@ public final class VillageRoadPathGenerator {
      * {@link #MAX_RAMP_EARTHWORK}; placement then puts stairs on the ramp.
      */
     @Nullable
-    private FeatureMove planRamp(ServerLevel level, SurfaceSample from, SurfaceSample first,
+    private FeatureMove planRamp(VillageTerrain terrain, SurfaceSample from, SurfaceSample first,
                                  Direction direction, PreparedVillageRoads roads,
                                  SurfaceCache surfaceCache, int pathWidth, SearchBounds bounds) {
         int startY = from.pos().getY();
@@ -1030,7 +1036,7 @@ public final class VillageRoadPathGenerator {
             }
             int previousY = startY + sign * (step - 1);
             if (step >= 2 && Math.abs(sample.pos().getY() - previousY) <= 1
-                    && isCorridorRowTraversable(level, sample, null, direction, roads,
+                    && isCorridorRowTraversable(terrain, sample, null, direction, roads,
                     surfaceCache, pathWidth)) {
                 int cost = step * (10 + RAMP_COLUMN_COST) + earthwork * EARTHWORK_BLOCK_COST
                         + Math.abs(sample.pos().getY() - startY) * 5;
@@ -1044,7 +1050,7 @@ public final class VillageRoadPathGenerator {
             for (int offset = firstWidthOffset; offset < firstWidthOffset + pathWidth; offset++) {
                 int columnX = rowX(x, direction, offset);
                 int columnZ = rowZ(z, direction, offset);
-                SurfaceSample column = gradableColumn(level, columnX, columnZ, targetY, roads, surfaceCache);
+                SurfaceSample column = gradableColumn(terrain, columnX, columnZ, targetY, roads, surfaceCache);
                 if (column == null) {
                     return null;
                 }
@@ -1058,9 +1064,9 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private SurfaceSample gradableColumn(ServerLevel level, int x, int z, int targetY,
+    private SurfaceSample gradableColumn(VillageTerrain terrain, int x, int z, int targetY,
                                          PreparedVillageRoads roads, SurfaceCache surfaceCache) {
-        if (!level.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
+        if (!terrain.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
                 || roads.streetByColumn().containsKey(columnKey(x, z))) {
             return null;
         }
@@ -1074,8 +1080,8 @@ public final class VillageRoadPathGenerator {
             for (Direction side : HORIZONTAL_DIRECTIONS) {
                 int sideX = x + side.getStepX();
                 int sideZ = z + side.getStepZ();
-                if (!level.hasChunk(sideX >> 4, sideZ >> 4)
-                        || !level.getBlockState(new BlockPos(sideX, y, sideZ)).getFluidState().isEmpty()) {
+                if (!terrain.hasChunk(sideX >> 4, sideZ >> 4)
+                        || !terrain.getBlockState(new BlockPos(sideX, y, sideZ)).getFluidState().isEmpty()) {
                     return null;
                 }
             }
@@ -1088,7 +1094,7 @@ public final class VillageRoadPathGenerator {
      * to {@link #MAX_GAP_BRIDGE_SPAN}, with a deck level with the higher bank.
      */
     @Nullable
-    private FeatureMove planBridge(ServerLevel level, SurfaceSample from, SurfaceSample first,
+    private FeatureMove planBridge(VillageTerrain terrain, SurfaceSample from, SurfaceSample first,
                                    Direction direction, PreparedVillageRoads roads,
                                    SurfaceCache surfaceCache, int pathWidth, SearchBounds bounds) {
         int startY = from.pos().getY();
@@ -1109,10 +1115,10 @@ public final class VillageRoadPathGenerator {
             }
             if (step >= 2 && sample.state().getFluidState().isEmpty()
                     && Math.abs(sample.pos().getY() - startY) <= 1
-                    && isCorridorRowTraversable(level, sample, null, direction, roads,
+                    && isCorridorRowTraversable(terrain, sample, null, direction, roads,
                     surfaceCache, pathWidth)) {
                 int deckY = Math.max(startY, sample.pos().getY());
-                RouteFeature feature = bridgeFeature(level, from.pos(), direction, step - 1, deckY,
+                RouteFeature feature = bridgeFeature(terrain, from.pos(), direction, step - 1, deckY,
                         roads, surfaceCache, pathWidth);
                 if (feature == null) {
                     return null;
@@ -1128,7 +1134,7 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private RouteFeature bridgeFeature(ServerLevel level, BlockPos start, Direction direction,
+    private RouteFeature bridgeFeature(VillageTerrain terrain, BlockPos start, Direction direction,
                                        int span, int deckY, PreparedVillageRoads roads,
                                        SurfaceCache surfaceCache, int pathWidth) {
         int firstWidthOffset = -(pathWidth / 2);
@@ -1144,7 +1150,7 @@ public final class VillageRoadPathGenerator {
             for (int offset = firstWidthOffset; offset <= lastWidthOffset; offset++) {
                 int columnX = rowX(x, direction, offset);
                 int columnZ = rowZ(z, direction, offset);
-                SurfaceSample column = deckColumn(level, columnX, columnZ, deckY, roads, surfaceCache);
+                SurfaceSample column = deckColumn(terrain, columnX, columnZ, deckY, roads, surfaceCache);
                 if (column == null) {
                     return null;
                 }
@@ -1156,7 +1162,7 @@ public final class VillageRoadPathGenerator {
             for (int offset : railOffsets) {
                 int columnX = rowX(x, direction, offset);
                 int columnZ = rowZ(z, direction, offset);
-                SurfaceSample column = deckColumn(level, columnX, columnZ, deckY, roads, surfaceCache);
+                SurfaceSample column = deckColumn(terrain, columnX, columnZ, deckY, roads, surfaceCache);
                 if (column == null) {
                     continue;
                 }
@@ -1189,7 +1195,7 @@ public final class VillageRoadPathGenerator {
                         ? railOffset : (side == 0 ? firstWidthOffset : lastWidthOffset);
                 int columnX = rowX(x, direction, offset);
                 int columnZ = rowZ(z, direction, offset);
-                List<BlockPos> post = postColumn(level, columnX, deckY - 1, columnZ);
+                List<BlockPos> post = postColumn(terrain, columnX, deckY - 1, columnZ);
                 if (post == null) {
                     // End posts are decorative; a long span needs its interior support.
                     if (interiorRows.contains(row)) {
@@ -1207,9 +1213,9 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private SurfaceSample deckColumn(ServerLevel level, int x, int z, int deckY,
+    private SurfaceSample deckColumn(VillageTerrain terrain, int x, int z, int deckY,
                                      PreparedVillageRoads roads, SurfaceCache surfaceCache) {
-        if (!level.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
+        if (!terrain.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
                 || roads.streetByColumn().containsKey(columnKey(x, z))) {
             return null;
         }
@@ -1223,7 +1229,7 @@ public final class VillageRoadPathGenerator {
         }
         for (int y = deckY + 1; y <= deckY + 2; y++) {
             BlockPos headroom = new BlockPos(x, y, z);
-            if (!level.getBlockState(headroom).getCollisionShape(level, headroom).isEmpty()) {
+            if (terrain.hasCollision(headroom)) {
                 return null;
             }
         }
@@ -1236,11 +1242,11 @@ public final class VillageRoadPathGenerator {
      * within {@link #MAX_POST_DEPTH}.
      */
     @Nullable
-    private List<BlockPos> postColumn(ServerLevel level, int x, int topY, int z) {
+    private List<BlockPos> postColumn(VillageTerrain terrain, int x, int topY, int z) {
         List<BlockPos> post = new ArrayList<>();
         for (int y = topY; y > topY - MAX_POST_DEPTH; y--) {
             BlockPos pos = new BlockPos(x, y, z);
-            BlockState state = level.getBlockState(pos);
+            BlockState state = terrain.getBlockState(pos);
             FluidState fluid = state.getFluidState();
             if (!fluid.isEmpty() && !fluid.is(FluidTags.WATER)) {
                 return null;
@@ -1271,7 +1277,7 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private PlacementPlan createPlacementPlan(ServerLevel level, List<RouteCell> route,
+    private PlacementPlan createPlacementPlan(VillageTerrain terrain, List<RouteCell> route,
                                               List<RouteFeature> features,
                                               int fixedEntranceRows,
                                               Direction entranceDirection,
@@ -1316,14 +1322,14 @@ public final class VillageRoadPathGenerator {
                             ? "ENTRANCE_ROW_INSIDE_BUILDING" : "INSIDE_BUILDING", x, z);
                     return null;
                 }
-                if (!level.hasChunk(x >> 4, z >> 4)) {
+                if (!terrain.hasChunk(x >> 4, z >> 4)) {
                     rejection.set("CHUNK_UNAVAILABLE", x, z);
                     return null;
                 }
 
                 boolean fixedEntranceRow = routeIndex < fixedEntranceRows;
                 SurfaceSample sample = fixedEntranceRow
-                        ? fixedEntranceSurface(level, x, center.getY(), z)
+                        ? fixedEntranceSurface(terrain, x, center.getY(), z)
                         : surfaceCache.get(x, z);
                 if (sample == null) {
                     rejection.set(fixedEntranceRow ? "ENTRANCE_ROW_FLUID" : "NO_SURFACE", x, z);
@@ -1370,7 +1376,7 @@ public final class VillageRoadPathGenerator {
             }
             decorations.addAll(feature.decorations());
         }
-        addStepDecorations(level, cells.values(), columns, roads, pathBlocks, decorations);
+        addStepDecorations(terrain, cells.values(), columns, roads, pathBlocks, decorations);
         return new PlacementPlan(new ArrayList<>(cells.values()), decorations);
     }
 
@@ -1380,7 +1386,7 @@ public final class VillageRoadPathGenerator {
      * along its row gets a bottom slab. Bridge decks and fixed entrance rows
      * are never decorated. Street columns count as neighbours.
      */
-    private void addStepDecorations(ServerLevel level, java.util.Collection<PlannedPathCell> cells,
+    private void addStepDecorations(VillageTerrain terrain, java.util.Collection<PlannedPathCell> cells,
                                     Map<Long, PlannedColumn> columns, PreparedVillageRoads roads,
                                     VillagePathBlocks pathBlocks, List<PlannedDecoration> decorations) {
         if (pathBlocks.stairBlock() == null || pathBlocks.slabBlock() == null) {
@@ -1405,7 +1411,7 @@ public final class VillageRoadPathGenerator {
             }
             BlockPos stepPos = cell.surfacePos().above();
             // A ramp cut clears terrain at or below its natural surface during placement.
-            BlockState existing = level.getBlockState(stepPos);
+            BlockState existing = terrain.getBlockState(stepPos);
             if (stepPos.getY() > cell.naturalY() && (!existing.getFluidState().isEmpty()
                     || (!existing.isAir() && !existing.canBeReplaced()))) {
                 continue;
@@ -1431,9 +1437,9 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private SurfaceSample fixedEntranceSurface(ServerLevel level, int x, int y, int z) {
+    private SurfaceSample fixedEntranceSurface(VillageTerrain terrain, int x, int y, int z) {
         BlockPos surfacePos = new BlockPos(x, y, z);
-        BlockState state = level.getBlockState(surfacePos);
+        BlockState state = terrain.getBlockState(surfacePos);
         if (!state.getFluidState().isEmpty()) {
             return null;
         }
@@ -1442,10 +1448,10 @@ public final class VillageRoadPathGenerator {
         if (state.is(Blocks.SNOW)) {
             snowPos = surfacePos;
             surfacePos = surfacePos.below();
-            state = level.getBlockState(surfacePos);
+            state = terrain.getBlockState(surfacePos);
         } else {
             BlockPos above = surfacePos.above();
-            if (level.getBlockState(above).is(Blocks.SNOW)) {
+            if (terrain.getBlockState(above).is(Blocks.SNOW)) {
                 snowPos = above;
             }
         }
@@ -1571,9 +1577,9 @@ public final class VillageRoadPathGenerator {
         level.setBlock(pos, Block.updateFromNeighbourShapes(state, level, pos), 2);
     }
 
-    private static boolean endpointChunksLoaded(ServerLevel level, BlockPos start, BlockPos target) {
-        return level.hasChunk(start.getX() >> 4, start.getZ() >> 4)
-                && level.hasChunk(target.getX() >> 4, target.getZ() >> 4);
+    private static boolean endpointChunksLoaded(VillageTerrain terrain, BlockPos start, BlockPos target) {
+        return terrain.hasChunk(start.getX() >> 4, start.getZ() >> 4)
+                && terrain.hasChunk(target.getX() >> 4, target.getZ() >> 4);
     }
 
     private Direction routeDirection(List<BlockPos> route, int index, Direction fallback) {
@@ -1693,12 +1699,12 @@ public final class VillageRoadPathGenerator {
     }
 
     private static final class SurfaceCache {
-        private final ServerLevel level;
+        private final VillageTerrain terrain;
         private final Map<Long, SurfaceSample> samples = new HashMap<>();
         private final Set<Long> invalidColumns = new HashSet<>();
 
-        private SurfaceCache(ServerLevel level) {
-            this.level = level;
+        private SurfaceCache(VillageTerrain terrain) {
+            this.terrain = terrain;
         }
 
         @Nullable
@@ -1708,27 +1714,27 @@ public final class VillageRoadPathGenerator {
             if (cached != null || invalidColumns.contains(key)) {
                 return cached;
             }
-            if (!level.hasChunk(x >> 4, z >> 4)) {
+            if (!terrain.hasChunk(x >> 4, z >> 4)) {
                 invalidColumns.add(key);
                 return null;
             }
 
-            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-            if (y < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)) {
+            int y = terrain.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
+            if (y < terrain.minBuildHeight()) {
                 invalidColumns.add(key);
                 return null;
             }
 
             BlockPos surfacePos = new BlockPos(x, y, z);
-            BlockState state = level.getBlockState(surfacePos);
+            BlockState state = terrain.getBlockState(surfacePos);
             BlockPos snowPos = null;
             if (state.is(Blocks.SNOW)) {
                 snowPos = surfacePos;
                 surfacePos = surfacePos.below();
-                state = level.getBlockState(surfacePos);
+                state = terrain.getBlockState(surfacePos);
             } else {
                 BlockPos above = surfacePos.above();
-                if (level.getBlockState(above).is(Blocks.SNOW)) {
+                if (terrain.getBlockState(above).is(Blocks.SNOW)) {
                     snowPos = above;
                 }
             }

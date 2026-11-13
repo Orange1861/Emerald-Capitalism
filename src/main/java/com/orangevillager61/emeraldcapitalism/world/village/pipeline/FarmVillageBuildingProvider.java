@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBuildingImportance;
@@ -111,7 +112,7 @@ public final class FarmVillageBuildingProvider implements VillageBuildingProvide
                 return List.of();
             }
             VillageRoadPathGenerator.PlannedPath path = pathGenerator.planPath(
-                    context.level(), placed, context.structureCenter(), context.pieces(),
+                    VillageTerrain.live(context.level()), placed, context.structureCenter(), context.pieces(),
                     context.biomeType(), context.preparedRoadsWithReservations(),
                     context.chunkLoadBudget());
             return path == null ? List.of() : List.of(path);

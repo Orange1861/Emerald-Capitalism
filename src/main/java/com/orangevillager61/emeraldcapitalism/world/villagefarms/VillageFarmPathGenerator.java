@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.villagefarms;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageRoadPathGenerator;
 import net.minecraft.core.BlockPos;
@@ -32,7 +33,7 @@ public final class VillageFarmPathGenerator {
                              List<StructurePiece> pieces, String biomeType,
                              VillageRoadPathGenerator.PreparedVillageRoads preparedRoads) {
         try {
-            roadPathGenerator.place(level, planPath(level, farm, villageCenter, pieces,
+            roadPathGenerator.place(level, planPath(VillageTerrain.live(level), farm, villageCenter, pieces,
                     biomeType, preparedRoads, new ChunkLoadBudget()));
         } catch (Exception e) {
             EmeraldCapitalism.LOGGER.error(
@@ -49,7 +50,7 @@ public final class VillageFarmPathGenerator {
      */
     @Nullable
     public VillageRoadPathGenerator.PlannedPath planPath(
-            ServerLevel level, PlacedFarmInfo farm, BlockPos villageCenter,
+            VillageTerrain terrain, PlacedFarmInfo farm, BlockPos villageCenter,
             List<StructurePiece> pieces, String biomeType,
             VillageRoadPathGenerator.PreparedVillageRoads preparedRoads,
             ChunkLoadBudget loadBudget) {
@@ -60,7 +61,7 @@ public final class VillageFarmPathGenerator {
                 .toList();
         BlockPos farmCenter = new BlockPos(farm.originX() + farm.footprintX() / 2, farm.placementY(),
                 farm.originZ() + farm.footprintZ() / 2);
-        return roadPathGenerator.planFarmConnection(level, connectionEntrances, farmCenter, pieces,
+        return roadPathGenerator.planFarmConnection(terrain, connectionEntrances, farmCenter, pieces,
                 biomeType, preparedRoads, loadBudget);
     }
 

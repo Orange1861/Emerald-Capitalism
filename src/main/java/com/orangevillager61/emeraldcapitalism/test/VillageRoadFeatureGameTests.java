@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBridgeBlocks;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageLumbermillStructurePlacer;
@@ -54,7 +55,7 @@ public final class VillageRoadFeatureGameTests {
             BlockPos streetMax = helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19));
             VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
                     BoundingBox.fromCorners(streetMin, streetMax));
-            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(level,
+            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(VillageTerrain.live(level),
                     helper.absolutePos(new BlockPos(1, LOW_SURFACE_Y + 1, ROUTE_Z)),
                     helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
                     List.of(), "PLAINS", Direction.EAST, roads, null);
@@ -95,7 +96,7 @@ public final class VillageRoadFeatureGameTests {
                     "water under the deck");
 
             // A later connector walks over the existing stairs and deck and never repaves them.
-            VillageRoadPathGenerator.PlannedPath second = generator.planLumbermillConnection(level,
+            VillageRoadPathGenerator.PlannedPath second = generator.planLumbermillConnection(VillageTerrain.live(level),
                     helper.absolutePos(new BlockPos(1, LOW_SURFACE_Y + 1, ROUTE_Z)),
                     helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
                     List.of(), "PLAINS", Direction.EAST, roads, null);
@@ -168,7 +169,7 @@ public final class VillageRoadFeatureGameTests {
             VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
                     BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, 0)),
                             helper.absolutePos(new BlockPos(STREET_MAX_X, HIGH_SURFACE_Y, 19))));
-            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(level,
+            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(VillageTerrain.live(level),
                     helper.absolutePos(new BlockPos(1, HIGH_SURFACE_Y, ROUTE_Z)),
                     helper.absolutePos(new BlockPos(STREET_MIN_X, HIGH_SURFACE_Y, ROUTE_Z)),
                     List.of(), "SAVANNA", Direction.EAST, roads, null);

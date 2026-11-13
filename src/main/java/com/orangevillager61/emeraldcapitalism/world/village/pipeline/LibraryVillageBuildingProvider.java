@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.world.village.pipeline;
 
+import com.orangevillager61.emeraldcapitalism.world.village.VillageTerrain;
 import com.orangevillager61.emeraldcapitalism.util.ModIds;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageBuildingImportance;
 import com.orangevillager61.emeraldcapitalism.world.village.VillageLibraryStructurePlacer;
@@ -71,7 +72,7 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
                     .withoutBuilding(plan.reservationBox())
                     .withAdditionalBuildings(List.of(plan.placementBox()));
             VillageRoadPathGenerator.PlannedPath path = context.roadGenerator().planLibraryConnection(
-                    context.level(), plan.pathStart(), plan.pathStart(), context.pieces(),
+                    VillageTerrain.live(context.level()), plan.pathStart(), plan.pathStart(), context.pieces(),
                     context.biomeType(), plan.entranceDirection(),
                     roads, context.chunkLoadBudget());
             return path == null ? List.of() : List.of(path);
