@@ -126,6 +126,7 @@ public final class VillageLibraryStructurePlacer {
         Optional<StructureTemplate> template = Optional.of(search.template());
         ResourceLocation templateLocation = search.location();
         List<BoundingBox> pathBoxes = collectPathBoxes(villagePieces);
+        List<BoundingBox> buildingBoxes = VillageBuildingFootprints.buildingBoxes(villagePieces);
         List<LibrarySite> sites = new ArrayList<>();
         for (int distance : DISTANCES_FROM_BELL) {
             for (int[] direction : DIRECTIONS) {
@@ -139,7 +140,7 @@ public final class VillageLibraryStructurePlacer {
                             desiredMinX, desiredMinZ);
                     BoundingBox footprint = template.get().getBoundingBox(placementSettings, anchor);
                     if (reservedCollision.test(footprint)
-                            || overlapsVillagePiece(footprint, villagePieces)
+                            || VillageBuildingFootprints.overlapsHorizontally(footprint, buildingBoxes)
                             || !footprintLoaded(level, footprint)) {
                         continue;
                     }
@@ -335,15 +336,6 @@ public final class VillageLibraryStructurePlacer {
             }
         }
         return true;
-    }
-
-    private static boolean overlapsVillagePiece(BoundingBox footprint, List<StructurePiece> pieces) {
-        for (StructurePiece piece : pieces) {
-            if (footprint.intersects(piece.getBoundingBox())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static LibraryEntrance findTemplateEntrance(List<StructureTemplate.StructureBlockInfo> jigsawsAtOrigin,

@@ -192,6 +192,7 @@ public final class VillageLumbermillStructurePlacer {
         private final BlockPos bellPos;
         private final String biomeType;
         private final List<StructurePiece> villagePieces;
+        private final List<BoundingBox> villageBuildingBoxes;
         private final VillageRoadPathGenerator.PreparedVillageRoads preparedRoads;
         private final Predicate<BoundingBox> reservedCollision;
         private final List<SiteCandidate> candidates;
@@ -209,6 +210,7 @@ public final class VillageLumbermillStructurePlacer {
             this.bellPos = bellPos;
             this.biomeType = biomeType;
             this.villagePieces = villagePieces;
+            this.villageBuildingBoxes = VillageBuildingFootprints.buildingBoxes(villagePieces);
             this.preparedRoads = preparedRoads;
             this.reservedCollision = reservedCollision;
             this.candidates = candidates;
@@ -263,7 +265,7 @@ public final class VillageLumbermillStructurePlacer {
                     desiredMinX, desiredMinZ);
             BoundingBox footprint = loaded.template().getBoundingBox(settings, anchor);
             if (reservedCollision.test(footprint)
-                    || overlapsVillagePiece(footprint, villagePieces)
+                    || VillageBuildingFootprints.overlapsHorizontally(footprint, villageBuildingBoxes)
                     || preparedRoads.intersectsStreet(footprint)
                     || !footprintLoaded(terrain, footprint)) {
                 return;
@@ -634,15 +636,6 @@ public final class VillageLumbermillStructurePlacer {
             }
         }
         return true;
-    }
-
-    private static boolean overlapsVillagePiece(BoundingBox footprint, List<StructurePiece> pieces) {
-        for (StructurePiece piece : pieces) {
-            if (footprint.intersects(piece.getBoundingBox())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
