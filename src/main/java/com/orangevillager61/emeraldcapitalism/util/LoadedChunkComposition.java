@@ -57,11 +57,12 @@ public final class LoadedChunkComposition {
 
         for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
             for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                if (!level.hasChunk(chunkX, chunkZ)) {
+                // getChunkNow skips a ticketed chunk that is still generating, which
+                // hasChunk would accept and getChunk would then wait for.
+                LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+                if (chunk == null) {
                     continue;
                 }
-
-                LevelChunk chunk = level.getChunk(chunkX, chunkZ);
                 loadedChunks.put(ChunkPos.asLong(chunkX, chunkZ), chunk);
                 LevelChunkSection[] sections = chunk.getSections();
                 int chunkMinSectionY = SectionPos.blockToSectionCoord(

@@ -205,7 +205,8 @@ public class VillageDetectionHandler {
 
                 while (budget > 0) {
                     mutablePos.set(x, y, z);
-                    if (level.hasChunk(mutablePos.getX() >> 4, mutablePos.getZ() >> 4)
+                    // A ticketed chunk can still be generating; reading it would wait for that.
+                    if (level.getChunkSource().getChunkNow(mutablePos.getX() >> 4, mutablePos.getZ() >> 4) != null
                             && level.getBlockState(mutablePos).is(net.minecraft.world.level.block.Blocks.BELL)) {
                         double distSq = boxCenter.distSqr(mutablePos);
                         if (distSq < closestDistSq) {
@@ -714,7 +715,7 @@ public class VillageDetectionHandler {
 
     private static boolean renameVillageBankIfPresent(ServerLevel level, VillageRecord village, String villageName) {
         BlockPos vmPos = VillageRegistryData.get(level).getVMPos(village.getVillageId());
-        if (vmPos == null || !level.isLoaded(vmPos)) {
+        if (vmPos == null || level.getChunkSource().getChunkNow(vmPos.getX() >> 4, vmPos.getZ() >> 4) == null) {
             return false;
         }
 
@@ -723,7 +724,7 @@ public class VillageDetectionHandler {
         }
 
         BlockPos bankPos = vm.getBankPos();
-        if (bankPos == null || !level.isLoaded(bankPos)) {
+        if (bankPos == null || level.getChunkSource().getChunkNow(bankPos.getX() >> 4, bankPos.getZ() >> 4) == null) {
             return false;
         }
 
@@ -801,7 +802,7 @@ public class VillageDetectionHandler {
         BoundingBox box = pending.placementBox();
         for (int chunkX = box.minX() >> 4; chunkX <= box.maxX() >> 4; chunkX++) {
             for (int chunkZ = box.minZ() >> 4; chunkZ <= box.maxZ() >> 4; chunkZ++) {
-                if (!pending.level().getChunkSource().hasChunk(chunkX, chunkZ)) {
+                if (pending.level().getChunkSource().getChunkNow(chunkX, chunkZ) == null) {
                     return false;
                 }
             }

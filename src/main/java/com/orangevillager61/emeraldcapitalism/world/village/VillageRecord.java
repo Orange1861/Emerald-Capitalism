@@ -1487,6 +1487,15 @@ public class VillageRecord {
     }
 
     /** Palette-level filter used to avoid visiting sections that cannot affect a full scan. */
+    /**
+     * True only once the chunk has finished loading. {@code Level#hasChunk} is also true
+     * for a ticketed chunk that is still generating, and reading a block from it then
+     * waits for that generation on the server thread.
+     */
+    private static boolean isChunkReady(ServerLevel level, int chunkX, int chunkZ) {
+        return level.getChunkSource().getChunkNow(chunkX, chunkZ) != null;
+    }
+
     private static boolean isFullScanCandidate(BlockState state) {
         Block block = state.getBlock();
         return block instanceof BedBlock
@@ -1577,7 +1586,8 @@ public class VillageRecord {
         int budgetUnits = 0;
         while (budgetUnits < blockBudget) {
             pos.set(state.x, state.y, state.z);
-            if (!level.hasChunk(state.chunkX, state.chunkZ)) {
+            LevelChunk chunk = level.getChunkSource().getChunkNow(state.chunkX, state.chunkZ);
+            if (chunk == null) {
                 if (chunkLoadPool != null && state.adaptivePlan != null) {
                     InitialVillageScanChunkLoadPool.Availability availability = chunkLoadPool.ensureAvailable(
                             villageId,
@@ -1594,7 +1604,7 @@ public class VillageRecord {
                         return false;
                     }
                     if (availability == InitialVillageScanChunkLoadPool.Availability.AVAILABLE
-                            && level.hasChunk(state.chunkX, state.chunkZ)) {
+                            && isChunkReady(level, state.chunkX, state.chunkZ)) {
                         continue;
                     }
 
@@ -1621,7 +1631,6 @@ public class VillageRecord {
                 continue;
             }
 
-            LevelChunk chunk = level.getChunk(state.chunkX, state.chunkZ);
             if (!state.currentSectionMayContainCandidates(chunk)) {
                 budgetUnits++;
                 int scannedChunkX = state.chunkX;
@@ -1800,7 +1809,7 @@ public class VillageRecord {
             int index = (start + offset) % total;
             if (index < beds.size()) {
                 BlockPos pos = beds.get(index);
-                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)
+                if (isChunkReady(level, pos.getX() >> 4, pos.getZ() >> 4)
                         && !isBedHead(level.getBlockState(pos))) {
                     changed |= cachedBedPositions.remove(pos);
                 }
@@ -1811,7 +1820,7 @@ public class VillageRecord {
             if (index < jobSites.size()) {
                 Map.Entry<BlockPos, String> entry = jobSites.get(index);
                 BlockPos pos = entry.getKey();
-                if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                if (isChunkReady(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                     BlockState state = level.getBlockState(pos);
                     String type = WORKSTATION_BLOCKS.get(state.getBlock().getClass());
                     if (type == null) {
@@ -1822,7 +1831,7 @@ public class VillageRecord {
             }
 
             BlockPos pos = doors.get(index - jobSites.size());
-            if (level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (isChunkReady(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 BlockState liveState = level.getBlockState(pos);
                 if (!isDoorBase(liveState) && doorRegistry.remove(pos)) {
                     missingDoorRegistry.add(pos.immutable());
@@ -2272,7 +2281,7 @@ public class VillageRecord {
             return removeMatureCropWork(position);
         }
         if (!containsPos(boundingBox, position)
-                || !level.hasChunk(position.getX() >> 4, position.getZ() >> 4)
+                || !isChunkReady(level, position.getX() >> 4, position.getZ() >> 4)
                 || !isMatureCropOnFarmland(level, position)) {
             return removeMatureCropWork(position);
         }
@@ -3026,7 +3035,7 @@ public class VillageRecord {
         int maxZ = (int) Math.floor(area.maxZ);
 
         for (BlockPos pos : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
-            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (!isChunkReady(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 continue;
             }
             BlockState state = level.getBlockState(pos);
@@ -3070,7 +3079,7 @@ public class VillageRecord {
             if (containsPos(oldBox, pos)) {
                 continue;
             }
-            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (!isChunkReady(level, pos.getX() >> 4, pos.getZ() >> 4)) {
                 continue;
             }
             BlockState state = level.getBlockState(pos);
