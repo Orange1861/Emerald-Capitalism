@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
@@ -86,30 +87,38 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
     /** Re-reads one column after the server thread changed it. */
     public void refreshColumn(ServerLevel level, int x, int z) {
         int column = columnIndex(x, z);
-        if (column < 0 || !level.hasChunk(x >> 4, z >> 4)) {
+        LevelChunk chunk = level.getChunkSource().getChunkNow(x >> 4, z >> 4);
+        if (column < 0 || chunk == null) {
             return;
         }
-        captureColumn(level, column, x, z, new BlockPos.MutableBlockPos());
+        captureColumn(chunk, column, x, z, new BlockPos.MutableBlockPos());
     }
 
+    /**
+     * Reads straight from the loaded chunk rather than through the level, which
+     * would look the chunk up again for every block. A chunk that is not loaded
+     * is recorded as unavailable; this never loads one.
+     */
     private void captureChunk(ServerLevel level, int chunkX, int chunkZ) {
         int chunkIndex = (chunkX - minChunkX) * chunksZ + (chunkZ - minChunkZ);
-        if (!level.hasChunk(chunkX, chunkZ)) {
+        LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+        if (chunk == null) {
             chunkCaptured[chunkIndex] = false;
             return;
         }
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int x = chunkX << 4; x < (chunkX << 4) + 16; x++) {
             for (int z = chunkZ << 4; z < (chunkZ << 4) + 16; z++) {
-                captureColumn(level, columnIndex(x, z), x, z, cursor);
+                captureColumn(chunk, columnIndex(x, z), x, z, cursor);
             }
         }
         chunkCaptured[chunkIndex] = true;
     }
 
-    private void captureColumn(ServerLevel level, int column, int x, int z, BlockPos.MutableBlockPos cursor) {
-        int noLeaves = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        int worldSurface = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
+    private void captureColumn(LevelChunk level, int column, int x, int z, BlockPos.MutableBlockPos cursor) {
+        // A chunk reports the top block's y; Level#getHeight reports one above it.
+        int noLeaves = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x & 15, z & 15) + 1;
+        int worldSurface = level.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15) + 1;
         noLeavesHeight[column] = noLeaves;
         worldSurfaceHeight[column] = worldSurface;
         for (int depth = 0; depth < WORLD_SURFACE_DEPTH; depth++) {
