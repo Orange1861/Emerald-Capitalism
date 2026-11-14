@@ -7,6 +7,10 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+
+import java.util.BitSet;
+import java.util.Collection;
 
 /**
  * A copy of the terrain the village planners read, so planning can run on the
@@ -47,6 +51,8 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
     private final int[] worldSurfaceHeight;
     private final BlockState[] worldSurfaceStates;
     private final BlockState[] window;
+    /** Chunk indices still to capture, in order; every chunk on the first capture. */
+    private int[] captureOrder;
     private int nextChunk;
 
     public VillageTerrainSnapshot(ServerLevel level, int minChunkX, int maxChunkX,
@@ -66,21 +72,40 @@ public final class VillageTerrainSnapshot implements VillageTerrain {
         this.worldSurfaceHeight = new int[columns];
         this.worldSurfaceStates = new BlockState[columns * WORLD_SURFACE_DEPTH];
         this.window = new BlockState[columns * WINDOW];
+        this.captureOrder = new int[chunkCaptured.length];
+        for (int index = 0; index < captureOrder.length; index++) {
+            captureOrder[index] = index;
+        }
     }
 
     /** Captures up to {@code chunksPerStep} more chunks; returns true once every chunk is done. */
     public boolean captureStep(ServerLevel level, int chunksPerStep) {
-        int end = Math.min(chunkCaptured.length, nextChunk + chunksPerStep);
+        int end = Math.min(captureOrder.length, nextChunk + chunksPerStep);
         for (; nextChunk < end; nextChunk++) {
-            int chunkX = minChunkX + nextChunk / chunksZ;
-            int chunkZ = minChunkZ + nextChunk % chunksZ;
-            captureChunk(level, chunkX, chunkZ);
+            int chunkIndex = captureOrder[nextChunk];
+            captureChunk(level, minChunkX + chunkIndex / chunksZ, minChunkZ + chunkIndex % chunksZ);
         }
-        return nextChunk >= chunkCaptured.length;
+        return nextChunk >= captureOrder.length;
     }
 
-    /** Starts a full recapture, used after building placement has changed the terrain. */
-    public void restartCapture() {
+    /**
+     * Recaptures only the chunks that intersect {@code changedAreas} (X and Z),
+     * used after building placement has changed the terrain around the buildings.
+     */
+    public void restartCapture(Collection<BoundingBox> changedAreas) {
+        BitSet chunks = new BitSet(chunkCaptured.length);
+        for (BoundingBox area : changedAreas) {
+            int fromX = Math.max(minChunkX, area.minX() >> 4);
+            int toX = Math.min(minChunkX + chunksX - 1, area.maxX() >> 4);
+            int fromZ = Math.max(minChunkZ, area.minZ() >> 4);
+            int toZ = Math.min(minChunkZ + chunksZ - 1, area.maxZ() >> 4);
+            for (int chunkX = fromX; chunkX <= toX; chunkX++) {
+                for (int chunkZ = fromZ; chunkZ <= toZ; chunkZ++) {
+                    chunks.set((chunkX - minChunkX) * chunksZ + (chunkZ - minChunkZ));
+                }
+            }
+        }
+        captureOrder = chunks.stream().toArray();
         nextChunk = 0;
     }
 

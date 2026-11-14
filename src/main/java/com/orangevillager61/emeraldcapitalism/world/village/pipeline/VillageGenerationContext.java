@@ -29,6 +29,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -66,6 +67,11 @@ public final class VillageGenerationContext {
      * dropped with it, so it cannot outlive the village's generation.
      */
     private VillageTerrainSnapshot terrainSnapshot;
+    /**
+     * Blocks beyond a building reservation that placement may still change, such
+     * as the bank's terrain blending ring. Recapture covers this margin.
+     */
+    private static final int PLACEMENT_TERRAIN_MARGIN = 8;
     private final PreloadStepStats preloadStepStats = new PreloadStepStats();
     private boolean cachesBuilt;
     private boolean pipelineCompletedSuccessfully;
@@ -231,11 +237,22 @@ public final class VillageGenerationContext {
         return terrainSnapshot.captureStep(level, chunksPerStep);
     }
 
-    /** Recaptures the whole snapshot after placement changed the terrain. */
+    /**
+     * Recaptures the snapshot after placement changed the terrain. Only chunks
+     * around reserved buildings change: each reservation, widened by the
+     * placers' terrain blending, is recaptured and the rest is kept.
+     */
     public void restartTerrainCapture() {
-        if (terrainSnapshot != null) {
-            terrainSnapshot.restartCapture();
+        if (terrainSnapshot == null) {
+            return;
         }
+        List<BoundingBox> changed = new ArrayList<>();
+        for (BoundingBox box : reservations.buildingBoxes()) {
+            changed.add(new BoundingBox(box.minX() - PLACEMENT_TERRAIN_MARGIN, box.minY(),
+                    box.minZ() - PLACEMENT_TERRAIN_MARGIN, box.maxX() + PLACEMENT_TERRAIN_MARGIN, box.maxY(),
+                    box.maxZ() + PLACEMENT_TERRAIN_MARGIN));
+        }
+        terrainSnapshot.restartCapture(changed);
     }
 
     /** The captured terrain; valid after {@link #captureTerrainStep} returned true. */
