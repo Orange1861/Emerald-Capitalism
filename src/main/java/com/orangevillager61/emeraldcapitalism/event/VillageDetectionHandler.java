@@ -830,6 +830,7 @@ public class VillageDetectionHandler {
         if (villagers < 2) {
             return false;
         }
+        data.addLumbermillFootprint(box);
         data.markLumbermillStructureGenerated(pending.structureKey());
         EmeraldCapitalism.LOGGER.info(
                 "[ECAP] Populated pool-generated lumbermill at {} with two villagers",

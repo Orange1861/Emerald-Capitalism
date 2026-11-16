@@ -152,6 +152,9 @@ public class VillageRegistryData extends SavedData {
             Codec.LONG.sizeLimitedListOf(MAX_PERSISTED_REGISTRY_ENTRIES)
                     .optionalFieldOf("generated_lumbermill_structures", List.of())
                     .forGetter(data -> new ArrayList<>(data.generatedLumbermillStructures)),
+            BoundingBox.CODEC.sizeLimitedListOf(MAX_PERSISTED_REGISTRY_ENTRIES)
+                    .optionalFieldOf("lumbermill_footprints", List.of())
+                    .forGetter(data -> new ArrayList<>(data.lumbermillFootprints)),
             Codec.LONG.sizeLimitedListOf(MAX_PERSISTED_REGISTRY_ENTRIES)
                     .optionalFieldOf("abandoned_vault_positions", List.of())
                     .forGetter(data -> new ArrayList<>(data.abandonedVaultPositions)),
@@ -173,6 +176,8 @@ public class VillageRegistryData extends SavedData {
     private final Set<UUID> generatedLibraryVillages = new HashSet<>();
     private final Set<UUID> generatedLumbermillVillages = new HashSet<>();
     private final Set<Long> generatedLumbermillStructures = new HashSet<>();
+    /** Footprints of every generated lumbermill; a pool furnace must stand inside one. */
+    private final List<BoundingBox> lumbermillFootprints = new ArrayList<>();
     /** Persistent positions for abandoned-village vaults placed outside vanilla structure starts. */
     private final Set<Long> abandonedVaultPositions = new HashSet<>();
     /** Persistent villageId → registered bank position, used to avoid volume scans. */
@@ -208,6 +213,7 @@ public class VillageRegistryData extends SavedData {
             List<UUID> generatedLibraryVillages,
             List<UUID> generatedLumbermillVillages,
             List<Long> generatedLumbermillStructures,
+            List<BoundingBox> lumbermillFootprints,
             List<Long> abandonedVaultPositions,
             List<BankPosition> bankPositions,
             List<PendingPlacementState> pendingManagerPlacements,
@@ -225,6 +231,11 @@ public class VillageRegistryData extends SavedData {
         data.generatedLibraryVillages.addAll(generatedLibraryVillages);
         data.generatedLumbermillVillages.addAll(generatedLumbermillVillages);
         data.generatedLumbermillStructures.addAll(generatedLumbermillStructures);
+        for (BoundingBox footprint : lumbermillFootprints) {
+            if (!data.lumbermillFootprints.contains(footprint)) {
+                data.lumbermillFootprints.add(footprint);
+            }
+        }
         data.abandonedVaultPositions.addAll(abandonedVaultPositions);
         for (BankPosition bankPosition : bankPositions) {
             if (data.bankPositions.putIfAbsent(
@@ -340,6 +351,27 @@ public class VillageRegistryData extends SavedData {
         if (generatedLumbermillVillages.add(villageId)) {
             setDirty();
         }
+    }
+
+    /** Records where a lumbermill stands. The same footprint is stored once. */
+    public void addLumbermillFootprint(BoundingBox footprint) {
+        if (!lumbermillFootprints.contains(footprint)) {
+            lumbermillFootprints.add(footprint);
+            setDirty();
+        }
+    }
+
+    public List<BoundingBox> getLumbermillFootprints() {
+        return Collections.unmodifiableList(lumbermillFootprints);
+    }
+
+    public boolean isInLumbermillFootprint(BlockPos pos) {
+        for (BoundingBox footprint : lumbermillFootprints) {
+            if (footprint.isInside(pos)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasGeneratedLumbermillStructure(long structureKey) {
@@ -745,6 +777,7 @@ public class VillageRegistryData extends SavedData {
         generatedLibraryVillages.clear();
         generatedLumbermillVillages.clear();
         generatedLumbermillStructures.clear();
+        lumbermillFootprints.clear();
         abandonedVaultPositions.clear();
         bankPositions.clear();
         pendingManagerPlacements.clear();

@@ -155,6 +155,7 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
             // Commit the one-per-village marker immediately after the irreversible
             // template write so a restart cannot place a duplicate lumbermill.
             context.registryData().markLumbermillGenerated(context.villageId());
+            context.registryData().addLumbermillFootprint(plan.placementBox());
             return true;
         }
 
@@ -164,7 +165,10 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
             // irreversible template write, so a restart cannot place a duplicate.
             return VillageBuildingPlacementTask.of(placer.startPlacement(context.level(), plan,
                     context.biomeType(),
-                    () -> context.registryData().markLumbermillGenerated(context.villageId())));
+                    () -> {
+                        context.registryData().markLumbermillGenerated(context.villageId());
+                        context.registryData().addLumbermillFootprint(plan.placementBox());
+                    }));
         }
 
         @Override

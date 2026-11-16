@@ -15,7 +15,9 @@ import com.orangevillager61.emeraldcapitalism.block.VillageManagerBlock;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
+import com.orangevillager61.emeraldcapitalism.navigation.ClaimLedger;
 import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
+import com.orangevillager61.emeraldcapitalism.world.forestry.FurnacePool;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.AdaptiveChunkScanPlan;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.InitialVillageScanChunkLoadPool;
 import net.minecraft.core.BlockPos;
@@ -32,7 +34,9 @@ import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
+import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -570,6 +574,12 @@ public class VillageRecord {
     private final Map<VillageWorkCell.Key, VillageWorkCell> workCells = new HashMap<>();
     /** Transient loaded, eligible farmer roster for this village. */
     private final Set<UUID> farmerRoster = new HashSet<>();
+    /** Transient claims on shared village work targets; rebuilt from durable progress after a reload. */
+    private final ClaimLedger claimLedger = new ClaimLedger();
+    /** Transient lumbermill furnace pool, created on first use so its reload grace starts then. */
+    @Nullable
+    private FurnacePool furnacePool;
+    private long lastFurnaceReconcileTick = Long.MIN_VALUE;
     /** Farmland positions currently claimed by a farmer for repair. Cleared on server load. */
     private final Set<BlockPos> claimedPositions = new HashSet<>();
     /** Mature-crop positions currently claimed by a farmer for queued harvest. */
@@ -1938,6 +1948,98 @@ public class VillageRecord {
 
     public int getPendingCropWorkCount() {
         return matureCropWorkQueue.size();
+    }
+
+    public ClaimLedger getClaimLedger() {
+        return claimLedger;
+    }
+
+    /** The village's lumbermill furnace pool. Callers: the lumberjack's furnace production. */
+    public FurnacePool getFurnacePool(long gameTime) {
+        if (furnacePool == null) {
+            furnacePool = new FurnacePool(villageId, claimLedger, gameTime);
+        }
+        return furnacePool;
+    }
+
+    /**
+     * Offers a furnace to the pool. The village validates it: it must be a furnace
+     * block inside this village's bounds and inside a generated lumbermill's
+     * footprint. A sighting by a lumberjack's tree scan, a block event, the
+     * placer, and the reconciliation below all pass through here.
+     */
+    public boolean acceptFurnaceSighting(ServerLevel level, BlockPos pos) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(pos, "pos");
+        if (!containsPos(boundingBox, pos)
+                || !VillageRegistryData.get(level).isInLumbermillFootprint(pos)) {
+            return false;
+        }
+        BlockState state = BankEmployeeLookup.getLoadedBlockState(level, pos);
+        return state != null && state.is(Blocks.FURNACE)
+                && getFurnacePool(level.getGameTime()).addFurnace(pos.asLong());
+    }
+
+    /** A furnace was broken or replaced: its claim is dropped and its owner rejoins the queue. */
+    public void onFurnaceRemoved(ServerLevel level, BlockPos pos) {
+        if (furnacePool != null) {
+            furnacePool.removeFurnace(pos.asLong(), level.getGameTime());
+        }
+    }
+
+    /**
+     * Reads the block entities of loaded lumbermill chunks, no more often than
+     * every 100 ticks per village, adds furnaces the pool does not know, and drops
+     * pool furnaces that are gone from chunks that are loaded. Unloaded chunks are
+     * left alone.
+     */
+    public void reconcileFurnacePool(ServerLevel level) {
+        long now = level.getGameTime();
+        if (lastFurnaceReconcileTick != Long.MIN_VALUE && now - lastFurnaceReconcileTick < 100L) {
+            return;
+        }
+        lastFurnaceReconcileTick = now;
+        VillageRegistryData data = VillageRegistryData.get(level);
+        Set<Long> present = new HashSet<>();
+        for (BoundingBox footprint : data.getLumbermillFootprints()) {
+            for (int chunkX = footprint.minX() >> 4; chunkX <= footprint.maxX() >> 4; chunkX++) {
+                for (int chunkZ = footprint.minZ() >> 4; chunkZ <= footprint.maxZ() >> 4; chunkZ++) {
+                    LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+                    if (chunk == null) {
+                        continue;
+                    }
+                    for (BlockPos pos : chunk.getBlockEntitiesPos()) {
+                        if (footprint.isInside(pos) && containsPos(boundingBox, pos)
+                                && chunk.getBlockEntity(pos) instanceof FurnaceBlockEntity
+                                && !chunk.getBlockEntity(pos).isRemoved()) {
+                            present.add(pos.asLong());
+                            getFurnacePool(now).addFurnace(pos.asLong());
+                        }
+                    }
+                }
+            }
+        }
+        if (furnacePool == null) {
+            return;
+        }
+        for (long packed : furnacePool.furnaces()) {
+            BlockPos pos = BlockPos.of(packed);
+            if (!present.contains(packed)
+                    && level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4) != null) {
+                furnacePool.removeFurnace(packed, now);
+            }
+        }
+    }
+
+    /**
+     * A lumberjack died, unloaded, or changed profession: its furnace claim passes
+     * to the village (the furnace stays reserved) and its other claims are released.
+     */
+    public void releaseLumberjackClaims(UUID villagerId) {
+        if (furnacePool != null) {
+            furnacePool.handToVillage(villagerId);
+        }
+        claimLedger.releaseOwner(villagerId, FurnacePool.PROFESSION);
     }
 
     /** Returns the transient loaded farmer roster owned by this village. */

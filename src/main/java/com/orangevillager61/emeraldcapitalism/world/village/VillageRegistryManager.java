@@ -136,6 +136,7 @@ public class VillageRegistryManager {
 
         if (tickCounter % 20 == 0) {
             refreshVillageGovernance();
+            reconcileOneFurnacePool();
         }
 
         if (currentFullScanVillageId != null || !fullScanQueue.isEmpty()) {
@@ -672,6 +673,7 @@ public class VillageRegistryManager {
         for (VillageRecord village : registryData.getVillages().values()) {
             village.removeFarmerFromRoster(villagerUUID);
             village.releaseDoorClaims(villagerUUID);
+            village.releaseLumberjackClaims(villagerUUID);
         }
     }
 
@@ -803,6 +805,15 @@ public class VillageRegistryManager {
 
         updateBankEmployeeTracking(village, villager, jobSitePos, existing == null);
         village.refreshFarmerRoster(villager);
+    }
+
+    /** One village per call, round-robin; each village also limits itself to once per 100 ticks. */
+    private void reconcileOneFurnacePool() {
+        List<VillageRecord> all = new ArrayList<>(registryData.getVillages().values());
+        if (all.isEmpty()) {
+            return;
+        }
+        all.get((int) ((tickCounter / 20L) % all.size())).reconcileFurnacePool(level);
     }
 
     private void dispatchFarmerWork() {
