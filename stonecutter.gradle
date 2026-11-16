@@ -315,7 +315,7 @@ tasks.register('verifyNavigationArchitecture') {
                 'mayor-governor-follow-activity': ['IDLE, MEET and WORK', 'villageId + MAYOR + mayor UUID + candidate UUID + session generation'],
                 'avoidance-safety-activity': ['CORE', 'villager UUID + hazard identity + safety generation'],
                 'begging-social-session': ['IDLE, MEET and WORK', 'beggar UUID + donor UUID + session generation'],
-                'banker-work-activity': ['WORK, through the bell hours by BankerSchedule', 'villager UUID + bank identity'],
+                'banker-work-activity': ['WORK all day by BankerSchedule', 'villager UUID + bank identity'],
                 'mod-behavior-activity-bound': ['a mod behavior ends itself when its activity ends', 'behavior instance per villager Brain'],
                 'lumberjack-shared-furnace-pool': ['WORK', 'villageId + LUMBERJACK + furnace identity + owner UUID + generation'],
                 'farmer-pumpkin-work-cell-pipeline': ['WORK', 'villageId + FARMER + work-cell identity + attached pumpkin position + owner UUID + task generation'],
