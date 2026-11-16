@@ -332,6 +332,7 @@ public final class VillageGenerationPipeline {
                     for (VillageRoadPathGenerator.PlannedPath path : plan.reservedPaths()) {
                         context.reservations().reservePath(path.reservedSurfaceCells());
                     }
+                    context.reservations().reservePath(plan.approachColumns());
                     plans.add(plan);
                 });
                 if (index >= providers.size()) {

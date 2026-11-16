@@ -15,6 +15,11 @@ import java.util.List;
 public final class BankVillageBuildingProvider implements VillageBuildingProvider {
     public static final ResourceLocation ID = ModIds.id("bank");
     private static final int BANK_FOOTPRINT_AREA = 15 * 15;
+    /** Rows in front of the door kept free of later buildings; the bank's path start is inside its apron. */
+    private static final int APPROACH_ROWS = 16;
+    /** A three-wide road plus a graded column on each side. */
+    private static final int APPROACH_WIDTH = 5;
+
 
     private final VillageBankStructurePlacer placer = new VillageBankStructurePlacer();
 
@@ -81,6 +86,12 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
         @Override
         public List<VillageRoadPathGenerator.PlannedPath> reservedPaths() {
             return connector == null ? List.of() : List.of(connector);
+        }
+
+        @Override
+        public List<net.minecraft.core.BlockPos> approachColumns() {
+            return PlannedVillageBuilding.approachStrip(plan.pathStart(), plan.entranceDirection(),
+                    APPROACH_ROWS, APPROACH_WIDTH);
         }
 
         @Override

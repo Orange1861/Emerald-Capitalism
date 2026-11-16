@@ -116,6 +116,11 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
         return new PlannedLumbermill(lumbermill, connector);
     }
 
+    /** Rows in front of the door kept free of later buildings. */
+    private static final int APPROACH_ROWS = 12;
+    /** A three-wide road plus a graded column on each side. */
+    private static final int APPROACH_WIDTH = 5;
+
     private final class PlannedLumbermill implements PlannedVillageBuilding {
         private final VillageLumbermillStructurePlacer.PlannedLumbermill plan;
         private final VillageRoadPathGenerator.PlannedPath connector;
@@ -134,6 +139,12 @@ public final class LumbermillVillageBuildingProvider implements VillageBuildingP
         @Override
         public List<VillageRoadPathGenerator.PlannedPath> reservedPaths() {
             return connector == null ? List.of() : List.of(connector);
+        }
+
+        @Override
+        public List<net.minecraft.core.BlockPos> approachColumns() {
+            return PlannedVillageBuilding.approachStrip(plan.pathStart(), plan.entranceDirection(),
+                    APPROACH_ROWS, APPROACH_WIDTH);
         }
 
         @Override

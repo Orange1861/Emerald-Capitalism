@@ -58,6 +58,11 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
         });
     }
 
+    /** Rows in front of the door kept free of later buildings. */
+    private static final int APPROACH_ROWS = 12;
+    /** A three-wide road plus a graded column on each side. */
+    private static final int APPROACH_WIDTH = 5;
+
     private final class PlannedLibrary implements PlannedVillageBuilding {
         private final VillageLibraryStructurePlacer.PlannedLibrary plan;
 
@@ -69,6 +74,12 @@ public final class LibraryVillageBuildingProvider implements VillageBuildingProv
         @Override public VillageBuildingImportance importance() { return VillageBuildingImportance.IMPORTANT; }
         @Override public BoundingBox reservationBox() { return plan.reservationBox(); }
         @Override public BoundingBox placementBox() { return plan.placementBox(); }
+
+        @Override
+        public List<net.minecraft.core.BlockPos> approachColumns() {
+            return PlannedVillageBuilding.approachStrip(plan.pathStart(), plan.entranceDirection(),
+                    APPROACH_ROWS, APPROACH_WIDTH);
+        }
 
         @Override
         public boolean place(VillageGenerationContext context) {
