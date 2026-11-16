@@ -129,14 +129,17 @@ Steps 3 and 4; the test documents the current design and must change if that des
    around the bank, stands at the front, pushes into the bank, or jitters.
 4. Run `/data get entity @e[type=minecraft:villager,limit=1,sort=nearest] Brain.memories` while the
    banker stands there. There should be no `walk_target` and no `path`.
-5. Only for a bank that does not confine its banker (artificial banks): `/time set 9200`. The banker
-   stays at the back of the bank and does not go to the bell; try `/time set 500` and `/time set 11500`
-   too, where vanilla villagers idle. `/time set 2500` leaves it at the back of
-   the bank. Skip this step for natural banks, whose employees cannot leave.
+5. Only for a banker who is not confined (natural banks trap theirs, so skip those): `/time set 9200`.
+   The banker stays at the back of the bank and does not go to the bell; try `/time set 500` and
+   `/time set 11500` too, where vanilla villagers idle. A bank you place becomes a player bank with
+   no banker job, so do not use one here. If you have no unconfined banker, skip this step; the
+   schedule is covered by `bankerScheduleWorksTheBellHoursAndKeepsTheRest` and
+   `bankerHoldsTheWorkSideThroughTheBellHours`.
 6. With the banker at the back of the bank, summon a boat next to it
    (`/summon minecraft:boat ~2 ~ ~`, `oak_boat` on 1.21.4). It should step away and return after
    `/kill @e[type=boat]` (`oak_boat` on 1.21.4).
-7. Candidate check (the reported stall): place a bank where villagers can reach it, bring an
+7. Candidate check (the reported stall): place a bank where villagers can reach it, release its
+   control from the bank screen so it is independent and offers the job (see the finding above), bring an
    unemployed adult villager near it (`/summon minecraft:villager ~ ~ ~ {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}`),
    and wait without touching it. It should walk onto the block behind the bank and become a banker
    within about a minute, without another villager pushing it. Failure sign: it stops one block short.
