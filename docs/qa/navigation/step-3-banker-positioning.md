@@ -148,3 +148,7 @@ Steps 3 and 4; the test documents the current design and must change if that des
 10. If the village has two banks, check each banker stays at its own bank.
 
 Repeat on 1.21.4 and record anything that looks wrong.
+
+## Developer confirmation (2026-11-16)
+
+The developer confirmed Steps 3 and 4 work in game after the all-day banker schedule and the 1.21.4 acquirable-job-site tag.
