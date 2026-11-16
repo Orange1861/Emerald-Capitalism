@@ -71,6 +71,12 @@ public class VillageDetectionHandler {
     private static final int MAX_ACTIVE_TASKS_PER_TICK = 4;
     /** Per-task scan budget for bell search per tick. */
     private static final int BELL_SCAN_BLOCK_BUDGET_PER_TASK_PER_TICK = 4096;
+    /**
+     * Ticks one bell search may spend waiting for chunks that are still
+     * generating before it skips them like unloaded chunks. Skipping the bell's
+     * chunk sends the search through the whole structure box.
+     */
+    private static final int MAX_BELL_CHUNK_WAIT_TICKS = 400;
 
     private static final WorldgenVillageNameAssigner WORLDGEN_NAME_ASSIGNER = new WorldgenVillageNameAssigner();
 
@@ -181,6 +187,7 @@ public class VillageDetectionHandler {
         private BlockPos foundBell;
 
         private final BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
+        private int chunkWaitTicks;
 
         private BellSearchCursor(List<BoundingBox> boxes) {
             this.boxes = boxes;
@@ -205,9 +212,16 @@ public class VillageDetectionHandler {
 
                 while (budget > 0) {
                     mutablePos.set(x, y, z);
-                    // A ticketed chunk can still be generating; reading it would wait for that.
-                    if (level.getChunkSource().getChunkNow(mutablePos.getX() >> 4, mutablePos.getZ() >> 4) != null
-                            && level.getBlockState(mutablePos).is(net.minecraft.world.level.block.Blocks.BELL)) {
+                    // A ticketed chunk can still be generating, and reading it would
+                    // block the server thread until it finishes. Wait for it on later
+                    // ticks instead, up to a cap; a chunk with no ticket is skipped.
+                    boolean ready = level.getChunkSource().getChunkNow(x >> 4, z >> 4) != null;
+                    if (!ready && chunkWaitTicks < MAX_BELL_CHUNK_WAIT_TICKS
+                            && level.getChunkSource().hasChunk(x >> 4, z >> 4)) {
+                        chunkWaitTicks++;
+                        return StepResult.CONTINUE;
+                    }
+                    if (ready && level.getBlockState(mutablePos).is(net.minecraft.world.level.block.Blocks.BELL)) {
                         double distSq = boxCenter.distSqr(mutablePos);
                         if (distSq < closestDistSq) {
                             closestDistSq = distSq;
