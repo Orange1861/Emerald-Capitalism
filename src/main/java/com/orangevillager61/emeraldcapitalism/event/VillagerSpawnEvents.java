@@ -2,7 +2,6 @@ package com.orangevillager61.emeraldcapitalism.event;
 
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.behavior.BankerSchedule;
-import com.orangevillager61.emeraldcapitalism.behavior.VillagerSchedule;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFamilyUtils;
@@ -166,7 +165,6 @@ public class VillagerSpawnEvents {
         if (villager.tickCount % 20 == 0) {
             VillageRegistryEvents.refreshFarmerRoster(villager);
             BankerSchedule.apply(villager);
-            VillagerSchedule.apply(villager);
         }
 
         if (!villager.isBaby()) {
