@@ -275,7 +275,7 @@ public class Config {
             .define("advanced.debug.performanceTiming", false);
 
     private static final ModConfigSpec.BooleanValue VILLAGER_JUMP_LOG = BUILDER
-            .comment("If true, logs a warning whenever a villager moves more than 3 blocks in a single tick,",
+            .comment("If true, logs a warning whenever a villager moves more than 2 blocks in a single tick,",
                      "with its activity, time of day, home, job site and walk target. Use to find what teleports villagers.",
                      "Leave off in normal play.")
             .translation("emeraldcapitalism.configuration.advanced.debug.villagerJumpLog")

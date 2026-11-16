@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class VillagerJumpLogger {
 
-    private static final double JUMP_DISTANCE_SQ = 3.0D * 3.0D;
+    private static final double JUMP_DISTANCE_SQ = 2.0D * 2.0D;
     private static final Map<UUID, Vec3> LAST_POSITIONS = new ConcurrentHashMap<>();
 
     private VillagerJumpLogger() {
