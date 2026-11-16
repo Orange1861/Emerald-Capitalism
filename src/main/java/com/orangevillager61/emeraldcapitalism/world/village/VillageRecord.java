@@ -15,6 +15,7 @@ import com.orangevillager61.emeraldcapitalism.block.VillageManagerBlock;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerNavigationTargets;
 import com.orangevillager61.emeraldcapitalism.network.ProtocolStringLimits;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPBlocks;
+import com.orangevillager61.emeraldcapitalism.util.BankEmployeeLookup;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.AdaptiveChunkScanPlan;
 import com.orangevillager61.emeraldcapitalism.world.village.scan.InitialVillageScanChunkLoadPool;
 import net.minecraft.core.BlockPos;
@@ -2229,7 +2230,18 @@ public class VillageRecord {
                 && !villager.isBaby()
                 && villager.getVillagerData().getProfession() == VillagerProfession.FARMER
                 && hasMember(villager.getUUID())
-                && containsPos(boundingBox, villager.blockPosition());
+                && containsPos(boundingBox, villager.blockPosition())
+                && !isBankEmployee(villager);
+    }
+
+    /**
+     * Bank employment excludes a villager from queued farmer work. Roster refresh,
+     * nearby-farmer selection, and lease assignment all go through
+     * {@link #isEligibleFarmer}, so this one check covers all three.
+     */
+    private boolean isBankEmployee(Villager villager) {
+        return villager.level() instanceof ServerLevel level
+                && BankEmployeeLookup.isEmployeeOfVillageBank(level, this, villager.getUUID());
     }
 
     private record FarmerCandidate(Villager farmer, boolean reachable, double distance) {

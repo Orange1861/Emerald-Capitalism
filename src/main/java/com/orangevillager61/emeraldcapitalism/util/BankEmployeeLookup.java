@@ -62,6 +62,16 @@ public final class BankEmployeeLookup {
         return bank != null && bank.isEmployee(villager.getUUID()) ? bank : null;
     }
 
+    /**
+     * Whether the villager is on the employee list of this village's loaded bank.
+     * Unlike {@link #findEmployeeBank}, this never uses the 20-tick lookup cache,
+     * because farmer eligibility must change on the tick employment does.
+     */
+    public static boolean isEmployeeOfVillageBank(ServerLevel level, VillageRecord village, UUID villagerId) {
+        BankBlockEntity bank = findVillageBankAt(level, VillageRegistryData.get(level), village);
+        return bank != null && bank.isEmployee(villagerId);
+    }
+
     /** Finds the loaded Bank registered to the villager's village, regardless of employee status. */
     @Nullable
     public static BankBlockEntity findVillageBank(ServerLevel level, Villager villager) {

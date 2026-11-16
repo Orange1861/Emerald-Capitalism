@@ -1796,8 +1796,22 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
         boolean added = addEmployee(villager.getUUID(), false);
         if (added) {
             setChanged();
+            if (villager.level() instanceof ServerLevel serverLevel) {
+                releaseFarmerWork(serverLevel, villager.getUUID());
+            }
         }
         return added;
+    }
+
+    /**
+     * Bank employment excludes a villager from queued farmer work, so acquiring
+     * it ends any farmer lease and work claims the villager still holds. Later
+     * eligibility needs no call: it is decided by the village's eligibility check.
+     */
+    private static void releaseFarmerWork(ServerLevel level, UUID villagerId) {
+        for (VillageRecord village : VillageRegistryData.get(level).getVillages().values()) {
+            village.removeFarmerFromRoster(villagerId);
+        }
     }
 
     /**
@@ -1837,6 +1851,7 @@ public class BankBlockEntity extends BlockEntity implements MenuProvider {
 
         if (changed) {
             setChanged();
+            releaseFarmerWork(level, villagerId);
         }
         return changed;
     }

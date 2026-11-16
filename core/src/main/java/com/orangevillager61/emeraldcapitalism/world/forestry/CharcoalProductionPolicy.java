@@ -13,6 +13,8 @@ public final class CharcoalProductionPolicy {
     public static final double MAX_SHARE = 0.80D;
     public static final double MAX_PENDING_QUOTA = 1_000_000.0D;
     public static final int MIN_CHARCOAL_BATCH_LOGS = 8;
+    /** A waiting lumberjack's quota stops growing at two batches. */
+    public static final double WAITING_QUOTA_CAP = 2.0D * MIN_CHARCOAL_BATCH_LOGS;
 
     private static final double SHARE_SENSITIVITY = 0.20D;
     private static final double LOG_TWO = Math.log(2.0D);
@@ -48,6 +50,17 @@ public final class CharcoalProductionPolicy {
         double safeShare = isFinite(share) ? clamp(share, MIN_SHARE, MAX_SHARE) : DEFAULT_SHARE;
         double accrued = safeQuota + newlyHarvestedLogs * safeShare;
         return clampFinite(accrued, 0.0D, MAX_PENDING_QUOTA);
+    }
+
+    /**
+     * Like {@link #accrueQuota}, but while the lumberjack waits for a furnace the
+     * quota stops growing once it reaches two batches. Quota already above the cap
+     * is kept, not cut. Logs beyond the cap are ordinary logs.
+     */
+    public static double accrueQuotaWhileWaiting(double pendingQuota, int newlyHarvestedLogs, double share) {
+        double safeQuota = sanitizeQuota(pendingQuota);
+        double accrued = accrueQuota(safeQuota, newlyHarvestedLogs, share);
+        return Math.min(accrued, Math.max(safeQuota, WAITING_QUOTA_CAP));
     }
 
     /** Returns the number of complete log conversions currently owed. */
