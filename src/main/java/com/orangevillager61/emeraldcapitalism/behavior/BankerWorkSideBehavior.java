@@ -32,8 +32,8 @@ import java.util.Map;
  * other writer (panic, boats, wanted items, trading) simply holds the walk target while it
  * runs; this behavior waits and walks back afterwards.
  *
- * <p>Hours: the banker's schedule ({@link BankerSchedule}) keeps the WORK activity through the bell
- * hours, so the banker works at the bell time and follows vanilla's schedule otherwise.
+ * <p>Hours: the banker's schedule ({@link BankerSchedule}) keeps the WORK activity all day, so the
+ * banker holds the work side through the bell hours and the idle hours too.
  */
 public final class BankerWorkSideBehavior extends Behavior<Villager> {
 

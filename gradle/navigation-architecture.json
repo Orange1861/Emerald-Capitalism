@@ -79,10 +79,10 @@
     },
     {
       "id": "banker-work-activity",
-      "decision": "WORK, through the bell hours by BankerSchedule",
+      "decision": "WORK all day by BankerSchedule",
       "ownershipScope": "villager UUID + bank identity",
       "migrationPhase": 19,
-      "reason": "The banker works at the bank's work side through the bell hours and follows vanilla's schedule otherwise. Vanilla's job-site strolling gate is replaced by WorkAtPoi in the banker's WORK package so no vanilla mover alternates the walk target.",
+      "reason": "The banker works at the bank's work side all day and rests at vanilla's bedtime. Vanilla's job-site strolling gate is replaced by WorkAtPoi in the banker's WORK package so no vanilla mover alternates the walk target.",
       "sourcePaths": ["src/main/java/com/orangevillager61/emeraldcapitalism/behavior/BankerWorkSideBehavior.java", "src/main/java/com/orangevillager61/emeraldcapitalism/behavior/BankerSchedule.java"]
     },
     {

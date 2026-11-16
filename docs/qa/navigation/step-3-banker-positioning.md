@@ -44,9 +44,13 @@ recorded here is a self-review.
 Schedule note (developer, 2026-11-13): natural banks are built so their employees are trapped and
 cannot join the village at the bell, so meeting-time behavior is not testable there; bankers at
 artificial banks are probably not confined. The old goal held the work side all day, including
-meeting hours. The Brain behavior lives only in WORK, so an unconfined banker now follows the vanilla
-schedule (bell at meeting time, back to the work side after). Holding the work side through MEET and
-IDLE too would be a Phase 13 activity-placement decision; this step does not make it.
+meeting hours. The Brain behavior lives only in WORK.
+
+Decision (developer, 2026-11-16): bankers stay at the bank all day. `BankerSchedule` is now WORK from
+day time 10 to 12000 and REST after, so an unconfined banker never goes to the bell and never idles
+away from the work side. Rest hours are vanilla's. The component test
+`bankerScheduleWorksTheBellHoursAndKeepsTheRest` asserts the new schedule; the bell-hours hold test is
+unchanged. This unblocks the Step 3 in-game run.
 
 Not done in Step 3, and why:
 
@@ -126,7 +130,8 @@ Steps 3 and 4; the test documents the current design and must change if that des
 4. Run `/data get entity @e[type=minecraft:villager,limit=1,sort=nearest] Brain.memories` while the
    banker stands there. There should be no `walk_target` and no `path`.
 5. Only for a bank that does not confine its banker (artificial banks): `/time set 9200`. The banker
-   follows the normal schedule and goes to the bell, and `/time set 2500` sends it back to the back of
+   stays at the back of the bank and does not go to the bell; try `/time set 500` and `/time set 11500`
+   too, where vanilla villagers idle. `/time set 2500` leaves it at the back of
    the bank. Skip this step for natural banks, whose employees cannot leave.
 6. With the banker at the back of the bank, summon a boat next to it
    (`/summon minecraft:boat ~2 ~ ~`, `oak_boat` on 1.21.4). It should step away and return after

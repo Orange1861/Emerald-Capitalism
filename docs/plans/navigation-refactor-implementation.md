@@ -894,8 +894,8 @@ implement them; none may reopen them without amending this section.
    next start it re-resolves its bank, tree, or crop and publishes a fresh target. Persistent
    claims follow the claim contract of Phase 11, not the behavior instance.
 4. **Hours.** A profession's schedule is vanilla's unless a decision below changes it. The banker
-   works through the bell hours (9000 to 11000) because `BankerSchedule` replaces MEET with WORK
-   for it; work, idle, and rest hours are vanilla's. The schedule is applied by a 20-tick
+   stays at the bank all day (decision 2026-11-16): `BankerSchedule` is WORK from day time 10 to
+   12000 and REST after, with no IDLE or MEET hours. The schedule is applied by a 20-tick
    reconcile in `VillagerSpawnEvents.onVillagerTick` and at profession assignment, so it needs no
    new mixin.
 5. **Begging** is placed in IDLE, MEET, and WORK, at priority 5, starting only while `WALK_TARGET`

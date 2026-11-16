@@ -15,8 +15,8 @@ following. Its tests and scene run on the banker. Agent review recorded here is 
 - Defect found and fixed: **the Brain does not stop a running behavior when the active activity
   changes.** `BankerWorkSideBehavior` (Step 3) would have kept running and republishing a walk
   target during panic, raid, and rest. It now checks `isActive(Activity.WORK)` in `canStillUse`.
-- Developer decision (2026-11-13): the banker works through the bell hours, normal otherwise.
-  `BankerSchedule` is vanilla's villager schedule with WORK in place of MEET (9000 to 11000).
+- Developer decision (2026-11-13, extended 2026-11-16): the banker works through the bell hours;
+  from 2026-11-16 it works all day. `BankerSchedule` is WORK from 10 to 12000, REST after.
   It is applied by a 20-tick reconcile in `VillagerSpawnEvents.onVillagerTick` and at profession
   assignment in `BankAwareAssignProfessionFromJobSite`, because vanilla resets the schedule when a
   Brain is rebuilt. No new mixin. This also covers trapped natural-bank bankers, who may have no

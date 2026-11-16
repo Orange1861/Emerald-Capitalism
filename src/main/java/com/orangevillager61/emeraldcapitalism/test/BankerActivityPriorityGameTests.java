@@ -47,15 +47,17 @@ public final class BankerActivityPriorityGameTests {
     private BankerActivityPriorityGameTests() {
     }
 
-    /** Component: the schedule is vanilla's with WORK in place of MEET. */
+    /** Component: the banker works all day and rests when vanilla villagers do. */
     @GameTest(template = "empty_3x3x3")
     public static void bankerScheduleWorksTheBellHoursAndKeepsTheRest(GameTestHelper helper) {
         Schedule vanilla = Schedule.VILLAGER_DEFAULT;
-        for (int time : new int[] {10, 1_999, 2_000, 8_999, 9_000, 9_500, 10_999, 11_000, 11_999, 12_000, 23_000}) {
-            Activity expected = vanilla.getActivityAt(time) == Activity.MEET
-                    ? Activity.WORK : vanilla.getActivityAt(time);
-            helper.assertValueEqual(BankerSchedule.SCHEDULE.getActivityAt(time), expected,
-                    "banker schedule differs from vanilla's other than at the bell hours: day time " + time);
+        for (int time : new int[] {10, 1_999, 2_000, 8_999, 9_000, 9_500, 10_999, 11_000, 11_999}) {
+            helper.assertValueEqual(BankerSchedule.SCHEDULE.getActivityAt(time), Activity.WORK,
+                    "the banker is not working at day time " + time);
+        }
+        for (int time : new int[] {12_000, 13_000, 23_000}) {
+            helper.assertValueEqual(BankerSchedule.SCHEDULE.getActivityAt(time), vanilla.getActivityAt(time),
+                    "banker rest hours differ from vanilla's: day time " + time);
         }
         helper.assertValueEqual(vanilla.getActivityAt(9_500), Activity.MEET,
                 "control: vanilla's schedule no longer meets at 9500");
