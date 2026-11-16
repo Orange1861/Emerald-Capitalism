@@ -150,11 +150,15 @@ public final class VillageLibraryStructurePlacer {
                     if (terrain == null) {
                         continue;
                     }
-                    BlockPos origin = anchor.atY(terrain.placementY());
+                    // Vanilla village pieces meet their street one block above the
+                    // path, which runs on the ground. Templates differ in which
+                    // layer that jigsaw is on, so derive the template height from it.
+                    int groundY = terrain.placementY();
+                    BlockPos origin = anchor.atY(groundY + 1 - entranceLayer(search.jigsaws().get(rotation)));
                     footprint = template.get().getBoundingBox(placementSettings, origin);
                     LibraryEntrance entrance = findTemplateEntrance(search.jigsaws().get(rotation),
                             origin, footprint, bellPos, pathBoxes);
-                    sites.add(new LibrarySite(anchor, footprint, terrain.placementY(),
+                    sites.add(new LibrarySite(anchor, footprint, origin.getY(), groundY,
                             terrain.roughness(), rotation, entrance,
                             hasOpenApproach(level, entrance)));
                 }
@@ -185,7 +189,7 @@ public final class VillageLibraryStructurePlacer {
         LibrarySite site = sites.getFirst();
         BlockPos origin = site.anchor().atY(site.placementY());
         return new PlannedLibrary(template.get(), origin, site.rotation(), site.footprint(),
-                templateLocation, site.entrance().start(), site.entrance().direction());
+                templateLocation, site.entrance().start(), site.entrance().direction(), site.groundY());
     }
 
     /** Places the selected template after the pipeline has reserved its footprint. */
@@ -206,10 +210,10 @@ public final class VillageLibraryStructurePlacer {
         builder.step(() -> {
             VillageEntityRelocation.relocateFromBuilding(level, List.of(box));
             levelTerrain(level, box.minX(), box.minZ(), box.getXSpan(), box.getZSpan(),
-                    origin.getY(), biomeType);
+                    plan.groundY(), biomeType);
         });
         builder.step(() -> clearAbove(level, box.minX(), box.minZ(), box.getXSpan(), box.getZSpan(),
-                origin.getY(), plan.template().getSize().getY()));
+                plan.groundY(), origin.getY() - plan.groundY() + plan.template().getSize().getY()));
         StructurePlaceSettings settings = placementSettings(plan.rotation())
                 .setIgnoreEntities(false);
         StructureProcessorList processors =
@@ -360,7 +364,8 @@ public final class VillageLibraryStructurePlacer {
             }
             BlockPos start = jigsaw.pos();
             Direction direction = facingOutward(start, footprint);
-            BlockPos pathStart = buildingEntrance ? start.relative(direction) : start;
+            // A building entrance sits one block above the path it joins.
+            BlockPos pathStart = buildingEntrance ? start.relative(direction).below() : start;
             LibraryEntrance candidate = libraryEntrance(pathStart, direction,
                     villageCenter, pathBoxes);
             if (best == null || candidate.connectionCost() < best.connectionCost()) {
@@ -469,6 +474,21 @@ public final class VillageLibraryStructurePlacer {
         return false;
     }
 
+    /**
+     * The template layer of its building-entrance jigsaw, which sits one block
+     * above the ground. A template without one is treated as having its ground
+     * on layer 0.
+     */
+    static int entranceLayer(List<StructureTemplate.StructureBlockInfo> jigsawsAtOrigin) {
+        int layer = Integer.MAX_VALUE;
+        for (StructureTemplate.StructureBlockInfo jigsaw : jigsawsAtOrigin) {
+            if (jigsaw.nbt() != null && jigsaw.nbt().getString("name").contains("building_entrance")) {
+                layer = Math.min(layer, jigsaw.pos().getY());
+            }
+        }
+        return layer == Integer.MAX_VALUE ? 1 : layer;
+    }
+
     private static Direction facingOutward(BlockPos entrance, BoundingBox footprint) {
         int centerX = (footprint.minX() + footprint.maxX()) / 2;
         int centerZ = (footprint.minZ() + footprint.maxZ()) / 2;
@@ -570,7 +590,7 @@ public final class VillageLibraryStructurePlacer {
     public record PlannedLibrary(StructureTemplate template, BlockPos origin,
                                  Rotation rotation, BoundingBox placementBox,
                                  ResourceLocation templateLocation, BlockPos pathStart,
-                                 Direction entranceDirection) {
+                                 Direction entranceDirection, int groundY) {
         public BoundingBox reservationBox() {
             return new BoundingBox(placementBox.minX() - 2, Integer.MIN_VALUE / 2,
                     placementBox.minZ() - 2, placementBox.maxX() + 2,
@@ -578,7 +598,7 @@ public final class VillageLibraryStructurePlacer {
         }
     }
 
-    private record LibrarySite(BlockPos anchor, BoundingBox footprint, int placementY,
+    private record LibrarySite(BlockPos anchor, BoundingBox footprint, int placementY, int groundY,
                                int roughness, Rotation rotation,
                                LibraryEntrance entrance, boolean openApproach) {
     }

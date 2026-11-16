@@ -54,6 +54,39 @@ public final class WorkerPlanningEquivalenceGameTests {
     }
 
     @GameTest(template = "empty_3x3x3", batch = "ecap_worker_equivalence")
+    public static void librarySitsOneLayerAboveItsPathLikeVanillaPieces(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bell = helper.absolutePos(new BlockPos(1, 1, 1));
+        List<int[]> forced = forceChunks(level, bell);
+        try {
+            VillageLibraryStructurePlacer placer = new VillageLibraryStructurePlacer();
+            // The plains template has its entrance jigsaw on layer 0, the taiga
+            // template on layer 1; both must end up with the jigsaw one block above
+            // the ground and the connector starting on the ground.
+            for (String biome : List.of("PLAINS", "TAIGA")) {
+                VillageLibraryStructurePlacer.SiteSearch search = placer.prepareSiteSearch(level, biome);
+                helper.assertTrue(search != null, biome + " library template is missing");
+                VillageLibraryStructurePlacer.PlannedLibrary plan = placer.findSite(
+                        VillageTerrain.live(level), search, bell, List.of(), box -> false);
+                helper.assertTrue(plan != null, biome + " library search found no site on flat ground");
+                BlockPos path = plan.pathStart();
+                int ground = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        path.getX(), path.getZ()) - 1;
+                helper.assertTrue(plan.groundY() == ground,
+                        biome + " library ground " + plan.groundY() + " is not the terrain " + ground);
+                helper.assertTrue(path.getY() == ground,
+                        biome + " library path starts at " + path.getY() + ", not on the ground " + ground);
+                int expectedOrigin = "PLAINS".equals(biome) ? ground + 1 : ground;
+                helper.assertTrue(plan.origin().getY() == expectedOrigin,
+                        biome + " library template is at " + plan.origin().getY() + ", expected " + expectedOrigin);
+            }
+            helper.succeed();
+        } finally {
+            releaseChunks(level, forced);
+        }
+    }
+
+    @GameTest(template = "empty_3x3x3", batch = "ecap_worker_equivalence")
     public static void farmSitesFromSnapshotMatchLiveLevel(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos center = helper.absolutePos(new BlockPos(1, 1, 1));
