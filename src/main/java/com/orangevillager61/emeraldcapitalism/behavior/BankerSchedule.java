@@ -9,7 +9,8 @@ import net.minecraft.world.entity.schedule.ScheduleBuilder;
 
 /**
  * The banker's daily schedule: vanilla's villager schedule with the bell hours (9000 to 11000)
- * worked at the bank instead of spent at the bell. Work, idle and rest hours are vanilla's.
+ * worked at the bank instead of spent at the bell. Work, idle and rest hours are vanilla's except that rest ends at sunrise
+ * ({@link VillagerSchedule#WAKE_TIME}).
  *
  * <p>Callers: {@code VillagerSpawnEvents.onVillagerTick} reconciles every 20 ticks, because vanilla
  * rebuilds a Brain with the default schedule on load, aging and profession change, and
@@ -24,6 +25,7 @@ public final class BankerSchedule {
             .changeActivityAt(2_000, Activity.WORK)
             .changeActivityAt(11_000, Activity.IDLE)
             .changeActivityAt(12_000, Activity.REST)
+            .changeActivityAt(VillagerSchedule.WAKE_TIME, Activity.IDLE)
             .build();
 
     private BankerSchedule() {

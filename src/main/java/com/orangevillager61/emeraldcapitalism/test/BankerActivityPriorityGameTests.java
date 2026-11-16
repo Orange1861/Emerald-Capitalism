@@ -1,6 +1,7 @@
 package com.orangevillager61.emeraldcapitalism.test;
 
 import com.orangevillager61.emeraldcapitalism.behavior.BankerSchedule;
+import com.orangevillager61.emeraldcapitalism.behavior.VillagerSchedule;
 import com.orangevillager61.emeraldcapitalism.behavior.BankerWorkSideBehavior;
 import com.orangevillager61.emeraldcapitalism.behavior.BrainMovementIntent;
 import com.orangevillager61.emeraldcapitalism.block.BankBlock;
@@ -51,12 +52,14 @@ public final class BankerActivityPriorityGameTests {
     @GameTest(template = "empty_3x3x3")
     public static void bankerScheduleWorksTheBellHoursAndKeepsTheRest(GameTestHelper helper) {
         Schedule vanilla = Schedule.VILLAGER_DEFAULT;
-        for (int time : new int[] {10, 1_999, 2_000, 8_999, 9_000, 9_500, 10_999, 11_000, 11_999, 12_000, 23_000}) {
+        for (int time : new int[] {10, 1_999, 2_000, 8_999, 9_000, 9_500, 10_999, 11_000, 11_999, 12_000, 22_999}) {
             Activity expected = vanilla.getActivityAt(time) == Activity.MEET
                     ? Activity.WORK : vanilla.getActivityAt(time);
             helper.assertValueEqual(BankerSchedule.SCHEDULE.getActivityAt(time), expected,
                     "banker schedule differs from vanilla's other than at the bell hours: day time " + time);
         }
+        helper.assertValueEqual(BankerSchedule.SCHEDULE.getActivityAt(VillagerSchedule.WAKE_TIME), Activity.IDLE,
+                "the banker is still resting at sunrise");
         helper.assertValueEqual(vanilla.getActivityAt(9_500), Activity.MEET,
                 "control: vanilla's schedule no longer meets at 9500");
         helper.assertValueEqual(BankerSchedule.SCHEDULE.getActivityAt(9_500), Activity.WORK,
