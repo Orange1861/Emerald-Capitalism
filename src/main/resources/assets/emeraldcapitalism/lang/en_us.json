@@ -81,6 +81,8 @@
   "emeraldcapitalism.configuration.ai.zombieAI.enableZombieVillagerSunAvoidance.tooltip": "If true, zombie villagers avoid pathfinding into sunlight when they have no head protection.",
   "emeraldcapitalism.configuration.ai.zombieAI.alwaysConvertVillagersToZombieVillagers": "Always Convert Villagers to Zombie Villagers",
   "emeraldcapitalism.configuration.ai.zombieAI.alwaysConvertVillagersToZombieVillagers.tooltip": "If true, zombies convert villagers on Easy, Normal, and Hard difficulty every time. If false, vanilla conversion chances apply.",
+  "emeraldcapitalism.configuration.ai.zombieAI.zombieVillagersPersistInPeaceful": "Zombie Villagers Persist in Peaceful",
+  "emeraldcapitalism.configuration.ai.zombieAI.zombieVillagersPersistInPeaceful.tooltip": "If true, Peaceful difficulty no longer removes zombie villagers. If false, vanilla behavior applies.",
   "emeraldcapitalism.configuration.ai.zombieAI.zombiesCanBreakDoorsOnAnyDifficulty": "Zombies Can Break Doors on Any Difficulty",
   "emeraldcapitalism.configuration.ai.zombieAI.zombiesCanBreakDoorsOnAnyDifficulty.tooltip": "If true, zombies with the door-breaking ability can break wooden doors on any difficulty. If false, they can only break doors on Hard.",
   "emeraldcapitalism.configuration.ai.zombieAI.zombieDoorBreakingChancePercent": "Zombie Door-Breaking Chance",

@@ -187,6 +187,12 @@ public class Config {
             .translation("emeraldcapitalism.configuration.ai.zombieAI.alwaysConvertVillagersToZombieVillagers")
             .define("ai.zombieAI.alwaysConvertVillagersToZombieVillagers", true);
 
+    private static final ModConfigSpec.BooleanValue ZOMBIE_VILLAGERS_PERSIST_IN_PEACEFUL = BUILDER
+            .comment("If true, zombie villagers are not removed by Peaceful difficulty, so existing zombie villagers survive.",
+                     "If false, vanilla behavior applies and Peaceful removes zombie villagers like other hostile mobs.")
+            .translation("emeraldcapitalism.configuration.ai.zombieAI.zombieVillagersPersistInPeaceful")
+            .define("ai.zombieAI.zombieVillagersPersistInPeaceful", false);
+
     private static final ModConfigSpec.BooleanValue ZOMBIES_CAN_BREAK_DOORS_ON_ANY_DIFFICULTY = BUILDER
             .comment("If true, zombies with the door-breaking ability can break wooden doors on any difficulty.",
                      "If false, door breaking is limited to Hard difficulty, as in vanilla.")
@@ -530,6 +536,7 @@ public class Config {
     public static boolean enableLadderTraversal;
     public static boolean enableZombieVillagerSunAvoidance = true;
     public static boolean alwaysConvertVillagersToZombieVillagers = true;
+    public static boolean zombieVillagersPersistInPeaceful;
     public static boolean zombiesCanBreakDoorsOnAnyDifficulty = true;
     public static int zombieDoorBreakingChancePercent = 50;
     public static double villagerMovementSpeedMultiplier = 1.15D;
@@ -579,6 +586,7 @@ public class Config {
         enableLadderTraversal = ENABLE_LADDER_TRAVERSAL.get();
         enableZombieVillagerSunAvoidance = ENABLE_ZOMBIE_VILLAGER_SUN_AVOIDANCE.get();
         alwaysConvertVillagersToZombieVillagers = ALWAYS_CONVERT_VILLAGERS_TO_ZOMBIE_VILLAGERS.get();
+        zombieVillagersPersistInPeaceful = ZOMBIE_VILLAGERS_PERSIST_IN_PEACEFUL.get();
         zombiesCanBreakDoorsOnAnyDifficulty = ZOMBIES_CAN_BREAK_DOORS_ON_ANY_DIFFICULTY.get();
         zombieDoorBreakingChancePercent = ZOMBIE_DOOR_BREAKING_CHANCE_PERCENT.get();
         villagerMovementSpeedMultiplier = VILLAGER_MOVEMENT_SPEED_MULTIPLIER.get();
