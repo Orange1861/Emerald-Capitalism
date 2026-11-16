@@ -44,6 +44,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
@@ -106,6 +107,21 @@ public final class VillageBankStructurePlacer {
     private static final BlockPos BANK_DOOR_CENTER = new BlockPos(0, 0, 5);
     /** First exterior path block immediately outside the two tall emerald doors. */
     private static final BlockPos BANK_DOOR_PATH_START = new BlockPos(-1, 0, 5);
+    /** Rows from the path start across the levelled entrance apron (local X -1 to -4). */
+    private static final int ENTRANCE_APRON_ROWS = 4;
+    /** Natural rows past the apron that must be climbable for the connector to leave it. */
+    private static final int APPROACH_CHECK_ROWS = 2;
+    /**
+     * Most the first natural row past the apron may differ from the apron, one
+     * below the deepest ramp cut so the road's side columns can follow; each
+     * later row may be one higher, as the ramp rises one block per column.
+     */
+    private static final int MAX_APPROACH_STEP = 4;
+    /**
+     * Added to an orientation whose door faces a wall or water. It ranks below
+     * any open orientation but above facing away from the village road.
+     */
+    private static final int BLOCKED_APPROACH_COST = 5_000;
     /** The emerald processor's known position within {@code bank_top.nbt}. */
     private static final BlockPos EMERALD_ORE_PROCESSOR_OFFSET = new BlockPos(8, 1, 7);
     /** The emerald processor's authored FACING value in {@code bank_top.nbt}. */
@@ -402,7 +418,7 @@ public final class VillageBankStructurePlacer {
             return null;
         }
 
-        BankOrientation orientation = chooseOrientation(origin, villageCenter, pieceBounds.pathBoxes());
+        BankOrientation orientation = chooseOrientation(level, origin, villageCenter, pieceBounds.pathBoxes());
         return new BankSite(origin, terrain.earthwork(), terrain.maxHeightDifference(),
                 orientation.rotation(), orientation.pathStart(), orientation.pathTarget(),
                 orientation.connectionCost());
@@ -412,7 +428,7 @@ public final class VillageBankStructurePlacer {
      * Selects the bank rotation whose fixed front entrance faces the nearest
      * village road. The template's authored front is local negative X.
      */
-    private BankOrientation chooseOrientation(BlockPos topOrigin,
+    private BankOrientation chooseOrientation(ServerLevel level, BlockPos topOrigin,
                                               BlockPos villageCenter, List<BoundingBox> pathBoxes) {
         BankOrientation best = null;
         for (Rotation rotation : BANK_ROTATIONS) {
@@ -431,7 +447,9 @@ public final class VillageBankStructurePlacer {
             int frontDot = targetX * front.getX() + targetZ * front.getZ();
             double distance = Math.sqrt(targetX * targetX + targetZ * targetZ);
             int connectionCost = (int) Math.min(Integer.MAX_VALUE,
-                    Math.round(distance * 10.0D) + (frontDot < 0 ? 10_000 : 0));
+                    Math.round(distance * 10.0D) + (frontDot < 0 ? 10_000 : 0)
+                            + (hasOpenApproach(level, pathStart, bankEntranceDirection(rotation))
+                            ? 0 : BLOCKED_APPROACH_COST));
 
             BankOrientation candidate = new BankOrientation(rotation, pathStart, pathTarget, connectionCost);
             if (best == null || candidate.connectionCost() < best.connectionCost()) {
@@ -771,6 +789,32 @@ public final class VillageBankStructurePlacer {
     }
 
     /** Returns the world direction pointing outward from the authored bank doors. */
+    /**
+     * Whether a connector can leave the levelled entrance apron: the natural
+     * rows just past it, three columns wide, are dry and within a ramp's reach
+     * of the apron. A chunk that is not loaded is not judged; this never loads one.
+     */
+    private static boolean hasOpenApproach(ServerLevel level, BlockPos pathStart, Direction direction) {
+        Direction side = direction.getClockWise();
+        for (int row = 0; row < APPROACH_CHECK_ROWS; row++) {
+            BlockPos center = pathStart.relative(direction, ENTRANCE_APRON_ROWS + row);
+            for (int offset = -1; offset <= 1; offset++) {
+                BlockPos column = center.relative(side, offset);
+                LevelChunk chunk = level.getChunkSource().getChunkNow(column.getX() >> 4, column.getZ() >> 4);
+                if (chunk == null) {
+                    continue;
+                }
+                int surfaceY = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        column.getX() & 15, column.getZ() & 15);
+                if (Math.abs(surfaceY - pathStart.getY()) > MAX_APPROACH_STEP + row
+                        || !chunk.getFluidState(column.atY(surfaceY)).isEmpty()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private static Direction bankEntranceDirection(Rotation rotation) {
         return switch (rotation) {
             case CLOCKWISE_90 -> Direction.NORTH;
