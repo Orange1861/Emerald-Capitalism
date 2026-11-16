@@ -27,7 +27,12 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public final class FarmerBankEmploymentGameTests {
 
-    private static final BlockPos BANK_LOCAL = new BlockPos(10, 1, 10);
+    /**
+     * Farmers stand more than the bank's 8-block search radius away: a villager that joins
+     * the level inside it is registered as the bank's employee automatically, which would
+     * make the "ordinary" farmer an employee.
+     */
+    private static final BlockPos BANK_LOCAL = new BlockPos(16, 1, 16);
     private static final BlockPos WORK_LOCAL = new BlockPos(3, 1, 5);
 
     private FarmerBankEmploymentGameTests() {
