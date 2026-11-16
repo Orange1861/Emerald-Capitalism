@@ -384,7 +384,7 @@ caller until step 6.
 Under the evidence rules a class without a gameplay caller proves nothing, so
 steps 5 and 6 are implemented separately but their gates close together.
 
-**Step 5 status (2026-11-16).** The task stages, the claim ledger, the furnace claim and pool, and the farmer bank-employment exclusion are built; the ledger is [`docs/qa/navigation/step-5-claim-contract.md`](../qa/navigation/step-5-claim-contract.md). Still open, and owned by the steps named there: feeding the pool's index (needs a lumbermill footprint on the village), the farmer lease generation and the attached-pumpkin claim (step 9), and retry policy inside a task (step 6). The gate closes with step 6.
+**Step 5 status (2026-11-16).** The task stages, the claim ledger, the furnace claim and pool, and the farmer bank-employment exclusion are built; the ledger is [`docs/qa/navigation/step-5-claim-contract.md`](../qa/navigation/step-5-claim-contract.md). Still open, and owned by the steps named there: the farmer lease generation and the attached-pumpkin claim (step 9), and retry policy inside a task (step 6). The gate closes with step 6.
 
 If step 6 stalls, split it at the furnace: tree felling, drops, and
 replanting on the Brain first (step 6a), then furnace production and the pool
