@@ -15,6 +15,10 @@ import java.util.List;
 public final class BankVillageBuildingProvider implements VillageBuildingProvider {
     public static final ResourceLocation ID = ModIds.id("bank");
     private static final int BANK_FOOTPRINT_AREA = 15 * 15;
+    /** Ranked bank sites and orientations tried until one's connector plans. */
+    private static final int MAX_CONNECTOR_CANDIDATES = 8;
+    /** Server-thread time the candidate connector searches may share before falling back to the best site. */
+    private static final long CONNECTOR_SEARCH_BUDGET_NANOS = 40_000_000L;
     /** Rows in front of the door kept free of later buildings; the bank's path start is inside its apron. */
     private static final int APPROACH_ROWS = 16;
     /** A three-wide road plus a graded column on each side. */
@@ -50,21 +54,39 @@ public final class BankVillageBuildingProvider implements VillageBuildingProvide
             return vault == null ? List.of() : List.of(new PlannedVault(vault));
         }
 
-        VillageBankStructurePlacer.PlannedBank bank = placer.plan(
+        List<VillageBankStructurePlacer.PlannedBank> candidates = placer.planCandidates(
                 context.level(), context.bellPos(), context.pieces(),
                 context.plannedManagerPos(), context.chunkLoadBudget(),
-                context.reservations()::intersects, context.biomeType());
-        if (bank == null) {
+                context.reservations()::intersects, context.biomeType(), MAX_CONNECTOR_CANDIDATES);
+        if (candidates.isEmpty()) {
             return List.of();
         }
-        VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
-                .withAdditionalBuildings(List.of(bank.placementBox()));
-        VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planBankConnection(
-                VillageTerrain.live(context.level()), bank.pathStart(), bank.pathTarget(), context.pieces(),
-                context.biomeType(), bank.entranceDirection(),
-                roads,
-                context.chunkLoadBudget(), false);
-        return List.of(new PlannedBank(bank, connector));
+        // A site that ranks best on terrain can still sit on a drop or face a
+        // wall its road cannot leave. Keep the best candidate whose connector
+        // plans; these searches run on the server thread, so they share a budget.
+        long deadline = System.nanoTime() + CONNECTOR_SEARCH_BUDGET_NANOS;
+        for (int index = 0; index < candidates.size(); index++) {
+            VillageBankStructurePlacer.PlannedBank bank = candidates.get(index);
+            VillageRoadPathGenerator.PreparedVillageRoads roads = context.preparedRoadsWithReservations()
+                    .withAdditionalBuildings(List.of(bank.placementBox()));
+            VillageRoadPathGenerator.PlannedPath connector = context.roadGenerator().planBankConnection(
+                    VillageTerrain.live(context.level()), bank.pathStart(), bank.pathTarget(), context.pieces(),
+                    context.biomeType(), bank.entranceDirection(),
+                    roads,
+                    context.chunkLoadBudget(), false);
+            if (connector != null) {
+                if (index > 0) {
+                    EmeraldCapitalism.LOGGER.info(
+                            "[ECAP] Bank candidate {} at {} facing {} chosen; better-ranked sites had no road out",
+                            index + 1, bank.origin(), bank.entranceDirection());
+                }
+                return List.of(new PlannedBank(bank, connector));
+            }
+            if (System.nanoTime() > deadline) {
+                break;
+            }
+        }
+        return List.of(new PlannedBank(candidates.getFirst(), null));
     }
 
     private final class PlannedBank implements PlannedVillageBuilding {

@@ -193,6 +193,19 @@ public final class VillageBankStructurePlacer {
     public PlannedBank plan(ServerLevel level, BlockPos bellPos, List<StructurePiece> villagePieces,
                             @Nullable BlockPos managerPos, ChunkLoadBudget loadBudget,
                             Predicate<BoundingBox> reservedCollision, String biomeType) {
+        List<PlannedBank> candidates = planCandidates(level, bellPos, villagePieces, managerPos, loadBudget,
+                reservedCollision, biomeType, 1);
+        return candidates.isEmpty() ? null : candidates.getFirst();
+    }
+
+    /**
+     * The best {@code limit} bank sites and door orientations, best first. The
+     * caller can try them in order and keep the first whose connector plans.
+     */
+    public List<PlannedBank> planCandidates(ServerLevel level, BlockPos bellPos, List<StructurePiece> villagePieces,
+                                            @Nullable BlockPos managerPos, ChunkLoadBudget loadBudget,
+                                            Predicate<BoundingBox> reservedCollision, String biomeType,
+                                            int limit) {
         StructureTemplateManager templateManager = level.getStructureManager();
         Optional<StructureTemplate> topTemplate = templateManager.get(BANK_TOP);
         Optional<StructureTemplate> vaultTemplate = templateManager.get(BANK_VAULT);
@@ -200,7 +213,7 @@ public final class VillageBankStructurePlacer {
             EmeraldCapitalism.LOGGER.error(
                     "[ECAP] Cannot generate village bank near {}: missing top={} vault={}",
                     bellPos, topTemplate.isPresent(), vaultTemplate.isPresent());
-            return null;
+            return List.of();
         }
 
         if (!hasExpectedSize(topTemplate.get(), TOP_SIZE, TOP_HEIGHT, TOP_SIZE)
@@ -208,7 +221,7 @@ public final class VillageBankStructurePlacer {
             EmeraldCapitalism.LOGGER.error(
                     "[ECAP] Cannot generate village bank near {}: bank template dimensions changed",
                     bellPos);
-            return null;
+            return List.of();
         }
 
         List<BankSite> safeSites = new ArrayList<>();
@@ -221,12 +234,8 @@ public final class VillageBankStructurePlacer {
                 if (reservedCollision.test(footprint)) {
                     continue;
                 }
-                BankSite site = resolveSite(level, originX, originZ, bellPos,
-                        villagePieces, managerPos, loadBudget);
-                if (site == null) {
-                    continue;
-                }
-                safeSites.add(site);
+                safeSites.addAll(resolveSite(level, originX, originZ, bellPos,
+                        villagePieces, managerPos, loadBudget));
             }
         }
 
@@ -239,15 +248,17 @@ public final class VillageBankStructurePlacer {
         // Existing roads are connector targets, never valid bank footprints. The old
         // fallback selected a road-overlapping site when all safer candidates failed,
         // allowing the bank entrance and its connector to overwrite the street.
-        BankSite selected = safeSites.isEmpty() ? null : safeSites.getFirst();
-        if (selected != null) {
-            return new PlannedBank(topTemplate.get(), vaultTemplate.get(), selected.origin(),
-                    selected.rotation(), selected.pathStart(), selected.pathTarget(), biomeType);
+        if (safeSites.isEmpty()) {
+            EmeraldCapitalism.LOGGER.warn(
+                    "[ECAP] Could not find a safe bank site near village bell at {}", bellPos);
+            return List.of();
         }
-
-        EmeraldCapitalism.LOGGER.warn(
-                "[ECAP] Could not find a safe bank site near village bell at {}", bellPos);
-        return null;
+        List<PlannedBank> candidates = new ArrayList<>();
+        for (BankSite site : safeSites.subList(0, Math.min(limit, safeSites.size()))) {
+            candidates.add(new PlannedBank(topTemplate.get(), vaultTemplate.get(), site.origin(),
+                    site.rotation(), site.pathStart(), site.pathTarget(), biomeType));
+        }
+        return candidates;
     }
 
     /**
@@ -383,12 +394,12 @@ public final class VillageBankStructurePlacer {
                 origin);
     }
 
-    @Nullable
-    private BankSite resolveSite(ServerLevel level, int originX, int originZ, BlockPos villageCenter,
-                                 List<StructurePiece> villagePieces, @Nullable BlockPos managerPos,
-                                 ChunkLoadBudget loadBudget) {
+    /** Every door orientation of a valid site, or none when the site is unsafe. */
+    private List<BankSite> resolveSite(ServerLevel level, int originX, int originZ, BlockPos villageCenter,
+                                       List<StructurePiece> villagePieces, @Nullable BlockPos managerPos,
+                                       ChunkLoadBudget loadBudget) {
         if (!ensureChunksLoaded(level, originX, originZ, loadBudget)) {
-            return null;
+            return List.of();
         }
 
         // A persisted pending-village retry may not retain the transient structure-piece
@@ -399,38 +410,41 @@ public final class VillageBankStructurePlacer {
         int overlap = pieceBounds.overlapType(originX, originZ, TOP_SIZE, TOP_SIZE);
         if (overlap != VillagePieceBounds.NO_OVERLAP
                 || pieceBounds.overlapsBuilding(placementProtectionBox(originX, originZ))) {
-            return null;
+            return List.of();
         }
 
         TerrainProfile terrain = findTerrainProfile(level, originX, originZ);
         if (terrain == null) {
-            return null;
+            return List.of();
         }
 
         BlockPos origin = new BlockPos(originX, terrain.gradeY(), originZ);
         BlockPos vaultOrigin = origin.offset(VAULT_OFFSET);
         if (vaultOrigin.getY() < com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.min(level)
                 || vaultOrigin.getY() + VAULT_HEIGHT > com.orangevillager61.emeraldcapitalism.util.WorldHeightCompat.max(level)) {
-            return null;
+            return List.of();
         }
 
         if (containsProtectedBlock(level, origin, managerPos)) {
-            return null;
+            return List.of();
         }
 
-        BankOrientation orientation = chooseOrientation(level, origin, villageCenter, pieceBounds.pathBoxes());
-        return new BankSite(origin, terrain.earthwork(), terrain.maxHeightDifference(),
-                orientation.rotation(), orientation.pathStart(), orientation.pathTarget(),
-                orientation.connectionCost());
+        List<BankSite> sites = new ArrayList<>();
+        for (BankOrientation orientation : orientations(level, origin, villageCenter, pieceBounds.pathBoxes())) {
+            sites.add(new BankSite(origin, terrain.earthwork(), terrain.maxHeightDifference(),
+                    orientation.rotation(), orientation.pathStart(), orientation.pathTarget(),
+                    orientation.connectionCost()));
+        }
+        return sites;
     }
 
     /**
-     * Selects the bank rotation whose fixed front entrance faces the nearest
-     * village road. The template's authored front is local negative X.
+     * Every bank rotation with the cost of connecting its fixed front entrance to
+     * the nearest village road. The template's authored front is local negative X.
      */
-    private BankOrientation chooseOrientation(ServerLevel level, BlockPos topOrigin,
-                                              BlockPos villageCenter, List<BoundingBox> pathBoxes) {
-        BankOrientation best = null;
+    private List<BankOrientation> orientations(ServerLevel level, BlockPos topOrigin,
+                                               BlockPos villageCenter, List<BoundingBox> pathBoxes) {
+        List<BankOrientation> orientations = new ArrayList<>(BANK_ROTATIONS.length);
         for (Rotation rotation : BANK_ROTATIONS) {
             BlockPos topPlacePos = StructureTemplate.getZeroPositionWithTransform(
                     topOrigin, Mirror.NONE, rotation, TOP_SIZE, TOP_SIZE);
@@ -451,12 +465,9 @@ public final class VillageBankStructurePlacer {
                             + (hasOpenApproach(level, pathStart, bankEntranceDirection(rotation))
                             ? 0 : BLOCKED_APPROACH_COST));
 
-            BankOrientation candidate = new BankOrientation(rotation, pathStart, pathTarget, connectionCost);
-            if (best == null || candidate.connectionCost() < best.connectionCost()) {
-                best = candidate;
-            }
+            orientations.add(new BankOrientation(rotation, pathStart, pathTarget, connectionCost));
         }
-        return best;
+        return orientations;
     }
 
     @Nullable
