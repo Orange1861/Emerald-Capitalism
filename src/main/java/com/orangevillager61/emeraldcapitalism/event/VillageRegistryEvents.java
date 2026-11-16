@@ -13,7 +13,6 @@ import com.orangevillager61.emeraldcapitalism.entity.ai.HarvestQueuedCropGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithProcessorGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.EmeraldSmithGolemConstructionGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.ReplenishFarmlandGoal;
-import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorDoorRepairGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.MayorFollowGovernorCandidateGoal;
 import com.orangevillager61.emeraldcapitalism.behavior.InteractWithFenceGateBehavior;
@@ -431,7 +430,6 @@ public class VillageRegistryEvents {
         injectMayorDoorRepairGoal(villager);
         injectMayorFollowGovernorCandidateGoal(villager);
         injectFarmerGoals(villager);
-        injectLumberjackGoal(villager);
         injectEmeraldSmithGolemConstructionGoal(villager);
         injectEmeraldSmithGoal(villager);
     }
@@ -522,15 +520,6 @@ public class VillageRegistryEvents {
                         "[EmeraldsmithGolem] INJECT villager={} uuid={} pos={}",
                         villager.getName().getString(), villager.getUUID(), villager.blockPosition());
             }
-        }
-    }
-
-    /** Adds the tree-harvesting task to villagers when needed. */
-    private static void injectLumberjackGoal(Villager villager) {
-        boolean hasGoal = villager.goalSelector.getAvailableGoals().stream()
-                .anyMatch(g -> g.getGoal() instanceof LumberjackGoal);
-        if (!hasGoal) {
-            villager.goalSelector.addGoal(4, new LumberjackGoal(villager));
         }
     }
 

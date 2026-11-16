@@ -2,11 +2,13 @@ package com.orangevillager61.emeraldcapitalism.behavior;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
+import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackWorkBehavior;
 import com.orangevillager61.emeraldcapitalism.registry.ECAPVillagerProfessions;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.behavior.RunOne;
+import net.minecraft.world.entity.ai.behavior.SetWalkTargetFromBlockMemory;
 import net.minecraft.world.entity.ai.behavior.WorkAtPoi;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -81,14 +83,24 @@ public final class VillagerGoalPackageIntegration {
             List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> original) {
         ImmutableList<Pair<Integer, ? extends BehaviorControl<? super Villager>>> common =
                 addWorkBehaviors(original);
-        if (profession != ECAPVillagerProfessions.BANKER.get()) {
+        boolean banker = profession == ECAPVillagerProfessions.BANKER.get();
+        boolean lumberjack = profession == ECAPVillagerProfessions.LUMBERJACK.get();
+        if (!banker && !lumberjack) {
             return common;
         }
         List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> modified = new ArrayList<>(common);
         removeJobSiteGate(modified);
         addIfMissing(modified, WorkAtPoi.class, VANILLA_WORK_PRIORITY, WorkAtPoi::new);
-        addIfMissing(modified, BankerWorkSideBehavior.class,
-                BankerWorkSideBehavior.PRIORITY, BankerWorkSideBehavior::new);
+        if (banker) {
+            addIfMissing(modified, BankerWorkSideBehavior.class,
+                    BankerWorkSideBehavior.PRIORITY, BankerWorkSideBehavior::new);
+        } else {
+            // The lumberjack works away from its job site, so vanilla's pull back to the job
+            // site goes too: this behavior walks back itself when it has nothing else to do.
+            modified.removeIf(entry -> entry.getSecond() instanceof SetWalkTargetFromBlockMemory);
+            addIfMissing(modified, LumberjackWorkBehavior.class,
+                    LumberjackWorkBehavior.PRIORITY, LumberjackWorkBehavior::new);
+        }
         return ImmutableList.copyOf(modified);
     }
 

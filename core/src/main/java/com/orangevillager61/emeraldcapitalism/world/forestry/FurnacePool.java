@@ -275,6 +275,14 @@ public final class FurnacePool {
         return changed;
     }
 
+    /** The owner's current grant, if it holds a furnace; the batch record is the pool's, not the caller's. */
+    public Optional<Grant> activeGrant(UUID owner) {
+        return entries.values().stream()
+                .filter(entry -> entry.claim.owner().equals(owner) && !entry.orphaned)
+                .findFirst()
+                .map(entry -> grantOf(entry, false));
+    }
+
     public Optional<ClaimLedger.Claim> claimOf(UUID owner) {
         return entries.values().stream()
                 .filter(entry -> entry.claim.owner().equals(owner))

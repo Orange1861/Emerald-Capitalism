@@ -345,6 +345,21 @@ class FurnacePoolTest {
         assertEquals(Optional.empty(), pool.restoreClaim(A, F1, obs(0, 8)));
     }
 
+    @Test
+    void anActiveGrantIsTheHoldersOwnAndSurvivesALostBehaviorInstance() {
+        FurnacePool pool = pool(F1);
+        FurnacePool.Grant a = pool.request(A, READY).orElseThrow();
+        pool.recordLoaded(a.claim(), 3, READY);
+
+        FurnacePool.Grant again = pool.activeGrant(A).orElseThrow();
+
+        assertEquals(a.claim(), again.claim());
+        assertEquals(3, again.batch().logsLoaded(), "the batch record belongs to the pool");
+        assertEquals(Optional.empty(), pool.activeGrant(B));
+        pool.handToVillage(A);
+        assertEquals(Optional.empty(), pool.activeGrant(A), "a handed-over claim is no longer the holder's");
+    }
+
     // ----- quota cap -----
 
     @Test

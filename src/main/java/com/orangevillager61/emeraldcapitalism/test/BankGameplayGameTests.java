@@ -7,7 +7,6 @@ import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldChestBlockEnti
 import com.orangevillager61.emeraldcapitalism.block.entity.EmeraldOreProcessorBlockEntity;
 import com.orangevillager61.emeraldcapitalism.entity.EmeraldGolem;
 import com.orangevillager61.emeraldcapitalism.entity.ai.FarmerBreadConversionGoal;
-import com.orangevillager61.emeraldcapitalism.entity.ai.LumberjackGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VillagerInventoryBankGoal;
 import com.orangevillager61.emeraldcapitalism.entity.ai.VaultGolemGoals;
 import com.orangevillager61.emeraldcapitalism.event.VillagerSpawnEvents;
@@ -346,7 +345,7 @@ public final class BankGameplayGameTests {
         // Leave the staggered daily window ahead of the work-cycle callback so
         // the sticks produced during the cycle are present when this villager
         // performs its one daily bank check.
-        level.setDayTime(500L);
+        level.setDayTime(2_500L);
         level.getGameRules().getRule(GameRules.RULE_MOBGRIEFING).set(true, level.getServer());
         setupMarketBank(helper, Items.STICK, 0, 24);
         BlockPos deliveryBankPos = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -386,35 +385,28 @@ public final class BankGameplayGameTests {
         lumberjack.goalSelector.removeAllGoals(ignored -> true);
         lumberjack.goalSelector.addGoal(VillagerInventoryBankGoal.GOAL_PRIORITY,
                 new VillagerInventoryBankGoal(lumberjack));
-        lumberjack.goalSelector.addGoal(4, new LumberjackGoal(lumberjack));
         lumberjack.getBrain().setMemory(MemoryModuleType.JOB_SITE,
                 GlobalPos.of(level.dimension(), sawmillPos));
 
         var deliveryEntry = lumberjack.goalSelector.getAvailableGoals().stream()
                 .filter(entry -> entry.getGoal() instanceof VillagerInventoryBankGoal)
                 .findFirst().orElse(null);
-        var workEntry = lumberjack.goalSelector.getAvailableGoals().stream()
-                .filter(entry -> entry.getGoal() instanceof LumberjackGoal)
-                .findFirst().orElse(null);
-        helper.assertTrue(deliveryEntry != null && workEntry != null,
-                "lumberjack did not receive both delivery and profession-work goals");
-        if (deliveryEntry != null && workEntry != null) {
+        helper.assertTrue(deliveryEntry != null, "lumberjack did not receive the bank delivery goal");
+        if (deliveryEntry != null) {
             helper.assertValueEqual(deliveryEntry.getPriority(), VillagerInventoryBankGoal.GOAL_PRIORITY,
                     "lumberjack delivery goal was registered at the wrong priority");
-            helper.assertTrue(deliveryEntry.getPriority() < workEntry.getPriority(),
-                    "lumberjack profession work still outranked pending bank delivery");
         }
+        // Profession work is the Brain's lumberjack behavior; it needs no goal.
+        double startZ = lumberjack.getZ();
 
         boolean[] bankRequestPublished = {false};
         boolean[] bankGoalRan = {false};
         helper.runAfterDelay(100, () -> {
-            boolean workRunning = workEntry != null && workEntry.isRunning();
-            boolean workEligible = workEntry != null
-                    && ((LumberjackGoal) workEntry.getGoal()).canUse();
+            boolean workRunning = lumberjack.getZ() - startZ >= 3.0D
+                    || !helper.getBlockState(treeBase).is(Blocks.OAK_LOG);
             helper.assertTrue(workRunning,
-                    "lumberjack work was not active before the delivery became pending: "
+                    "lumberjack work did not start before the delivery became pending: "
                             + "time=" + level.getGameTime() + ", pos=" + lumberjack.position()
-                            + ", running=" + workRunning + ", eligibleNow=" + workEligible
                             + ", profession=" + lumberjack.getVillagerData().getProfession());
             // Advance to the same daytime window on the next day so the real
             // selector gets a fresh scheduled bank check after production.

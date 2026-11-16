@@ -1980,6 +1980,11 @@ public class VillageRecord {
                 && getFurnacePool(level.getGameTime()).addFurnace(pos.asLong());
     }
 
+    /** Whether the pool has been read from the loaded lumbermill chunks at least once. */
+    public boolean hasReconciledFurnacePool() {
+        return lastFurnaceReconcileTick != Long.MIN_VALUE;
+    }
+
     /** A furnace was broken or replaced: its claim is dropped and its owner rejoins the queue. */
     public void onFurnaceRemoved(ServerLevel level, BlockPos pos) {
         if (furnacePool != null) {
