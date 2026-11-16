@@ -140,6 +140,8 @@
   "emeraldcapitalism.configuration.advanced.debug.tooltip": "Diagnostic settings for investigating lag.",
   "emeraldcapitalism.configuration.advanced.debug.performanceTiming": "Performance Timing",
   "emeraldcapitalism.configuration.advanced.debug.performanceTiming.tooltip": "Records operation timings and logs a summary when the server stops. For diagnosing lag only.",
+  "emeraldcapitalism.configuration.advanced.debug.villagerJumpLog": "Villager Jump Log",
+  "emeraldcapitalism.configuration.advanced.debug.villagerJumpLog.tooltip": "Logs a warning when a villager moves more than 3 blocks in one tick, with what it was doing. For diagnosing teleporting villagers only.",
 
   "emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold": "Departure Grace Threshold",
   "emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold.tooltip": "Number of consecutive scans a villager must be absent before removal.",

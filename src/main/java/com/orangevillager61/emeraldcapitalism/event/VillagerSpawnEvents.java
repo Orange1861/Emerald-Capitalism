@@ -1,10 +1,12 @@
 package com.orangevillager61.emeraldcapitalism.event;
 
+import com.orangevillager61.emeraldcapitalism.Config;
 import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.behavior.BankerSchedule;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.VillagerStatsAttachment;
 import com.orangevillager61.emeraldcapitalism.util.VillagerFamilyUtils;
+import com.orangevillager61.emeraldcapitalism.util.VillagerJumpLogger;
 import com.orangevillager61.emeraldcapitalism.util.VillagerNameManager;
 import com.orangevillager61.emeraldcapitalism.util.SpawnReasonCompat;
 import com.orangevillager61.emeraldcapitalism.world.bank.BankTargets;
@@ -157,6 +159,9 @@ public class VillagerSpawnEvents {
         }
         if (villager.level().isClientSide()) {
             return;
+        }
+        if (Config.villagerJumpLog) {
+            VillagerJumpLogger.observe(villager);
         }
 
         // Roster membership is reconciled at a bounded cadence rather than by

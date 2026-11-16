@@ -274,6 +274,13 @@ public class Config {
             .translation("emeraldcapitalism.configuration.advanced.debug.performanceTiming")
             .define("advanced.debug.performanceTiming", false);
 
+    private static final ModConfigSpec.BooleanValue VILLAGER_JUMP_LOG = BUILDER
+            .comment("If true, logs a warning whenever a villager moves more than 3 blocks in a single tick,",
+                     "with its activity, time of day, home, job site and walk target. Use to find what teleports villagers.",
+                     "Leave off in normal play.")
+            .translation("emeraldcapitalism.configuration.advanced.debug.villagerJumpLog")
+            .define("advanced.debug.villagerJumpLog", false);
+
     private static final ModConfigSpec.IntValue VILLAGE_SCAN_DEPARTURE_THRESHOLD = BUILDER
             .comment("Number of consecutive scans a villager must be absent before removal.")
             .translation("emeraldcapitalism.configuration.advanced.villageRegistry.departureGraceThreshold")
@@ -558,6 +565,7 @@ public class Config {
     public static double emeraldGolemBaseGolems = 1.0D;
     public static boolean enableBooksInCreativeTab = false;
     public static boolean performanceTiming = false;
+    public static boolean villagerJumpLog = false;
 
     public static void onLoad(final ModConfigEvent event) {
         villagersCanStarveToDeath = VILLAGERS_CAN_STARVE_TO_DEATH.get();
@@ -606,6 +614,7 @@ public class Config {
         emeraldGolemBaseGolems = EMERALD_GOLEM_BASE_GOLEMS.get();
         enableBooksInCreativeTab = ENABLE_BOOKS_IN_CREATIVE_TAB.get();
         performanceTiming = PERFORMANCE_TIMING.get();
+        villagerJumpLog = VILLAGER_JUMP_LOG.get();
         com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters.setDetailedTimingEnabled(
                 performanceTiming || Boolean.getBoolean("emeraldcapitalism.performanceTiming"));
         com.orangevillager61.emeraldcapitalism.util.PerformanceTimingCounters.setEventCountingEnabled(
