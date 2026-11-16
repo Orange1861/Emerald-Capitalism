@@ -71,9 +71,15 @@ public final class VillageRoadPathGenerator {
      */
     private static final int MAX_SIDE_GRADE = 2;
     /** Highest climb one graded ramp makes; it rises one block per column. */
-    private static final int MAX_RAMP_RISE = 4;
-    /** Most blocks one ramp column may be cut or filled away from its terrain. */
-    private static final int MAX_RAMP_EARTHWORK = 2;
+    private static final int MAX_RAMP_RISE = 6;
+    /**
+     * Most blocks one ramp column may be cut down into its terrain. A cut keeps
+     * the hillside as walls beside the road, so a door facing a steep bank can
+     * still climb out through it.
+     */
+    private static final int MAX_RAMP_CUT = 5;
+    /** Most blocks one ramp column may be raised on fill above its terrain. */
+    private static final int MAX_RAMP_FILL = 2;
     private static final int MAX_WATER_BRIDGE_SPAN = 10;
     private static final int MAX_GAP_BRIDGE_SPAN = 6;
     /** A dry column at least this far below the path is a gap to bridge, not a step. */
@@ -974,7 +980,7 @@ public final class VillageRoadPathGenerator {
             int sideStep = Math.abs(sample.pos().getY() - center.pos().getY());
             if (sideStep > MAX_SIDE_GRADE
                     || (sideStep == MAX_SIDE_GRADE
-                    && gradableColumn(terrain, x, z, center.pos().getY(), roads, surfaceCache) == null)) {
+                    && gradableColumn(terrain, x, z, center.pos().getY(), MAX_SIDE_GRADE, roads, surfaceCache) == null)) {
                 return false;
             }
         }
@@ -1053,8 +1059,8 @@ public final class VillageRoadPathGenerator {
 
     /**
      * Grades a 2-to-4 block terrain step into a ramp rising one block per
-     * column. Each ramp column is cut or filled by at most
-     * {@link #MAX_RAMP_EARTHWORK}; placement then puts stairs on the ramp.
+     * column. Each ramp column is cut by at most {@link #MAX_RAMP_CUT} or
+     * filled by at most {@link #MAX_RAMP_FILL}; placement then puts stairs on the ramp.
      */
     @Nullable
     private FeatureMove planRamp(VillageTerrain terrain, SurfaceSample from, SurfaceSample first,
@@ -1096,7 +1102,8 @@ public final class VillageRoadPathGenerator {
             for (int offset = firstWidthOffset; offset < firstWidthOffset + pathWidth; offset++) {
                 int columnX = rowX(x, direction, offset);
                 int columnZ = rowZ(z, direction, offset);
-                SurfaceSample column = gradableColumn(terrain, columnX, columnZ, targetY, roads, surfaceCache);
+                SurfaceSample column = gradableColumn(terrain, columnX, columnZ, targetY, MAX_RAMP_CUT,
+                        roads, surfaceCache);
                 if (column == null) {
                     return null;
                 }
@@ -1110,7 +1117,7 @@ public final class VillageRoadPathGenerator {
     }
 
     @Nullable
-    private SurfaceSample gradableColumn(VillageTerrain terrain, int x, int z, int targetY,
+    private SurfaceSample gradableColumn(VillageTerrain terrain, int x, int z, int targetY, int maxCut,
                                          PreparedVillageRoads roads, SurfaceCache surfaceCache) {
         if (!terrain.hasChunk(x >> 4, z >> 4) || roads.isInsideBuilding(x, z)
                 || roads.streetByColumn().containsKey(columnKey(x, z))) {
@@ -1118,7 +1125,8 @@ public final class VillageRoadPathGenerator {
         }
         SurfaceSample sample = surfaceCache.get(x, z);
         if (sample == null || !isUsablePathSurface(sample.state()) || isConnectorSurface(sample.state())
-                || Math.abs(sample.pos().getY() - targetY) > MAX_RAMP_EARTHWORK) {
+                || sample.pos().getY() - targetY > maxCut
+                || targetY - sample.pos().getY() > MAX_RAMP_FILL) {
             return null;
         }
         // A cut must not open the ramp's side walls onto water.
@@ -1409,7 +1417,7 @@ public final class VillageRoadPathGenerator {
                 if (!fixedEntranceRow && Math.abs(sideStep) > 1) {
                     if (Math.abs(sideStep) > MAX_SIDE_GRADE
                             || columns.containsKey(columnKey(x, z))
-                            || gradableColumn(terrain, x, z, center.getY(), roads, surfaceCache) == null) {
+                            || gradableColumn(terrain, x, z, center.getY(), MAX_SIDE_GRADE, roads, surfaceCache) == null) {
                         continue;
                     }
                     BlockPos graded = new BlockPos(x, center.getY(), z);

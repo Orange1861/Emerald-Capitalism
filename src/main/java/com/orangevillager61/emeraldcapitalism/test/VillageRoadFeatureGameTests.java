@@ -315,6 +315,57 @@ public final class VillageRoadFeatureGameTests {
         }
     }
 
+    @GameTest(template = "empty_20x3x20", timeoutTicks = 100, batch = "ecap_road_features")
+    public static void connectorCutsARampIntoASteepBankInFrontOfTheDoor(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<int[]> forcedChunks = forceChunks(level, helper.absolutePos(BlockPos.ZERO));
+        int bankX = 3;
+        int lowY = 1;
+        int highY = lowY + 5;
+        try {
+            // The door opens one column before a five-block bank, too steep for a
+            // ramp that only cuts two blocks. The connector must cut its ramp into it.
+            for (int x = -2; x <= 21; x++) {
+                for (int z = -2; z <= 21; z++) {
+                    int surfaceY = x < bankX ? lowY : highY;
+                    for (int y = 0; y <= 10; y++) {
+                        BlockState state = y < surfaceY ? Blocks.STONE.defaultBlockState()
+                                : y > surfaceY ? Blocks.AIR.defaultBlockState()
+                                : x >= STREET_MIN_X && x <= STREET_MAX_X && z >= 0 && z <= 19
+                                ? Blocks.DIRT_PATH.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState();
+                        level.setBlock(helper.absolutePos(new BlockPos(x, y, z)), state, 2);
+                    }
+                }
+            }
+            VillageRoadPathGenerator generator = new VillageRoadPathGenerator();
+            VillageRoadPathGenerator.PreparedVillageRoads roads = generator.prepareStreetArea(level,
+                    BoundingBox.fromCorners(helper.absolutePos(new BlockPos(STREET_MIN_X, highY, 0)),
+                            helper.absolutePos(new BlockPos(STREET_MAX_X, highY, 19))));
+            VillageRoadPathGenerator.PlannedPath path = generator.planLumbermillConnection(VillageTerrain.live(level),
+                    helper.absolutePos(new BlockPos(1, lowY + 1, ROUTE_Z)),
+                    helper.absolutePos(new BlockPos(STREET_MIN_X, highY, ROUTE_Z)),
+                    List.of(), "PLAINS", Direction.EAST, roads, null);
+            helper.assertTrue(path != null, "connector from a door facing a five-block bank was not planned");
+            generator.place(level, path);
+        } catch (RuntimeException exception) {
+            releaseChunks(level, forcedChunks);
+            throw exception;
+        }
+
+        Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(1, lowY + 1, ROUTE_Z));
+        helper.runAfterDelay(10, () -> {
+            try {
+                Path route = villager.getNavigation().createPath(
+                        helper.absolutePos(new BlockPos(12, highY + 1, ROUTE_Z)), 0);
+                helper.assertTrue(route != null && route.canReach(),
+                        "villager pathfinding cannot climb the ramp cut into the bank");
+                helper.succeed();
+            } finally {
+                releaseChunks(level, forcedChunks);
+            }
+        });
+    }
+
     private static void buildTerrain(GameTestHelper helper, int cliffX, int channelMinX, int channelMaxX) {
         buildTerrain(helper, cliffX, channelMinX, channelMaxX, Blocks.GRASS_BLOCK.defaultBlockState(),
                 Blocks.DIRT_PATH.defaultBlockState());
