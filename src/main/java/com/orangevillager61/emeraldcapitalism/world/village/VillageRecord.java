@@ -2874,10 +2874,12 @@ public class VillageRecord {
                 continue;
             }
 
-            // Avoid the transient half-mismatched state causing BedBlock neighbor updates
-            // to remove the other half while both halves are being recolored.
-            level.setBlock(footPos, recoloredBedState(replacement, footState), Block.UPDATE_CLIENTS);
-            level.setBlock(headPos, recoloredBedState(replacement, headState), Block.UPDATE_CLIENTS);
+            // BedBlock.updateShape removes a half whose partner is a different block, and the
+            // resulting destroyBlock removes the partner too. UPDATE_KNOWN_SHAPE skips those
+            // shape updates so the transient half-mismatched state cannot delete either half.
+            int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+            level.setBlock(footPos, recoloredBedState(replacement, footState), flags);
+            level.setBlock(headPos, recoloredBedState(replacement, headState), flags);
             replaced++;
         }
 
