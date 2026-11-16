@@ -71,15 +71,15 @@ public final class VillageRoadPathGenerator {
      */
     private static final int MAX_SIDE_GRADE = 2;
     /** Highest climb one graded ramp makes; it rises one block per column. */
-    private static final int MAX_RAMP_RISE = 6;
+    private static final int MAX_RAMP_RISE = 10;
     /**
      * Most blocks one ramp column may be cut down into its terrain. A cut keeps
      * the hillside as walls beside the road, so a door facing a steep bank can
      * still climb out through it.
      */
-    private static final int MAX_RAMP_CUT = 5;
+    private static final int MAX_RAMP_CUT = 6;
     /** Most blocks one ramp column may be raised on fill above its terrain. */
-    private static final int MAX_RAMP_FILL = 2;
+    private static final int MAX_RAMP_FILL = 4;
     private static final int MAX_WATER_BRIDGE_SPAN = 10;
     private static final int MAX_GAP_BRIDGE_SPAN = 6;
     /** A dry column at least this far below the path is a gap to bridge, not a step. */
@@ -1058,7 +1058,7 @@ public final class VillageRoadPathGenerator {
     }
 
     /**
-     * Grades a 2-to-4 block terrain step into a ramp rising one block per
+     * Grades a terrain step of two or more blocks into a ramp rising one block per
      * column. Each ramp column is cut by at most {@link #MAX_RAMP_CUT} or
      * filled by at most {@link #MAX_RAMP_FILL}; placement then puts stairs on the ramp.
      */

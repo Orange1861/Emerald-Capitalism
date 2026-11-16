@@ -116,7 +116,7 @@ public final class VillageBankStructurePlacer {
      * below the deepest ramp cut so the road's side columns can follow; each
      * later row may be one higher, as the ramp rises one block per column.
      */
-    private static final int MAX_APPROACH_STEP = 4;
+    private static final int MAX_APPROACH_STEP = 5;
     /**
      * Added to an orientation whose door faces a wall or water. It ranks below
      * any open orientation but above facing away from the village road.
