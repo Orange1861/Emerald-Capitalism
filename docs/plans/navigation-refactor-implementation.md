@@ -368,16 +368,16 @@ except where a dated amendment says otherwise. Work proceeds in this order.
 
 ### Stage 1 — Foundation, then the lumberjack
 
-| Step | Work | Phases it draws on |
-| ---: | --- | --- |
-| 0 | Amend this plan. | This amendment. |
-| 1 | Scenario runner and one mixed-village safety scene. | Core of 6 and 7. |
-| 2 | Movement intent through the Brain, proven on boat avoidance. | 12, plus the 1.21.4 confirmation of 9. |
-| 3 | One scheduler, proven on banker positioning. | 10, the banker-positioning half of 19, and the banker's share of 4. |
-| 4 | Competing work behaviors and activity placement. | 13. |
-| 5 | Task stages and the claim contract. | 11. Closes together with step 6. |
-| 6 | Lumberjack on the Brain. | 17. |
-| 7 | Lock in. | See below. |
+| Step | Work | Phases it draws on | Packages that ride with it |
+| ---: | --- | --- | --- |
+| 0 | Amend this plan. | This amendment. | None. |
+| 1 | Scenario runner and one mixed-village safety scene. | Core of 6 and 7. | B4 (done, see below). |
+| 2 | Movement intent through the Brain, proven on boat avoidance. | 12, plus the 1.21.4 confirmation of 9. | None. |
+| 3 | One scheduler, proven on banker positioning. | 10, the banker-positioning half of 19, and the banker's share of 4. | None. |
+| 4 | Competing work behaviors and activity placement. | 13. | None. |
+| 5 | Task stages and the claim contract. | 11. Closes together with step 6. | None. |
+| 6 | Lumberjack on the Brain. | 17. | None. |
+| 7 | Lock in. | See below. | B1 (starts here). |
 
 Step 5 builds the furnace pool and the claim stages, which have no production
 caller until step 6.
@@ -391,7 +391,9 @@ and claim stages for furnaces close with 6b.
 
 Step 7 adds the lumberjack and banker scenes to the standing check described
 under "Working rules", writes a one-page "how to add a villager job" recipe
-from what steps 3–6 needed, and re-estimates Stage 2.
+from what steps 3–6 needed, and re-estimates Stage 2. The recipe is package B1;
+step 7 is not done until it exists, and every later step is not done until the
+recipe has been updated for it.
 
 ### Stage 2 — Everything else
 
@@ -402,18 +404,18 @@ movement-request code deleted, a natural-AI test, its own interruption tests
 check. Sizes are relative, based on how much code a step touches, and are
 re-estimated at step 7.
 
-| Step | Work | Phase | Size | What gets deleted |
-| ---: | --- | ---: | --- | --- |
-| 8 | Plague avoidance, hostile-player flee, and begging. | 21 | Small | Their `MovementRequestManager` calls. |
-| 9 | Farmer: crops, pumpkins, farmland repair, and bread. | 15 | Large | `HarvestQueuedCropGoal`, `ReplenishFarmlandGoal`, `HarvestPumpkinGoal`, `FarmerBreadConversionGoal`. |
-| 10 | Wanted-item pursuit. | 16 | Small | Mod state that blocks vanilla pickup. |
-| 11 | Doors, fence gates, obstacles, and ladders as route capabilities. | 14 | Large | Per-job gate and ladder handling. |
-| 12 | Mayor: candidate following and door repair. | 18 | Medium | `MayorFollowGovernorCandidateGoal`, `MayorDoorRepairGoal`. |
-| 13 | Inventory-bank visits. | Remainder of 19 | Medium | `VillagerInventoryBankGoal`. |
-| 14 | Emerald smith: processor and golem construction. | 20 | Medium | `EmeraldSmithProcessorGoal`, `EmeraldSmithGolemConstructionGoal`. |
-| 15 | Retire the legacy movement stack. | 22 | Medium | `MovementRequestManager`, `VillagerMovementRequestBinding`, the snapshot logic in `MoveToTargetSinkMixin`, `VillagerBehaviorRegistry`, and all villager goal injection. |
-| 16 | Measure and trim. | 23 | Small | Scans and replans the measurements show are wasted. |
-| 17 | Cross-version release validation. | 24 | Small | The expected-failure baseline. |
+| Step | Work | Phase | Size | What gets deleted | Packages that ride with it |
+| ---: | --- | ---: | --- | --- | --- |
+| 8 | Plague avoidance, hostile-player flee, and begging. | 21 | Small | Their `MovementRequestManager` calls. | B1. C1 is already done (see below). |
+| 9 | Farmer: crops, pumpkins, farmland repair, and bread. | 15 | Large | `HarvestQueuedCropGoal`, `ReplenishFarmlandGoal`, `HarvestPumpkinGoal`, `FarmerBreadConversionGoal`. | Before: B2 farm queue split. After: B4 repeat capture, B1. |
+| 10 | Wanted-item pursuit. | 16 | Small | Mod state that blocks vanilla pickup. | B1. |
+| 11 | Doors, fence gates, obstacles, and ladders as route capabilities. | 14 | Large | Per-job gate and ladder handling. | B1. |
+| 12 | Mayor: candidate following and door repair. | 18 | Medium | `MayorFollowGovernorCandidateGoal`, `MayorDoorRepairGoal`. | B1. |
+| 13 | Inventory-bank visits. | Remainder of 19 | Medium | `VillagerInventoryBankGoal`. | Before: B2 bank split. B1. |
+| 14 | Emerald smith: processor and golem construction. | 20 | Medium | `EmeraldSmithProcessorGoal`, `EmeraldSmithGolemConstructionGoal`. | B1. |
+| 15 | Retire the legacy movement stack. | 22 | Medium | `MovementRequestManager`, `VillagerMovementRequestBinding`, the snapshot logic in `MoveToTargetSinkMixin`, `VillagerBehaviorRegistry`, and all villager goal injection. | B1 final form and scanner enforcement. B4 repeat capture. |
+| 16 | Measure and trim. | 23 | Small | Scans and replans the measurements show are wasted. | B2 full-scan state move. |
+| 17 | Cross-version release validation. | 24 | Small | The expected-failure baseline. | Before: C2. |
 
 Notes on individual steps:
 
@@ -441,9 +443,62 @@ Notes on individual steps:
   (`malformedbankstatefailsloudly` and
   `contestedgovernormaykillbankemployeewithoutvillageopinionpenalty`); work
   package C2 fixes them so they do not block the release.
+- **Packages are part of the step they ride with.** "Do step X" means the
+  step's own work plus every package in its last column. A step's ledger lists
+  each package as its own line, and the step is not done until each line is
+  done, or is recorded as deferred with a reason. A package marked "Before"
+  is done and committed first, with existing tests passing unchanged. A package
+  marked "After" is done before the step is called closed. Specific
+  done-when lines:
+  - **B1:** the recipe file is updated in the same commit series as the step,
+    and the ledger names what changed in it. At step 15 it is the only
+    documented way to add villager behavior and the architecture scanner
+    enforces it.
+  - **B2 farm queue split (before step 9):** farm work queue and farmer dispatch
+    live outside `VillageRecord`; behavior is unchanged and tests pass unchanged.
+  - **B2 bank split (before step 13):** bank storage totals are separate from
+    bank ownership and UI data in `BankBlockEntity`; same rule.
+  - **B2 full-scan state (step 16):** full-scan state is out of `VillageRecord`.
+    The B4 baseline put the worst single stall (282 ms) in one village full
+    scan, so this is the part of B2 with measured value.
+  - **B4 repeat captures (after steps 9 and 15):** same world and settings as
+    the 2026-11-13 capture, results pasted into the B4 table, with a sentence
+    on whether path planning share (15.6% at baseline) and the full-scan spike
+    moved.
+  - **C2 (before step 17):** `malformedbankstatefailsloudly` and
+    `contestedgovernormaykillbankemployeewithoutvillageopinionpenalty` pass,
+    and the baseline no longer lists them.
 - **The vanilla safety net replaces Phase 7.** Instead of per-behavior
   baselines taken before anything moves, the mixed-village scene from step 1 is
   run at the end of every step.
+
+### Post-release steps (added 2026-11-16)
+
+These were the "after the release check" items. They are numbered so that
+"do step 18" is unambiguous. Existing step numbers are unchanged.
+
+| Step | Work | Package | Size | Done when |
+| ---: | --- | --- | --- | --- |
+| 18 | Move GameTest classes out of the shipped mod. | B5 | Small | First record whether the 36 GameTest classes are in the release jar; then move them to their own source set; the release jar no longer contains them and `runGameTestServer` still passes. Runs after step 15 so it does not collide with test work. |
+| 19 | One per-level home for session state. | B3 | Medium | `VillagerBreedingSessions` and `VillageDetectionHandler` first, then other static collections one feature at a time; each move adds a test that leaving and re-entering a world leaves nothing behind. May be pulled earlier if a step needs it. |
+| 20 | 1.21.11 port attempt. | C4 | Large | Compiles and runs the mixed-village scene on 1.21.11, with the narrowness of the version boundary recorded. Per the Stonecutter policy 1.21.11 stays Future until its first port is complete. A compile-only attempt earlier is allowed when it is cheap. |
+
+### Packages recorded as done, deferred, or excluded
+
+- **B4: done.** Captured by the developer on 2026-11-13 at `b6b3fef3`, after
+  step 4 rather than before step 1 (see
+  `docs/qa/navigation/b4-c1-performance-baseline-and-farm-journal.md`). It
+  still owes the repeat captures after steps 9 and 15.
+- **C1: done for farms** on 2026-11-13 (farm journal and retry). The bank,
+  library, and lumbermill staged placements are not journaled; that remainder
+  is a deferred follow-up, not part of any step. The "after step 8" placement
+  in the earlier interleaving is superseded because it was done earlier.
+- **C3: deliberately excluded.** It was conditional on B4 showing a bank cost.
+  The baseline shows banks under 13 ms in total, so it is not scheduled. Revisit
+  only if a later B4 capture shows bank cost.
+- **C5: deliberately not a step.** The developer's list in `Issues to fix.txt`
+  has no fixed size and no dependency on navigation. Items are taken when the
+  developer asks for them, between steps, and are not part of any step's gate.
 
 ### Phases that are no longer standalone steps
 
@@ -512,7 +567,10 @@ the earlier drafts.
 | C4 | 1.21.11 port. | Shows whether the version boundary is as narrow as intended. Do it after step 15, when there is one movement system to port. A compile-only attempt earlier would give an early signal if it is cheap. | Large |
 | C5 | The developer's own list in `Issues to fix.txt`. | Golems that do not wander, banks placed onto houses, textures, lore books, achievements, and similar items. | Varies |
 
-### Suggested interleaving
+### Suggested interleaving (superseded by the package columns above)
+
+The package columns in the two step tables and the post-release steps 18 to 20
+are the authoritative order. This list is kept for history.
 
 1. B4 baseline capture, then Stage 1 (steps 0 to 7).
 2. Step 8, then C1 (farm placement), which is independent and protects worlds.
