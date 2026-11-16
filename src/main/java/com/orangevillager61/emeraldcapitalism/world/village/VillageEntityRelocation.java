@@ -56,8 +56,16 @@ public final class VillageEntityRelocation {
     private static BlockPos findSafeDestination(ServerLevel level, Entity entity,
                                                 List<BoundingBox> buildingBoxes) {
         BlockPos origin = entity.blockPosition();
-        for (int radius = 1; radius <= MAX_HORIZONTAL_RADIUS; radius++) {
-            for (int verticalDistance = 0; verticalDistance <= MAX_VERTICAL_OFFSET; verticalDistance++) {
+        // Nearest first, counting a block of vertical travel as two blocks of horizontal travel, so an
+        // occupant steps out sideways on its own level before it is dropped or lifted several blocks.
+        int maxCost = MAX_HORIZONTAL_RADIUS + 2 * MAX_VERTICAL_OFFSET;
+        for (int cost = 1; cost <= maxCost; cost++) {
+            for (int radius = 1; radius <= MAX_HORIZONTAL_RADIUS; radius++) {
+                int remaining = cost - radius;
+                if (remaining < 0 || remaining % 2 != 0 || remaining / 2 > MAX_VERTICAL_OFFSET) {
+                    continue;
+                }
+                int verticalDistance = remaining / 2;
                 BlockPos destination = findAtVerticalOffset(level, entity, buildingBoxes,
                         origin, radius, verticalDistance);
                 if (destination != null) {
