@@ -34,8 +34,8 @@ import java.util.Set;
  * and publishes one target at a time through {@link BrainMovementIntent}; vanilla
  * {@code MoveToTargetSink} walks it.
  *
- * <p>Cover is a standable block, reachable by walking through open space and doors within a short
- * flood fill, from which a ray to the hostile's eye is blocked. If no such block exists (a walled
+ * <p>Cover is a standable block, reachable by walking through open space and doors, up and down
+ * steps and stairs, and up and down ladders within a short flood fill, from which a ray to the hostile's eye is blocked. If no such block exists (a walled
  * cell with a gap, for example) the vanilla mover runs unchanged.
  */
 public final class CoverSeekingFlee implements BehaviorControl<Villager> {
@@ -142,7 +142,7 @@ public final class CoverSeekingFlee implements BehaviorControl<Villager> {
             if (depth > bestDepth) {
                 break;
             }
-            if (depth > 0 && !seesFrom(level, threat, pos)) {
+            if (depth > 0 && isStandable(level, pos) && !seesFrom(level, threat, pos)) {
                 double away = pos.distSqr(threat.blockPosition());
                 if (depth < bestDepth || away > bestThreatDistance) {
                     best = pos;
@@ -164,6 +164,17 @@ public final class CoverSeekingFlee implements BehaviorControl<Villager> {
                     }
                 }
             }
+            // Ladders and vines are vertical moves the horizontal steps above cannot make.
+            if (isClimbable(level, pos)) {
+                for (int dy : new int[] {1, -1}) {
+                    BlockPos next = pos.above(dy);
+                    if (!seen.contains(next) && canClimbTo(level, next, dy)) {
+                        seen.add(next);
+                        queue.add(next);
+                        depths.add(depth + 1);
+                    }
+                }
+            }
         }
         return best;
     }
@@ -175,7 +186,32 @@ public final class CoverSeekingFlee implements BehaviorControl<Villager> {
                 .getType() == HitResult.Type.MISS;
     }
 
+    private static boolean isClimbable(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos).is(BlockTags.CLIMBABLE);
+    }
+
+    /** A block a villager can rest in: clear body space over a solid, dry floor. */
+    private static boolean isStandable(ServerLevel level, BlockPos pos) {
+        BlockPos floor = pos.below();
+        BlockState floorState = level.getBlockState(floor);
+        return passable(level, pos) && passable(level, pos.above())
+                && !floorState.getCollisionShape(level, floor).isEmpty()
+                && floorState.getFluidState().isEmpty();
+    }
+
+    /** One block up or down a climbable column, or off its end into open space. */
+    private static boolean canClimbTo(ServerLevel level, BlockPos to, int dy) {
+        if (isClimbable(level, to)) {
+            return true;
+        }
+        return dy > 0 ? passable(level, to) && passable(level, to.above()) : isStandable(level, to);
+    }
+
     private static boolean canStandAndEnter(ServerLevel level, BlockPos from, BlockPos to, int dy) {
+        // A ladder cell can be entered sideways, and has no floor of its own.
+        if (isClimbable(level, to) && (passable(level, to.above()) || isClimbable(level, to.above()))) {
+            return true;
+        }
         if (!passable(level, to) || !passable(level, to.above())) {
             return false;
         }
