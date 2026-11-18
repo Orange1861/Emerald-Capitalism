@@ -60,8 +60,8 @@ yet.** The first run is expected to show compile errors to fix.
 | P17.4 | Bounded backoff instead of repeated pathing to an unavailable furnace. | BLOCKED (ask every 100 ticks, trip retry cap; not run) |
 | P17.5 | Named interruption, invalid-tree, inventory-full, and production-blocked outcomes. | BLOCKED (written, not run) |
 | P17.6 | Natural lumberjack journey with no hand-ticked goal. | PASS (automated, 1.21.1) |
-| P17.7 | Cases: fewer furnaces than lumberjacks, none, removed while claimed, contention, cross-village. | BLOCKED (core tests only; game cases not written) |
-| P17.8 | Panic, sleep, invalid tree, unreachable upper logs, two lumberjacks, save/reload, unload. | BLOCKED (two lumberjacks and tall trees written; the rest not written) |
+| P17.7 | Cases: fewer furnaces than lumberjacks, none, removed while claimed, contention, cross-village. | BLOCKED (game tests written 2026-11-18, not yet run: removed furnace, two lumberjacks on one furnace, other village's furnace; no-furnace case passes) |
+| P17.8 | Panic, sleep, invalid tree, unreachable upper logs, two lumberjacks, save/reload, unload. | BLOCKED (panic, rest, raid, unload, profession change and restoring a saved furnace marker written 2026-11-18, not yet run; two lumberjacks and tall trees pass; sleep, trade and invalid tree not written) |
 | P17.9 | Amendment: no player furnace ever loaded or emptied; quota cap; no-furnace village delivers every log; sapling ownership on the village; no felling inside another village. | PARTIAL (first three written; sapling ownership and the village rule not done) |
 | M6.1 | Developer observes `lumberjack_small_tree`, `lumberjack_tall_tree`, the panic reset, and `lumberjack_shared_furnace`. | BLOCKED (scenes not built; waiting for the developer) |
 
