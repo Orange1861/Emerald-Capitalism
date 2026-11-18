@@ -263,8 +263,12 @@ public final class LumberjackGameTests {
                 "the lumberjack's work package must hold exactly one work behavior");
         helper.assertValueEqual(countNamed(lumberjack, "RunOne"), 1,
                 "the lumberjack must keep only vanilla's look-around gate");
-        helper.assertValueEqual(countNamed(lumberjack, "SetWalkTargetFromBlockMemory"), 0,
+        // Vanilla's job-site walker is the package's only priority-2 entry.
+        helper.assertValueEqual(countAtPriority(lumberjack, 2), 0,
                 "vanilla's pull back to the job site must not run beside the lumberjack's work");
+        helper.assertValueEqual(countAtPriority(VillagerGoalPackages.getWorkPackage(
+                VillagerProfession.FARMER, 0.5F), 2), 1,
+                "control: a farmer's work package keeps vanilla's job-site walker");
         for (VillagerProfession other : List.of(VillagerProfession.FARMER, VillagerProfession.LIBRARIAN,
                 VillagerProfession.NONE)) {
             List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> work =
@@ -398,6 +402,11 @@ public final class LumberjackGameTests {
 
     private static int count(List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> entries, Class<?> type) {
         return (int) entries.stream().filter(entry -> entry.getSecond().getClass() == type).count();
+    }
+
+    private static int countAtPriority(List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> entries,
+                                       int priority) {
+        return (int) entries.stream().filter(entry -> entry.getFirst() == priority).count();
     }
 
     private static int countNamed(List<Pair<Integer, ? extends BehaviorControl<? super Villager>>> entries,

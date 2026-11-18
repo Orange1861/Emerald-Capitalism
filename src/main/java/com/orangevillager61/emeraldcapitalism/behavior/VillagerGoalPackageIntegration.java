@@ -8,7 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.behavior.RunOne;
-import net.minecraft.world.entity.ai.behavior.SetWalkTargetFromBlockMemory;
+import net.minecraft.world.entity.ai.behavior.OneShot;
 import net.minecraft.world.entity.ai.behavior.WorkAtPoi;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -36,6 +36,8 @@ public final class VillagerGoalPackageIntegration {
     private static final int VANILLA_WORK_PRIORITY = 5;
     /** Vanilla's panic package puts both walk-away movers at this priority. */
     private static final int PANIC_MOVER_PRIORITY = 1;
+    /** Vanilla's work package puts {@code SetWalkTargetFromBlockMemory(JOB_SITE)} at this priority. */
+    private static final int VANILLA_JOB_SITE_WALKER_PRIORITY = 2;
 
     private VillagerGoalPackageIntegration() {
     }
@@ -97,7 +99,10 @@ public final class VillagerGoalPackageIntegration {
         } else {
             // The lumberjack works away from its job site, so vanilla's pull back to the job
             // site goes too: this behavior walks back itself when it has nothing else to do.
-            modified.removeIf(entry -> entry.getSecond() instanceof SetWalkTargetFromBlockMemory);
+            // Vanilla builds that behavior as an anonymous OneShot, so it is identified by its place
+            // in the package: the only priority-2 OneShot ahead of this composition's own entries.
+            modified.removeIf(entry -> entry.getFirst() == VANILLA_JOB_SITE_WALKER_PRIORITY
+                    && entry.getSecond() instanceof OneShot);
             addIfMissing(modified, LumberjackWorkBehavior.class,
                     LumberjackWorkBehavior.PRIORITY, LumberjackWorkBehavior::new);
         }

@@ -173,7 +173,8 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
         long gameTime = level.getGameTime();
 
         // A saved furnace becomes a claim again; if the claim is gone the marker is cleared.
-        if (hasTrackedProduction(villager) && restoreTrackedClaim(level, villager)) {
+        if (hasTrackedProduction(villager) && currentGrant(level, villager) == null
+                && restoreTrackedClaim(level, villager)) {
             return startProductionTrip(level, villager, Trip.COLLECT);
         }
         if (collectionDue(level, villager, gameTime)) {
@@ -995,9 +996,6 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
 
     /** The saved furnace becomes a claim again; if the claim is gone the saved marker is cleared. */
     private boolean restoreTrackedClaim(ServerLevel level, Villager villager) {
-        if (currentGrant(level, villager) != null) {
-            return true;
-        }
         GlobalPos tracked = villager.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
                 .getPendingCharcoalFurnace().orElse(null);
         if (tracked == null || !tracked.dimension().equals(level.dimension())) {
