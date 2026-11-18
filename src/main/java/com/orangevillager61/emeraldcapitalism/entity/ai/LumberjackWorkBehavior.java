@@ -1,5 +1,6 @@
 package com.orangevillager61.emeraldcapitalism.entity.ai;
 
+import com.orangevillager61.emeraldcapitalism.EmeraldCapitalism;
 import com.orangevillager61.emeraldcapitalism.attachments.EmeraldCapitalismAttachments;
 import com.orangevillager61.emeraldcapitalism.attachments.LumberjackProductionAttachment;
 import com.orangevillager61.emeraldcapitalism.behavior.BrainMovementIntent;
@@ -240,6 +241,7 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
 
     @Override
     protected void start(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
+        debug(villager, gameTime, "START");
         outcome = Outcome.RUNNING;
         navigationWatchdog.reset();
         navigationFailures = 0;
@@ -271,6 +273,7 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
 
     @Override
     protected void stop(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
+        debug(villager, gameTime, "STOP");
         intent.release(villager);
         clearBreakingProgress(level, villager);
         releaseTreeReservation(level, villager);
@@ -300,6 +303,9 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
 
     @Override
     protected void tick(@Nonnull ServerLevel level, @Nonnull Villager villager, long gameTime) {
+        if (gameTime % 100L == 0L) {
+            debug(villager, gameTime, "TICK");
+        }
         if (waitsForAnotherMover(villager)) {
             return;
         }
@@ -395,6 +401,7 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
             case MOVING -> {
             }
             case UNREACHABLE, TIMED_OUT -> {
+                debug(villager, gameTime, "JOURNEY_FAILED");
                 intent.release(villager);
                 navigationTarget = null;
                 navigationWatchdog.reset();
@@ -467,6 +474,21 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
         nextBankLookupTick = gameTime + BANK_LOOKUP_INTERVAL_TICKS;
         cachedVillageBank = BankEmployeeLookup.findContainingVillageBank(level, villager);
         return cachedVillageBank;
+    }
+
+    /** Debug-level state line for diagnosing a stalled lumberjack; never logs at higher levels. */
+    private void debug(Villager villager, long gameTime, String label) {
+        if (!EmeraldCapitalism.LOGGER.isDebugEnabled()) {
+            return;
+        }
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][Lumberjack] {} villager={} pos={} tick={} outcome={} trip={} returning={} tree={} "
+                        + "logIndex={} walkTarget={} ownsWalkTarget={} intentDestination={}",
+                label, villager.getUUID(), villager.blockPosition(), gameTime, outcome, trip,
+                returningToJobSite, tree == null ? null : tree.base(), nextLogIndex,
+                villager.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
+                        .map(target -> target.getTarget().currentBlockPosition()).orElse(null),
+                intent.ownsWalkTarget(villager), intent.destination());
     }
 
     private void ensureScanner(Villager villager) {
@@ -567,6 +589,8 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
                 continue;
             }
             tree = candidate;
+            EmeraldCapitalism.LOGGER.debug("[ECAP][Lumberjack] TREE_SELECTED villager={} base={} logs={} approach={}",
+                    villager.getUUID(), candidate.base(), candidate.logs().size(), approach);
             navigationTarget = approach;
             reservedWorkPosition = approach.immutable();
             nextLogIndex = 0;
