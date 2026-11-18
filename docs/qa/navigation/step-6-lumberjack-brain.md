@@ -54,12 +54,12 @@ yet.** The first run is expected to show compile errors to fix.
 
 | ID | Requirement (Phase 17) | Status |
 | --- | --- | --- |
-| P17.1 | Job-site travel, tree travel, consecutive log work, drops, furnace travel, replanting as stages of one Brain-owned task. | BLOCKED (written, not compiled or run) |
-| P17.2 | The selected tree survives arrival at one log. | BLOCKED (covered by the natural felling tests, not run) |
-| P17.3 | Furnaces are a village-scoped shared pool, never derived from the lumberjack count. | BLOCKED (pool is step 5 and passes; wiring not run) |
+| P17.1 | Job-site travel, tree travel, consecutive log work, drops, furnace travel, replanting as stages of one Brain-owned task. | PASS (automated, 1.21.1) |
+| P17.2 | The selected tree survives arrival at one log. | PASS (automated, 1.21.1: felling, tall, ten-block, two-lumberjack tests) |
+| P17.3 | Furnaces are a village-scoped shared pool, never derived from the lumberjack count. | PASS (automated, 1.21.1: load and collect through the pool) |
 | P17.4 | Bounded backoff instead of repeated pathing to an unavailable furnace. | BLOCKED (ask every 100 ticks, trip retry cap; not run) |
 | P17.5 | Named interruption, invalid-tree, inventory-full, and production-blocked outcomes. | BLOCKED (written, not run) |
-| P17.6 | Natural lumberjack journey with no hand-ticked goal. | BLOCKED (`LumberjackGameTests`, not run) |
+| P17.6 | Natural lumberjack journey with no hand-ticked goal. | PASS (automated, 1.21.1) |
 | P17.7 | Cases: fewer furnaces than lumberjacks, none, removed while claimed, contention, cross-village. | BLOCKED (core tests only; game cases not written) |
 | P17.8 | Panic, sleep, invalid tree, unreachable upper logs, two lumberjacks, save/reload, unload. | BLOCKED (two lumberjacks and tall trees written; the rest not written) |
 | P17.9 | Amendment: no player furnace ever loaded or emptied; quota cap; no-furnace village delivers every log; sapling ownership on the village; no felling inside another village. | PARTIAL (first three written; sapling ownership and the village rule not done) |
@@ -83,3 +83,7 @@ Send the compile errors back. Then `.\gradlew.bat runGameTestServer --no-daemon 
    the furnace, go back to cutting, and return to collect charcoal. A furnace you filled yourself must
    never be loaded or emptied.
 3. Panic: spawn a pillager near it. It should run; afterwards it goes back to its tree.
+
+## Recorded results (2026-11-18, developer run, 1.21.1)
+
+Compile passed. The first game-test run failed every tree-cutting lumberjack test; the debug lines showed vanilla's job-site walker still running (it is an anonymous `OneShot`, so removing it by class matched nothing and the package test passed vacuously) and a saved-furnace restore restarting the collect trip every other tick. Both were fixed (the walker is now removed by its priority-2 place in the package; the restore runs only when no claim exists). After that all lumberjack tests pass: felling and replanting, tall and ten-block trees, two lumberjacks, trees left alone, a shared furnace loaded and collected, a foreign furnace untouched, a no-furnace village owing no charcoal, and the package and Brain-only guards. The run showed 6 failures: the five baseline ones and `panicstopsthebankerwalkingtoworkandworkresumes`, a step 4 banker test that also failed once on 1.21.4 earlier. It is not in lumberjack code and looks flaky; it is not yet diagnosed.
