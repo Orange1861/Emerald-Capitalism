@@ -1,4 +1,0 @@
-﻿Command: .\gradlew.bat runGameTestServer --no-daemon --no-configuration-cache --console=plain
-Finished: 2026-11-18 20:05:28
-Commit: 3864cb16
-

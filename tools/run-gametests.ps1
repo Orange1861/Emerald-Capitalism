@@ -18,6 +18,8 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+# Always work from the repository root, wherever the script is started from.
+Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 $env:GRADLE_OPTS = '-Djava.net.preferIPv4Stack=true'
 
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
