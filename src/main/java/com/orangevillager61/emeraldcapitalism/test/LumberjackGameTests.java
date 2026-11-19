@@ -301,12 +301,15 @@ public final class LumberjackGameTests {
                                     ? "the lumberjack left a walk target in the " + interrupting + " activity"
                                     : null, () -> {
                                 lumberjack.getBrain().setActiveActivityIfPossible(Activity.WORK);
-                                // The AI is off, so nothing walks to consume a walk target another
-                                // activity left behind (a hiding place, a flee direction).
-                                if (!ownsWalkTarget(lumberjack)) {
-                                    lumberjack.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-                                }
-                                driveUntil(helper, lumberjack, 400, () -> running(lumberjack),
+                                // The Brain leaves a behavior of the old activity running, and with the AI
+                                // off nothing consumes the walk target it keeps writing (a hiding
+                                // place, a flee direction), so it is cleared on every tick here.
+                                driveUntil(helper, lumberjack, 400, () -> {
+                                    if (!ownsWalkTarget(lumberjack)) {
+                                        lumberjack.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+                                    }
+                                    return running(lumberjack);
+                                },
                                         "the lumberjack's work did not resume after " + interrupting,
                                         helper::succeed);
                             }));
@@ -413,8 +416,19 @@ public final class LumberjackGameTests {
                     "two lumberjacks held claims on the one furnace at the same time");
         });
         helper.succeedWhen(() -> {
+            FurnacePool pool = village.record().getFurnacePool(helper.getLevel().getGameTime());
             helper.assertTrue(count(first, Items.CHARCOAL) >= 8 && count(second, Items.CHARCOAL) >= 8,
-                    "both lumberjacks should eventually collect their batch's charcoal");
+                    "both lumberjacks should eventually collect their batch's charcoal: first charcoal="
+                            + count(first, Items.CHARCOAL) + " logs=" + count(first, Items.OAK_LOG)
+                            + " claim=" + pool.claimOf(first.getUUID()).isPresent()
+                            + ", second charcoal=" + count(second, Items.CHARCOAL)
+                            + " logs=" + count(second, Items.OAK_LOG)
+                            + " claim=" + pool.claimOf(second.getUUID()).isPresent()
+                            + ", queue=" + pool.queueOrder().size() + " furnaces=" + pool.furnaces().size()
+                            + ", firstQuota=" + first.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                            .getCharcoalQuota()
+                            + " secondQuota=" + second.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)
+                            .getCharcoalQuota());
             helper.assertValueEqual(count(first, Items.OAK_LOG) + count(second, Items.OAK_LOG), 0,
                     "a batch's logs were left in an inventory");
         });
