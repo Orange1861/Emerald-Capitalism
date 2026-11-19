@@ -49,7 +49,12 @@ import java.util.function.Supplier;
 @PrefixGameTestTemplate(false)
 public final class LumberjackGameTests {
 
+    /**
+     * Tests of one batch run side by side in neighbouring cells, and a lumberjack searches 24
+     * blocks, so a furnace test must not share a batch with tests that build trees.
+     */
     private static final String BATCH = "ecap_lumberjack_brain";
+    private static final String PRODUCTION_BATCH = "ecap_lumberjack_production";
     private static final long WORK_DAY_TIME = 2_500L;
     private static final BlockPos SAWMILL = new BlockPos(15, 1, 1);
     private static final BlockPos TREE_BASE = new BlockPos(15, 1, 18);
@@ -188,7 +193,7 @@ public final class LumberjackGameTests {
 
     // ------------------------------------------------------------------ the shared furnace
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 3_200)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 3_200)
     public static void lumberjackLoadsASharedFurnaceAndCollectsItsCharcoal(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -216,7 +221,7 @@ public final class LumberjackGameTests {
         });
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 1_500)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 1_500)
     public static void aFurnaceHoldingSomeoneElsesItemsIsNeverLoadedOrEmptied(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -304,19 +309,14 @@ public final class LumberjackGameTests {
                                 // The Brain leaves a behavior of the old activity running, and with the AI
                                 // off nothing consumes the walk target it keeps writing (a hiding
                                 // place, a flee direction), so it is cleared on every tick here.
-                                driveUntil(helper, lumberjack, 400, () -> {
-                                    if (!ownsWalkTarget(lumberjack)) {
-                                        lumberjack.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-                                    }
-                                    return running(lumberjack);
-                                },
+                                driveResuming(helper, lumberjack, 400,
                                         "the lumberjack's work did not resume after " + interrupting,
                                         helper::succeed);
                             }));
                 });
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 800)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 800)
     public static void aLumberjackThatLeavesHandsItsFurnaceClaimToTheVillage(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -338,7 +338,7 @@ public final class LumberjackGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 800)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 800)
     public static void aProfessionChangeHandsTheFurnaceClaimToTheVillage(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -358,7 +358,7 @@ public final class LumberjackGameTests {
 
     // ------------------------------------------------------------------ furnace edge cases
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 1_600)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 1_600)
     public static void aFurnaceRemovedWhileClaimedDropsTheClaimAndTheMarker(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -395,7 +395,7 @@ public final class LumberjackGameTests {
         });
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 6_000)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 6_000)
     public static void twoLumberjacksShareOneFurnaceOneAfterTheOther(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -434,7 +434,7 @@ public final class LumberjackGameTests {
         });
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 1_400)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 1_400)
     public static void aLumberjackNeverUsesAnotherVillagesFurnace(GameTestHelper helper) {
         prepareWork(helper);
         ServerLevel level = helper.getLevel();
@@ -471,7 +471,7 @@ public final class LumberjackGameTests {
     }
 
     /** A saved furnace marker becomes a claim again, as after a save and reload. */
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 900)
+    @GameTest(template = "empty_20x3x20", batch = PRODUCTION_BATCH, timeoutTicks = 900)
     public static void aSavedFurnaceMarkerIsRestoredAsAClaimAndItsCharcoalCollected(GameTestHelper helper) {
         prepareWork(helper);
         Village village = village(helper);
@@ -651,6 +651,29 @@ public final class LumberjackGameTests {
             return;
         }
         helper.runAfterDelay(1, () -> driveUntil(helper, villager, remaining - 1, condition, failure, next));
+    }
+
+    /**
+     * Resumes work after an interruption. The Brain leaves a behavior of the old activity running and
+     * it keeps writing a walk target that nothing consumes while the AI is off. Work can only start
+     * while no walk target exists, and the start attempt comes before those writes, so the target is
+     * cleared before each Brain tick.
+     */
+    private static void driveResuming(GameTestHelper helper, Villager villager, int remaining,
+                                      String failure, Runnable next) {
+        if (!ownsWalkTarget(villager)) {
+            villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        }
+        villager.getBrain().tick(helper.getLevel(), villager);
+        if (running(villager)) {
+            next.run();
+            return;
+        }
+        if (remaining <= 0) {
+            helper.fail(failure);
+            return;
+        }
+        helper.runAfterDelay(1, () -> driveResuming(helper, villager, remaining - 1, failure, next));
     }
 
     /** Ticks the Brain for {@code ticks} game ticks; a non-null violation fails the test. */

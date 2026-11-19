@@ -27,10 +27,21 @@ $logPath = Join-Path $LogDirectory "$stamp-$label.log"
 $summaryPath = Join-Path $LogDirectory "$stamp-$label.summary.txt"
 
 Write-Host "Logging to $logPath"
-& .\gradlew.bat @Task --no-daemon --no-configuration-cache --console=plain 2>&1 |
-    Tee-Object -FilePath $logPath
+# Windows PowerShell 5.1's Tee-Object writes UTF-16; write UTF-8 so the log is greppable.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$writer = New-Object System.IO.StreamWriter((Join-Path (Get-Location) $logPath), $false, $utf8NoBom)
+try {
+    & .\gradlew.bat @Task --no-daemon --no-configuration-cache --console=plain 2>&1 |
+        ForEach-Object {
+            $line = "$_"
+            Write-Host $line
+            $writer.WriteLine($line)
+        }
+} finally {
+    $writer.Dispose()
+}
 
-$log = Get-Content -LiteralPath $logPath
+$log = Get-Content -LiteralPath $logPath -Encoding utf8
 $summary = @()
 $summary += "Command: .\gradlew.bat $($Task -join ' ') --no-daemon --no-configuration-cache --console=plain"
 $summary += "Finished: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
