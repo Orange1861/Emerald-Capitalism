@@ -269,20 +269,23 @@ public final class LumberjackGameTests {
 
     // ------------------------------------------------------------------ interruptions
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_panic", timeoutTicks = 1_200)
     public static void panicStopsTheLumberjacksWorkAndWorkResumes(GameTestHelper helper) {
         interruptionTest(helper, Activity.PANIC);
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_rest", timeoutTicks = 1_200)
     public static void restStopsTheLumberjacksWorkAndWorkResumes(GameTestHelper helper) {
         interruptionTest(helper, Activity.REST);
     }
 
-    @GameTest(template = "empty_20x3x20", batch = BATCH, timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_raid", timeoutTicks = 1_200)
     public static void raidStopsTheLumberjacksWorkAndWorkResumes(GameTestHelper helper) {
         interruptionTest(helper, Activity.RAID);
     }
+
+    // Each interruption test has its own batch: a paused lumberjack holds no tree reservation, and
+    // a neighbouring test's lumberjack in the same batch could otherwise fell the tree it will resume.
 
     /**
      * Brain-level component test: the villager's AI is off and the test ticks its Brain once per
