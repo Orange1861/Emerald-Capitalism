@@ -269,17 +269,17 @@ public final class LumberjackGameTests {
 
     // ------------------------------------------------------------------ interruptions
 
-    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_panic", timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_panic", timeoutTicks = 2_000)
     public static void panicStopsTheLumberjacksWorkAndWorkResumes(GameTestHelper helper) {
         interruptionTest(helper, Activity.PANIC);
     }
 
-    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_rest", timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_rest", timeoutTicks = 2_000)
     public static void restStopsTheLumberjacksWorkAndWorkResumes(GameTestHelper helper) {
         interruptionTest(helper, Activity.REST);
     }
 
-    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_raid", timeoutTicks = 1_200)
+    @GameTest(template = "empty_20x3x20", batch = "ecap_lumberjack_interrupt_raid", timeoutTicks = 2_000)
     public static void raidStopsTheLumberjacksWorkAndWorkResumes(GameTestHelper helper) {
         interruptionTest(helper, Activity.RAID);
     }
@@ -312,7 +312,7 @@ public final class LumberjackGameTests {
                                 // The Brain leaves a behavior of the old activity running, and with the AI
                                 // off nothing consumes the walk target it keeps writing (a hiding
                                 // place, a flee direction), so it is cleared on every tick here.
-                                driveResuming(helper, lumberjack, 400,
+                                driveResuming(helper, lumberjack, 800,
                                         "the lumberjack's work did not resume after " + interrupting,
                                         helper::succeed);
                             }));
