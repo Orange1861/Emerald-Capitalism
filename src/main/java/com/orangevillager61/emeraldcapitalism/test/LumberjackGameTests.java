@@ -122,8 +122,10 @@ public final class LumberjackGameTests {
                     "the tree was not felled and replanted");
             helper.assertValueEqual(count(first, Items.OAK_LOG) + count(second, Items.OAK_LOG), 3,
                     "the two lumberjacks did not collect exactly the tree's three logs between them");
-            helper.assertValueEqual(count(first, Items.OAK_SAPLING) + count(second, Items.OAK_SAPLING), 1,
-                    "exactly one of the two saplings should have been planted");
+            // Leaves drop saplings at random, so the count of saplings left is not fixed; the one
+            // planted base block above proves exactly one lumberjack replanted.
+            helper.assertTrue(count(first, Items.OAK_SAPLING) + count(second, Items.OAK_SAPLING) >= 1,
+                    "a sapling should have been used on the tree base");
         });
     }
 
@@ -299,6 +301,11 @@ public final class LumberjackGameTests {
                                     ? "the lumberjack left a walk target in the " + interrupting + " activity"
                                     : null, () -> {
                                 lumberjack.getBrain().setActiveActivityIfPossible(Activity.WORK);
+                                // The AI is off, so nothing walks to consume a walk target another
+                                // activity left behind (a hiding place, a flee direction).
+                                if (!ownsWalkTarget(lumberjack)) {
+                                    lumberjack.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+                                }
                                 driveUntil(helper, lumberjack, 400, () -> running(lumberjack),
                                         "the lumberjack's work did not resume after " + interrupting,
                                         helper::succeed);
@@ -362,6 +369,9 @@ public final class LumberjackGameTests {
         boolean[] removed = {false};
         helper.succeedWhen(() -> {
             FurnacePool pool = village.record().getFurnacePool(helper.getLevel().getGameTime());
+            // The registry manager reads one village's chunks at a time, many tests deep; this
+            // calls the same throttled production reconciliation directly.
+            village.record().reconcileFurnacePool(helper.getLevel());
             if (!removed[0]) {
                 if (pool.claimOf(lumberjack.getUUID()).isPresent()
                         && lumberjack.getData(EmeraldCapitalismAttachments.LUMBERJACK_PRODUCTION)

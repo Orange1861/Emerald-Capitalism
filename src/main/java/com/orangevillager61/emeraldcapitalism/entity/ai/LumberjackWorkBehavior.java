@@ -1036,7 +1036,11 @@ public final class LumberjackWorkBehavior extends Behavior<Villager> {
         if (pool == null || pool.furnaces().isEmpty() || !canStartProduction(villager)) {
             return false;
         }
-        if (pool.request(villager.getUUID(), gameTime).isPresent()) {
+        boolean granted = pool.request(villager.getUUID(), gameTime).isPresent();
+        EmeraldCapitalism.LOGGER.debug(
+                "[ECAP][Lumberjack] ASK villager={} tick={} granted={} furnaces={} queue={}",
+                villager.getUUID(), gameTime, granted, pool.furnaces().size(), pool.queueOrder().size());
+        if (granted) {
             return true;
         }
         lastWaitingForFurnaceTick = gameTime;
